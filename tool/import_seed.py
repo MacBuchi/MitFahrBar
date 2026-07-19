@@ -82,22 +82,27 @@ def main():
     id_by_name = {row["name"]: row["id"] for row in created}
     print(f"{len(created)} Personen angelegt/aktualisiert.")
 
+    # WICHTIG: Zuordnung über die Einfüge-Reihenfolge, NICHT über das Datum –
+    # pro Tag können mehrere Fahrten existieren (Zwei-Auto-Tage), Datum ist
+    # also nicht eindeutig. PostgREST liefert die eingefügten Zeilen in der
+    # gesendeten Reihenfolge zurück.
     created_trips = request(
         "POST",
         "trips",
         [{"trip_date": t["date"]} for t in trips],
         prefer="return=representation",
     )
-    trip_id_by_date = {row["trip_date"]: row["id"] for row in created_trips}
+    if len(created_trips) != len(trips):
+        sys.exit(f"Abbruch: {len(created_trips)} Fahrten zurückgemeldet, erwartet {len(trips)}.")
     print(f"{len(created_trips)} Fahrten angelegt.")
 
     participations = [
         {
-            "trip_id": trip_id_by_date[t["date"]],
+            "trip_id": created_trips[i]["id"],
             "person_id": id_by_name[name],
             "status": STATUS_TO_DB[status],
         }
-        for t in trips
+        for i, t in enumerate(trips)
         for name, status in t["participations"].items()
     ]
     for start in range(0, len(participations), 500):
