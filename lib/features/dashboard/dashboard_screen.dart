@@ -19,11 +19,18 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ranking = ref.watch(activeRankingProvider);
     final persons = ref.watch(personsProvider);
+    final group = ref.watch(myGroupProvider).value;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fahrgemeinschaft'),
+        title: Text(group?.name ?? 'Fahrgemeinschaft'),
         actions: [
+          if (group?.isAdmin ?? false)
+            IconButton(
+              tooltip: 'Gruppen-Freigaben',
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              onPressed: () => context.push('/admin'),
+            ),
           if (SupabaseConfig.isConfigured)
             IconButton(
               tooltip: 'Abmelden',

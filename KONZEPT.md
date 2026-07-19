@@ -149,13 +149,15 @@ Pro Person: gefahren / mitgefahren / 1-way / mitgenommen / Quote / Punkte / km /
 
 Einmaliges Dart-CLI-Skript (`tool/import_xlsx.dart`): liest die 416 Fahrten + 13 Personen + Fahrzeugdaten aus `Fahrgemeinschaft.xlsx` und schreibt sie nach Supabase. Danach Abgleich: berechnete Punkte/Quoten der App müssen exakt den Excel-Werten entsprechen (z. B. Marcus −5,5, Thorsten −2) — das ist zugleich der Abnahmetest für die Berechnungslogik. Bekannter Datenfehler (Ausreißer-Datum 19.11.2027) wird beim Import bereinigt/nachgefragt.
 
-## 7. Auth: ein Gruppenlogin
+## 7. Auth & Mandanten: mehrere Gruppen, ein Login je Gruppe
 
-- **Ein gemeinsamer Supabase-Account für die ganze Gruppe** (E-Mail + Passwort, wird einmal in der Gruppe geteilt). Keine Einzel-Accounts, keine Invites, keine Profil-Trigger.
-- Personen sind reine Datensätze, entkoppelt vom Login — jeder kann für jeden eintragen (wie heute beim Excel).
-- RLS bleibt aktiv: nur der eingeloggte Gruppen-Account liest/schreibt; anonym ist nichts sichtbar.
-- Session bleibt in der PWA bestehen → Login praktisch nur einmal pro Gerät.
-- Falls später doch Einzel-Accounts gewünscht sind (z. B. „wer hat das eingetragen?"), ist das ein additiver Umbau ohne Datenmigration.
+- **Multi-Tenant:** Mehrere Fahrgemeinschaften teilen sich eine Instanz. **Eine Gruppe = ein Supabase-Login** (gemeinsames Passwort, in der jeweiligen Gruppe geteilt). Kein Account pro Person.
+- **Login = Gruppenname + Passwort.** Technisch mappt die App den Handle auf eine interne, nie sichtbare E-Mail (`handle@grp.local`, siehe `core/group_login.dart`) — Supabase braucht formal eine E-Mail, sie muss aber weder echt noch persönlich sein.
+- **Registrierung mit Freigabe:** Über „Gruppe anfragen" legt jemand Name/Handle + Passwort an; der Login entsteht sofort, die Gruppe aber als **`pending`**. Bis eine **Admin-Gruppe** sie auf `active` schaltet, sieht der Zugang nur „Warte auf Freigabe" und keine Daten. Die Freigabe ist zugleich der Spam-Schutz (öffentlich anfragbar, aber nichts ohne Freigabe).
+- **Strikte Trennung (RLS):** Jede Zeile trägt `group_id = auth.uid()`; man sieht nur die eigene Gruppe und nur wenn `active`. Fremde Gruppen sind unsichtbar — serverseitig erzwungen, nicht nur in der UI.
+- **Admin-Screen in der App:** Admin-Gruppen sehen offene Anfragen und geben frei/lehnen ab.
+- Personen sind reine Datensätze innerhalb einer Gruppe — jeder in der Gruppe kann für jeden eintragen (wie beim Excel).
+- **Offen / nächster Ausbauschritt:** Bei öffentlicher Nutzung zusätzlicher Missbrauchsschutz (Bot-Schutz/Turnstile am Signup, Rate-Limits).
 
 ## 8. Phasenplan
 

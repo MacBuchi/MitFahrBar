@@ -1,12 +1,23 @@
-/// auth_repository.dart – Gruppenlogin (ein gemeinsamer Account).
+/// auth_repository.dart – Gruppen-Login (ein Account je Gruppe).
 library;
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/group_login.dart';
+
 abstract class AuthRepository {
   bool get loggedIn;
   Stream<dynamic> get onAuthStateChange;
-  Future<void> signIn(String email, String password);
+  Future<void> signIn(String handle, String password);
+
+  /// Neue Gruppe anfragen: legt den Login an; die zugehörige Gruppe entsteht
+  /// per DB-Trigger im Status 'pending' und muss freigegeben werden.
+  Future<void> requestGroup({
+    required String handle,
+    required String password,
+    required String groupName,
+  });
+
   Future<void> signOut();
 }
 
@@ -22,8 +33,23 @@ class SupabaseAuthRepository implements AuthRepository {
   Stream<dynamic> get onAuthStateChange => _client.auth.onAuthStateChange;
 
   @override
-  Future<void> signIn(String email, String password) =>
-      _client.auth.signInWithPassword(email: email, password: password);
+  Future<void> signIn(String handle, String password) =>
+      _client.auth.signInWithPassword(
+        email: handleToEmail(handle),
+        password: password,
+      );
+
+  @override
+  Future<void> requestGroup({
+    required String handle,
+    required String password,
+    required String groupName,
+  }) =>
+      _client.auth.signUp(
+        email: handleToEmail(handle),
+        password: password,
+        data: {'group_name': groupName},
+      );
 
   @override
   Future<void> signOut() => _client.auth.signOut();
@@ -38,7 +64,14 @@ class AlwaysLoggedInAuthRepository implements AuthRepository {
   Stream<dynamic> get onAuthStateChange => const Stream.empty();
 
   @override
-  Future<void> signIn(String email, String password) async {}
+  Future<void> signIn(String handle, String password) async {}
+
+  @override
+  Future<void> requestGroup({
+    required String handle,
+    required String password,
+    required String groupName,
+  }) async {}
 
   @override
   Future<void> signOut() async {}

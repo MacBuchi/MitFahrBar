@@ -7,11 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/fairness.dart';
 import '../core/supabase_config.dart';
 import '../models/app_settings.dart';
+import '../models/group.dart';
 import '../models/person.dart';
 import '../models/trip.dart';
 import 'auth_repository.dart';
 import 'carpool_repository.dart';
 import 'fake_repository.dart';
+import 'group_repository.dart';
 import 'supabase_repository.dart';
 
 final supabaseClientProvider =
@@ -27,9 +29,26 @@ final carpoolRepositoryProvider = Provider<CarpoolRepository>((ref) =>
         ? SupabaseCarpoolRepository(ref.watch(supabaseClientProvider))
         : demoRepository());
 
+final groupRepositoryProvider = Provider<GroupRepository>((ref) =>
+    SupabaseConfig.isConfigured
+        ? SupabaseGroupRepository(ref.watch(supabaseClientProvider))
+        : DemoGroupRepository());
+
 /// Auth-Zustand als Stream — steuert Router-Redirect und Daten-Reload.
 final authStateProvider = StreamProvider<dynamic>(
     (ref) => ref.watch(authRepositoryProvider).onAuthStateChange);
+
+/// Die Gruppe des aktuellen Logins (Status/Admin) — gate für die App.
+final myGroupProvider = FutureProvider<Group?>((ref) {
+  ref.watch(authStateProvider);
+  return ref.watch(groupRepositoryProvider).myGroup();
+});
+
+/// Offene Gruppen-Anfragen (für den Admin-Screen).
+final pendingGroupsProvider = FutureProvider<List<Group>>((ref) {
+  ref.watch(authStateProvider);
+  return ref.watch(groupRepositoryProvider).pendingGroups();
+});
 
 final personsProvider = FutureProvider<List<Person>>((ref) {
   ref.watch(authStateProvider);

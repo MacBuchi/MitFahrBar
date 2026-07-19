@@ -148,9 +148,13 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
 
   @override
   Future<void> saveSettings(AppSettings settings) async {
-    await _client.from('settings').upsert([
-      for (final e in settings.toMap().entries)
-        {'key': e.key, 'value': e.value},
-    ]);
+    final groupId = _client.auth.currentUser?.id;
+    await _client.from('settings').upsert(
+      [
+        for (final e in settings.toMap().entries)
+          {'group_id': groupId, 'key': e.key, 'value': e.value},
+      ],
+      onConflict: 'group_id,key',
+    );
   }
 }

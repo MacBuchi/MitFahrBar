@@ -18,6 +18,12 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
   `Theme.of(context)` verwenden.
 - Sicherheit serverseitig (RLS), Auth-Guard im Router (`redirect` +
   `refreshListenable`), nicht nur in der UI.
+- **Multi-Tenant:** Eine Gruppe = ein Login (`group_id = auth.uid()`). Alle
+  Datentabellen tragen `group_id` (Default `auth.uid()`), RLS erzwingt
+  `group_id = auth.uid() AND my_group_active()`. Neue Gruppen sind `pending`
+  bis eine Admin-Gruppe sie freigibt. Login = Handle → `handle@grp.local`
+  (`core/group_login.dart`). Neue Datentabellen brauchen zwingend `group_id`
+  plus dieselbe RLS-Policy, sonst lecken Daten zwischen Gruppen.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
 - Nach jedem `await` in Widgets `mounted`/`context.mounted` prüfen.
 - Server-/App-State in Riverpod-Providern, Formular-State in StatefulWidgets.

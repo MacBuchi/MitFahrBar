@@ -4,16 +4,29 @@
 -- Bei Schema-Änderungen: neue Migrationsdatei anlegen UND dieses
 -- Gesamtbild nachziehen.
 --
--- Sicherheitsmodell: EIN Gruppenlogin für alle Mitglieder. Jeder
--- authentifizierte Nutzer hat Vollzugriff, anonym ist nichts sichtbar.
--- Der Publishable-Key im Client ist öffentlich; die Zugriffskontrolle
--- liegt vollständig hier (RLS).
+-- Sicherheitsmodell: Multi-Tenant. Eine Gruppe = ein Login (auth user),
+-- group_id = auth.uid(). Jede Gruppe sieht nur ihre eigenen Daten (RLS),
+-- und nur wenn sie freigegeben ('active') ist. Neue Gruppen sind 'pending'
+-- und werden von einer Admin-Gruppe freigegeben. Der Publishable-Key im
+-- Client ist öffentlich; die Zugriffskontrolle liegt vollständig hier.
 
 -- ---------------------------------------------------------------- Tabellen
 
+create table public.groups (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text not null,
+  handle text unique not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'active', 'rejected')),
+  is_admin boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 create table public.persons (
   id uuid primary key default gen_random_uuid(),
-  name text unique not null,
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  name text not null,
   active boolean not null default true,
   vehicle text,
   energy_type text check (energy_type in ('electric', 'diesel', 'petrol')),
@@ -23,6 +36,8 @@ create table public.persons (
 
 create table public.trips (
   id uuid primary key default gen_random_uuid(),
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
   -- Pro Tag sind mehrere Fahrten möglich (z. B. zwei getrennte Autos),
   -- deshalb bewusst NICHT unique.
   trip_date date not null,
@@ -30,11 +45,11 @@ create table public.trips (
   created_at timestamptz not null default now()
 );
 
-create index trips_trip_date_idx on public.trips (trip_date);
-
 create table public.trip_participations (
   trip_id uuid not null references public.trips(id) on delete cascade,
   person_id uuid not null references public.persons(id) on delete cascade,
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
   status text not null check (status in ('driver', 'passenger', 'one_way')),
   primary key (trip_id, person_id)
 );
@@ -44,35 +59,81 @@ create unique index trip_one_driver_uidx
   on public.trip_participations (trip_id)
   where (status = 'driver');
 
+create index trips_trip_date_idx on public.trips (trip_date);
+create index persons_group_idx on public.persons (group_id);
+create index trips_group_idx on public.trips (group_id);
+create index trip_participations_group_idx on public.trip_participations (group_id);
+
+-- settings pro Gruppe.
 create table public.settings (
-  key text primary key,
-  value numeric not null
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  key text not null,
+  value numeric not null,
+  primary key (group_id, key)
 );
 
-insert into public.settings (key, value) values
-  ('commute_km', 30),
-  ('one_way_factor', 0.5),
-  ('electricity_price_per_kwh', 0.35),
-  ('diesel_price_per_liter', 1.70),
-  ('petrol_price_per_liter', 1.78),
-  ('points_weight', 0.5)
-on conflict (key) do nothing;
+-- --------------------------------------------------------------- Funktionen
+
+-- SECURITY-DEFINER-Helfer: lesen groups ohne RLS-Rekursion.
+create or replace function public.my_group_active()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select status = 'active' from public.groups where id = auth.uid()), false);
+$$;
+
+create or replace function public.is_group_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select is_admin and status = 'active'
+                   from public.groups where id = auth.uid()), false);
+$$;
+
+-- Jeder neue Auth-User wird zu einer 'pending'-Gruppe (+ Default-Settings).
+create or replace function public.handle_new_group()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  new_handle text := split_part(new.email, '@', 1);
+begin
+  insert into public.groups (id, name, handle, status, is_admin)
+  values (new.id,
+          coalesce(nullif(new.raw_user_meta_data->>'group_name', ''), new_handle),
+          new_handle, 'pending', false);
+  insert into public.settings (group_id, key, value) values
+    (new.id, 'commute_km', 30),
+    (new.id, 'one_way_factor', 0.5),
+    (new.id, 'electricity_price_per_kwh', 0.35),
+    (new.id, 'diesel_price_per_liter', 1.70),
+    (new.id, 'petrol_price_per_liter', 1.78),
+    (new.id, 'points_weight', 0.5);
+  return new;
+end $$;
+
+create trigger on_auth_user_created_group
+  after insert on auth.users
+  for each row execute function public.handle_new_group();
 
 -- --------------------------------------------------------------------- RLS
 
+alter table public.groups              enable row level security;
 alter table public.persons             enable row level security;
 alter table public.trips               enable row level security;
 alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
 
-create policy persons_group_all on public.persons
-  for all to authenticated using (true) with check (true);
+-- Eigene Gruppe lesen; Admins sehen alle (Freigabe-Liste). Insert = Trigger.
+create policy groups_select on public.groups for select to authenticated
+  using (id = auth.uid() or public.is_group_admin());
+create policy groups_admin_update on public.groups for update to authenticated
+  using (public.is_group_admin()) with check (public.is_group_admin());
 
-create policy trips_group_all on public.trips
-  for all to authenticated using (true) with check (true);
-
-create policy participations_group_all on public.trip_participations
-  for all to authenticated using (true) with check (true);
-
-create policy settings_group_all on public.settings
-  for all to authenticated using (true) with check (true);
+create policy persons_isolated on public.persons for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy trips_isolated on public.trips for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy participations_isolated on public.trip_participations for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy settings_isolated on public.settings for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
