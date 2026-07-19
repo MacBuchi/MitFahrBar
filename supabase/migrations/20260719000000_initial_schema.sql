@@ -1,8 +1,4 @@
--- schema.sql – Gesamtbild der Datenbank (Doku/Frischinstallation).
--- Eingespielt wird NICHT diese Datei, sondern supabase/migrations/
--- (Supabase-GitHub-Integration, automatisch bei Push auf main).
--- Bei Schema-Änderungen: neue Migrationsdatei anlegen UND dieses
--- Gesamtbild nachziehen.
+-- Initiales Schema (identisch zu supabase/schema.sql, dem Gesamtbild).
 --
 -- Sicherheitsmodell: EIN Gruppenlogin für alle Mitglieder. Jeder
 -- authentifizierte Nutzer hat Vollzugriff, anonym ist nichts sichtbar.

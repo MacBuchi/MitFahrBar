@@ -43,10 +43,14 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
   stehen, läuft die App im Demo-Modus (In-Memory-Daten, kein Login). Der
   Publishable-Key ist bewusst öffentlich; NIEMALS den service_role-Key
   einchecken.
-- DB-Änderungen: `supabase/schema.sql` aktuell halten (Frischinstallation)
-  UND als nummeriertes `supabase/patch_NNN_*.sql` ablegen.
-- Web-Builds für Pages brauchen `--base-href /<repo-name>/` und eine
-  `404.html` (Kopie von `index.html`) als SPA-Fallback.
+- DB-Änderungen: Supabase ist per GitHub-Integration mit dem Repo verbunden —
+  neue Migration als `supabase/migrations/<YYYYMMDDHHMMSS>_<name>.sql` anlegen,
+  sie wird bei Push auf `main` automatisch eingespielt (kein manuelles
+  Patchen). `supabase/schema.sql` bleibt das gepflegte Gesamtbild (Doku).
+- Repo: `github.com/MacBuchi/Fahrgemeinschaft`, Default-Branch `main`.
+  Web-Builds für Pages brauchen `--base-href /Fahrgemeinschaft/`
+  (Groß-F, case-sensitiv!) und eine `404.html` (Kopie von `index.html`)
+  als SPA-Fallback. Live-URL: `https://macbuchi.github.io/Fahrgemeinschaft/`
 - Echte Namen/Daten der Gruppe liegen NUR in `.donotsync/` (gitignored):
   `Fahrgemeinschaft.xlsx` (Original) und `seed/seed.json` (extrahiert).
   Einmal-Import in eine leere DB: `tool/import_seed.py`. Der Excel-Backtest

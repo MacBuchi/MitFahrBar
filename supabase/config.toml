@@ -1,0 +1,7 @@
+# config.toml – Minimal-Konfiguration für die Supabase-GitHub-Integration.
+# Migrationen unter supabase/migrations/ werden bei Push auf main
+# automatisch in das verbundene Projekt eingespielt.
+project_id = "Fahrgemeinschaft"
+
+[db]
+major_version = 17
