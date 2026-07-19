@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,8 +14,7 @@ class RequestGroupScreen extends ConsumerStatefulWidget {
   const RequestGroupScreen({super.key});
 
   @override
-  ConsumerState<RequestGroupScreen> createState() =>
-      _RequestGroupScreenState();
+  ConsumerState<RequestGroupScreen> createState() => _RequestGroupScreenState();
 }
 
 class _RequestGroupScreenState extends ConsumerState<RequestGroupScreen> {
@@ -46,26 +46,33 @@ class _RequestGroupScreenState extends ConsumerState<RequestGroupScreen> {
   Future<void> _submit() async {
     final error = _validate();
     if (error != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
     setState(() => _busy = true);
     try {
-      await ref.read(authRepositoryProvider).requestGroup(
+      await ref
+          .read(authRepositoryProvider)
+          .requestGroup(
             handle: normalizeHandle(_handle.text),
             password: _password.text,
             groupName: _name.text.trim(),
           );
+      // Signalisiert dem Passwort-Manager, die Zugangsdaten zu speichern.
+      TextInput.finishAutofillContext();
       // Damit die Anfrage nur eine Anfrage bleibt: sofort wieder ausloggen.
       await ref.read(authRepositoryProvider).signOut();
       if (!mounted) return;
       setState(() => _done = true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Anfrage fehlgeschlagen: Name evtl. schon vergeben.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Anfrage fehlgeschlagen: Name evtl. schon vergeben.'),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -90,75 +97,88 @@ class _RequestGroupScreenState extends ConsumerState<RequestGroupScreen> {
   }
 
   Widget _confirmation(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Icon(Icons.mark_email_read_outlined,
-              size: 64, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: AppSpacing.m),
-          Text('Anfrage gestellt',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.s),
-          const Text(
-            'Deine Gruppe wurde angefragt und wird geprüft. Sobald sie '
-            'freigegeben ist, kannst du dich mit Gruppenname und Passwort '
-            'anmelden.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.l),
-          FilledButton(
-            onPressed: () => context.go('/login'),
-            child: const Text('Zurück zur Anmeldung'),
-          ),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Icon(
+        Icons.mark_email_read_outlined,
+        size: 64,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      const SizedBox(height: AppSpacing.m),
+      Text(
+        'Anfrage gestellt',
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: AppSpacing.s),
+      const Text(
+        'Deine Gruppe wurde angefragt und wird geprüft. Sobald sie '
+        'freigegeben ist, kannst du dich mit Gruppenname und Passwort '
+        'anmelden.',
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: AppSpacing.l),
+      FilledButton(
+        onPressed: () => context.go('/login'),
+        child: const Text('Zurück zur Anmeldung'),
+      ),
+    ],
+  );
 
-  Widget _form(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Lege eine neue Fahrgemeinschaft an. Die Anfrage wird geprüft und '
-            'nach Freigabe könnt ihr euch mit einem gemeinsamen Zugang '
-            'anmelden.',
+  Widget _form(BuildContext context) => AutofillGroup(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Lege eine neue Fahrgemeinschaft an. Die Anfrage wird geprüft und '
+          'nach Freigabe könnt ihr euch mit einem gemeinsamen Zugang '
+          'anmelden.',
+        ),
+        const SizedBox(height: AppSpacing.l),
+        TextField(
+          controller: _name,
+          decoration: const InputDecoration(
+            labelText: 'Gruppenname (Anzeige)',
+            hintText: 'z. B. Pendler Musterstadt',
+            border: OutlineInputBorder(),
           ),
-          const SizedBox(height: AppSpacing.l),
-          TextField(
-            controller: _name,
-            decoration: const InputDecoration(
-              labelText: 'Gruppenname (Anzeige)',
-              hintText: 'z. B. Pendler Musterstadt',
-              border: OutlineInputBorder(),
-            ),
-            textCapitalization: TextCapitalization.words,
+          textCapitalization: TextCapitalization.words,
+        ),
+        const SizedBox(height: AppSpacing.m),
+        TextField(
+          controller: _handle,
+          decoration: const InputDecoration(
+            labelText: 'Anmeldename (kurz, a–z/0–9)',
+            hintText: 'z. B. pendler-musterstadt',
+            border: OutlineInputBorder(),
           ),
-          const SizedBox(height: AppSpacing.m),
-          TextField(
-            controller: _handle,
-            decoration: const InputDecoration(
-              labelText: 'Anmeldename (kurz, a–z/0–9)',
-              hintText: 'z. B. pendler-musterstadt',
-              border: OutlineInputBorder(),
-            ),
+          autofillHints: const [AutofillHints.username],
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: AppSpacing.m),
+        TextField(
+          controller: _password,
+          decoration: const InputDecoration(
+            labelText: 'Gemeinsames Passwort',
+            border: OutlineInputBorder(),
           ),
-          const SizedBox(height: AppSpacing.m),
-          TextField(
-            controller: _password,
-            decoration: const InputDecoration(
-              labelText: 'Gemeinsames Passwort',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
-          ),
-          const SizedBox(height: AppSpacing.l),
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: _busy
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Anfrage senden'),
-          ),
-        ],
-      );
+          obscureText: true,
+          autofillHints: const [AutofillHints.newPassword],
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _busy ? null : _submit(),
+        ),
+        const SizedBox(height: AppSpacing.l),
+        FilledButton(
+          onPressed: _busy ? null : _submit,
+          child: _busy
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Anfrage senden'),
+        ),
+      ],
+    ),
+  );
 }

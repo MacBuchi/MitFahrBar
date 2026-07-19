@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.4.1] – 2026-07-20
+
+### Behoben
+
+- **Passwort-Manager funktionieren jetzt** bei Anmeldung, Gruppen-Anfrage und
+  Passwort-Ändern. Die Felder waren zwar benannt, lagen aber nicht in einer
+  zusammengehörigen Anmeldemaske, und nach dem Login fehlte das Signal zum
+  Speichern – dadurch bot kein Manager das Ausfüllen oder Sichern an.
+
 ## [0.4.0] – 2026-07-19
 
 ### Neu
@@ -75,6 +84,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.4.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.4.1
 [0.4.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.4.0
 [0.3.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.3.1
 [0.3.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.3.0
