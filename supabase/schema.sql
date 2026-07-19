@@ -23,11 +23,14 @@ create table public.persons (
 
 create table public.trips (
   id uuid primary key default gen_random_uuid(),
-  -- Ein Fahrtag = genau eine Fahrt.
-  trip_date date unique not null,
+  -- Pro Tag sind mehrere Fahrten möglich (z. B. zwei getrennte Autos),
+  -- deshalb bewusst NICHT unique.
+  trip_date date not null,
   note text,
   created_at timestamptz not null default now()
 );
+
+create index trips_trip_date_idx on public.trips (trip_date);
 
 create table public.trip_participations (
   trip_id uuid not null references public.trips(id) on delete cascade,

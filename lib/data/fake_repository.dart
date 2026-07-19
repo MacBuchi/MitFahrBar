@@ -58,10 +58,6 @@ class FakeCarpoolRepository implements CarpoolRepository {
     Map<String, ParticipationStatus> participations, {
     String? note,
   }) async {
-    final existing = _trips.where((t) => _sameDay(t.date, date)).firstOrNull;
-    if (existing != null) {
-      throw DuplicateTripException(date, existing.id);
-    }
     final created = Trip(
       id: _newId('trip'),
       date: DateTime(date.year, date.month, date.day),
@@ -90,9 +86,6 @@ class FakeCarpoolRepository implements CarpoolRepository {
   Future<void> saveSettings(AppSettings settings) async {
     _settings = settings;
   }
-
-  static bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 /// Demo-Daten für den Start ohne Backend (keine echten Namen).

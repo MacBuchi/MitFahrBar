@@ -35,7 +35,7 @@ Projektstruktur nach dem 3-Schichten-Muster: `core/` (router, theme, supabase_co
 ## 3. Fachlogik (1:1 aus dem Excel übernommen)
 
 ### 3.1 Fahrtenprotokoll
-Eine **Fahrt = ein Fahrtag (Datum)**. Jede beteiligte Person hat genau einen Status:
+Eine **Fahrt = eine Fahrgruppe an einem Tag** (in der Regel eine pro Tag; an manchen Tagen fahren zwei getrennte Autos → dann zwei Fahrten mit demselben Datum). Jede beteiligte Person hat genau einen Status:
 
 | Status | Bedeutung | Gewicht |
 |---|---|---|
@@ -96,7 +96,7 @@ erDiagram
     }
     trips {
         uuid id PK
-        date trip_date "unique"
+        date trip_date "nicht unique (mehrere Autos/Tag möglich)"
         text note "optional"
     }
     trip_participations {
@@ -132,7 +132,7 @@ erDiagram
 
 **Vortags-Planung = derselbe Eintrag:** Am Vorabend trägt man ein, wer morgen mitfahren möchte — die Fahrt für morgen entsteht mit automatisch gesetztem Fahrer (das ist zugleich die Antwort für den WhatsApp-Chat: „App sagt: X fährt"). Sagt jemand spontan ab oder zu, wird nur die Kachel an-/abgewählt und der Fahrer-Vorschlag passt sich live an. Es gibt keinen separaten Planungs-Status: Der Eintrag bleibt einfach editierbar, gezählt wird, was am Ende drinsteht.
 
-Doppel-Eintrag am selben Tag wird abgefangen (Hinweis + Bearbeiten-Option).
+Ein zweiter Eintrag am selben Tag ist erlaubt (zweites Auto), löst aber eine Rückfrage aus, damit versehentliche Doppel-Einträge auffallen.
 
 ### 5.3 Historie
 Liste aller Fahrten (neueste zuerst, gruppiert nach KW), Suche/Filter nach Person, Bearbeiten & Löschen einzelner Fahrten.

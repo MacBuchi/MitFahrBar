@@ -62,9 +62,11 @@ def main():
     if existing:
         sys.exit("Abbruch: Es existieren bereits Fahrten in der Datenbank – Import ist nur für eine leere DB gedacht.")
 
+    # Upsert auf name -> wiederaufsetzbar, falls Personen aus einem
+    # früheren (abgebrochenen) Lauf schon existieren.
     created = request(
         "POST",
-        "persons",
+        "persons?on_conflict=name",
         [
             {
                 "name": p["name"],
@@ -75,10 +77,10 @@ def main():
             }
             for p in persons
         ],
-        prefer="return=representation",
+        prefer="return=representation,resolution=merge-duplicates",
     )
     id_by_name = {row["name"]: row["id"] for row in created}
-    print(f"{len(created)} Personen angelegt.")
+    print(f"{len(created)} Personen angelegt/aktualisiert.")
 
     created_trips = request(
         "POST",

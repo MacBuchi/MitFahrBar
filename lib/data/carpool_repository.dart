@@ -13,8 +13,8 @@ abstract class CarpoolRepository {
   /// Fahrten absteigend nach Datum.
   Future<List<Trip>> loadTrips();
 
-  /// Legt eine Fahrt an. Wirft [DuplicateTripException], wenn für das
-  /// Datum bereits eine Fahrt existiert.
+  /// Legt eine Fahrt an. Pro Tag sind mehrere Fahrten erlaubt (z. B. zwei
+  /// getrennte Autos); die UI fragt bei einem bereits belegten Tag nach.
   Future<Trip> createTrip(
     DateTime date,
     Map<String, ParticipationStatus> participations, {
@@ -25,11 +25,4 @@ abstract class CarpoolRepository {
 
   Future<AppSettings> loadSettings();
   Future<void> saveSettings(AppSettings settings);
-}
-
-class DuplicateTripException implements Exception {
-  DuplicateTripException(this.date, this.existingTripId);
-
-  final DateTime date;
-  final String existingTripId;
 }

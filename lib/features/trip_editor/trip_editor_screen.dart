@@ -10,7 +10,6 @@ import 'package:intl/intl.dart';
 
 import '../../core/fairness.dart';
 import '../../core/tokens.dart';
-import '../../data/carpool_repository.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../models/trip.dart';
@@ -71,7 +70,6 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
   }
 
   Future<void> _save(String driverId) async {
-    setState(() => _saving = true);
     final participations = <String, ParticipationStatus>{
       for (final id in _full)
         id: id == driverId
@@ -79,6 +77,23 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
             : ParticipationStatus.passenger,
       for (final id in _oneWay) id: ParticipationStatus.oneWay,
     };
+
+    // Mehrere Fahrten pro Tag sind erlaubt (z. B. zweites Auto), aber ein
+    // versehentlicher Doppel-Eintrag soll auffallen -> Rückfrage.
+    if (!_isEdit) {
+      final sameDay = ref
+          .read(tripsProvider)
+          .value!
+          .where((t) => _sameDay(t.date, _date))
+          .length;
+      if (sameDay > 0) {
+        final proceed = await _confirmSecondTrip(sameDay);
+        if (proceed != true) return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _saving = true);
     final repository = ref.read(carpoolRepositoryProvider);
     try {
       if (_isEdit) {
@@ -98,15 +113,6 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       } else {
         context.go('/');
       }
-    } on DuplicateTripException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Für diesen Tag gibt es schon eine Fahrt.'),
-        action: SnackBarAction(
-          label: 'Bearbeiten',
-          onPressed: () => context.pushReplacement('/trip/${e.existingTripId}'),
-        ),
-      ));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -115,6 +121,33 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       if (mounted) setState(() => _saving = false);
     }
   }
+
+  Future<bool?> _confirmSecondTrip(int existing) {
+    final word = existing == 1 ? 'eine Fahrt' : '$existing Fahrten';
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Weitere Fahrt an diesem Tag?'),
+        content: Text(
+            'Für diesen Tag gibt es schon $word. Nur anlegen, wenn wirklich '
+            'ein zweites Auto gefahren ist – sonst besser die bestehende '
+            'Fahrt bearbeiten.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Zweite Fahrt anlegen'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
   Widget build(BuildContext context) {

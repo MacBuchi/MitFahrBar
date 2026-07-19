@@ -89,14 +89,6 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
     Map<String, ParticipationStatus> participations, {
     String? note,
   }) async {
-    final existing = await _client
-        .from('trips')
-        .select('id')
-        .eq('trip_date', _dateOnly(date))
-        .maybeSingle();
-    if (existing != null) {
-      throw DuplicateTripException(date, existing['id'] as String);
-    }
     final row = await _client
         .from('trips')
         .insert({'trip_date': _dateOnly(date), 'note': note})
