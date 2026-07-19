@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.2
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.2
+          cache: true
+      - run: flutter pub get
+      - run: flutter build web --release --base-href /fahrgemeinschaft/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 14
+
+  housekeeping:
+    name: Version Guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Versions-Bump prüfen
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version: \([0-9][0-9.]*\).*/\1/p' pubspec.yaml)
+          latest=$(git tag -l 'v*' | sort -V | tail -1)
+          echo "pubspec: $version — letzter Tag: ${latest:-keiner}"
+          if [ -z "$latest" ]; then
+            echo "Noch kein Release-Tag — nichts zu prüfen."
+            exit 0
+          fi
+          if [ "$(printf '%s\n' "${latest#v}" "$version" | sort -V | tail -1)" != "$version" ] \
+             || [ "${latest#v}" = "$version" ]; then
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              changed=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- . ':!*.md' ':!.github' || true)
+            else
+              changed=$(git diff --name-only "$latest"..HEAD -- . ':!*.md' ':!.github' || true)
+            fi
+            if [ -n "$changed" ]; then
+              echo "::error::Code geändert, aber version in pubspec.yaml ($version) ist nicht größer als $latest. Bitte Version bumpen — ohne Bump gibt es kein Release."
+              exit 1
+            fi
+          fi
