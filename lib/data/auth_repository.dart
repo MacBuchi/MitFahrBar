@@ -18,6 +18,9 @@ abstract class AuthRepository {
     required String groupName,
   });
 
+  /// Passwort des aktuell eingeloggten Gruppen-Accounts ändern.
+  Future<void> changePassword(String newPassword);
+
   Future<void> signOut();
 }
 
@@ -52,6 +55,10 @@ class SupabaseAuthRepository implements AuthRepository {
       );
 
   @override
+  Future<void> changePassword(String newPassword) =>
+      _client.auth.updateUser(UserAttributes(password: newPassword));
+
+  @override
   Future<void> signOut() => _client.auth.signOut();
 }
 
@@ -72,6 +79,9 @@ class AlwaysLoggedInAuthRepository implements AuthRepository {
     required String password,
     required String groupName,
   }) async {}
+
+  @override
+  Future<void> changePassword(String newPassword) async {}
 
   @override
   Future<void> signOut() async {}

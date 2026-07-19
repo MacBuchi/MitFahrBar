@@ -11,6 +11,7 @@ import '../../core/supabase_config.dart';
 import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
+import '../account/change_password_dialog.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -32,10 +33,34 @@ class DashboardScreen extends ConsumerWidget {
               onPressed: () => context.push('/admin'),
             ),
           if (SupabaseConfig.isConfigured)
-            IconButton(
-              tooltip: 'Abmelden',
-              icon: const Icon(Icons.logout),
-              onPressed: () => ref.read(authRepositoryProvider).signOut(),
+            PopupMenuButton<String>(
+              tooltip: 'Zugang',
+              icon: const Icon(Icons.account_circle_outlined),
+              onSelected: (value) {
+                if (value == 'password') {
+                  showChangePasswordDialog(context);
+                } else if (value == 'logout') {
+                  ref.read(authRepositoryProvider).signOut();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'password',
+                  child: ListTile(
+                    leading: Icon(Icons.key_outlined),
+                    title: Text('Passwort ändern'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'logout',
+                  child: ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Abmelden'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
         ],
       ),
