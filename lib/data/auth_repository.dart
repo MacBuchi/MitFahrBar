@@ -35,7 +35,7 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> signIn(String handle, String password) =>
       _client.auth.signInWithPassword(
-        email: handleToEmail(handle),
+        email: resolveLoginEmail(handle),
         password: password,
       );
 

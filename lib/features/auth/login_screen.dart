@@ -70,6 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       labelText: 'Gruppenname',
                       border: OutlineInputBorder(),
                     ),
+                    keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.username],
                   ),
