@@ -1,0 +1,83 @@
+# Changelog
+
+Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
+`MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
+`main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
+
+## [0.4.0] – 2026-07-19
+
+### Neu
+
+- **Passwort ändern in der App**: Konto-Menü auf der Startseite mit
+  „Passwort ändern" (und Abmelden). Läuft über die eigene Sitzung, jede
+  Gruppe verwaltet ihr Passwort selbst – kein Admin-Zugriff nötig.
+
+## [0.3.1] – 2026-07-19
+
+### Geändert
+
+- Login akzeptiert jetzt **Gruppenname oder vollständige E-Mail**, damit
+  bestehende Zugänge mit echter Adresse weiter funktionieren.
+- Interne Login-Domain auf eine reguläre TLD umgestellt
+  (`grp.fahrgemeinschaft.app`), damit sie jede Adressprüfung besteht.
+
+## [0.3.0] – 2026-07-19
+
+### Neu
+
+- **Mehrere Gruppen (Mandantenfähigkeit)**: Eine Gruppe = ein Zugang, jede
+  Gruppe sieht ausschließlich ihre eigenen Daten. Durchgesetzt in der
+  Datenbank (Row Level Security), nicht nur in der Oberfläche.
+- **Selbst-Registrierung mit Freigabe**: „Neue Gruppe anfragen" legt eine
+  Gruppe im Status *pending* an; sie sieht bis zur Freigabe keine Daten.
+- **Admin-Bereich** zum Freigeben oder Ablehnen offener Anfragen.
+- Anmeldung mit **Gruppenname statt E-Mail**.
+
+### Geändert
+
+- Bestehende Daten wurden ohne Verlust in eine aktive Gruppe überführt.
+
+## [0.2.1] – 2026-07-19
+
+### Behoben
+
+- **Excel-Import**: Teilnahmen wurden über das Datum zugeordnet. Da an
+  einem Tag mehrere Fahrten möglich sind, fielen Zwei-Auto-Tage auf
+  dieselbe Fahrt zusammen. Die Zuordnung erfolgt jetzt über die
+  Einfüge-Reihenfolge.
+
+## [0.2.0] – 2026-07-19
+
+### Behoben
+
+- **Mehrere Fahrten pro Tag** sind jetzt möglich. Bisher erzwang die
+  Datenbank eine Fahrt je Kalendertag – die Gruppe fährt an manchen Tagen
+  aber in zwei getrennten Autos.
+
+### Geändert
+
+- Ein zweiter Eintrag am selben Tag wird nicht mehr blockiert, sondern nur
+  noch mit einer Rückfrage bestätigt.
+
+## [0.1.0] – 2026-07-19
+
+### Neu
+
+- Erste Version: Fahrtenprotokoll, Punktesystem (ein Punkt je Mitfahrer,
+  0,5 für 1-way) und Fahrer-Vorschlag über einen kombinierten
+  Fairness-Rang aus Punkten und Fahranteil.
+- **Fahrt-Erfassung über Kacheln** mit automatisch gesetztem Fahrer,
+  Vortags-Eintrag für die Planung.
+- **Historie** mit Bearbeiten und Löschen, **Statistik** mit Kilometern,
+  gesparten Kraftstoffkosten und „Kilometerheld".
+- Supabase-Backend, Auslieferung als PWA über GitHub Pages; Demo-Modus mit
+  Beispieldaten, solange kein Backend hinterlegt ist.
+- Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
+  stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
+
+[0.4.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.4.0
+[0.3.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.3.1
+[0.3.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.3.0
+[0.2.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.2.1
+[0.2.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.2.0
+[0.1.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.1.0

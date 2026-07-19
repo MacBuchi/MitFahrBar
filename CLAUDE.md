@@ -39,6 +39,8 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
   auf GitHub Pages. Kein Bump = kein Release.
 - Version Guard in CI: Code-Änderung ohne Versions-Bump blockiert den Merge
   (nur `*.md` und `.github/` sind ausgenommen).
+- **Zu jedem Versions-Bump gehört ein `CHANGELOG.md`-Eintrag** (Nutzersicht,
+  Deutsch: was ändert sich für die Gruppen — nicht die Commit-Liste).
 - Flutter-Version in CI gepinnt (3.41.2) — bei lokalem Upgrade auch
   `.github/workflows/*.yml` anpassen. Lokales SDK:
   `/Volumes/MacStore/Programming/Flutter/SDK/flutter`.
