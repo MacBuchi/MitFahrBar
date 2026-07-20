@@ -56,6 +56,14 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   (`core/group_login.dart`). Neue Datentabellen brauchen zwingend `group_id`
   plus dieselbe RLS-Policy, sonst lecken Daten zwischen Gruppen.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
+- **Was geloggt wird, kann öffentlich werden.** `core/log.dart` hält die
+  letzten 50 Zeilen in `logRing` (nur im Speicher, nie auf Platte), und die
+  Nutzerin kann sie einer Rückmeldung anhängen — die der Feedback-Bot in ein
+  **öffentliches** GitHub-Issue verwandelt. Deshalb gehören in `log`-Aufrufe
+  niemals Personennamen, Handles oder Fahrtdaten. Der Anhang ist bewusst
+  standardmäßig abgewählt und wird vor dem Senden im Klartext angezeigt.
+  Absichtlich kein Sentry: eine Gruppe von wenigen Leuten, die den Betreiber
+  kennt, braucht keine Fremd-Pipeline (Issue #18).
 - Nach jedem `await` in Widgets `mounted`/`context.mounted` prüfen.
 - Server-/App-State in Riverpod-Providern, Formular-State in StatefulWidgets.
 - **Riverpod 2 (kein Codegen)** — bewusst gepinnt. Unter 3.x pausiert/resumed
