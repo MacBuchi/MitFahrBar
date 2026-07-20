@@ -15,7 +15,15 @@ import 'fake_auth_repository.dart';
 import 'fake_backend.dart';
 
 /// Startet die App und wartet, bis die erste Ansicht steht.
-Future<void> pumpApp(WidgetTester tester, FakeBackend backend) async {
+///
+/// [overrides] hängt hinten an und sticht deshalb die Standard-Fakes —
+/// gedacht für Provider, die auf die Plattform zugreifen (z. B. das
+/// Ablegen einer Datei), die es im Test nicht gibt.
+Future<void> pumpApp(
+  WidgetTester tester,
+  FakeBackend backend, {
+  List<Override> overrides = const [],
+}) async {
   await initializeDateFormatting('de');
   addTearDown(backend.dispose);
   await tester.pumpWidget(
@@ -32,6 +40,7 @@ Future<void> pumpApp(WidgetTester tester, FakeBackend backend) async {
         // Kein Netzzugriff im Test: standardmäßig kein Update.
         updateInfoProvider.overrideWith((ref) => Future.value(backend.update)),
         currentVersionProvider.overrideWith((ref) => Future.value('1.0.0')),
+        ...overrides,
       ],
       child: const FahrgemeinschaftApp(),
     ),

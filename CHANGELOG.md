@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.13.0] – 2026-07-21
+
+### Neu
+
+- **Fahrten als CSV exportieren.** Im Menü hinter dem Personen-Symbol steht
+  jetzt „Fahrten exportieren (CSV)". Auf dem Handy landet die Datei im
+  Teilen-Menü — ihr könnt sie also direkt in Drive legen, per Mail schicken
+  oder speichern; im Browser wird sie heruntergeladen.
+- **Damit habt ihr endlich eine eigene Sicherung.** Bisher lagen alle
+  eingetragenen Fahrten ausschließlich auf dem Server. Der Export ist die
+  erste Kopie, die euch selbst gehört — legt sie ab und zu irgendwo ab.
+- **Die Datei öffnet sich in Excel ohne Gefummel.** Semikolon als Trenner und
+  richtige Umlaute, also ein Doppelklick statt eines Import-Assistenten.
+  Aufgebaut ist sie wie die alte Tabelle: eine Zeile je Fahrt, eine Spalte je
+  Person, darin „Fahrer", „Mit" oder „Einfach".
+- **Sie ist zugleich die Vorlage für den späteren Import.** Wer noch keine
+  Fahrten hat, bekommt die leere Tabelle mit allen Personen-Spalten. Das
+  Einlesen einer solchen Datei kommt in einem eigenen Schritt — dann mit
+  Rückfrage, bevor neue Personen angelegt werden.
+
 ## [0.12.1] – 2026-07-20
 
 ### Geändert

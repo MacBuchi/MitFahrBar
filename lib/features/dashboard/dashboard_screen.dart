@@ -1,6 +1,8 @@
 /// dashboard_screen.dart – „Wer ist dran" + Mini-Statistik.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +17,7 @@ import '../../models/person.dart';
 import '../../core/widgets/ride_buddy_mark.dart';
 import '../account/change_password_dialog.dart';
 import '../banners/app_banners.dart';
+import '../export/export_action.dart';
 import 'dashboard_charts.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -50,6 +53,11 @@ class DashboardScreen extends ConsumerWidget {
             onSelected: (value) {
               if (value == 'persons') {
                 context.push('/persons');
+              } else if (value == 'export') {
+                // Wie beim Bearbeiten in der Historie bewusst nicht
+                // abgewartet: Der Export meldet sich selbst per SnackBar,
+                // und ein await hielte das Menü bis dahin offen.
+                unawaited(exportTripsCsv(context, ref));
               } else if (value == 'password') {
                 showChangePasswordDialog(context);
               } else if (value == 'feedback') {
@@ -71,6 +79,16 @@ class DashboardScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: Icon(Icons.group_outlined),
                   title: Text('Personen verwalten'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              // Nicht an `isConfigured` gehängt: Im Demo-Modus zeigt der
+              // Export, wie die Import-Vorlage aussieht.
+              const PopupMenuItem(
+                value: 'export',
+                child: ListTile(
+                  leading: Icon(Icons.download_outlined),
+                  title: Text('Fahrten exportieren (CSV)'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),

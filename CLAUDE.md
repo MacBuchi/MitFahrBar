@@ -190,6 +190,17 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   in SharedPreferences ablegt, gehört diese Regel überdacht. Und ab
   Android 12 braucht der Ausschluss **beide** Blöcke (`cloud-backup` *und*
   `device-transfer`), sonst reist das Token beim Gerätewechsel doch mit.
+- **CSV-Export** ist die einzige Sicherung, die die Gruppe selbst in der Hand
+  hat — alles seit dem Erst-Import lebt nur in Supabase (Free Plan, kein
+  Point-in-Time-Recovery). `core/csv_export.dart` ist reine Aufbereitung
+  (testbar, `test/csv_export_test.dart`), `core/export_file.dart` die
+  Plattform-Weiche: Web lädt über einen Blob-Link herunter, Android reicht die
+  Datei per `share_plus` ans Teilen-Menü (`XFile.fromData`, deshalb kein
+  `path_provider`). Drei Formatdetails sind nicht kosmetisch, sondern
+  entscheiden, ob die Datei in deutschem Excel per Doppelklick aufgeht:
+  `;` als Trenner, CRLF als Zeilenende und ein UTF-8-BOM. Der Export **ist**
+  die Import-Vorlage (Issue #34) — ein zweiter Template-Generator wäre eine
+  zweite Wahrheit über das Format.
 - **Feedback** landet in der Tabelle `feedback`; der Bot
   (`tool/feedback_bot.py`, `.github/workflows/feedback.yml`) macht daraus
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.
