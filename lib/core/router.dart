@@ -16,6 +16,7 @@ import '../features/auth/request_group_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/persons/persons_screen.dart';
+import '../features/plan/plan_screen.dart';
 import '../features/stats/stats_screen.dart';
 import '../features/trip_editor/trip_editor_screen.dart';
 
@@ -85,6 +86,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: '/plan',
+                builder: (context, state) => const PlanScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/history',
                 builder: (context, state) => const HistoryScreen(),
               ),
@@ -129,6 +138,11 @@ class AppShell extends ConsumerWidget {
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home),
               label: 'Übersicht',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month),
+              label: 'Woche',
             ),
             NavigationDestination(
               icon: Icon(Icons.history_outlined),

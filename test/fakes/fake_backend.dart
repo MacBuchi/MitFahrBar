@@ -142,6 +142,21 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
   @override
   Future<void> saveSettings(AppSettings settings) =>
       _target.saveSettings(settings);
+
+  @override
+  Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) =>
+      _target.loadPlan(from, days: days);
+
+  @override
+  Future<void> setAvailability(
+    DateTime date,
+    String personId,
+    bool available,
+  ) => _target.setAvailability(date, personId, available);
+
+  @override
+  Future<void> setPlanDriver(DateTime date, String? driverId) =>
+      _target.setPlanDriver(date, driverId);
 }
 
 class FakeFeedbackRepository implements FeedbackRepository {

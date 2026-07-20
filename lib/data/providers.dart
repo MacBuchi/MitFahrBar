@@ -104,3 +104,21 @@ final activeRankingProvider = FutureProvider<List<RankedCandidate>>((
   ];
   return rankPresent(activeIds, stats, settings);
 });
+
+/// Wochenplan der zu planenden Woche, inklusive Fahrer-Vorschlägen.
+final weekPlanProvider = FutureProvider<List<PlannedDay>>((ref) async {
+  ref.watch(currentUserIdProvider);
+  final dates = planningWeek();
+  final raw = await ref
+      .watch(carpoolRepositoryProvider)
+      .loadPlan(dates.first, days: 7);
+  final trips = await ref.watch(tripsProvider.future);
+  final settings = await ref.watch(settingsProvider.future);
+  return planWeek(
+    dates: dates,
+    availability: raw.availability,
+    overrides: raw.overrides,
+    trips: trips,
+    settings: settings,
+  );
+});

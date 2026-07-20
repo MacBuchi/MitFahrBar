@@ -280,3 +280,148 @@ QuoteExtremes findQuoteExtremes(
     emptiestId: lowest.personId,
   );
 }
+
+/// Ein Tag im Wochenplan.
+class PlannedDay {
+  const PlannedDay({
+    required this.date,
+    required this.availableIds,
+    this.suggestedDriverId,
+    this.driverId,
+    this.confirmed = false,
+  });
+
+  final DateTime date;
+
+  /// Wer an diesem Tag mitfahren kann, alphabetisch nach Id.
+  final List<String> availableIds;
+
+  /// Was die Fairness-Regel vorschlägt — `null`, wenn niemand verfügbar ist.
+  final String? suggestedDriverId;
+
+  /// Wer tatsächlich fahren soll: der Vorschlag oder das Übersteuern.
+  final String? driverId;
+
+  /// Für diesen Tag existiert bereits eine echte Fahrt. Dann ist nichts mehr
+  /// zu planen und der Tag zählt regulär in die Statistik.
+  final bool confirmed;
+
+  bool get isOverridden =>
+      !confirmed && driverId != null && driverId != suggestedDriverId;
+}
+
+int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
+
+/// Fahrer-Vorschläge für eine ganze Woche.
+///
+/// Entscheidend ist die **Vorwärts-Simulation**: Jeder Tag wird gegen die
+/// Statistik *inklusive* der bereits vorgeschlagenen Vortage gerechnet. Ohne
+/// das ändert sich die Statistik erst, wenn eine Fahrt wirklich eingetragen
+/// wird — und der Planer würde fünf Tage hintereinander dieselbe Person
+/// vorschlagen.
+///
+/// Tage mit einer bereits eingetragenen Fahrt bleiben unangetastet: Sie
+/// stecken schon in [trips] und dürfen nicht zusätzlich simuliert werden,
+/// sonst zählte derselbe Tag doppelt.
+List<PlannedDay> planWeek({
+  required List<DateTime> dates,
+  required Map<DateTime, Set<String>> availability,
+  required Map<DateTime, String> overrides,
+  required List<Trip> trips,
+  required AppSettings settings,
+}) {
+  final availableByDay = {
+    for (final entry in availability.entries) _dayKey(entry.key): entry.value,
+  };
+  final overrideByDay = {
+    for (final entry in overrides.entries) _dayKey(entry.key): entry.value,
+  };
+  final realTripByDay = {for (final trip in trips) _dayKey(trip.date): trip};
+
+  // Wächst mit jedem geplanten Tag — das ist die Simulation.
+  final simulated = <Trip>[...trips];
+  final plan = <PlannedDay>[];
+
+  for (final date in [...dates]..sort()) {
+    final key = _dayKey(date);
+    final available = (availableByDay[key] ?? const <String>{}).toList()
+      ..sort();
+
+    final existing = realTripByDay[key];
+    if (existing != null) {
+      plan.add(
+        PlannedDay(
+          date: date,
+          availableIds: available,
+          driverId: existing.driverId,
+          confirmed: true,
+        ),
+      );
+      continue;
+    }
+
+    if (available.isEmpty) {
+      plan.add(PlannedDay(date: date, availableIds: available));
+      continue;
+    }
+
+    final stats = computeStats(simulated, settings);
+    final suggested = suggestDriver(available, stats, settings);
+    // Ein Übersteuern auf jemanden, der inzwischen abgesagt hat, wird
+    // stillschweigend ignoriert statt eine tote Auswahl anzuzeigen.
+    final override = overrideByDay[key];
+    final driver = override != null && available.contains(override)
+        ? override
+        : suggested;
+
+    plan.add(
+      PlannedDay(
+        date: date,
+        availableIds: available,
+        suggestedDriverId: suggested,
+        driverId: driver,
+      ),
+    );
+
+    if (driver != null) {
+      simulated.add(
+        Trip(
+          id: 'plan-$key',
+          date: date,
+          participations: {
+            for (final id in available)
+              id: id == driver
+                  ? ParticipationStatus.driver
+                  : ParticipationStatus.passenger,
+          },
+        ),
+      );
+    }
+  }
+
+  return plan;
+}
+
+/// Montag bis Freitag der Woche, die geplant werden soll.
+///
+/// Am Wochenende zeigt der Planer die **kommende** Woche: Die laufende ist
+/// gefahren, ein Plan dafür wäre nur noch Rückschau.
+List<DateTime> planningWeek([DateTime? today]) {
+  final now = today ?? DateTime.now();
+  final base = DateTime(now.year, now.month, now.day);
+  final monday = base.weekday >= DateTime.saturday
+      ? base.add(Duration(days: DateTime.monday + 7 - base.weekday))
+      : base.subtract(Duration(days: base.weekday - DateTime.monday));
+  return [for (var i = 0; i < 5; i++) monday.add(Duration(days: i))];
+}
+
+/// Darf für [planDate] schon eine Fahrt eingetragen werden?
+///
+/// Erst ab dem Fahrtag: Vorher steht nicht fest, wer wirklich mitfährt, und
+/// eine im Voraus eingetragene Fahrt verschiebt die Punkte aller anderen für
+/// etwas, das noch gar nicht passiert ist.
+bool canConfirmPlan(DateTime planDate, DateTime today) => !DateTime(
+  planDate.year,
+  planDate.month,
+  planDate.day,
+).isAfter(DateTime(today.year, today.month, today.day));

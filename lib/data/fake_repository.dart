@@ -86,6 +86,56 @@ class FakeCarpoolRepository implements CarpoolRepository {
   Future<void> saveSettings(AppSettings settings) async {
     _settings = settings;
   }
+
+  // Wie in der DB nach Kalendertag geschlüsselt — ein voller Zeitstempel
+  // würde sonst zwei Einträge für denselben Tag erlauben.
+  final Map<DateTime, Set<String>> _availability = {};
+  final Map<DateTime, String> _planDrivers = {};
+
+  static DateTime _day(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  @override
+  Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) async {
+    final start = _day(from);
+    final end = start.add(Duration(days: days - 1));
+    bool inRange(DateTime d) => !d.isBefore(start) && !d.isAfter(end);
+
+    return WeekPlan(
+      availability: {
+        for (final e in _availability.entries)
+          if (inRange(e.key) && e.value.isNotEmpty) e.key: {...e.value},
+      },
+      overrides: {
+        for (final e in _planDrivers.entries)
+          if (inRange(e.key)) e.key: e.value,
+      },
+    );
+  }
+
+  @override
+  Future<void> setAvailability(
+    DateTime date,
+    String personId,
+    bool available,
+  ) async {
+    final key = _day(date);
+    if (available) {
+      (_availability[key] ??= <String>{}).add(personId);
+    } else {
+      _availability[key]?.remove(personId);
+    }
+  }
+
+  @override
+  Future<void> setPlanDriver(DateTime date, String? driverId) async {
+    final key = _day(date);
+    if (driverId == null) {
+      _planDrivers.remove(key);
+    } else {
+      _planDrivers[key] = driverId;
+    }
+  }
 }
 
 /// Demo-Daten für den Start ohne Backend (keine echten Namen).

@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.12.0] – 2026-07-20
+
+### Neu
+
+- **Wochenplaner.** Der neue Tab „Woche" zeigt Montag bis Freitag als Raster:
+  jede Person eine Zeile, jeder Tag eine Spalte. Tippt an, wann ihr könnt —
+  daraufhin schlägt RideBuddy für jeden Tag einen Fahrer vor.
+- **Der Vorschlag denkt die ganze Woche mit.** Er rechnet jeden Tag gegen die
+  Vortage der Woche, nicht nur gegen die bisherige Statistik. Sonst stünde an
+  allen fünf Tagen derselbe Name, weil sich die Punkte erst ändern, wenn eine
+  Fahrt tatsächlich eingetragen ist.
+- **Ändern geht immer.** Über das Tausch-Symbol wählt ihr einen anderen
+  Fahrer; die Zeile schreibt dann „von Hand gesetzt" statt „Vorschlag", und
+  ein Tipp bringt euch zum Vorschlag zurück.
+- **Eingetragen wird frühestens am Fahrtag.** Vorher steht nicht fest, wer
+  wirklich mitfährt — und eine im Voraus eingetragene Fahrt würde die Punkte
+  aller anderen für etwas verschieben, das noch gar nicht passiert ist. Bis
+  dahin ist der Plan nur ein Plan und taucht in keiner Auswertung auf.
+
 ## [0.11.1] – 2026-07-20
 
 ### Neu
@@ -239,6 +258,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.12.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.12.0
 [0.11.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.11.1
 [0.11.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.11.0
 [0.10.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.1

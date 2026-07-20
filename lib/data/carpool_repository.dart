@@ -25,4 +25,29 @@ abstract class CarpoolRepository {
 
   Future<AppSettings> loadSettings();
   Future<void> saveSettings(AppSettings settings);
+
+  /// Wochenplan ab [from] für [days] Tage: wer kann wann, und wo wurde der
+  /// Fahrer-Vorschlag von Hand übersteuert. Der Vorschlag selbst wird nicht
+  /// gespeichert — er entsteht in `planWeek`.
+  Future<WeekPlan> loadPlan(DateTime from, {int days = 7});
+
+  /// Setzt oder entfernt die Verfügbarkeit einer Person an einem Tag.
+  Future<void> setAvailability(DateTime date, String personId, bool available);
+
+  /// Übersteuert den Fahrer-Vorschlag; [driverId] `null` nimmt das
+  /// Übersteuern zurück und lässt wieder den Vorschlag gelten.
+  Future<void> setPlanDriver(DateTime date, String? driverId);
+}
+
+/// Rohdaten des Wochenplans, wie sie in der Datenbank stehen.
+class WeekPlan {
+  const WeekPlan({required this.availability, required this.overrides});
+
+  const WeekPlan.empty() : availability = const {}, overrides = const {};
+
+  /// Tag → Personen, die an diesem Tag können.
+  final Map<DateTime, Set<String>> availability;
+
+  /// Tag → von Hand gesetzter Fahrer.
+  final Map<DateTime, String> overrides;
 }

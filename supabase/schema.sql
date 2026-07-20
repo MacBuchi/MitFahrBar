@@ -89,6 +89,32 @@ create table public.feedback (
 create index feedback_unprocessed_idx on public.feedback (created_at)
   where processed_at is null;
 
+-- Wochenplaner. Gespeichert wird nur, was Menschen entschieden haben:
+-- Verfügbarkeit und ein etwaiges Übersteuern des Fahrer-Vorschlags. Der
+-- Vorschlag selbst ist berechnet (KONZEPT.md §4) und steht deshalb nirgends;
+-- ein „bestätigt"-Kennzeichen gibt es ebenfalls nicht — die Bestätigung
+-- erzeugt eine Zeile in `trips`, deren Existenz am Tag ist die Bestätigung.
+create table public.plan_availability (
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  plan_date date not null,
+  person_id uuid not null references public.persons(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (plan_date, person_id)
+);
+
+create table public.plan_overrides (
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  plan_date date not null,
+  driver_id uuid not null references public.persons(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (plan_date)
+);
+
+create index plan_availability_group_idx on public.plan_availability (group_id);
+create index plan_overrides_group_idx on public.plan_overrides (group_id);
+
 -- --------------------------------------------------------------- Funktionen
 
 -- SECURITY-DEFINER-Helfer: lesen groups ohne RLS-Rekursion.
@@ -134,6 +160,8 @@ alter table public.persons             enable row level security;
 alter table public.trips               enable row level security;
 alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
+alter table public.plan_availability   enable row level security;
+alter table public.plan_overrides      enable row level security;
 
 -- Eigene Gruppe lesen; Admins sehen alle (Freigabe-Liste). Insert = Trigger.
 create policy groups_select on public.groups for select to authenticated
@@ -151,6 +179,14 @@ create policy participations_isolated on public.trip_participations for all to a
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy settings_isolated on public.settings for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy plan_availability_isolated on public.plan_availability
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy plan_overrides_isolated on public.plan_overrides
+  for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 
