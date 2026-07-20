@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.5.1] – 2026-07-20
+
+### Behoben
+
+- **Die Android-App wird jetzt mit dem echten Release-Schlüssel signiert.**
+  Zuvor griff die Signaturkonfiguration nicht, sodass eine Testsignatur
+  verwendet worden wäre — damit hätte sich die App später nicht mehr
+  aktualisieren lassen.
+
 ## [0.5.0] – 2026-07-20
 
 ### Neu
@@ -100,6 +109,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.5.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.5.1
 [0.5.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.5.0
 [0.4.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.4.1
 [0.4.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.4.0
