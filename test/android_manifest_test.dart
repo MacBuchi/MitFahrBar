@@ -77,4 +77,84 @@ void main() {
       expect(gradle, contains('coreLibraryDesugaring('));
     });
   });
+
+  // android:allowBackup ist standardmäßig an. Ohne Ausschluss sichert Android
+  // shared_prefs ins Google-Konto und spielt sie auf einem neuen Gerät zurück
+  // — samt der von supabase_flutter abgelegten Sitzung. Da eine Gruppe genau
+  // einen Login hat, ist dieses Token das gemeinsame Zugangsmerkmal der
+  // ganzen Gruppe. Nichts davon ist im Debug-Lauf oder im Web zu bemerken.
+  group('Backup', () {
+    const excluded =
+        '<exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>';
+
+    test('das Manifest verweist auf beide Regelsätze', () {
+      expect(
+        content,
+        contains('android:fullBackupContent="@xml/backup_rules"'),
+        reason:
+            'Ohne fullBackupContent greift auf Android 11 und älter keine '
+            'Regel — dort wandert die Sitzung weiter ins Cloud-Backup.',
+      );
+      expect(
+        content,
+        contains('android:dataExtractionRules="@xml/data_extraction_rules"'),
+        reason:
+            'Ab Android 12 wird fullBackupContent ignoriert; ohne '
+            'dataExtractionRules ist die neuere Hälfte der Geräte ungeschützt.',
+      );
+    });
+
+    // Backup-Regeln adressieren ganze Dateien, nie einzelne Schlüssel:
+    // supabase_flutter schreibt die Sitzung nach
+    // shared_prefs/FlutterSharedPreferences.xml, also muss genau diese Datei
+    // dastehen. Verlustfrei, weil shared_preferences nur transitiv über
+    // supabase_flutter hereinkommt und sonst niemand hineinschreibt — sollte
+    // sich das ändern, gehört diese Regel überdacht.
+    test('Android 11 und älter schließt die Sitzungsdatei aus', () {
+      final rules = File('android/app/src/main/res/xml/backup_rules.xml');
+      expect(rules.existsSync(), isTrue, reason: 'backup_rules.xml fehlt.');
+      expect(rules.readAsStringSync(), contains(excluded));
+    });
+
+    test(
+      'ab Android 12 ist die Sitzung aus Cloud UND Gerätewechsel heraus',
+      () {
+        final rules = File(
+          'android/app/src/main/res/xml/data_extraction_rules.xml',
+        );
+        expect(
+          rules.existsSync(),
+          isTrue,
+          reason: 'data_extraction_rules.xml fehlt.',
+        );
+        final text = rules.readAsStringSync();
+
+        final cloud = text.indexOf('<cloud-backup>');
+        final transfer = text.indexOf('<device-transfer>');
+        expect(cloud, isNonNegative, reason: '<cloud-backup> fehlt.');
+        expect(transfer, isNonNegative, reason: '<device-transfer> fehlt.');
+
+        // Beide Blöcke einzeln prüfen: Ein Ausschluss nur unter cloud-backup
+        // ließe das Token beim direkten Gerätewechsel trotzdem mitreisen.
+        final cloudBlock = text.substring(
+          cloud,
+          text.indexOf('</cloud-backup>'),
+        );
+        final transferBlock = text.substring(
+          transfer,
+          text.indexOf('</device-transfer>'),
+        );
+        expect(
+          cloudBlock,
+          contains(excluded),
+          reason: 'Sitzung fehlt im Ausschluss für das Cloud-Backup.',
+        );
+        expect(
+          transferBlock,
+          contains(excluded),
+          reason: 'Sitzung fehlt im Ausschluss für den Gerätewechsel.',
+        );
+      },
+    );
+  });
 }

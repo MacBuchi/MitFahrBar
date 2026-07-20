@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.10.1] – 2026-07-20
+
+### Behoben
+
+- **Die Anmeldung wandert nicht mehr ins Google-Backup.** Android sichert die
+  App-Daten standardmäßig ins Konto des Geräts und spielt sie auf einem neuen
+  Handy wieder ein — bisher inklusive der gespeicherten Anmeldung. Da eine
+  Gruppe genau einen Zugang teilt, ist das der Schlüssel zur ganzen Gruppe.
+  Er bleibt jetzt auf dem Gerät. Für euch ändert sich nichts, außer dass ihr
+  euch auf einem neu eingerichteten Handy einmal neu anmeldet.
+
 ## [0.10.0] – 2026-07-20
 
 ### Neu
@@ -197,6 +208,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.10.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.1
 [0.10.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.0
 [0.9.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.9.0
 [0.8.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.8.0
