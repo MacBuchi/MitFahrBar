@@ -215,6 +215,18 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.
   Die Issue-Templates unter `.github/ISSUE_TEMPLATE/` und die Felder im
   Feedback-Dialog gehören zusammen — Änderungen immer paarweise.
+- **Stimmungs-Gesichter** kommen aus dem Design-Set „RideBuddy Smiley Set"
+  (Claude-Design-Projekt `ae532219-705e-4cdb-becd-cf734e17215a`). Sie sind
+  **gezeichnet, nicht eingebunden** (`core/widgets/mood_face.dart`,
+  CustomPainter) — dieselbe Linie wie bei den Charts, ein SVG-Renderer nur
+  für acht Gesichter wäre eine Dependency zu viel. Die Geometrie steht 1:1
+  im Koordinatensystem der Vorlage (viewBox 100×100) und wird erst beim
+  Zeichnen skaliert, damit sie mit dem Design vergleichbar bleibt. Die
+  Farben in `AppFace` sind aus **oklch** umgerechnet (Flutter kennt oklch
+  nicht) — bei einer Änderung im Design-Set neu umrechnen, **nie von Hand
+  nachjustieren**, sonst driftet die Skala auseinander. `Mood.celebrating`
+  steht bewusst außerhalb der Bewertungsskala und kann von `driveMoodOf`
+  nicht zurückgegeben werden; es zeichnet einen Erfolg aus, keine Stufe.
 - **Branding:** `tool/brand/mark.svg` ist die einzige Quelle der Bildmarke.
   `tool/brand/build_icons.sh` (braucht `rsvg-convert` + python3) erzeugt
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps

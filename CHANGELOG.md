@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.15.0] – 2026-07-21
+
+### Geändert
+
+- **Die Gesichter auf der Startseite sind jetzt die eigenen.** Statt der
+  grauen Standard-Symbole steht dort das RideBuddy-Smiley-Set: sieben Stufen
+  von strahlend grün bis verärgert rot, passend zum Fahranteil. Der Verlauf
+  ist feiner als vorher — es gibt jetzt auch ein „etwas mehr als die anderen"
+  statt nur zufrieden, neutral oder unzufrieden.
+
 ## [0.14.0] – 2026-07-21
 
 ### Geändert

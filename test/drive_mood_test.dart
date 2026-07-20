@@ -6,42 +6,48 @@
 library;
 
 import 'package:fahrgemeinschaft/core/drive_mood.dart';
+import 'package:fahrgemeinschaft/core/mood.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('driveMoodOf', () {
     test('wer seinen Teil fährt, bekommt ein neutrales Gesicht', () {
-      expect(driveMoodOf(0.25, 0.25), DriveMood.neutral);
-      expect(driveMoodOf(0.20, 0.20), DriveMood.neutral);
+      expect(driveMoodOf(0.25, 0.25), Mood.neutral);
+      expect(driveMoodOf(0.20, 0.20), Mood.neutral);
     });
 
     test('dieselben 20 % je nach Gruppe zufrieden oder nicht', () {
       // Fünfergruppe: 20 % ist der eigene Teil.
-      expect(driveMoodOf(0.20, 0.20), DriveMood.neutral);
+      expect(driveMoodOf(0.20, 0.20), Mood.neutral);
       // Zweiergruppe: bei 50 % Schnitt sind 20 % auffällig wenig.
-      expect(driveMoodOf(0.20, 0.50), DriveMood.veryHappy);
+      expect(driveMoodOf(0.20, 0.50), Mood.ecstatic);
     });
 
-    test('deutlich seltener als der Schnitt = strahlend', () {
-      expect(driveMoodOf(0.10, 0.25), DriveMood.veryHappy);
-    });
-
-    test('etwas seltener = zufrieden', () {
-      expect(driveMoodOf(0.20, 0.25), DriveMood.happy);
-    });
-
-    test('etwas öfter = unzufrieden', () {
-      expect(driveMoodOf(0.32, 0.25), DriveMood.unhappy);
-    });
-
-    test('deutlich öfter als der Schnitt = sehr unzufrieden', () {
-      expect(driveMoodOf(0.50, 0.25), DriveMood.veryUnhappy);
+    test('die Skala läuft über alle sieben Stufen', () {
+      // Von „fährt fast nie" bis „fährt fast alles" — ein Durchlauf, damit
+      // keine Stufe unerreichbar wird, wenn jemand an den Schwellen dreht.
+      const avg = 0.25;
+      expect(driveMoodOf(0.05, avg), Mood.ecstatic);
+      expect(driveMoodOf(0.15, avg), Mood.happy);
+      expect(driveMoodOf(0.21, avg), Mood.good);
+      expect(driveMoodOf(0.25, avg), Mood.neutral);
+      expect(driveMoodOf(0.30, avg), Mood.meh);
+      expect(driveMoodOf(0.36, avg), Mood.sad);
+      expect(driveMoodOf(0.50, avg), Mood.angry);
     });
 
     test('ohne gefahrene Tage urteilt niemand', () {
       // 0 ÷ 0 darf kein Gesicht erzeugen — am Anfang hat noch keiner
       // etwas verdient oder verbockt.
-      expect(driveMoodOf(0, 0), DriveMood.neutral);
+      expect(driveMoodOf(0, 0), Mood.neutral);
+    });
+
+    test('das Konfetti-Gesicht ist keine Bewertungsstufe', () {
+      // Es steht für einen Erfolg und wird gezielt gesetzt; käme es aus
+      // der Skala, bekäme es irgendwann jemand für einen Fahranteil.
+      for (final share in [0.0, 0.1, 0.25, 0.5, 1.0, 5.0]) {
+        expect(driveMoodOf(share, 0.25), isNot(Mood.celebrating));
+      }
     });
   });
 
@@ -52,17 +58,23 @@ void main() {
 
     test('leere Liste ergibt 0 und damit lauter neutrale Gesichter', () {
       expect(averageDriveShare(const []), 0);
-      expect(driveMoodOf(0.5, averageDriveShare(const [])), DriveMood.neutral);
+      expect(driveMoodOf(0.5, averageDriveShare(const [])), Mood.neutral);
     });
   });
 
   group('driveMoodLabel', () {
     test('nennt den Prozentwert, der aus der Ansicht verschwunden ist', () {
-      expect(driveMoodLabel(DriveMood.veryHappy, 0.12), contains('12 %'));
-      expect(
-        driveMoodLabel(DriveMood.veryUnhappy, 0.5),
-        contains('viel öfter'),
-      );
+      expect(driveMoodLabel(Mood.ecstatic, 0.12), contains('12 %'));
+      expect(driveMoodLabel(Mood.angry, 0.5), contains('viel öfter'));
+    });
+
+    test('jede Stufe hat einen eigenen Text', () {
+      final labels = {
+        for (final mood in Mood.values) driveMoodLabel(mood, 0.2),
+      };
+      // celebrating teilt sich den Text mit neutral (es wird hier nie
+      // vergeben), deshalb sieben statt acht.
+      expect(labels, hasLength(7));
     });
   });
 }

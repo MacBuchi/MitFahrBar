@@ -55,6 +55,47 @@ abstract final class AppColors {
   static const oneWay = Color(0xFFB45309);
 }
 
+/// Farben der Stimmungs-Gesichter aus dem Design-Set „RideBuddy Smiley Set".
+///
+/// Die Vorlage ist in oklch notiert, was Flutter nicht kennt; die Werte hier
+/// sind die nach sRGB umgerechneten Entsprechungen. Deshalb gilt: **nicht von
+/// Hand nachjustieren** — bei einer Änderung im Design-Set neu umrechnen,
+/// sonst driftet die Skala auseinander.
+///
+/// Der Farbton wandert über die Skala von Grün nach Rot; `ink` ist jeweils
+/// der dunkle Ton für Augen und Mund desselben Gesichts.
+abstract final class AppFace {
+  AppFace._();
+
+  static const ecstaticFill = Color(0xFF4AC06C);
+  static const ecstaticInk = Color(0xFF004C1A);
+  static const happyFill = Color(0xFF87B73A);
+  static const happyInk = Color(0xFF2C4700);
+  static const goodFill = Color(0xFFBBB326);
+  static const goodInk = Color(0xFF4A4400);
+  static const neutralFill = Color(0xFFE4B33F);
+  static const neutralInk = Color(0xFF5E4300);
+  static const mehFill = Color(0xFFE88B0E);
+  static const mehInk = Color(0xFF693100);
+  static const sadFill = Color(0xFFE56731);
+  static const sadInk = Color(0xFF671800);
+  static const angryFill = Color(0xFFDB4241);
+  static const angryInk = Color(0xFF65000A);
+
+  /// Träne des traurigen Gesichts.
+  static const tear = Color(0xFF4BAEED);
+
+  /// „Celebrating" steht außerhalb der Skala: kein Bewertungsschritt,
+  /// sondern die Auszeichnung eines Erfolgs.
+  static const celebrateFill = Color(0xFFF9DD73);
+  static const celebrateInk = Color(0xFF643400);
+  static const celebrateTongue = Color(0xFFEC5A63);
+  static const confettiGold = Color(0xFFEDCC48);
+  static const confettiGreen = Color(0xFF55C975);
+  static const confettiRed = Color(0xFFF66D67);
+  static const confettiViolet = Color(0xFFDCB8FF);
+}
+
 /// Maße der Diagramme (gezeichnet in `core/widgets/charts.dart`).
 ///
 /// Die Daten sind das Einzige, was laut sein darf: dünne Marken, haarfeine

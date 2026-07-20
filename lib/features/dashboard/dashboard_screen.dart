@@ -15,6 +15,7 @@ import '../../core/tokens.dart';
 import '../../core/update_check.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
+import '../../core/widgets/mood_face.dart';
 import '../../core/widgets/ride_buddy_mark.dart';
 import '../account/change_password_dialog.dart';
 import '../banners/app_banners.dart';
@@ -268,23 +269,13 @@ class _DriveMoodFace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final mood = driveMoodOf(share, averageShare);
-    final (icon, color) = switch (mood) {
-      DriveMood.veryHappy => (Icons.sentiment_very_satisfied, AppColors.eco),
-      DriveMood.happy => (Icons.sentiment_satisfied, AppColors.eco),
-      DriveMood.neutral => (Icons.sentiment_neutral, scheme.onSurfaceVariant),
-      DriveMood.unhappy => (Icons.sentiment_dissatisfied, AppColors.oneWay),
-      DriveMood.veryUnhappy => (
-        Icons.sentiment_very_dissatisfied,
-        scheme.error,
-      ),
-    };
     return Padding(
       padding: const EdgeInsets.only(left: AppSpacing.s),
-      child: Semantics(
-        label: driveMoodLabel(mood, share),
-        child: Icon(icon, size: 20, color: color),
+      child: MoodFace(
+        mood: mood,
+        size: 22,
+        semanticLabel: driveMoodLabel(mood, share),
       ),
     );
   }
