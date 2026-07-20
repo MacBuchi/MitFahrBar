@@ -151,6 +151,18 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Fehlt der FileProvider, stirbt die App direkt nach dem Download.
   Abgesichert durch `test/android_manifest_test.dart` — Änderungen daran
   zusätzlich auf einem echten Gerät verifizieren.
+- **Android-Backup schließt die Sitzung aus** (`res/xml/backup_rules.xml` für
+  Android ≤ 11, `res/xml/data_extraction_rules.xml` ab 12, beide am
+  `<application>` verdrahtet). Grund: Eine Gruppe = ein Login, das
+  Sitzungs-Token ist also das gemeinsame Zugangsmerkmal der Gruppe und darf
+  nicht über das Google-Konto eines Mitglieds auf fremde Geräte wandern.
+  Zwei Fallen dabei: Backup-Regeln adressieren **ganze Dateien**, nie
+  einzelne Schlüssel — deshalb steht dort `FlutterSharedPreferences.xml`, was
+  nur deswegen verlustfrei ist, weil `shared_preferences` ausschließlich
+  transitiv über `supabase_flutter` hereinkommt. Sobald `lib/` selbst etwas
+  in SharedPreferences ablegt, gehört diese Regel überdacht. Und ab
+  Android 12 braucht der Ausschluss **beide** Blöcke (`cloud-backup` *und*
+  `device-transfer`), sonst reist das Token beim Gerätewechsel doch mit.
 - **Feedback** landet in der Tabelle `feedback`; der Bot
   (`tool/feedback_bot.py`, `.github/workflows/feedback.yml`) macht daraus
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.

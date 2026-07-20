@@ -6,10 +6,17 @@
     <!-- Die heruntergeladene APK an den Android-Installer übergeben dürfen.
          Ohne diese Berechtigung endet das In-App-Update im Nichts. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Backup bleibt an (es gibt lokal nichts Wertvolles zu verlieren), aber
+         die Sitzung ist ausgenommen: Eine Gruppe = ein Login, das Token ist
+         also das gemeinsame Zugangsmerkmal der Gruppe und hat im Cloud-Backup
+         eines einzelnen Mitglieds nichts verloren. Beide Attribute nötig —
+         fullBackupContent bis Android 11, dataExtractionRules ab Android 12. -->
     <application
         android:label="RideBuddy"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:exported="true"

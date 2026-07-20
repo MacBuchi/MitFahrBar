@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup-Regeln für Android 11 und älter (android:fullBackupContent).
+
+  supabase_flutter legt die Sitzung unter dem Schlüssel
+  "sb-<projekt>-auth-token" ab; Flutters SharedPreferences schreibt jeden
+  Schlüssel in die eine Datei shared_prefs/FlutterSharedPreferences.xml.
+  Backup-Regeln adressieren immer ganze Dateien, nie einzelne Schlüssel —
+  der Ausschluss muss also die komplette Datei nennen.
+
+  Das kostet hier nichts: shared_preferences ist keine direkte Abhängigkeit
+  und wird ausschließlich transitiv von supabase_flutter benutzt. In der
+  Datei steht nichts außer Sitzung und PKCE-Zustand.
+
+  Warum überhaupt: Eine Gruppe = ein Login. Das Sitzungs-Token ist damit das
+  gemeinsame Zugangsmerkmal der ganzen Gruppe und soll nicht über das
+  Google-Konto einer einzelnen Person auf fremde Geräte wandern.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+</full-backup-content>
