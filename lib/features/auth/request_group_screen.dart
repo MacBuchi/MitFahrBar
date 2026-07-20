@@ -69,7 +69,7 @@ class _RequestGroupScreenState extends ConsumerState<RequestGroupScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Anfrage fehlgeschlagen: Name evtl. schon vergeben.'),
         ),
       );
