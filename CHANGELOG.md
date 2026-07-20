@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.12.1] – 2026-07-20
+
+### Geändert
+
+- **Nichts, was ihr seht.** Diese Version schärft nur die automatischen
+  Prüfungen, mit denen der Code vor jeder Veröffentlichung kontrolliert wird —
+  etwa darauf, dass kein Ergebnis einer Speicheraktion versehentlich ignoriert
+  wird. Sie soll Fehler abfangen, bevor sie bei euch ankommen.
+
 ## [0.12.0] – 2026-07-20
 
 ### Neu
@@ -258,6 +267,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.12.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.12.1
 [0.12.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.12.0
 [0.11.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.11.1
 [0.11.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.11.0

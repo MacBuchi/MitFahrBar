@@ -1,6 +1,8 @@
 /// history_screen.dart – Fahrtenliste mit Bearbeiten/Löschen.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,7 +76,10 @@ class _TripList extends ConsumerWidget {
           trailing: PopupMenuButton<String>(
             onSelected: (action) async {
               if (action == 'edit') {
-                context.push('/trip/${trip.id}');
+                // Bewusst nicht abgewartet: Der Rückgabewert der Navigation
+                // interessiert hier nicht, und ein await würde das Menü bis
+                // zur Rückkehr offen halten.
+                unawaited(context.push('/trip/${trip.id}'));
               } else if (action == 'delete') {
                 final confirmed = await showDialog<bool>(
                   context: context,

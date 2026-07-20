@@ -270,10 +270,10 @@ class _MixLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
+    return const Wrap(
       spacing: AppSpacing.m,
       runSpacing: AppSpacing.xs,
-      children: const [
+      children: [
         _LegendItem(color: AppColors.driver, label: 'gefahren'),
         _LegendItem(color: AppColors.oneWay, label: '1-way'),
         _LegendItem(color: AppColors.passenger, label: 'mitgefahren'),
