@@ -1,8 +1,8 @@
-# Fahrgemeinschaft
+# RideBuddy
 
-Web-App zur Verwaltung einer Fahrgemeinschaft: Fahrten dokumentieren, Punkte
-zählen und auf einen Blick sehen, **wer als Nächstes fahren sollte**.
-Mehrere Gruppen können die App unabhängig voneinander nutzen.
+Die faire App für eure Fahrgemeinschaft: Fahrten dokumentieren, Punkte zählen
+und auf einen Blick sehen, **wer als Nächstes fahren sollte**. Mehrere Gruppen
+können die App unabhängig voneinander nutzen.
 
 **➡️ App öffnen: <https://macbuchi.github.io/Fahrgemeinschaft/>**
 
@@ -68,7 +68,7 @@ für den ganzen Gruppen-Zugang, danach brauchen es alle neu.
 
 ## Entwicklung
 
-Flutter Web (PWA) mit Riverpod, go_router und Material 3; Backend ist Supabase
+Flutter (Web-PWA und Android) mit Riverpod, go_router und Material 3; Backend ist Supabase
 (PostgreSQL + Auth, Zugriffsschutz über Row Level Security). Details zu
 Konzept und Fachlogik: [KONZEPT.md](KONZEPT.md), Arbeitsregeln:
 [CLAUDE.md](CLAUDE.md), Änderungen: [CHANGELOG.md](CHANGELOG.md).
@@ -82,6 +82,11 @@ flutter analyze && flutter test
 Ohne hinterlegtes Supabase-Projekt (`lib/core/supabase_config.dart`) startet
 die App in einem **Demo-Modus** mit Beispieldaten – praktisch zum Ausprobieren
 ohne Backend.
+
+Marke und Gestaltung folgen dem Design-Set „RideBuddy": Tokens in
+[lib/core/tokens.dart](lib/core/tokens.dart), die Bildmarke als Widget in
+[lib/core/widgets/ride_buddy_mark.dart](lib/core/widgets/ride_buddy_mark.dart).
+App-Icons entstehen aus der Marke mit `tool/brand/build_icons.sh`.
 
 Datenbank-Schema und Migrationen liegen unter [supabase/](supabase/) und
 werden bei Push auf `main` automatisch eingespielt. Ein Release entsteht durch

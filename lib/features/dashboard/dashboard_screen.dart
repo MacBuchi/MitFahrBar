@@ -11,6 +11,7 @@ import '../../core/supabase_config.dart';
 import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
+import '../../core/widgets/ride_buddy_mark.dart';
 import '../account/change_password_dialog.dart';
 import '../banners/app_banners.dart';
 
@@ -25,7 +26,13 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(group?.name ?? 'Fahrgemeinschaft'),
+        titleSpacing: 0,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: AppSpacing.m),
+          child: Center(child: RideBuddyMark(size: 34)),
+        ),
+        leadingWidth: 34 + AppSpacing.m * 2,
+        title: Text(group?.name ?? 'RideBuddy'),
         actions: [
           if (group?.isAdmin ?? false)
             IconButton(

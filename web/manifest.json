@@ -1,11 +1,11 @@
 {
-    "name": "Fahrgemeinschaft",
-    "short_name": "Fahrgemeinschaft",
+    "name": "RideBuddy",
+    "short_name": "RideBuddy",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#2E7D32",
-    "theme_color": "#2E7D32",
-    "description": "Fahrten dokumentieren, Punkte zählen, wissen wer dran ist.",
+    "background_color": "#06171C",
+    "theme_color": "#0891B2",
+    "description": "Die faire App für eure Fahrgemeinschaft — Fahrten dokumentieren, Punkte zählen, wissen wer als Nächstes dran ist.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
