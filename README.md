@@ -79,6 +79,20 @@ flutter run -d chrome     # ohne Supabase-Konfiguration: Demo-Modus
 flutter analyze && flutter test
 ```
 
+Zum schnellen Ansehen im Browser gibt es fertige Startskripte. Sie bauen die
+App als Release, liefern sie lokal aus und öffnen den Standardbrowser; Strg-C
+beendet beides wieder:
+
+```bash
+./tool/run_web.sh          # macOS und Linux, Port 8080
+./tool/run_web.sh 9000     # anderer Port
+```
+
+```powershell
+.\tool\run_web.ps1         # Windows
+.\tool\run_web.ps1 -Port 9000
+```
+
 Ohne hinterlegtes Supabase-Projekt (`lib/core/supabase_config.dart`) startet
 die App in einem **Demo-Modus** mit Beispieldaten – praktisch zum Ausprobieren
 ohne Backend.
