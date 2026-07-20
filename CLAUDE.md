@@ -152,8 +152,19 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps
   inklusive Adaptive-Icon-Vordergrund. Icons nie von Hand bearbeiten.
   Schrift: Space Grotesk (Display) + Manrope (Body) als Variable Fonts.
+- **Lizenz:** `LICENSE` ist MIT. Die Bildmarke und die gebündelten Schriften
+  hängen nicht daran — Space Grotesk und Manrope stehen unter der SIL OFL,
+  die verlangt, dass ihr Lizenztext mitgeliefert wird. Neue Assets deshalb
+  immer mit ihrer Lizenz zusammen einchecken.
+- **Der Release-Workflow prüft selbst.** `release.yml` entscheidet erst über
+  den Tag, lässt dann `flutter analyze` + `flutter test` laufen und taggt erst
+  danach. Grund: Der Merge ist die Veröffentlichung, aber `enforce_admins` ist
+  aus — ein direkter Push auf `main` käme sonst am Branch-Schutz vorbei
+  ungeprüft bis in Tag, APK und Pages-Deploy. Das Gate darf nie hinter das
+  Taggen rutschen.
 - **Offene Infrastruktur-Lücken:** kein `dependabot.yml` (beim Einrichten
-  beachten: Dependabot-PRs auf `pubspec.yaml` lösen den Version Guard aus),
-  `analysis_options.yaml` ist noch das unkonfigurierte Template,
-  `pubspec.yaml` trägt die Template-`description`, `LICENSE` fehlt (wird in
-  den Version-Guard-Excludes bereits referenziert).
+  beachten: Dependabot-PRs auf `pubspec.yaml` lösen den Version Guard aus —
+  mit `groups:` wird daraus ein PR pro Monat statt fünf, siehe Issue #20),
+  `analysis_options.yaml` ist noch das unkonfigurierte Template (Issue #21;
+  `require_trailing_commas` gibt es seit Dart 3.7 nicht mehr, nicht
+  eintragen), `pubspec.yaml` trägt die Template-`description`.
