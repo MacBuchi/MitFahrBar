@@ -162,9 +162,17 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   aus — ein direkter Push auf `main` käme sonst am Branch-Schutz vorbei
   ungeprüft bis in Tag, APK und Pages-Deploy. Das Gate darf nie hinter das
   Taggen rutschen.
-- **Offene Infrastruktur-Lücken:** kein `dependabot.yml` (beim Einrichten
-  beachten: Dependabot-PRs auf `pubspec.yaml` lösen den Version Guard aus —
-  mit `groups:` wird daraus ein PR pro Monat statt fünf, siehe Issue #20),
-  `analysis_options.yaml` ist noch das unkonfigurierte Template (Issue #21;
-  `require_trailing_commas` gibt es seit Dart 3.7 nicht mehr, nicht
-  eintragen), `pubspec.yaml` trägt die Template-`description`.
+- **Dependabot läuft monatlich und gebündelt** (`.github/dependabot.yml`).
+  Die Bündelung über `groups:` ist kein Kosmetik-Detail: `pubspec.yaml` ist
+  nicht vom Version Guard ausgenommen, jeder pub-PR verlangt also einen
+  Versions-Bump und veröffentlicht ein Release. Einzeln wären das bis zu fünf
+  Releases im Monat nur für Abhängigkeiten. Die Guard-Regel bleibt trotzdem
+  wie sie ist — ein Dependency-Wechsel geht wirklich an die Gruppen raus.
+  Riverpod-Majors sind per `ignore` ausgenommen (2.x ist bewusst gepinnt).
+- **Offene Infrastruktur-Lücke:** `analysis_options.yaml` ist noch das
+  unkonfigurierte Template (Issue #21). Beim Nachrüsten beachten:
+  `require_trailing_commas` gibt es seit Dart 3.7 nicht mehr — eintragen
+  erzeugt eine „undefined lint rule" und damit rote CI. `avoid_print` und
+  `use_build_context_synchronously` sind über `flutter_lints` 6 bereits
+  aktiv und blockieren schon heute, weil `flutter analyze` auch bei
+  Info-Diagnosen ungleich null zurückgibt.
