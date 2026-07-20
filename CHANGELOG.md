@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.6.1] – 2026-07-20
+
+### Behoben
+
+- **Der Login in der Android-App funktioniert wieder.** Der App fehlte die
+  Berechtigung, überhaupt ins Internet zu gehen — sie konnte den Server
+  deshalb nie erreichen, und jeder Anmeldeversuch endete mit „Name oder
+  Passwort falsch", auch wenn beides stimmte. Im Browser war davon nichts
+  zu merken. Betroffen waren alle bisherigen Android-Installationen.
+
 ## [0.6.0] – 2026-07-20
 
 ### Neu
@@ -119,6 +129,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.6.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.6.1
 [0.6.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.6.0
 [0.5.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.5.1
 [0.5.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.5.0

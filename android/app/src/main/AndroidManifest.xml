@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Ohne diese Berechtigung hat der Release-Build keinen Netzzugriff:
+         Supabase ist dann unerreichbar und der Login schlägt fehl. Die
+         Flutter-Vorlage deklariert sie nur für debug/profile. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="RideBuddy"
         android:name="${applicationName}"
