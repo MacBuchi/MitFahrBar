@@ -229,3 +229,54 @@ String? suggestDriver(
   Map<String, PersonStats> stats,
   AppSettings settings,
 ) => rankPresent(presentIds, stats, settings).firstOrNull?.personId;
+
+/// Die beiden Auffälligkeiten für die Startseite: Wer fährt mit vollem Auto,
+/// wer meist fast allein? Beides ist [PersonStats.quote] — Ø Mitfahrer je
+/// eigener Fahrt.
+///
+/// Warum das die Rangliste erklärt: Der Fahraufwand ist pro Fahrt derselbe,
+/// die Punkte sind es nicht. Wer immer vier Leute mitnimmt, sammelt je Fahrt
+/// drei Punkte und hat schnell ein Polster; wer immer nur einen mitnimmt,
+/// muss für dasselbe Polster dreimal so oft fahren und steht deshalb ständig
+/// wieder oben. Genau diese Schieflage gleicht der kombinierte Rang aus
+/// (KONZEPT.md 3.2) — sichtbar war sie bisher nirgends.
+class QuoteExtremes {
+  const QuoteExtremes({this.fullestId, this.emptiestId});
+
+  /// Höchste Quote — „Volle Kischt".
+  final String? fullestId;
+
+  /// Niedrigste Quote — „Fast alloi".
+  final String? emptiestId;
+}
+
+/// Ab so vielen eigenen Fahrten zählt jemand mit. Darunter würde ein einziger
+/// voller (oder leerer) Tag schon einen Titel tragen.
+const minDrivesForQuoteBadge = 3;
+
+/// Extremwerte der Quote unter [ids]. Leer, wenn zu wenige Personen genug
+/// gefahren sind oder alle dieselbe Quote haben — dann sagt die Markierung
+/// nichts aus und wäre nur Dekoration.
+QuoteExtremes findQuoteExtremes(
+  Iterable<String> ids,
+  Map<String, PersonStats> stats,
+) {
+  final eligible = <PersonStats>[
+    for (final id in ids)
+      if (stats[id] case final s?)
+        if (s.driven >= minDrivesForQuoteBadge && s.quote != null) s,
+  ];
+  // Bei zwei Personen wäre einer zwangsläufig „voll" und der andere „leer",
+  // ohne dass das etwas bedeutet.
+  if (eligible.length < 3) return const QuoteExtremes();
+
+  eligible.sort((a, b) => a.quote!.compareTo(b.quote!));
+  final lowest = eligible.first;
+  final highest = eligible.last;
+  if (lowest.quote == highest.quote) return const QuoteExtremes();
+
+  return QuoteExtremes(
+    fullestId: highest.personId,
+    emptiestId: lowest.personId,
+  );
+}

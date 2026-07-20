@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.11.0] – 2026-07-20
+
+### Geändert
+
+- **„Wer ist dran" sagt jetzt, in welche Richtung die Zahlen zeigen.** Statt
+  „2,5 Punkte" steht dort „schuldet 2,5" beziehungsweise „hat 2,5 gut" — die
+  Punkte sind ausgeglichen über die Gruppe, negativ heißt also, dass euch
+  noch Fahrten zustehen. Das war vorher genau andersherum zu lesen, als es
+  gemeint ist.
+- **Neu daneben: Ø Mitfahrer je eigener Fahrt.** Die Zahl erklärt die
+  Rangliste. Der Aufwand ist pro Fahrt für alle gleich, die Punkte sind es
+  nicht: Wer immer drei Leute mitnimmt, sammelt dreimal so schnell wie
+  jemand, der meist zu zweit unterwegs ist.
+- **Zwei Auffälligkeiten werden benannt:** „Volle Kischt" für den, der
+  regelmäßig das vollste Auto fährt, und „Fast alloi" für den, der meist mit
+  einem Mitfahrer unterwegs ist. Beides erscheint erst ab drei eigenen
+  Fahrten und nur, wenn sich die Gruppe darin wirklich unterscheidet — sonst
+  wäre es Dekoration statt Aussage.
+
 ## [0.10.1] – 2026-07-20
 
 ### Behoben
@@ -208,6 +227,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.11.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.11.0
 [0.10.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.1
 [0.10.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.0
 [0.9.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.9.0

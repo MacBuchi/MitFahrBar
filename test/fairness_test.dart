@@ -184,6 +184,97 @@ void main() {
     });
   });
 
+  group('findQuoteExtremes', () {
+    PersonStats stats(
+      String id, {
+      required int driven,
+      required double carried,
+    }) => PersonStats(
+      personId: id,
+      driven: driven,
+      ridden: 0,
+      oneWay: 0,
+      carried: carried,
+      points: 0,
+    );
+
+    // Der Fahraufwand ist pro Fahrt gleich, die Punkte sind es nicht: Wer
+    // immer vier Leute mitnimmt, sammelt dreimal so schnell. Genau das soll
+    // die Markierung auf der Startseite sichtbar machen.
+    test('markiert höchste und niedrigste Quote', () {
+      final all = {
+        'voll': stats('voll', driven: 10, carried: 30), // Quote 3,0
+        'mittel': stats('mittel', driven: 10, carried: 15), // Quote 1,5
+        'leer': stats('leer', driven: 10, carried: 10), // Quote 1,0
+      };
+      final extremes = findQuoteExtremes(all.keys, all);
+
+      expect(extremes.fullestId, 'voll');
+      expect(extremes.emptiestId, 'leer');
+    });
+
+    test('wer zu selten gefahren ist, bekommt keinen Titel', () {
+      final all = {
+        'neu': stats('neu', driven: 1, carried: 4), // höchste Quote, aber 1x
+        'a': stats('a', driven: 10, carried: 20),
+        'b': stats('b', driven: 10, carried: 15),
+        'c': stats('c', driven: 10, carried: 10),
+      };
+      final extremes = findQuoteExtremes(all.keys, all);
+
+      expect(
+        extremes.fullestId,
+        'a',
+        reason:
+            'Eine einzelne volle Fahrt darf keinen Titel tragen — sonst '
+            'wandert er bei jeder Neuanlage hin und her.',
+      );
+      expect(extremes.emptiestId, 'c');
+    });
+
+    test('unter drei Gefahrenen bleibt die Markierung aus', () {
+      final all = {
+        'a': stats('a', driven: 10, carried: 30),
+        'b': stats('b', driven: 10, carried: 10),
+      };
+      final extremes = findQuoteExtremes(all.keys, all);
+
+      expect(
+        extremes.fullestId,
+        isNull,
+        reason:
+            'Bei zwei Personen wäre einer zwangsläufig voll und der andere '
+            'leer, ohne dass das etwas aussagt.',
+      );
+      expect(extremes.emptiestId, isNull);
+    });
+
+    test('bei gleicher Quote wird niemand markiert', () {
+      final all = {
+        'a': stats('a', driven: 10, carried: 20),
+        'b': stats('b', driven: 5, carried: 10),
+        'c': stats('c', driven: 4, carried: 8),
+      };
+      final extremes = findQuoteExtremes(all.keys, all);
+
+      expect(extremes.fullestId, isNull);
+      expect(extremes.emptiestId, isNull);
+    });
+
+    test('wer nie gefahren ist, zählt nicht mit', () {
+      final all = {
+        'a': stats('a', driven: 10, carried: 30),
+        'b': stats('b', driven: 10, carried: 20),
+        'c': stats('c', driven: 10, carried: 10),
+        'nie': stats('nie', driven: 0, carried: 0), // quote == null
+      };
+      final extremes = findQuoteExtremes(all.keys, all);
+
+      expect(extremes.emptiestId, 'c');
+      expect(extremes.fullestId, 'a');
+    });
+  });
+
   group('Excel-Backtest (echte Historie aus .donotsync)', () {
     final file = File('.donotsync/seed/seed.json');
 
