@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/drive_mood.dart';
 import '../../core/fairness.dart';
 import '../../core/supabase_config.dart';
 import '../../core/tokens.dart';
@@ -165,12 +166,16 @@ class _Content extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final byId = {for (final p in persons) p.id: p};
     final points = NumberFormat('#,##0.#', 'de');
-    final percent = NumberFormat.percentPattern('de');
     final average = NumberFormat('#,##0.0', 'de');
     final extremes = findQuoteExtremes(
       [for (final c in ranked) c.personId],
       {for (final c in ranked) c.personId: c.stats},
     );
+    // Bezugsgröße der Gesichter: der Schnitt genau dieser Liste, nicht ein
+    // fester Prozentwert (siehe core/drive_mood.dart).
+    final avgShare = averageDriveShare([
+      for (final c in ranked) c.stats.driveShare,
+    ]);
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
@@ -205,6 +210,10 @@ class _Content extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      _DriveMoodFace(
+                        share: candidate.stats.driveShare,
+                        averageShare: avgShare,
+                      ),
                       if (candidate.personId == extremes.fullestId)
                         const _QuoteBadge(label: 'Volle Kischt'),
                       if (candidate.personId == extremes.emptiestId)
@@ -213,7 +222,6 @@ class _Content extends ConsumerWidget {
                   ),
                   subtitle: Text(
                     '${_balanceLabel(candidate.stats.points, points)}'
-                    ' · fährt ${percent.format(candidate.stats.driveShare)}'
                     '${_quoteLabel(candidate.stats.quote, average)}',
                   ),
                   trailing: index == 0
@@ -248,6 +256,39 @@ String _balanceLabel(double points, NumberFormat format) {
 /// vieler Fahrten wenig Punkte hat. Fehlt, solange jemand nie gefahren ist.
 String _quoteLabel(double? quote, NumberFormat format) =>
     quote == null ? '' : ' · Ø ${format.format(quote)} mit';
+
+/// Der Fahranteil als Gesicht: wenig gefahren = zufrieden, viel gefahren =
+/// nicht. Ersetzt die Prozentzahl, die neben Platz 1 wie ein Widerspruch
+/// aussah — die Zahl selbst bleibt im Screenreader-Text erhalten.
+class _DriveMoodFace extends StatelessWidget {
+  const _DriveMoodFace({required this.share, required this.averageShare});
+
+  final double share;
+  final double averageShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final mood = driveMoodOf(share, averageShare);
+    final (icon, color) = switch (mood) {
+      DriveMood.veryHappy => (Icons.sentiment_very_satisfied, AppColors.eco),
+      DriveMood.happy => (Icons.sentiment_satisfied, AppColors.eco),
+      DriveMood.neutral => (Icons.sentiment_neutral, scheme.onSurfaceVariant),
+      DriveMood.unhappy => (Icons.sentiment_dissatisfied, AppColors.oneWay),
+      DriveMood.veryUnhappy => (
+        Icons.sentiment_very_dissatisfied,
+        scheme.error,
+      ),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(left: AppSpacing.s),
+      child: Semantics(
+        label: driveMoodLabel(mood, share),
+        child: Icon(icon, size: 20, color: color),
+      ),
+    );
+  }
+}
 
 class _QuoteBadge extends StatelessWidget {
   const _QuoteBadge({required this.label});

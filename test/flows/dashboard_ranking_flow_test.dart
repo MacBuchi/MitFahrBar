@@ -130,4 +130,51 @@ void main() {
     );
     expect(find.text('Fast alloi'), findsNothing);
   });
+
+  // Seit Issue #38 steuert der Fahranteil die Reihenfolge nicht mehr und
+  // steht deshalb als Gesicht statt als Prozentzahl da. Der Vorlesetext
+  // trägt die Zahl weiter — sonst verlöre ein Screenreader sie ersatzlos.
+  testWidgets('der Fahranteil steht als Gesicht, nicht als Prozentzahl', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+
+    // Anna fährt beide Tage, Bert fährt nie mit dem eigenen Auto: Annas
+    // Fahranteil liegt über dem Schnitt, Berts darunter.
+    for (final day in [DateTime(2026, 3, 2), DateTime(2026, 3, 3)]) {
+      await data.createTrip(day, {
+        ids['Anna']!: ParticipationStatus.driver,
+        ids['Bert']!: ParticipationStatus.passenger,
+      });
+    }
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+
+    expect(
+      find.textContaining('fährt 100 %'),
+      findsNothing,
+      reason: 'Die nackte Prozentzahl ist aus der Ansicht verschwunden.',
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('viel öfter als die anderen')),
+      findsOneWidget,
+      reason: 'Anna fuhr an allen Tagen selbst.',
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('viel seltener als die anderen')),
+      findsOneWidget,
+      reason: 'Bert ist nie selbst gefahren.',
+    );
+  });
 }

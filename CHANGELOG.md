@@ -4,6 +4,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.14.0] – 2026-07-21
+
+### Geändert
+
+- **Wer dran ist, entscheiden ab jetzt allein die Punkte.** Bisher zählte
+  zusätzlich der Fahranteil — also wie oft jemand im Verhältnis zu seinen
+  Anwesenheitstagen selbst gefahren ist. Das ist raus: Die Reihenfolge auf
+  der Startseite und der Fahrer-Vorschlag richten sich nur noch danach, wer
+  im Punktestand am weitesten hinten liegt.
+- **Was das für euch bedeutet.** Wer selten fährt, dann aber mit vollem Auto,
+  sammelt schnell Punkte und kommt dadurch seltener an die Reihe als vorher.
+  Wer oft mit ein bis zwei Mitfahrern fährt, kommt öfter dran. Das ist so
+  gewollt — falls es sich im Alltag schief anfühlt, sagt Bescheid, es lässt
+  sich ohne Umbau zurückstellen.
+
+### Neu
+
+- **Der Fahranteil steht jetzt als Gesicht neben dem Namen.** Wer im
+  Vergleich zur Gruppe wenig fahren musste, bekommt ein zufriedenes Gesicht,
+  wer viel gefahren ist, ein unzufriedenes. Verglichen wird immer mit eurem
+  eigenen Schnitt — in einer Fünfergruppe sind 20 % genau der eigene Teil,
+  zu zweit wären dieselben 20 % auffällig wenig.
+
 ## [0.13.0] – 2026-07-21
 
 ### Neu

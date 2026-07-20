@@ -116,6 +116,13 @@ void main() {
   });
 
   group('rankPresent / suggestDriver', () {
+    test('Standard ist „nur Punkte" — der Fahranteil steuert nichts', () {
+      // Festgenagelt, weil genau das die Entscheidung aus Issue #38 ist:
+      // Steht das Gewicht wieder auf 0.5, ändert sich die Reihenfolge
+      // stillschweigend für jede Gruppe.
+      expect(const AppSettings().pointsWeight, 1.0);
+    });
+
     test('reine Punkte-Sicht: wenigste Punkte ist dran', () {
       final trips = [
         trip('2026-01-05', {
@@ -133,12 +140,15 @@ void main() {
     });
 
     test(
-      'Konzept-Beispiel: Vielmitnehmer ist an kleinen Tagen wieder dran',
+      'Konzept-Beispiel: mit „nur Punkte" ist der Vielmitnehmer nicht dran',
       () {
+        // Dasselbe Beispiel wie in KONZEPT.md 3.2, jetzt mit dem seit
+        // 2026-07-21 gültigen Standard gerechnet.
         // A: +12 Punkte, aber nur 10 % Fahranteil (fährt selten, dann voll).
         // B: −3 Punkte, 25 % Fahranteil.
-        // Nach reinen Punkten wäre immer B dran; kombiniert entsteht
-        // Gleichstand und es fährt, wessen letzte Fahrt länger her ist (A).
+        // Das ist die getragene Folge von Issue #38: A baut mit vollem Auto
+        // ein Polster auf und kommt an kleinen Tagen seltener dran, obwohl
+        // der Fahraufwand pro Fahrt derselbe ist.
         final aStats = PersonStats(
           personId: 'a',
           driven: 10,
@@ -163,12 +173,50 @@ void main() {
           settings,
         );
 
-        expect(ranking.first.personId, 'a');
+        expect(ranking.first.personId, 'b');
         expect(
           ranking.first.score,
-          ranking.last.score,
-          reason: 'Rangsumme ist bei diesem Beispiel gleich',
+          lessThan(ranking.last.score),
+          reason: 'ohne Fahranteil entsteht hier kein Gleichstand mehr',
         );
+      },
+    );
+
+    test(
+      'der Ausgleich bleibt möglich: mit pointsWeight 0.5 kippt es zurück',
+      () {
+        // Der Mechanismus aus KONZEPT.md 3.2 ist nicht entfernt, nur nicht
+        // mehr der Standard. Ohne diesen Test verschwände die Rückfahrkarte
+        // unbemerkt, sobald jemand die Formel „aufräumt".
+        const balanced = AppSettings(pointsWeight: 0.5);
+        final aStats = PersonStats(
+          personId: 'a',
+          driven: 10,
+          ridden: 88,
+          oneWay: 0,
+          carried: 100,
+          points: 12,
+          lastDrive: DateTime.parse('2026-01-02'),
+        );
+        final bStats = PersonStats(
+          personId: 'b',
+          driven: 20,
+          ridden: 60,
+          oneWay: 0,
+          carried: 57,
+          points: -3,
+          lastDrive: DateTime.parse('2026-07-01'),
+        );
+        final ranking = rankPresent(
+          ['a', 'b'],
+          {'a': aStats, 'b': bStats},
+          balanced,
+        );
+
+        // Gleichstand der Rangsumme → es fährt, wessen letzte Fahrt länger
+        // her ist, also A.
+        expect(ranking.first.personId, 'a');
+        expect(ranking.first.score, ranking.last.score);
       },
     );
 
