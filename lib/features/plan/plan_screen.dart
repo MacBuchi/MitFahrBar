@@ -350,7 +350,12 @@ class _DayRow extends ConsumerWidget {
       subtitle: Text(switch ((day.confirmed, driver)) {
         (true, final d?) => 'Eingetragen · ${d.name} ist gefahren',
         (true, _) => 'Eingetragen',
-        (false, null) => 'Noch niemand verfügbar',
+        // Zwei verschiedene Gründe für „kein Fahrer": Entweder hat noch
+        // niemand angetippt, oder es können alle nur eine Richtung — dann
+        // stellt niemand ein Auto. „Noch niemand verfügbar" wäre im zweiten
+        // Fall schlicht falsch und die Nutzerin sucht den Fehler bei sich.
+        (false, null) when day.availableIds.isEmpty => 'Noch niemand verfügbar',
+        (false, null) => 'Kein Fahrer möglich — alle nur eine Richtung',
         (false, final d?) =>
           day.isOverridden
               ? '${d.name} fährt · von Hand gesetzt'

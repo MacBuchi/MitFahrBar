@@ -183,6 +183,35 @@ void main() {
     handle.dispose();
   });
 
+  // Beim Durchklicken der echten Web-App aufgefallen: Der Tag meldete
+  // „Noch niemand verfügbar", obwohl jemand eingetragen war — nur eben
+  // 1-way. Dann sucht die Nutzerin den Fehler bei sich.
+  testWidgets('nur 1-way heißt kein Fahrer, nicht „niemand verfügbar"', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+
+    expect(_cell('Anna', monday, state: 'nur eine Richtung'), findsOneWidget);
+    expect(
+      find.textContaining('Kein Fahrer möglich'),
+      findsOneWidget,
+      reason: 'Anna ist verfügbar — sie kann nur nicht fahren.',
+    );
+    // Die übrigen Tage sind wirklich leer und sagen das auch weiterhin.
+    // Kein fester Zähler: Die Liste baut nur, was sichtbar ist.
+    expect(find.textContaining('Noch niemand verfügbar'), findsWidgets);
+    handle.dispose();
+  });
+
   testWidgets('wer die meisten mitnimmt, bekommt das Hajo', (tester) async {
     final handle = tester.ensureSemantics();
     await pumpApp(tester, await _backend(['Anna', 'Bert', 'Clara']));
