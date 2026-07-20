@@ -148,6 +148,11 @@ class _Content extends ConsumerWidget {
     final byId = {for (final p in persons) p.id: p};
     final points = NumberFormat('#,##0.#', 'de');
     final percent = NumberFormat.percentPattern('de');
+    final average = NumberFormat('#,##0.0', 'de');
+    final extremes = findQuoteExtremes(
+      [for (final c in ranked) c.personId],
+      {for (final c in ranked) c.personId: c.stats},
+    );
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
@@ -171,15 +176,27 @@ class _Content extends ConsumerWidget {
               for (final (index, candidate) in ranked.indexed)
                 ListTile(
                   leading: _RankBadge(rank: index + 1),
-                  title: Text(
-                    byId[candidate.personId]?.name ?? candidate.personId,
-                    style: index == 0
-                        ? const TextStyle(fontWeight: FontWeight.bold)
-                        : null,
+                  title: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          byId[candidate.personId]?.name ?? candidate.personId,
+                          style: index == 0
+                              ? const TextStyle(fontWeight: FontWeight.bold)
+                              : null,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (candidate.personId == extremes.fullestId)
+                        const _QuoteBadge(label: 'Volle Kischt'),
+                      if (candidate.personId == extremes.emptiestId)
+                        const _QuoteBadge(label: 'Fast alloi'),
+                    ],
                   ),
                   subtitle: Text(
-                    '${points.format(candidate.stats.points)} Punkte · '
-                    'Fahranteil ${percent.format(candidate.stats.driveShare)}',
+                    '${_balanceLabel(candidate.stats.points, points)}'
+                    ' · fährt ${percent.format(candidate.stats.driveShare)}'
+                    '${_quoteLabel(candidate.stats.quote, average)}',
                   ),
                   trailing: index == 0
                       ? const Icon(
@@ -196,6 +213,50 @@ class _Content extends ConsumerWidget {
         const MonthlyTripsCard(),
         ParticipationMixCard(persons: persons),
       ],
+    );
+  }
+}
+
+/// „2,5 Punkte" sagt nicht, in welche Richtung sie zeigen. Punkte sind
+/// zero-sum: negativ heißt, dass die Gruppe einem noch Fahrten schuldet —
+/// genau andersherum, als eine nackte Zahl sich anfühlt.
+String _balanceLabel(double points, NumberFormat format) {
+  if (points.abs() < 0.05) return 'ausgeglichen';
+  if (points < 0) return 'schuldet ${format.format(points.abs())}';
+  return 'hat ${format.format(points)} gut';
+}
+
+/// Ø Mitfahrer je eigener Fahrt — die Zahl, die erklärt, warum jemand trotz
+/// vieler Fahrten wenig Punkte hat. Fehlt, solange jemand nie gefahren ist.
+String _quoteLabel(double? quote, NumberFormat format) =>
+    quote == null ? '' : ' · Ø ${format.format(quote)} mit';
+
+class _QuoteBadge extends StatelessWidget {
+  const _QuoteBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: AppSpacing.s),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s,
+          vertical: AppSpacing.xs / 2,
+        ),
+        decoration: BoxDecoration(
+          color: scheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(AppRadius.s),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: scheme.onSecondaryContainer),
+        ),
+      ),
     );
   }
 }
