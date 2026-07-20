@@ -41,8 +41,14 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
 ## Workflow
 
 - **Kein direkter Push auf `main`** (Branch ist geschützt): Feature-Branch
-  (`feat/<thema>` / `fix/<thema>`) → PR → CI grün → Squash-Merge. **Der Merge
-  gehört dem Menschen** — er veröffentlicht (Auto-Release).
+  (`feat/<thema>` / `fix/<thema>`) → PR → CI grün → Squash-Merge.
+- **Wer mergen darf, entscheidet der Versions-Bump** — denn der Merge ist die
+  Veröffentlichung:
+  - **Ohne Bump** (nur `*.md`, `.github/`, `test/`, `tool/`, `LICENSE`):
+    Claude darf nach grüner CI selbst squash-mergen. Es entsteht kein Release,
+    die Gruppen bekommen nichts davon mit.
+  - **Mit Bump**: **Der Merge gehört dem Menschen.** Er löst Tag, Release,
+    APK und Pages-Deploy aus — das veröffentlicht Marcus selbst.
 - Commit-/PR-Titel: Conventional Commits. GitHub-Kommunikation Englisch,
   UI-Strings und Nutzer-Doku Deutsch.
 - Release = Versions-Bump in `pubspec.yaml` auf `main` (beide Teile erhöhen,
