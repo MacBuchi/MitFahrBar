@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.8.0] – 2026-07-20
+
+### Behoben
+
+- **Der Download im Update-Hinweis funktioniert wieder.** Bisher passierte
+  beim Tippen auf „Herunterladen" nichts: Die App durfte seit Android 11 gar
+  keinen Browser ansprechen, und der stille Fehlschlag wurde nirgends
+  angezeigt. Betroffen war jede Android-Installation.
+
+### Neu
+
+- **Updates laden und installieren direkt in der App.** Statt in den Browser
+  zu wechseln, lädt RideBuddy die neue Version selbst — mit Fortschritts-
+  anzeige — und übergibt sie anschließend an die Android-Installation. Eure
+  Daten bleiben dabei erhalten. Beim allerersten Mal fragt Android einmalig,
+  ob RideBuddy Apps installieren darf; das muss einmal bestätigt werden.
+- Klappt der direkte Weg nicht, bietet der Dialog weiterhin den Umweg über
+  den Browser an — diesmal mit sichtbarer Rückmeldung statt stillem Nichts.
+
 ## [0.7.0] – 2026-07-20
 
 ### Neu
@@ -148,6 +167,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.8.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.8.0
 [0.7.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.7.0
 [0.6.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.6.1
 [0.6.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.6.0

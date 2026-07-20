@@ -2,11 +2,15 @@
 /// neue App-Version und Feedback (Wunsch/Fehler).
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/log.dart';
 import '../../core/reload_app.dart';
 import '../../core/tokens.dart';
 import '../../core/update_check.dart';
@@ -113,23 +117,144 @@ class _Banner extends StatelessWidget {
   }
 }
 
-Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
-  return showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
+Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) =>
+    showDialog<void>(
+      context: context,
+      builder: (_) => _UpdateDialog(info: info),
+    );
+
+/// Ablauf des In-App-Updates. Sichtbar getrennt, weil jede Phase etwas
+/// anderes von der Nutzerin verlangt: warten, bestätigen, ausweichen.
+enum _UpdatePhase { idle, downloading, installing, error }
+
+class _UpdateDialog extends StatefulWidget {
+  const _UpdateDialog({required this.info});
+
+  final UpdateInfo info;
+
+  @override
+  State<_UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<_UpdateDialog> {
+  _UpdatePhase _phase = _UpdatePhase.idle;
+  double _progress = 0;
+  StreamSubscription<OtaEvent>? _subscription;
+
+  @override
+  void dispose() {
+    // Ohne das folgt ein setState nach dem Dispose, sobald der Download
+    // weiterläuft, während der Dialog schon zu ist.
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  /// Nur auf Android und nur mit APK im Release gibt es einen echten
+  /// In-App-Weg; im Web genügt ein Neuladen.
+  bool get _canInstallInApp => updateIsDownload && widget.info.apkUrl != null;
+
+  void _start() {
+    setState(() => _phase = _UpdatePhase.downloading);
+    // Dreifach abgesichert: synchroner Wurf, Fehler-Callback, unbekannter
+    // Status. Ein hängengebliebener Fortschrittsbalken wäre das Schlimmste.
+    try {
+      _subscription = OtaUpdate()
+          .execute(
+            widget.info.apkUrl!,
+            destinationFilename: 'ridebuddy-update.apk',
+          )
+          .listen(
+            (event) {
+              if (!mounted) return;
+              switch (event.status) {
+                case OtaStatus.DOWNLOADING:
+                  setState(() {
+                    _phase = _UpdatePhase.downloading;
+                    // event.value ist ein Prozentwert 0–100.
+                    _progress = (double.tryParse(event.value ?? '') ?? 0) / 100;
+                  });
+                case OtaStatus.INSTALLING:
+                  setState(() => _phase = _UpdatePhase.installing);
+                default:
+                  setState(() => _phase = _UpdatePhase.error);
+              }
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              log.e(
+                'Update-Download fehlgeschlagen',
+                error: error,
+                stackTrace: stackTrace,
+              );
+              if (mounted) setState(() => _phase = _UpdatePhase.error);
+            },
+          );
+    } catch (error, stackTrace) {
+      log.e(
+        'Update-Download fehlgeschlagen',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      setState(() => _phase = _UpdatePhase.error);
+    }
+  }
+
+  Future<void> _openInBrowser() async {
+    final target = widget.info.apkUrl ?? widget.info.releaseUrl;
+    final launched = await launchUrl(
+      Uri.parse(target),
+      mode: LaunchMode.externalApplication,
+    );
+    // launchUrl scheitert still, wenn kein Browser sichtbar ist – dann
+    // wenigstens sagen, was los ist, statt so zu tun als sei nichts.
+    if (!launched && mounted) {
+      setState(() => _phase = _UpdatePhase.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = widget.info;
+    return AlertDialog(
       title: Text('Version ${info.latestVersion} verfügbar'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              updateIsDownload
-                  ? 'Lade die neue Version herunter und installiere sie – '
-                        'eure Daten bleiben erhalten.'
-                  : 'Lade die Seite neu, dann läuft die neue Version.',
-            ),
-            if (info.releaseNotes?.trim().isNotEmpty ?? false) ...[
+            switch (_phase) {
+              _UpdatePhase.idle => Text(
+                _canInstallInApp
+                    ? 'Das Update lädt direkt in der App und öffnet dann den '
+                          'Android-Installer – eure Daten bleiben erhalten. '
+                          'Beim ersten Mal fragt Android einmalig um Erlaubnis.'
+                    : updateIsDownload
+                    ? 'Lade die neue Version herunter und installiere sie – '
+                          'eure Daten bleiben erhalten.'
+                    : 'Lade die Seite neu, dann läuft die neue Version.',
+              ),
+              _UpdatePhase.downloading => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lädt … ${(_progress * 100).round()} %'),
+                  const SizedBox(height: AppSpacing.s),
+                  LinearProgressIndicator(
+                    // Bei 0 % unbestimmt, sonst stünde der Balken scheinbar.
+                    value: _progress > 0 ? _progress : null,
+                  ),
+                ],
+              ),
+              _UpdatePhase.installing => const Text(
+                'Download fertig – Android fragt jetzt, ob RideBuddy '
+                'aktualisiert werden soll. Einfach bestätigen.',
+              ),
+              _UpdatePhase.error => const Text(
+                'Der Direkt-Download hat nicht geklappt. Du kannst das Update '
+                'stattdessen über den Browser laden – nach dem Herunterladen '
+                'in der Benachrichtigung auf die Datei tippen.',
+              ),
+            },
+            if (_phase == _UpdatePhase.idle &&
+                (info.releaseNotes?.trim().isNotEmpty ?? false)) ...[
               const SizedBox(height: AppSpacing.m),
               Text(
                 'Was ist neu:',
@@ -144,32 +269,51 @@ Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Später'),
-        ),
-        FilledButton.icon(
-          onPressed: () {
-            Navigator.pop(context);
-            if (updateIsDownload) {
-              launchUrl(
-                Uri.parse(info.apkUrl ?? info.releaseUrl),
-                mode: LaunchMode.externalApplication,
-              );
-            } else {
-              reloadApp();
-            }
-          },
-          icon: Icon(
-            updateIsDownload ? Icons.download : Icons.refresh,
-            size: 18,
+      actions: switch (_phase) {
+        _UpdatePhase.idle => [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Später'),
           ),
-          label: Text(updateIsDownload ? 'Herunterladen' : 'Neu laden'),
-        ),
-      ],
-    ),
-  );
+          FilledButton.icon(
+            onPressed: () {
+              if (_canInstallInApp) {
+                _start();
+              } else if (updateIsDownload) {
+                Navigator.pop(context);
+                _openInBrowser();
+              } else {
+                Navigator.pop(context);
+                reloadApp();
+              }
+            },
+            icon: Icon(
+              updateIsDownload ? Icons.download : Icons.refresh,
+              size: 18,
+            ),
+            label: Text(updateIsDownload ? 'Jetzt aktualisieren' : 'Neu laden'),
+          ),
+        ],
+        _UpdatePhase.error => [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Schließen'),
+          ),
+          FilledButton.icon(
+            onPressed: _openInBrowser,
+            icon: const Icon(Icons.open_in_browser, size: 18),
+            label: const Text('Im Browser laden'),
+          ),
+        ],
+        _ => [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Schließen'),
+          ),
+        ],
+      },
+    );
+  }
 }
 
 Future<void> showFeedbackDialog(BuildContext context) =>
