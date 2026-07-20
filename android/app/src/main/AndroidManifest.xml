@@ -3,6 +3,9 @@
          Supabase ist dann unerreichbar und der Login schlägt fehl. Die
          Flutter-Vorlage deklariert sie nur für debug/profile. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Die heruntergeladene APK an den Android-Installer übergeben dürfen.
+         Ohne diese Berechtigung endet das In-App-Update im Nichts. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="RideBuddy"
         android:name="${applicationName}"
@@ -29,6 +32,20 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Pflicht für das In-App-Update: ota_update übergibt die geladene
+             APK über diesen Provider an den Installer und erwartet exakt
+             diese Authority. Fehlt er, stürzt die App NACH erfolgreichem
+             Download ab – und zwar nie im Debug-Lauf, sondern erst beim
+             ersten echten Update auf einem Gerät. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.ota_update_provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/filepaths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -44,6 +61,14 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Seit Android 11 (Package Visibility) sieht die App fremde Apps
+             nur, wenn sie danach fragt. Ohne diesen Block findet
+             url_launcher keinen Browser, liefert still `false` – und der
+             Download-Knopf tut sichtbar nichts. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
         </intent>
     </queries>
 </manifest>

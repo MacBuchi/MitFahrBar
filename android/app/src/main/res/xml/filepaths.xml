@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pfade, die der FileProvider für das In-App-Update freigeben darf.
+     ota_update legt die heruntergeladene APK unter files/ota_update/ ab. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="ota_update" path="ota_update/"/>
+    <external-path name="external_files" path="."/>
+</paths>
