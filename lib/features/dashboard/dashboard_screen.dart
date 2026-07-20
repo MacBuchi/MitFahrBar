@@ -12,6 +12,7 @@ import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../account/change_password_dialog.dart';
+import '../banners/app_banners.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -39,6 +40,8 @@ class DashboardScreen extends ConsumerWidget {
               onSelected: (value) {
                 if (value == 'password') {
                   showChangePasswordDialog(context);
+                } else if (value == 'feedback') {
+                  showFeedbackDialog(context);
                 } else if (value == 'logout') {
                   ref.read(authRepositoryProvider).signOut();
                 }
@@ -49,6 +52,14 @@ class DashboardScreen extends ConsumerWidget {
                   child: ListTile(
                     leading: Icon(Icons.key_outlined),
                     title: Text('Passwort ändern'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'feedback',
+                  child: ListTile(
+                    leading: Icon(Icons.lightbulb_outline),
+                    title: Text('Wunsch oder Fehler melden'),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
@@ -74,14 +85,14 @@ class DashboardScreen extends ConsumerWidget {
             when ranked.isNotEmpty =>
           _Content(ranked: ranked, persons: personList),
         (AsyncData(), AsyncData()) => const Center(
-            child: Text('Noch keine Personen angelegt.'),
-          ),
+          child: Text('Noch keine Personen angelegt.'),
+        ),
         (AsyncError(:final error), _) => Center(
-            child: Text('Fehler beim Laden: $error'),
-          ),
+          child: Text('Fehler beim Laden: $error'),
+        ),
         (_, AsyncError(:final error)) => Center(
-            child: Text('Fehler beim Laden: $error'),
-          ),
+          child: Text('Fehler beim Laden: $error'),
+        ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -103,11 +114,18 @@ class _Content extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
+        const AppBanners(),
         Padding(
           padding: const EdgeInsets.fromLTRB(
-              AppSpacing.m, AppSpacing.m, AppSpacing.m, AppSpacing.xs),
-          child: Text('Wer ist dran?',
-              style: Theme.of(context).textTheme.titleLarge),
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.xs,
+          ),
+          child: Text(
+            'Wer ist dran?',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
         ),
         Card(
           child: Column(
@@ -126,8 +144,10 @@ class _Content extends ConsumerWidget {
                     'Fahranteil ${percent.format(candidate.stats.driveShare)}',
                   ),
                   trailing: index == 0
-                      ? const Icon(Icons.directions_car,
-                          color: AppColors.driver)
+                      ? const Icon(
+                          Icons.directions_car,
+                          color: AppColors.driver,
+                        )
                       : null,
                 ),
             ],
@@ -151,10 +171,10 @@ class _RankBadge extends StatelessWidget {
     final highlighted = rank <= 2;
     return CircleAvatar(
       radius: 16,
-      backgroundColor:
-          highlighted ? scheme.primary : scheme.surfaceContainerHighest,
-      foregroundColor:
-          highlighted ? scheme.onPrimary : scheme.onSurfaceVariant,
+      backgroundColor: highlighted
+          ? scheme.primary
+          : scheme.surfaceContainerHighest,
+      foregroundColor: highlighted ? scheme.onPrimary : scheme.onSurfaceVariant,
       child: Text('$rank'),
     );
   }
@@ -184,15 +204,17 @@ class _MiniStats extends ConsumerWidget {
     }
 
     final kmRanked = stats.values.toList()
-      ..sort((a, b) =>
-          b.kilometers(settings).compareTo(a.kilometers(settings)));
+      ..sort(
+        (a, b) => b.kilometers(settings).compareTo(a.kilometers(settings)),
+      );
     final heroes = kmRanked
         .take(2)
         .map((s) => byId[s.personId]?.name ?? s.personId)
         .join(' & ');
 
-    final thisYear =
-        trips.where((t) => t.date.year == DateTime.now().year).length;
+    final thisYear = trips
+        .where((t) => t.date.year == DateTime.now().year)
+        .length;
 
     return Card(
       child: Padding(
@@ -200,16 +222,27 @@ class _MiniStats extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Gemeinsam erreicht',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Gemeinsam erreicht',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpacing.s),
-            _statRow(context, Icons.savings_outlined,
-                '${euro.format(totalSaved)} Kraftstoff gespart'),
-            _statRow(context, Icons.event_repeat_outlined,
-                '$thisYear Fahrten dieses Jahr · ${trips.length} insgesamt'),
+            _statRow(
+              context,
+              Icons.savings_outlined,
+              '${euro.format(totalSaved)} Kraftstoff gespart',
+            ),
+            _statRow(
+              context,
+              Icons.event_repeat_outlined,
+              '$thisYear Fahrten dieses Jahr · ${trips.length} insgesamt',
+            ),
             if (heroes.isNotEmpty)
               _statRow(
-                  context, Icons.emoji_events_outlined, 'Kilometerhelden: $heroes'),
+                context,
+                Icons.emoji_events_outlined,
+                'Kilometerhelden: $heroes',
+              ),
           ],
         ),
       ),

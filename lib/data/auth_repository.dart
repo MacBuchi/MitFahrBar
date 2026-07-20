@@ -7,6 +7,15 @@ import '../core/group_login.dart';
 
 abstract class AuthRepository {
   bool get loggedIn;
+
+  /// Stabile Kennung des angemeldeten Zugangs (null = abgemeldet).
+  ///
+  /// Daten-Provider hängen an diesem Wert statt am Auth-Event-Stream: Er
+  /// ändert sich nur bei echtem An-/Abmelden, nicht bei jedem Ereignis
+  /// (z. B. Token-Refresh). Sonst werden Provider mitten im Build-Vorgang
+  /// invalidiert, was zu „setState during build" führt.
+  String? get currentUserId;
+
   Stream<dynamic> get onAuthStateChange;
   Future<void> signIn(String handle, String password);
 
@@ -33,26 +42,25 @@ class SupabaseAuthRepository implements AuthRepository {
   bool get loggedIn => _client.auth.currentSession != null;
 
   @override
+  String? get currentUserId => _client.auth.currentUser?.id;
+
+  @override
   Stream<dynamic> get onAuthStateChange => _client.auth.onAuthStateChange;
 
   @override
-  Future<void> signIn(String handle, String password) =>
-      _client.auth.signInWithPassword(
-        email: resolveLoginEmail(handle),
-        password: password,
-      );
+  Future<void> signIn(String handle, String password) => _client.auth
+      .signInWithPassword(email: resolveLoginEmail(handle), password: password);
 
   @override
   Future<void> requestGroup({
     required String handle,
     required String password,
     required String groupName,
-  }) =>
-      _client.auth.signUp(
-        email: handleToEmail(handle),
-        password: password,
-        data: {'group_name': groupName},
-      );
+  }) => _client.auth.signUp(
+    email: handleToEmail(handle),
+    password: password,
+    data: {'group_name': groupName},
+  );
 
   @override
   Future<void> changePassword(String newPassword) =>
@@ -66,6 +74,9 @@ class SupabaseAuthRepository implements AuthRepository {
 class AlwaysLoggedInAuthRepository implements AuthRepository {
   @override
   bool get loggedIn => true;
+
+  @override
+  String? get currentUserId => 'demo';
 
   @override
   Stream<dynamic> get onAuthStateChange => const Stream.empty();

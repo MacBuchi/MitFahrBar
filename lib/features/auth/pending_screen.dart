@@ -26,9 +26,7 @@ class PendingScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  rejected
-                      ? Icons.block
-                      : Icons.hourglass_top_outlined,
+                  rejected ? Icons.block : Icons.hourglass_top_outlined,
                   size: 64,
                   color: Theme.of(context).colorScheme.primary,
                 ),
@@ -42,10 +40,10 @@ class PendingScreen extends ConsumerWidget {
                 Text(
                   rejected
                       ? 'Diese Gruppe wurde nicht freigegeben. Bei Fragen '
-                          'wende dich an den Betreiber.'
+                            'wende dich an den Betreiber.'
                       : 'Deine Gruppe wurde angefragt und wird geprüft. '
-                          'Sobald sie freigegeben ist, erscheint hier die App '
-                          '– einfach später erneut anmelden.',
+                            'Sobald sie freigegeben ist, erscheint hier die App '
+                            '– einfach später erneut anmelden.',
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppSpacing.l),

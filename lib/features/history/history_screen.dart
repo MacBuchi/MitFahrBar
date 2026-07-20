@@ -24,12 +24,15 @@ class HistoryScreen extends ConsumerWidget {
         (AsyncData(value: final tripList), AsyncData(value: final personList))
             when tripList.isNotEmpty =>
           _TripList(trips: tripList, persons: personList),
-        (AsyncData(), AsyncData()) =>
-          const Center(child: Text('Noch keine Fahrten eingetragen.')),
-        (AsyncError(:final error), _) =>
-          Center(child: Text('Fehler beim Laden: $error')),
-        (_, AsyncError(:final error)) =>
-          Center(child: Text('Fehler beim Laden: $error')),
+        (AsyncData(), AsyncData()) => const Center(
+          child: Text('Noch keine Fahrten eingetragen.'),
+        ),
+        (AsyncError(:final error), _) => Center(
+          child: Text('Fehler beim Laden: $error'),
+        ),
+        (_, AsyncError(:final error)) => Center(
+          child: Text('Fehler beim Laden: $error'),
+        ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -78,8 +81,9 @@ class _TripList extends ConsumerWidget {
                   builder: (context) => AlertDialog(
                     title: const Text('Fahrt löschen?'),
                     content: Text(
-                        'Fahrt vom ${dateFormat.format(trip.date)} wirklich '
-                        'löschen? Punkte werden neu berechnet.'),
+                      'Fahrt vom ${dateFormat.format(trip.date)} wirklich '
+                      'löschen? Punkte werden neu berechnet.',
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
@@ -93,9 +97,7 @@ class _TripList extends ConsumerWidget {
                   ),
                 );
                 if (confirmed == true) {
-                  await ref
-                      .read(carpoolRepositoryProvider)
-                      .deleteTrip(trip.id);
+                  await ref.read(carpoolRepositoryProvider).deleteTrip(trip.id);
                   ref.invalidate(tripsProvider);
                 }
               }

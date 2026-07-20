@@ -1,0 +1,23 @@
+name: Bug report
+description: Etwas funktioniert nicht wie erwartet
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du gemacht, und was ist stattdessen passiert?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App-Version
+      placeholder: "z. B. 0.5.0 (steht im Konto-Menü)"
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Wo?
+      options:
+        - Web (Browser)
+        - Android

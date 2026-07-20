@@ -1,16 +1,21 @@
 name: Release
 
-# Zwei Wege zum Release:
-#  - Push eines Tags v* baut und veröffentlicht genau diesen Stand.
-#  - Push auf main: steht in pubspec.yaml eine Version ohne passenden Tag,
-#    wird v<version> automatisch getaggt und released. Kein Bump = kein Release.
+# Version bump in pubspec.yaml on main -> tag v<version>, signed APK,
+# GitHub release and web deploy. No bump = no release.
 on:
   push:
     branches: [main]
     tags: ["v*"]
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
+
+env:
+  FLUTTER_VERSION: "3.41.2"
 
 jobs:
   version:
@@ -21,7 +26,7 @@ jobs:
       tag: ${{ steps.decide.outputs.tag }}
       release: ${{ steps.decide.outputs.release }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - id: decide
@@ -46,22 +51,84 @@ jobs:
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
-  deploy-web:
-    name: Deploy Web (GitHub Pages)
+  build-android:
+    name: Build Android APK (signed)
     needs: version
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.41.2
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      # Ohne stabilen Keystore wird bewusst KEINE APK veröffentlicht: ein
+      # wechselnder (Debug-)Schlüssel macht jedes Update auf den Geräten zum
+      # Signatur-Konflikt. Bis ein Keystore hinterlegt ist, erscheint das
+      # Release web-only.
+      - name: Keystore vorhanden?
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::notice::Kein ANDROID_KEYSTORE_BASE64 hinterlegt — Release ohne APK."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Write signing config
+        if: steps.keystore.outputs.present == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          echo "$KEYSTORE_BASE64" | base64 -d > android/fahrgemeinschaft-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=fahrgemeinschaft-release.jks
+          EOF
+      - name: Build signed APK
+        if: steps.keystore.outputs.present == 'true'
+        run: |
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             "fahrgemeinschaft-${{ needs.version.outputs.tag }}.apk"
+      - uses: actions/upload-artifact@v4
+        if: steps.keystore.outputs.present == 'true'
+        with:
+          name: android-apk
+          path: fahrgemeinschaft-${{ needs.version.outputs.tag }}.apk
+          if-no-files-found: error
+
+  deploy-web:
+    name: Deploy Web (GitHub Pages)
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
       - run: flutter build web --release --base-href /Fahrgemeinschaft/
-      # SPA-Fallback: GitHub Pages liefert 404.html bei Deep-Links (/history etc.)
+      # SPA-Fallback: GitHub Pages liefert 404.html bei Deep-Links.
       - run: cp build/web/index.html build/web/404.html
       - uses: peaceiris/actions-gh-pages@v4
         with:
@@ -71,12 +138,19 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: [version, deploy-web]
+    needs: [version, build-android, deploy-web]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: softprops/action-gh-release@v3
+      # Es kann (noch) keine APK geben — dann bleibt das Release web-only.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           generate_release_notes: true
+          files: fahrgemeinschaft-*.apk
+          fail_on_unmatched_files: false

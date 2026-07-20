@@ -24,8 +24,11 @@ class SupabaseGroupRepository implements GroupRepository {
   Future<Group?> myGroup() async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return null;
-    final row =
-        await _client.from('groups').select().eq('id', uid).maybeSingle();
+    final row = await _client
+        .from('groups')
+        .select()
+        .eq('id', uid)
+        .maybeSingle();
     return row == null ? null : Group.fromJson(row);
   }
 
@@ -43,7 +46,8 @@ class SupabaseGroupRepository implements GroupRepository {
   Future<void> setStatus(String groupId, GroupStatus status) async {
     await _client
         .from('groups')
-        .update({'status': status.name}).eq('id', groupId);
+        .update({'status': status.name})
+        .eq('id', groupId);
   }
 }
 
@@ -51,12 +55,12 @@ class SupabaseGroupRepository implements GroupRepository {
 class DemoGroupRepository implements GroupRepository {
   @override
   Future<Group?> myGroup() async => const Group(
-        id: 'demo',
-        name: 'Demo-Fahrgemeinschaft',
-        handle: 'demo',
-        status: GroupStatus.active,
-        isAdmin: true,
-      );
+    id: 'demo',
+    name: 'Demo-Fahrgemeinschaft',
+    handle: 'demo',
+    status: GroupStatus.active,
+    isAdmin: true,
+  );
 
   @override
   Future<List<Group>> pendingGroups() async => const [];

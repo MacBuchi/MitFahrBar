@@ -13,55 +13,74 @@ import '../models/trip.dart';
 import 'auth_repository.dart';
 import 'carpool_repository.dart';
 import 'fake_repository.dart';
+import 'feedback_repository.dart';
 import 'group_repository.dart';
 import 'supabase_repository.dart';
 
-final supabaseClientProvider =
-    Provider<SupabaseClient>((ref) => Supabase.instance.client);
+final supabaseClientProvider = Provider<SupabaseClient>(
+  (ref) => Supabase.instance.client,
+);
 
-final authRepositoryProvider = Provider<AuthRepository>((ref) =>
-    SupabaseConfig.isConfigured
-        ? SupabaseAuthRepository(ref.watch(supabaseClientProvider))
-        : AlwaysLoggedInAuthRepository());
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabaseAuthRepository(ref.watch(supabaseClientProvider))
+      : AlwaysLoggedInAuthRepository(),
+);
 
-final carpoolRepositoryProvider = Provider<CarpoolRepository>((ref) =>
-    SupabaseConfig.isConfigured
-        ? SupabaseCarpoolRepository(ref.watch(supabaseClientProvider))
-        : demoRepository());
+final carpoolRepositoryProvider = Provider<CarpoolRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabaseCarpoolRepository(ref.watch(supabaseClientProvider))
+      : demoRepository(),
+);
 
-final groupRepositoryProvider = Provider<GroupRepository>((ref) =>
-    SupabaseConfig.isConfigured
-        ? SupabaseGroupRepository(ref.watch(supabaseClientProvider))
-        : DemoGroupRepository());
+final groupRepositoryProvider = Provider<GroupRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabaseGroupRepository(ref.watch(supabaseClientProvider))
+      : DemoGroupRepository(),
+);
 
-/// Auth-Zustand als Stream — steuert Router-Redirect und Daten-Reload.
+final feedbackRepositoryProvider = Provider<FeedbackRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabaseFeedbackRepository(ref.watch(supabaseClientProvider))
+      : NoopFeedbackRepository(),
+);
+
+/// Auth-Zustand als Stream — steuert den Router-Redirect.
 final authStateProvider = StreamProvider<dynamic>(
-    (ref) => ref.watch(authRepositoryProvider).onAuthStateChange);
+  (ref) => ref.watch(authRepositoryProvider).onAuthStateChange,
+);
 
-/// Die Gruppe des aktuellen Logins (Status/Admin) — gate für die App.
-final myGroupProvider = FutureProvider<Group?>((ref) {
+/// Stabile Kennung des angemeldeten Zugangs. Daten-Provider hängen hieran
+/// statt am Event-Stream, damit sie nur bei echtem An-/Abmelden neu laden.
+final currentUserIdProvider = Provider<String?>((ref) {
   ref.watch(authStateProvider);
+  return ref.watch(authRepositoryProvider).currentUserId;
+});
+
+/// Die Gruppe des aktuellen Logins (Status/Admin) — Gate für die App.
+final myGroupProvider = FutureProvider<Group?>((ref) {
+  ref.watch(currentUserIdProvider);
   return ref.watch(groupRepositoryProvider).myGroup();
 });
 
 /// Offene Gruppen-Anfragen (für den Admin-Screen).
 final pendingGroupsProvider = FutureProvider<List<Group>>((ref) {
-  ref.watch(authStateProvider);
+  ref.watch(currentUserIdProvider);
   return ref.watch(groupRepositoryProvider).pendingGroups();
 });
 
 final personsProvider = FutureProvider<List<Person>>((ref) {
-  ref.watch(authStateProvider);
+  ref.watch(currentUserIdProvider);
   return ref.watch(carpoolRepositoryProvider).loadPersons();
 });
 
 final tripsProvider = FutureProvider<List<Trip>>((ref) {
-  ref.watch(authStateProvider);
+  ref.watch(currentUserIdProvider);
   return ref.watch(carpoolRepositoryProvider).loadTrips();
 });
 
 final settingsProvider = FutureProvider<AppSettings>((ref) {
-  ref.watch(authStateProvider);
+  ref.watch(currentUserIdProvider);
   return ref.watch(carpoolRepositoryProvider).loadSettings();
 });
 
@@ -73,8 +92,9 @@ final statsProvider = FutureProvider<Map<String, PersonStats>>((ref) async {
 });
 
 /// Fairness-Ranking über alle aktiven Personen (Dashboard-Ansicht).
-final activeRankingProvider =
-    FutureProvider<List<RankedCandidate>>((ref) async {
+final activeRankingProvider = FutureProvider<List<RankedCandidate>>((
+  ref,
+) async {
   final persons = await ref.watch(personsProvider.future);
   final stats = await ref.watch(statsProvider.future);
   final settings = await ref.watch(settingsProvider.future);

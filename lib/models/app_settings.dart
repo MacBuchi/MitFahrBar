@@ -26,20 +26,20 @@ class AppSettings {
   final double pointsWeight;
 
   factory AppSettings.fromMap(Map<String, double> map) => AppSettings(
-        commuteKm: map['commute_km'] ?? 30,
-        oneWayFactor: map['one_way_factor'] ?? 0.5,
-        electricityPricePerKwh: map['electricity_price_per_kwh'] ?? 0.35,
-        dieselPricePerLiter: map['diesel_price_per_liter'] ?? 1.70,
-        petrolPricePerLiter: map['petrol_price_per_liter'] ?? 1.78,
-        pointsWeight: map['points_weight'] ?? 0.5,
-      );
+    commuteKm: map['commute_km'] ?? 30,
+    oneWayFactor: map['one_way_factor'] ?? 0.5,
+    electricityPricePerKwh: map['electricity_price_per_kwh'] ?? 0.35,
+    dieselPricePerLiter: map['diesel_price_per_liter'] ?? 1.70,
+    petrolPricePerLiter: map['petrol_price_per_liter'] ?? 1.78,
+    pointsWeight: map['points_weight'] ?? 0.5,
+  );
 
   Map<String, double> toMap() => {
-        'commute_km': commuteKm,
-        'one_way_factor': oneWayFactor,
-        'electricity_price_per_kwh': electricityPricePerKwh,
-        'diesel_price_per_liter': dieselPricePerLiter,
-        'petrol_price_per_liter': petrolPricePerLiter,
-        'points_weight': pointsWeight,
-      };
+    'commute_km': commuteKm,
+    'one_way_factor': oneWayFactor,
+    'electricity_price_per_kwh': electricityPricePerKwh,
+    'diesel_price_per_liter': dieselPricePerLiter,
+    'petrol_price_per_liter': petrolPricePerLiter,
+    'points_weight': pointsWeight,
+  };
 }

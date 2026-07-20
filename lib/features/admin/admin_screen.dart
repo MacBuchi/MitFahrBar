@@ -29,19 +29,17 @@ class AdminScreen extends ConsumerWidget {
       ),
       body: switch (pending) {
         AsyncData(value: final groups) when groups.isEmpty => const Center(
-            child: Padding(
-              padding: EdgeInsets.all(AppSpacing.l),
-              child: Text('Keine offenen Anfragen.'),
-            ),
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.l),
+            child: Text('Keine offenen Anfragen.'),
           ),
+        ),
         AsyncData(value: final groups) => ListView(
-            children: [
-              for (final group in groups)
-                _RequestTile(group: group),
-            ],
-          ),
-        AsyncError(:final error) =>
-          Center(child: Text('Fehler beim Laden: $error')),
+          children: [for (final group in groups) _RequestTile(group: group)],
+        ),
+        AsyncError(:final error) => Center(
+          child: Text('Fehler beim Laden: $error'),
+        ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -69,10 +67,11 @@ class _RequestTile extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(group.name,
-                style: Theme.of(context).textTheme.titleMedium),
-            Text('Anmeldename: ${group.handle}'
-                '${date.isEmpty ? '' : ' · angefragt $date'}'),
+            Text(group.name, style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Anmeldename: ${group.handle}'
+              '${date.isEmpty ? '' : ' · angefragt $date'}',
+            ),
             const SizedBox(height: AppSpacing.s),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

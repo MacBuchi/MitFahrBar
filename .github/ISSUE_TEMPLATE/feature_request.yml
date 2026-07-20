@@ -1,0 +1,11 @@
+name: Feature request
+description: Ein Wunsch oder eine Idee für die App
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: wish
+    attributes:
+      label: Was wünschst du dir?
+      description: Was fehlt dir, was nervt, was wäre praktisch?
+    validations:
+      required: true

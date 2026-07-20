@@ -12,9 +12,9 @@ class FakeCarpoolRepository implements CarpoolRepository {
     List<Person>? persons,
     List<Trip>? trips,
     AppSettings? settings,
-  })  : _persons = [...?persons],
-        _trips = [...?trips],
-        _settings = settings ?? const AppSettings();
+  }) : _persons = [...?persons],
+       _trips = [...?trips],
+       _settings = settings ?? const AppSettings();
 
   final List<Person> _persons;
   final List<Trip> _trips;
@@ -127,19 +127,34 @@ FakeCarpoolRepository demoRepository() {
   final repo = FakeCarpoolRepository(persons: persons);
   final base = DateTime.now().subtract(const Duration(days: 14));
   final pattern = [
-    {'p1': ParticipationStatus.driver, 'p2': ParticipationStatus.passenger, 'p3': ParticipationStatus.passenger},
-    {'p2': ParticipationStatus.driver, 'p1': ParticipationStatus.passenger, 'p4': ParticipationStatus.oneWay},
-    {'p3': ParticipationStatus.driver, 'p1': ParticipationStatus.passenger, 'p2': ParticipationStatus.passenger, 'p4': ParticipationStatus.passenger},
+    {
+      'p1': ParticipationStatus.driver,
+      'p2': ParticipationStatus.passenger,
+      'p3': ParticipationStatus.passenger,
+    },
+    {
+      'p2': ParticipationStatus.driver,
+      'p1': ParticipationStatus.passenger,
+      'p4': ParticipationStatus.oneWay,
+    },
+    {
+      'p3': ParticipationStatus.driver,
+      'p1': ParticipationStatus.passenger,
+      'p2': ParticipationStatus.passenger,
+      'p4': ParticipationStatus.passenger,
+    },
     {'p1': ParticipationStatus.driver, 'p4': ParticipationStatus.passenger},
   ];
   for (var i = 0; i < 10; i++) {
     final day = base.add(Duration(days: i));
     if (day.weekday >= DateTime.saturday) continue;
-    repo._trips.add(Trip(
-      id: 'demo-$i',
-      date: DateTime(day.year, day.month, day.day),
-      participations: pattern[i % pattern.length],
-    ));
+    repo._trips.add(
+      Trip(
+        id: 'demo-$i',
+        date: DateTime(day.year, day.month, day.day),
+        participations: pattern[i % pattern.length],
+      ),
+    );
   }
   return repo;
 }

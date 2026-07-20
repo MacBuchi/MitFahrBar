@@ -4,6 +4,22 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.5.0] – 2026-07-20
+
+### Neu
+
+- **Hinweis auf neue Versionen**: Erscheint eine neuere Version, zeigt die
+  Übersicht ein Banner — im Web mit „Neu laden", auf Android mit Download.
+- **Rückmeldung aus der App**: Wunsch oder Fehler melden, direkt über das
+  Banner oder dauerhaft über das Konto-Menü.
+- **Android-App**: Die App wird jetzt auch als Android-Paket gebaut.
+
+### Behoben
+
+- **Abstürze beim Öffnen der Fahrt-Maske**: Die Daten wurden bei jedem
+  Anmelde-Ereignis neu geladen und konnten sich dabei mitten im Bildaufbau
+  verheddern. Aufgefallen durch die neuen Ablauf-Tests.
+
 ## [0.4.1] – 2026-07-20
 
 ### Behoben
@@ -84,6 +100,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.5.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.5.0
 [0.4.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.4.1
 [0.4.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.4.0
 [0.3.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.3.1

@@ -27,8 +27,6 @@ ThemeData _base(Brightness brightness) {
         vertical: AppSpacing.xs,
       ),
     ),
-    snackBarTheme: const SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-    ),
+    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
   );
 }

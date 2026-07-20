@@ -33,8 +33,9 @@ class StatsScreen extends ConsumerWidget {
             persons: personList,
             settings: settingsValue,
           ),
-        (AsyncError(:final error), _, _) =>
-          Center(child: Text('Fehler beim Laden: $error')),
+        (AsyncError(:final error), _, _) => Center(
+          child: Text('Fehler beim Laden: $error'),
+        ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -61,7 +62,8 @@ class _StatsList extends StatelessWidget {
     final quote = NumberFormat('#,##0.00', 'de');
 
     // Aktive zuerst (nach Punkten aufsteigend), dann Inaktive.
-    final sorted = [...persons]..sort((a, b) {
+    final sorted = [...persons]
+      ..sort((a, b) {
         if (a.active != b.active) return a.active ? -1 : 1;
         final pa = stats[a.id]?.points ?? 0;
         final pb = stats[b.id]?.points ?? 0;
@@ -72,7 +74,8 @@ class _StatsList extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.l),
       children: [
         for (final person in sorted)
-          if (stats[person.id] case final PersonStats s) _PersonCard(
+          if (stats[person.id] case final PersonStats s)
+            _PersonCard(
               person: person,
               stats: s,
               settings: settings,
@@ -80,7 +83,8 @@ class _StatsList extends StatelessWidget {
               km: km,
               euro: euro,
               percent: percent,
-              quote: quote),
+              quote: quote,
+            ),
       ],
     );
   }
@@ -137,18 +141,28 @@ class _PersonCard extends StatelessWidget {
               spacing: AppSpacing.m,
               runSpacing: AppSpacing.xs,
               children: [
-                _kv(context, 'Punkte', points.format(stats.points),
-                    emphasized: true),
+                _kv(
+                  context,
+                  'Punkte',
+                  points.format(stats.points),
+                  emphasized: true,
+                ),
                 _kv(context, 'gefahren', '${stats.driven}×'),
                 _kv(context, 'mitgefahren', '${stats.ridden}×'),
                 _kv(context, '1-way', '${stats.oneWay}×'),
                 _kv(context, 'Fahranteil', percent.format(stats.driveShare)),
                 if (stats.quote case final double q)
                   _kv(context, 'Ø mitgenommen', quote.format(q)),
-                _kv(context, 'Kilometer',
-                    '${km.format(stats.kilometers(settings))} km'),
-                _kv(context, 'gespart',
-                    euro.format(stats.savedCosts(settings, person))),
+                _kv(
+                  context,
+                  'Kilometer',
+                  '${km.format(stats.kilometers(settings))} km',
+                ),
+                _kv(
+                  context,
+                  'gespart',
+                  euro.format(stats.savedCosts(settings, person)),
+                ),
               ],
             ),
           ],
@@ -157,8 +171,12 @@ class _PersonCard extends StatelessWidget {
     );
   }
 
-  Widget _kv(BuildContext context, String label, String value,
-      {bool emphasized = false}) {
+  Widget _kv(
+    BuildContext context,
+    String label,
+    String value, {
+    bool emphasized = false,
+  }) {
     final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
