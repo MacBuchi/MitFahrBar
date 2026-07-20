@@ -35,35 +35,35 @@ class Trip {
       .firstOrNull;
 
   factory Trip.fromJson(Map<String, dynamic> json) => Trip(
-        id: json['id'] as String,
-        date: DateTime.parse(json['trip_date'] as String),
-        note: json['note'] as String?,
-        participations: {
-          for (final p in (json['participations'] as List))
-            (p as Map<String, dynamic>)['person_id'] as String:
-                ParticipationStatus.values.byName(p['status'] as String),
-        },
-      );
+    id: json['id'] as String,
+    date: DateTime.parse(json['trip_date'] as String),
+    note: json['note'] as String?,
+    participations: {
+      for (final p in (json['participations'] as List))
+        (p as Map<String, dynamic>)['person_id'] as String: ParticipationStatus
+            .values
+            .byName(p['status'] as String),
+    },
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'trip_date': date.toIso8601String().substring(0, 10),
-        'note': note,
-        'participations': [
-          for (final e in participations.entries)
-            {'person_id': e.key, 'status': e.value.name},
-        ],
-      };
+    'id': id,
+    'trip_date': date.toIso8601String().substring(0, 10),
+    'note': note,
+    'participations': [
+      for (final e in participations.entries)
+        {'person_id': e.key, 'status': e.value.name},
+    ],
+  };
 
   Trip copyWith({
     DateTime? date,
     Map<String, ParticipationStatus>? participations,
     String? note,
-  }) =>
-      Trip(
-        id: id,
-        date: date ?? this.date,
-        participations: participations ?? this.participations,
-        note: note ?? this.note,
-      );
+  }) => Trip(
+    id: id,
+    date: date ?? this.date,
+    participations: participations ?? this.participations,
+    note: note ?? this.note,
+  );
 }

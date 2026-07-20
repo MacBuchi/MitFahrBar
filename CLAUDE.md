@@ -27,18 +27,30 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
 - Nach jedem `await` in Widgets `mounted`/`context.mounted` prüfen.
 - Server-/App-State in Riverpod-Providern, Formular-State in StatefulWidgets.
+- **Riverpod 2 (kein Codegen)** — bewusst gepinnt. Unter 3.x pausiert/resumed
+  Riverpod Subscriptions beim Seitenwechsel und stößt dabei Provider-
+  Invalidierungen mitten in der Build-Phase an („setState during build").
+- **Daten-Provider hängen an `currentUserIdProvider`**, nie direkt am
+  Auth-Event-Stream: Sonst lädt bei jedem Ereignis (auch Token-Refresh)
+  alles neu und invalidiert im schlechtesten Moment.
+- Tests: `test/fakes/` enthält ein In-Memory-Backend, das die Mandanten-
+  trennung nachbildet; `pumpApp` startet die echte App dagegen. Neue Abläufe
+  bekommen einen Flow-Test in `test/flows/`. Netzzugriffe (Update-Check) in
+  Tests immer per Override stilllegen.
 
 ## Workflow
 
-- Kein direkter Push auf `main`: Feature-Branch (`feat/<thema>` /
-  `fix/<thema>`) → PR → CI grün → Squash-Merge.
+- **Kein direkter Push auf `main`** (Branch ist geschützt): Feature-Branch
+  (`feat/<thema>` / `fix/<thema>`) → PR → CI grün → Squash-Merge. **Der Merge
+  gehört dem Menschen** — er veröffentlicht (Auto-Release).
 - Commit-/PR-Titel: Conventional Commits. GitHub-Kommunikation Englisch,
   UI-Strings und Nutzer-Doku Deutsch.
 - Release = Versions-Bump in `pubspec.yaml` auf `main` (beide Teile erhöhen,
   z. B. `0.2.0+3`). Der Release-Workflow taggt `v<version>` und deployt Web
   auf GitHub Pages. Kein Bump = kein Release.
-- Version Guard in CI: Code-Änderung ohne Versions-Bump blockiert den Merge
-  (nur `*.md` und `.github/` sind ausgenommen).
+- Version Guard in CI: Code-Änderung ohne Versions-Bump blockiert den Merge.
+  Ausgenommen sind `*.md`, `.github/`, `test/`, `tool/` und `LICENSE` — reine
+  Doku-, CI-, Test- oder Tooling-Arbeit soll kein Release auslösen.
 - **Zu jedem Versions-Bump gehört ein `CHANGELOG.md`-Eintrag** (Nutzersicht,
   Deutsch: was ändert sich für die Gruppen — nicht die Commit-Liste).
 - Flutter-Version in CI gepinnt (3.41.2) — bei lokalem Upgrade auch
@@ -66,3 +78,15 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
   fehlt (z. B. in CI).
 - Status-Werte in der DB: `driver` / `passenger` / `one_way`
   (Dart-Enum `ParticipationStatus.driver/passenger/oneWay`).
+- **Android:** Bundle-ID `de.macbuchi.fahrgemeinschaft`. Release-Signing kommt
+  aus `android/key.properties` (gitignored, in CI aus Secrets erzeugt). Ohne
+  hinterlegten Keystore erscheint das Release bewusst **ohne APK** — nie still
+  debug-signieren, sonst bricht jedes Update an der Signatur. Nötige Secrets:
+  `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`. **Keystore sichern** —
+  Verlust bricht In-Place-Updates dauerhaft.
+- **Update-Hinweis** (`core/update_check.dart`) pollt das neueste
+  GitHub-Release (tokenlos). Jeder Fehlerpfad endet in `null` = kein Banner.
+- **Feedback** landet in der Tabelle `feedback`; der Bot
+  (`tool/feedback_bot.py`, `.github/workflows/feedback.yml`) macht daraus
+  Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.

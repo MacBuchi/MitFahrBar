@@ -11,11 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 const settings = AppSettings();
 
-Trip trip(String date, Map<String, ParticipationStatus> parts) => Trip(
-      id: date,
-      date: DateTime.parse(date),
-      participations: parts,
-    );
+Trip trip(String date, Map<String, ParticipationStatus> parts) =>
+    Trip(id: date, date: DateTime.parse(date), participations: parts);
 
 void main() {
   group('computeStats', () {
@@ -80,37 +77,45 @@ void main() {
       expect(suggestDriver(['a', 'b'], stats, pointsOnly), 'b');
     });
 
-    test('Konzept-Beispiel: Vielmitnehmer ist an kleinen Tagen wieder dran',
-        () {
-      // A: +12 Punkte, aber nur 10 % Fahranteil (fährt selten, dann voll).
-      // B: −3 Punkte, 25 % Fahranteil.
-      // Nach reinen Punkten wäre immer B dran; kombiniert entsteht
-      // Gleichstand und es fährt, wessen letzte Fahrt länger her ist (A).
-      final aStats = PersonStats(
-        personId: 'a',
-        driven: 10,
-        ridden: 88,
-        oneWay: 0,
-        carried: 100, // 100 − 88 = +12 Punkte
-        points: 12,
-        lastDrive: DateTime.parse('2026-01-02'),
-      );
-      final bStats = PersonStats(
-        personId: 'b',
-        driven: 20,
-        ridden: 60,
-        oneWay: 0,
-        carried: 57, // 57 − 60 = −3 Punkte
-        points: -3,
-        lastDrive: DateTime.parse('2026-07-01'),
-      );
-      final ranking =
-          rankPresent(['a', 'b'], {'a': aStats, 'b': bStats}, settings);
+    test(
+      'Konzept-Beispiel: Vielmitnehmer ist an kleinen Tagen wieder dran',
+      () {
+        // A: +12 Punkte, aber nur 10 % Fahranteil (fährt selten, dann voll).
+        // B: −3 Punkte, 25 % Fahranteil.
+        // Nach reinen Punkten wäre immer B dran; kombiniert entsteht
+        // Gleichstand und es fährt, wessen letzte Fahrt länger her ist (A).
+        final aStats = PersonStats(
+          personId: 'a',
+          driven: 10,
+          ridden: 88,
+          oneWay: 0,
+          carried: 100, // 100 − 88 = +12 Punkte
+          points: 12,
+          lastDrive: DateTime.parse('2026-01-02'),
+        );
+        final bStats = PersonStats(
+          personId: 'b',
+          driven: 20,
+          ridden: 60,
+          oneWay: 0,
+          carried: 57, // 57 − 60 = −3 Punkte
+          points: -3,
+          lastDrive: DateTime.parse('2026-07-01'),
+        );
+        final ranking = rankPresent(
+          ['a', 'b'],
+          {'a': aStats, 'b': bStats},
+          settings,
+        );
 
-      expect(ranking.first.personId, 'a');
-      expect(ranking.first.score, ranking.last.score,
-          reason: 'Rangsumme ist bei diesem Beispiel gleich');
-    });
+        expect(ranking.first.personId, 'a');
+        expect(
+          ranking.first.score,
+          ranking.last.score,
+          reason: 'Rangsumme ist bei diesem Beispiel gleich',
+        );
+      },
+    );
 
     test('nie Gefahrene stehen bei Gleichstand vorn', () {
       final stats = <String, PersonStats>{};
@@ -137,8 +142,7 @@ void main() {
         for (final (i, t) in (data['trips'] as List).indexed)
           Trip(
             id: 'seed-$i',
-            date: DateTime.parse(
-                (t as Map<String, dynamic>)['date'] as String),
+            date: DateTime.parse((t as Map<String, dynamic>)['date'] as String),
             participations: {
               for (final e
                   in (t['participations'] as Map<String, dynamic>).entries)

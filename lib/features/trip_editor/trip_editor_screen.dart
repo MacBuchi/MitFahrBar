@@ -102,7 +102,8 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
             .value!
             .firstWhere((t) => t.id == widget.tripId);
         await repository.updateTrip(
-            existing.copyWith(date: _date, participations: participations));
+          existing.copyWith(date: _date, participations: participations),
+        );
       } else {
         await repository.createTrip(_date, participations);
       }
@@ -115,8 +116,9 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Speichern fehlgeschlagen: $error')),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -129,9 +131,10 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Weitere Fahrt an diesem Tag?'),
         content: Text(
-            'Für diesen Tag gibt es schon $word. Nur anlegen, wenn wirklich '
-            'ein zweites Auto gefahren ist – sonst besser die bestehende '
-            'Fahrt bearbeiten.'),
+          'Für diesen Tag gibt es schon $word. Nur anlegen, wenn wirklich '
+          'ein zweites Auto gefahren ist – sonst besser die bestehende '
+          'Fahrt bearbeiten.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -160,7 +163,9 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
     final settings = settingsAsync.value;
     if (persons == null || trips == null || settings == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(_isEdit ? 'Fahrt bearbeiten' : 'Fahrt eintragen')),
+        appBar: AppBar(
+          title: Text(_isEdit ? 'Fahrt bearbeiten' : 'Fahrt eintragen'),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -173,18 +178,14 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
 
     // Fahrer-Vorschlag aus der Historie OHNE die gerade bearbeitete Fahrt,
     // sonst beeinflusst der bisherige Eintrag seinen eigenen Vorschlag.
-    final stats = computeStats(
-      [
-        for (final t in trips)
-          if (t.id != widget.tripId) t,
-      ],
-      settings,
-    );
+    final stats = computeStats([
+      for (final t in trips)
+        if (t.id != widget.tripId) t,
+    ], settings);
     final suggestedId = suggestDriver(_full, stats, settings);
-    final driverId =
-        _manualDriverId != null && _full.contains(_manualDriverId)
-            ? _manualDriverId
-            : suggestedId;
+    final driverId = _manualDriverId != null && _full.contains(_manualDriverId)
+        ? _manualDriverId
+        : suggestedId;
 
     final byId = {for (final p in persons) p.id: p};
     final visible = [
@@ -199,10 +200,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.m),
         children: [
-          _DateRow(
-            date: _date,
-            onChanged: (d) => setState(() => _date = d),
-          ),
+          _DateRow(date: _date, onChanged: (d) => setState(() => _date = d)),
           const SizedBox(height: AppSpacing.m),
           _DriverSlot(
             driver: driverId == null ? null : byId[driverId],
@@ -212,8 +210,10 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
             onReset: () => setState(() => _manualDriverId = null),
           ),
           const SizedBox(height: AppSpacing.m),
-          Text('Wer ist dabei?',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Wer ist dabei?',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: AppSpacing.s),
           Wrap(
             spacing: AppSpacing.s,
@@ -241,11 +241,13 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
                 ? null
                 : () => _save(driverId),
             icon: const Icon(Icons.check),
-            label: Text(_saving
-                ? 'Speichern …'
-                : driverId == null
-                    ? 'Mindestens 1 Person auswählen'
-                    : 'Speichern – ${byId[driverId]?.name} fährt'),
+            label: Text(
+              _saving
+                  ? 'Speichern …'
+                  : driverId == null
+                  ? 'Mindestens 1 Person auswählen'
+                  : 'Speichern – ${byId[driverId]?.name} fährt',
+            ),
           ),
         ],
       ),
@@ -330,8 +332,8 @@ class _DriverSlot extends StatelessWidget {
             color: hovering
                 ? scheme.primaryContainer
                 : driver == null
-                    ? scheme.surfaceContainerHighest
-                    : scheme.primaryContainer.withValues(alpha: 0.6),
+                ? scheme.surfaceContainerHighest
+                : scheme.primaryContainer.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(AppRadius.l),
             border: Border.all(
               color: hovering ? scheme.primary : scheme.outlineVariant,
@@ -340,28 +342,33 @@ class _DriverSlot extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.directions_car,
-                  size: 32,
-                  color: driver == null
-                      ? scheme.onSurfaceVariant
-                      : AppColors.driver),
+              Icon(
+                Icons.directions_car,
+                size: 32,
+                color: driver == null
+                    ? scheme.onSurfaceVariant
+                    : AppColors.driver,
+              ),
               const SizedBox(width: AppSpacing.m),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Fahrer',
-                        style: Theme.of(context).textTheme.labelMedium),
+                    Text(
+                      'Fahrer',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
                     Text(
                       driver?.name ?? 'Teilnehmer auswählen …',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     if (overridden && suggested != null)
-                      Text('Vorschlag wäre: ${suggested!.name}',
-                          style: Theme.of(context).textTheme.bodySmall),
+                      Text(
+                        'Vorschlag wäre: ${suggested!.name}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                   ],
                 ),
               ),
@@ -414,20 +421,20 @@ class _PersonTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final (background, border, label) = switch ((isDriver, isFull, isOneWay)) {
       (true, _, _) => (
-          AppColors.driver.withValues(alpha: 0.15),
-          AppColors.driver,
-          'fährt'
-        ),
+        AppColors.driver.withValues(alpha: 0.15),
+        AppColors.driver,
+        'fährt',
+      ),
       (_, true, _) => (
-          AppColors.passenger.withValues(alpha: 0.12),
-          AppColors.passenger,
-          'dabei'
-        ),
+        AppColors.passenger.withValues(alpha: 0.12),
+        AppColors.passenger,
+        'dabei',
+      ),
       (_, _, true) => (
-          AppColors.oneWay.withValues(alpha: 0.12),
-          AppColors.oneWay,
-          '1-way'
-        ),
+        AppColors.oneWay.withValues(alpha: 0.12),
+        AppColors.oneWay,
+        '1-way',
+      ),
       _ => (scheme.surfaceContainerLow, scheme.outlineVariant, '–'),
     };
     final selected = isFull || isOneWay;

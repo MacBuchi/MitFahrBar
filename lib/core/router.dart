@@ -52,8 +52,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
-          path: '/request',
-          builder: (context, state) => const RequestGroupScreen()),
+        path: '/request',
+        builder: (context, state) => const RequestGroupScreen(),
+      ),
       GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
       GoRoute(
         path: '/trip/new',
@@ -68,20 +69,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
         branches: [
-          StatefulShellBranch(routes: [
-            GoRoute(
-                path: '/', builder: (context, state) => const DashboardScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/',
+                builder: (context, state) => const DashboardScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/history',
-                builder: (context, state) => const HistoryScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
+                builder: (context, state) => const HistoryScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/stats',
-                builder: (context, state) => const StatsScreen()),
-          ]),
+                builder: (context, state) => const StatsScreen(),
+              ),
+            ],
+          ),
         ],
       ),
     ],
@@ -101,33 +112,39 @@ class AppShell extends ConsumerWidget {
 
     return switch (group) {
       AsyncData(value: final g) when g != null && g.isActive => Scaffold(
-          body: navigationShell,
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: (index) => navigationShell.goBranch(
-              index,
-              initialLocation: index == navigationShell.currentIndex,
-            ),
-            destinations: const [
-              NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: 'Übersicht'),
-              NavigationDestination(
-                  icon: Icon(Icons.history_outlined),
-                  selectedIcon: Icon(Icons.history),
-                  label: 'Historie'),
-              NavigationDestination(
-                  icon: Icon(Icons.bar_chart_outlined),
-                  selectedIcon: Icon(Icons.bar_chart),
-                  label: 'Statistik'),
-            ],
+        body: navigationShell,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: navigationShell.currentIndex,
+          onDestinationSelected: (index) => navigationShell.goBranch(
+            index,
+            initialLocation: index == navigationShell.currentIndex,
           ),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Übersicht',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.history_outlined),
+              selectedIcon: Icon(Icons.history),
+              label: 'Historie',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart),
+              label: 'Statistik',
+            ),
+          ],
         ),
-      AsyncData(value: final g) when g != null => PendingScreen(status: g.status),
+      ),
+      AsyncData(value: final g) when g != null => PendingScreen(
+        status: g.status,
+      ),
       AsyncData() => const _NoGroupScreen(),
-      AsyncError(:final error) =>
-        Scaffold(body: Center(child: Text('Fehler: $error'))),
+      AsyncError(:final error) => Scaffold(
+        body: Center(child: Text('Fehler: $error')),
+      ),
       _ => const Scaffold(body: Center(child: CircularProgressIndicator())),
     };
   }
@@ -146,8 +163,10 @@ class _NoGroupScreen extends ConsumerWidget {
           children: [
             const Padding(
               padding: EdgeInsets.all(24),
-              child: Text('Diesem Zugang ist keine Gruppe zugeordnet.',
-                  textAlign: TextAlign.center),
+              child: Text(
+                'Diesem Zugang ist keine Gruppe zugeordnet.',
+                textAlign: TextAlign.center,
+              ),
             ),
             TextButton(
               onPressed: () => ref.read(authRepositoryProvider).signOut(),

@@ -80,10 +80,7 @@ double carriedOfTrip(Trip trip, AppSettings settings) {
 }
 
 /// Statistik für alle Personen, die in [trips] vorkommen.
-Map<String, PersonStats> computeStats(
-  List<Trip> trips,
-  AppSettings settings,
-) {
+Map<String, PersonStats> computeStats(List<Trip> trips, AppSettings settings) {
   final driven = <String, int>{};
   final ridden = <String, int>{};
   final oneWay = <String, int>{};
@@ -119,7 +116,8 @@ Map<String, PersonStats> computeStats(
         ridden: ridden[id] ?? 0,
         oneWay: oneWay[id] ?? 0,
         carried: carried[id] ?? 0,
-        points: (carried[id] ?? 0) -
+        points:
+            (carried[id] ?? 0) -
             (ridden[id] ?? 0) -
             settings.oneWayFactor * (oneWay[id] ?? 0),
         lastDrive: lastDrive[id],
@@ -158,7 +156,8 @@ List<RankedCandidate> rankPresent(
   if (ids.isEmpty) return const [];
 
   PersonStats of(String id) =>
-      stats[id] ?? PersonStats(
+      stats[id] ??
+      PersonStats(
         personId: id,
         driven: 0,
         ridden: 0,
@@ -179,7 +178,8 @@ List<RankedCandidate> rankPresent(
         personId: id,
         pointsRank: rankOf(id, (s) => s.points),
         shareRank: rankOf(id, (s) => s.driveShare),
-        score: settings.pointsWeight * rankOf(id, (s) => s.points) +
+        score:
+            settings.pointsWeight * rankOf(id, (s) => s.points) +
             (1 - settings.pointsWeight) * rankOf(id, (s) => s.driveShare),
         stats: of(id),
       ),
@@ -206,5 +206,4 @@ String? suggestDriver(
   Iterable<String> presentIds,
   Map<String, PersonStats> stats,
   AppSettings settings,
-) =>
-    rankPresent(presentIds, stats, settings).firstOrNull?.personId;
+) => rankPresent(presentIds, stats, settings).firstOrNull?.personId;

@@ -23,13 +23,13 @@ class Group {
   bool get isActive => status == GroupStatus.active;
 
   factory Group.fromJson(Map<String, dynamic> json) => Group(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        handle: json['handle'] as String,
-        status: GroupStatus.values.byName(json['status'] as String),
-        isAdmin: json['is_admin'] as bool? ?? false,
-        createdAt: json['created_at'] == null
-            ? null
-            : DateTime.parse(json['created_at'] as String),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    handle: json['handle'] as String,
+    status: GroupStatus.values.byName(json['status'] as String),
+    isAdmin: json['is_admin'] as bool? ?? false,
+    createdAt: json['created_at'] == null
+        ? null
+        : DateTime.parse(json['created_at'] as String),
+  );
 }

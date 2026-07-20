@@ -8,10 +8,8 @@ library;
 const String groupLoginDomain = 'grp.fahrgemeinschaft.app';
 
 /// Normalisiert die Nutzereingabe zu einem gültigen Handle.
-String normalizeHandle(String input) => input
-    .trim()
-    .toLowerCase()
-    .replaceAll(RegExp(r'[^a-z0-9._-]'), '');
+String normalizeHandle(String input) =>
+    input.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9._-]'), '');
 
 String handleToEmail(String handle) =>
     '${normalizeHandle(handle)}@$groupLoginDomain';

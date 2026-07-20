@@ -8,7 +8,8 @@ library;
 
 class SupabaseConfig {
   static const url = 'https://azrlhlcxhpwmxcinjovp.supabase.co';
-  static const publishableKey = 'sb_publishable_Fs71LcKOZdxBBFtrwQU6Tg_e9oDEzCs';
+  static const publishableKey =
+      'sb_publishable_Fs71LcKOZdxBBFtrwQU6Tg_e9oDEzCs';
 
   static const isConfigured = url != 'https://REPLACE-ME.supabase.co';
 }
