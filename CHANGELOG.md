@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.10.0] – 2026-07-20
+
+### Neu
+
+- **Mitfahrer lassen sich jetzt in der App anlegen.** Über „Personen
+  verwalten" im Konto-Menü kommt man zur Personenliste: neue Person anlegen,
+  Fahrzeug, Antrieb und Verbrauch nachtragen (Letzteres braucht die App, um
+  die Ersparnis zu berechnen) und Namen korrigieren. Bisher ging das nur
+  direkt in der Datenbank.
+- **Wer nicht mehr mitfährt, wird stillgelegt statt gelöscht.** Ein Schalter
+  je Person nimmt sie aus „Wer ist dran" und aus der Auswahl beim Eintragen,
+  lässt die gefahrenen Fahrten aber unangetastet. Löschen gibt es bewusst
+  nicht: Es würde die vergangenen Teilnahmen mitreißen und damit die Punkte
+  aller anderen rückwirkend verändern.
+- **Beim Eintragen stehen die Stammgäste oben.** Wer in den letzten 60 Tagen
+  dabei war, erscheint zuerst; alle anderen rutschen unter eine Zwischen-
+  überschrift „Länger nicht dabei". In gewachsenen Gruppen muss man die
+  täglichen Mitfahrer damit nicht mehr aus einer langen alphabetischen Liste
+  heraussuchen.
+
 ## [0.9.0] – 2026-07-20
 
 ### Neu
@@ -177,6 +197,8 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.10.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.0
+[0.9.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.9.0
 [0.8.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.8.0
 [0.7.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.7.0
 [0.6.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.6.1

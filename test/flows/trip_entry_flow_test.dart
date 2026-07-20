@@ -2,6 +2,7 @@
 library;
 
 import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:fahrgemeinschaft/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -97,6 +98,86 @@ void main() {
     expect(
       trip.participations.values.where((s) => s.name == 'oneWay'),
       hasLength(1),
+    );
+  });
+
+  // Je länger eine Gruppe existiert, desto mehr Namen sammeln sich an, die
+  // niemand mehr antippt. Rein alphabetisch stehen die mitten zwischen den
+  // Stammgästen und man sucht sich jeden Abend neu zurecht.
+  testWidgets('wer lange nicht dabei war, rutscht nach unten', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Zora']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final persons = {for (final p in await data.loadPersons()) p.name: p.id};
+    final today = DateTime.now();
+
+    // Zora war zuletzt vor über einem halben Jahr dabei, Anna und Bert
+    // gestern — alphabetisch stünde Zora trotzdem gleichrangig dazwischen.
+    await data.createTrip(today.subtract(const Duration(days: 200)), {
+      persons['Zora']!: ParticipationStatus.driver,
+      persons['Anna']!: ParticipationStatus.passenger,
+    });
+    await data.createTrip(today.subtract(const Duration(days: 1)), {
+      persons['Anna']!: ParticipationStatus.driver,
+      persons['Bert']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    final heading = find.text('Länger nicht dabei');
+    expect(heading, findsOneWidget);
+
+    final headingY = tester.getTopLeft(heading).dy;
+    expect(
+      tester.getTopLeft(find.text('Anna')).dy,
+      lessThan(headingY),
+      reason: 'Stammgäste gehören über die Trennlinie.',
+    );
+    expect(tester.getTopLeft(find.text('Bert')).dy, lessThan(headingY));
+    expect(
+      tester.getTopLeft(find.text('Zora')).dy,
+      greaterThan(headingY),
+      reason: 'Wer seit 200 Tagen nicht dabei war, ist kein Stammgast.',
+    );
+  });
+
+  testWidgets('ohne Historie bleibt die Liste ungeteilt', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Länger nicht dabei'),
+      findsNothing,
+      reason:
+          'Eine frische Gruppe hat keine Stammgäste — dann wäre jeder unter '
+          'der Trennlinie und die Überschrift nur verwirrend.',
     );
   });
 }

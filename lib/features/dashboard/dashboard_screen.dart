@@ -48,7 +48,9 @@ class DashboardScreen extends ConsumerWidget {
             tooltip: 'Zugang',
             icon: const Icon(Icons.account_circle_outlined),
             onSelected: (value) {
-              if (value == 'password') {
+              if (value == 'persons') {
+                context.push('/persons');
+              } else if (value == 'password') {
                 showChangePasswordDialog(context);
               } else if (value == 'feedback') {
                 showFeedbackDialog(context);
@@ -64,6 +66,14 @@ class DashboardScreen extends ConsumerWidget {
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'persons',
+                child: ListTile(
+                  leading: Icon(Icons.group_outlined),
+                  title: Text('Personen verwalten'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               if (SupabaseConfig.isConfigured) ...const [
                 PopupMenuItem(
                   value: 'password',
