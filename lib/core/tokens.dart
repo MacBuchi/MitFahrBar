@@ -55,6 +55,32 @@ abstract final class AppColors {
   static const oneWay = Color(0xFFB45309);
 }
 
+/// Maße der Diagramme (gezeichnet in `core/widgets/charts.dart`).
+///
+/// Die Daten sind das Einzige, was laut sein darf: dünne Marken, haarfeine
+/// Achsen, und getrennt wird durch Fläche statt durch Rahmen.
+abstract final class AppChart {
+  AppChart._();
+
+  /// Höchste Balkenstärke; was im Raster übrig bleibt, ist bewusst Luft.
+  static const barMaxThickness = 20.0;
+
+  /// Abgerundetes Datenende; an der Grundlinie bleibt der Balken eckig.
+  static const barEndRadius = 4.0;
+
+  /// Trennung zweier Flächen – in Hintergrundfarbe, nie als Rahmen.
+  static const surfaceGap = 2.0;
+
+  /// Grundlinie und Achsen.
+  static const hairline = 1.0;
+
+  /// Höhe der Zeichenfläche des Monats-Diagramms.
+  static const columnPlotHeight = 104.0;
+
+  /// Zeilenhöhe eines gestapelten Balkens.
+  static const stackedBarThickness = 14.0;
+}
+
 abstract final class AppSpacing {
   AppSpacing._();
 

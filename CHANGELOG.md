@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.7.0] – 2026-07-20
+
+### Neu
+
+- **Auswertungen auf der Startseite.** Unter „Wer ist dran?" stehen jetzt drei
+  Blöcke:
+  - **Gemeinsam erreicht** — zurückgelegte Personen-Kilometer, gesparter
+    Kraftstoff und die Zahl der Fahrten auf einen Blick.
+  - **Fahrten pro Monat** — die letzten zwölf Monate als Säulen. Ruhige
+    Monate bleiben sichtbar, damit die Achse nicht mehr Betrieb vortäuscht,
+    als tatsächlich war. Beschriftet sind der stärkste und der laufende Monat.
+  - **Wie ihr unterwegs seid** — je Person ein Balken, aufgeteilt nach
+    gefahren, 1-way und mitgefahren. Die Länge zeigt, wie oft jemand dabei
+    war, die Aufteilung wie. Es sind dieselben Farben wie in der
+    Fahrt-Erfassung.
+
+  Solange keine Fahrten erfasst sind, erscheinen die beiden Diagramme nicht —
+  eine leere Achse sagt weniger als gar keine Karte.
+
 ## [0.6.1] – 2026-07-20
 
 ### Behoben
@@ -129,6 +148,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.7.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.7.0
 [0.6.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.6.1
 [0.6.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.6.0
 [0.5.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.5.1
