@@ -1,9 +1,31 @@
-# Fahrgemeinschaft — Arbeitsregeln
+# RideBuddy (Repo: Fahrgemeinschaft) — Arbeitsregeln
 
-Flutter-Web-App (PWA) zur Verwaltung einer Fahrgemeinschaft: Fahrtenprotokoll,
-Punkte-/Fairness-System („wer ist dran"), Statistik. Supabase-Backend
-(ein Gruppenlogin, RLS in `supabase/schema.sql`), Riverpod ohne Codegen,
-go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
+Flutter-Web-App (PWA) + Android-APK zur Verwaltung einer Fahrgemeinschaft:
+Fahrtenprotokoll, Punkte-/Fairness-System („wer ist dran"), Statistik,
+Dashboard-Charts. Supabase-Backend (multi-tenant, RLS in
+`supabase/schema.sql`), Riverpod 2 ohne Codegen, go_router, deutsche
+UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
+
+Produktname ist **RideBuddy** (seit v0.6.0); Repo- und Package-Name bleiben
+`fahrgemeinschaft`.
+
+Projektübergreifende Guidelines (Architektur, State, Testing, CI, Signing,
+In-App-Update/-Feedback) liegen im DocuHub unter
+`/Volumes/MacStore/Programming/ProgrammingGuidelineDocuHub/`. Diese Datei
+beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
+
+## Bekannte Abweichungen Konzept ↔ Implementierung
+
+`KONZEPT.md` ist an diesen Stellen überholt — bei Widersprüchen gilt der Code:
+
+- Name „FairFahrt" (§9.1) → das Produkt heißt RideBuddy.
+- `tool/import_xlsx.dart` (Dart-CLI) → umgesetzt wurde `tool/import_seed.py`.
+- Postgres-View `person_stats` (§4) → nie gebaut; alle Kennzahlen entstehen
+  clientseitig in `lib/core/fairness.dart`.
+- Preis-Historisierung mit „Gültig-ab" (§3.4) → `settings` ist nur
+  `(group_id, key) → value`, ohne `valid_from`.
+- Offen aus §5.5: ein Verwaltungs-Screen für Personen, Fahrzeuge und
+  Parameter fehlt noch (`admin_screen.dart` ist nur die Gruppen-Freigabe).
 
 ## Architektur-Leitplanken (nicht verhandelbar)
 
@@ -37,6 +59,17 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
   trennung nachbildet; `pumpApp` startet die echte App dagegen. Neue Abläufe
   bekommen einen Flow-Test in `test/flows/`. Netzzugriffe (Update-Check) in
   Tests immer per Override stilllegen.
+- **Release-only-Fallen bekommen einen Konfigurations-Regressionstest.**
+  `test/android_manifest_test.dart` prüft INTERNET-Permission,
+  `REQUEST_INSTALL_PACKAGES`, die `<queries>`-Sichtbarkeit, die exakte
+  FileProvider-Authority, `filepaths.xml` und die Desugaring-Flags. Solche
+  Fehler kompilieren sauber und fallen sonst erst auf dem Gerät des Nutzers
+  auf. Jede neue Manifest-/Gradle-Voraussetzung kommt dort mit einer
+  `reason:` dazu, die den echten Ausfall beschreibt.
+- Charts sind **bewusst selbst gebaut** (`core/chart_data.dart` = reine
+  Aggregationsfunktionen, `core/widgets/charts.dart` = CustomPainter) —
+  keine Chart-Library als Dependency. Aggregation bleibt testbar getrennt
+  vom Zeichnen (`test/chart_data_test.dart`).
 
 ## Workflow
 
@@ -62,6 +95,13 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
 - Flutter-Version in CI gepinnt (3.41.2) — bei lokalem Upgrade auch
   `.github/workflows/*.yml` anpassen. Lokales SDK:
   `/Volumes/MacStore/Programming/Flutter/SDK/flutter`.
+- **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
+  `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
+  Fehlschlag. Danach `flutter analyze` und `flutter test`.
+- **Die Required Checks hängen an den `name:`-Feldern der CI-Jobs**
+  („Analyze & Test", „Build Web", „Build Android APK", „Version Guard").
+  Wird ein Job umbenannt, greift die Branch Protection stillschweigend nicht
+  mehr — Umbenennung immer zusammen mit den Repo-Einstellungen.
 
 ## Technik-Notizen
 
@@ -93,6 +133,27 @@ go_router, deutsche UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
   Verlust bricht In-Place-Updates dauerhaft.
 - **Update-Hinweis** (`core/update_check.dart`) pollt das neueste
   GitHub-Release (tokenlos). Jeder Fehlerpfad endet in `null` = kein Banner.
+- **In-App-Update (Android)** installiert per `ota_update` aus dem
+  Release-APK. Dafür müssen zusammenbleiben: `INTERNET` +
+  `REQUEST_INSTALL_PACKAGES`, der FileProvider mit Authority **exakt**
+  `${applicationId}.ota_update_provider`, `res/xml/filepaths.xml` mit
+  `files-path ota_update/`, der `<queries>`-Eintrag VIEW/https für den
+  Browser-Fallback und Core Library Desugaring in `build.gradle.kts`.
+  Fehlt der FileProvider, stirbt die App direkt nach dem Download.
+  Abgesichert durch `test/android_manifest_test.dart` — Änderungen daran
+  zusätzlich auf einem echten Gerät verifizieren.
 - **Feedback** landet in der Tabelle `feedback`; der Bot
   (`tool/feedback_bot.py`, `.github/workflows/feedback.yml`) macht daraus
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.
+  Die Issue-Templates unter `.github/ISSUE_TEMPLATE/` und die Felder im
+  Feedback-Dialog gehören zusammen — Änderungen immer paarweise.
+- **Branding:** `tool/brand/mark.svg` ist die einzige Quelle der Bildmarke.
+  `tool/brand/build_icons.sh` (braucht `rsvg-convert` + python3) erzeugt
+  daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps
+  inklusive Adaptive-Icon-Vordergrund. Icons nie von Hand bearbeiten.
+  Schrift: Space Grotesk (Display) + Manrope (Body) als Variable Fonts.
+- **Offene Infrastruktur-Lücken:** kein `dependabot.yml` (beim Einrichten
+  beachten: Dependabot-PRs auf `pubspec.yaml` lösen den Version Guard aus),
+  `analysis_options.yaml` ist noch das unkonfigurierte Template,
+  `pubspec.yaml` trägt die Template-`description`, `LICENSE` fehlt (wird in
+  den Version-Guard-Excludes bereits referenziert).
