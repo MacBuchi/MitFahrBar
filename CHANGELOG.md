@@ -14,6 +14,15 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   ist feiner als vorher — es gibt jetzt auch ein „etwas mehr als die anderen"
   statt nur zufrieden, neutral oder unzufrieden.
 
+### Behoben
+
+- **Zwei Gruppen konnten sich in der Wochenplanung gegenseitig blockieren.**
+  Hatte eine Gruppe an einem Tag den Fahrer von Hand gesetzt, schlug dieselbe
+  Aktion bei jeder anderen Gruppe an genau diesem Tag mit einer Fehlermeldung
+  fehl. Grund war ein Schlüssel in der Datenbank, der die Gruppe nicht
+  mitgezählt hat. Betroffen war nur das Übersteuern des Fahrers; eingetragene
+  Fahrten und Punkte waren nie in Gefahr.
+
 ## [0.14.0] – 2026-07-21
 
 ### Geändert

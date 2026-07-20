@@ -64,6 +64,15 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   bis eine Admin-Gruppe sie freigibt. Login = Handle → `handle@grp.local`
   (`core/group_login.dart`). Neue Datentabellen brauchen zwingend `group_id`
   plus dieselbe RLS-Policy, sonst lecken Daten zwischen Gruppen.
+- **`group_id` gehört auch in fachliche Primärschlüssel.** Wo der Schlüssel
+  keine generierte UUID ist, sondern aus Fachdaten besteht (`plan_date`,
+  `person_id`, …), muss `group_id` darin stehen — sonst ist er über alle
+  Gruppen eindeutig, und die zweite Gruppe läuft beim Speichern in eine
+  Unique-Verletzung auf einer Zeile, die die RLS ihr nicht einmal zeigt.
+  Genau so lag `plan_overrides` bis v0.15.0 im Schema. Das Konfliktziel des
+  `upsert` im Repository muss denselben Schlüssel nennen; driften beide
+  auseinander, meldet Postgres „no unique or exclusion constraint matching
+  the ON CONFLICT specification". Beides prüft `test/schema_test.dart`.
 - **Eine Gruppe = ein Login bleibt, auch für den Wochenplaner** (entschieden
   2026-07-20). Es gibt bewusst **keine Identität pro Person**: Der Planer ist
   ein Raster Person × Wochentag, in dem jeder für jeden eintragen darf — das

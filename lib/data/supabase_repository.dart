@@ -191,10 +191,14 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
     bool available,
   ) async {
     if (available) {
+      // `group_id` steht im Schlüssel (sonst wäre er über alle Gruppen
+      // eindeutig) und muss deshalb auch das Konfliktziel benennen. Den Wert
+      // liefert der Spalten-Default `auth.uid()`; er gehört nicht in die
+      // Nutzlast, sonst könnte der Client ihn setzen.
       await _client.from('plan_availability').upsert({
         'plan_date': _isoDay(date),
         'person_id': personId,
-      }, onConflict: 'plan_date,person_id');
+      }, onConflict: 'group_id,plan_date,person_id');
     } else {
       await _client
           .from('plan_availability')
@@ -216,7 +220,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
     await _client.from('plan_overrides').upsert({
       'plan_date': _isoDay(date),
       'driver_id': driverId,
-    }, onConflict: 'plan_date');
+    }, onConflict: 'group_id,plan_date');
   }
 
   /// `date`-Spalten wollen reines yyyy-MM-dd; ein voller Zeitstempel würde
