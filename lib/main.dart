@@ -8,11 +8,13 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'core/licenses.dart';
 import 'core/log.dart';
 import 'core/supabase_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerFontLicenses();
 
   FlutterError.onError = (details) {
     log.e('FlutterError', error: details.exception, stackTrace: details.stack);
