@@ -14,6 +14,7 @@ import '../../models/person.dart';
 import '../../core/widgets/ride_buddy_mark.dart';
 import '../account/change_password_dialog.dart';
 import '../banners/app_banners.dart';
+import 'dashboard_charts.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -161,7 +162,9 @@ class _Content extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.m),
-        _MiniStats(persons: persons),
+        GroupAchievementsCard(persons: persons),
+        const MonthlyTripsCard(),
+        ParticipationMixCard(persons: persons),
       ],
     );
   }
@@ -183,89 +186,6 @@ class _RankBadge extends StatelessWidget {
           : scheme.surfaceContainerHighest,
       foregroundColor: highlighted ? scheme.onPrimary : scheme.onSurfaceVariant,
       child: Text('$rank'),
-    );
-  }
-}
-
-class _MiniStats extends ConsumerWidget {
-  const _MiniStats({required this.persons});
-
-  final List<Person> persons;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final stats = ref.watch(statsProvider).value;
-    final settings = ref.watch(settingsProvider).value;
-    final trips = ref.watch(tripsProvider).value;
-    if (stats == null || settings == null || trips == null) {
-      return const SizedBox.shrink();
-    }
-
-    final byId = {for (final p in persons) p.id: p};
-    final euro = NumberFormat.currency(locale: 'de', symbol: '€');
-
-    var totalSaved = 0.0;
-    for (final s in stats.values) {
-      final person = byId[s.personId];
-      if (person != null) totalSaved += s.savedCosts(settings, person);
-    }
-
-    final kmRanked = stats.values.toList()
-      ..sort(
-        (a, b) => b.kilometers(settings).compareTo(a.kilometers(settings)),
-      );
-    final heroes = kmRanked
-        .take(2)
-        .map((s) => byId[s.personId]?.name ?? s.personId)
-        .join(' & ');
-
-    final thisYear = trips
-        .where((t) => t.date.year == DateTime.now().year)
-        .length;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.m),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Gemeinsam erreicht',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppSpacing.s),
-            _statRow(
-              context,
-              Icons.savings_outlined,
-              '${euro.format(totalSaved)} Kraftstoff gespart',
-            ),
-            _statRow(
-              context,
-              Icons.event_repeat_outlined,
-              '$thisYear Fahrten dieses Jahr · ${trips.length} insgesamt',
-            ),
-            if (heroes.isNotEmpty)
-              _statRow(
-                context,
-                Icons.emoji_events_outlined,
-                'Kilometerhelden: $heroes',
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statRow(BuildContext context, IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: AppSpacing.s),
-          Expanded(child: Text(text)),
-        ],
-      ),
     );
   }
 }
