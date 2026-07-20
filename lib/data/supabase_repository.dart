@@ -151,4 +151,78 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
         {'group_id': groupId, 'key': e.key, 'value': e.value},
     ], onConflict: 'group_id,key');
   }
+
+  @override
+  Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) async {
+    final start = _isoDay(from);
+    final end = _isoDay(from.add(Duration(days: days - 1)));
+
+    final availabilityRows = await _client
+        .from('plan_availability')
+        .select('plan_date, person_id')
+        .gte('plan_date', start)
+        .lte('plan_date', end);
+    final overrideRows = await _client
+        .from('plan_overrides')
+        .select('plan_date, driver_id')
+        .gte('plan_date', start)
+        .lte('plan_date', end);
+
+    final availability = <DateTime, Set<String>>{};
+    for (final row in availabilityRows) {
+      final date = DateTime.parse(row['plan_date'] as String);
+      (availability[date] ??= <String>{}).add(row['person_id'] as String);
+    }
+
+    return WeekPlan(
+      availability: availability,
+      overrides: {
+        for (final row in overrideRows)
+          DateTime.parse(row['plan_date'] as String):
+              row['driver_id'] as String,
+      },
+    );
+  }
+
+  @override
+  Future<void> setAvailability(
+    DateTime date,
+    String personId,
+    bool available,
+  ) async {
+    if (available) {
+      await _client.from('plan_availability').upsert({
+        'plan_date': _isoDay(date),
+        'person_id': personId,
+      }, onConflict: 'plan_date,person_id');
+    } else {
+      await _client
+          .from('plan_availability')
+          .delete()
+          .eq('plan_date', _isoDay(date))
+          .eq('person_id', personId);
+    }
+  }
+
+  @override
+  Future<void> setPlanDriver(DateTime date, String? driverId) async {
+    if (driverId == null) {
+      await _client
+          .from('plan_overrides')
+          .delete()
+          .eq('plan_date', _isoDay(date));
+      return;
+    }
+    await _client.from('plan_overrides').upsert({
+      'plan_date': _isoDay(date),
+      'driver_id': driverId,
+    }, onConflict: 'plan_date');
+  }
+
+  /// `date`-Spalten wollen reines yyyy-MM-dd; ein voller Zeitstempel würde
+  /// je nach Zeitzone auf dem Nachbartag landen.
+  static String _isoDay(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 }

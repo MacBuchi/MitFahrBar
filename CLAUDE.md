@@ -55,6 +55,25 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   bis eine Admin-Gruppe sie freigibt. Login = Handle → `handle@grp.local`
   (`core/group_login.dart`). Neue Datentabellen brauchen zwingend `group_id`
   plus dieselbe RLS-Policy, sonst lecken Daten zwischen Gruppen.
+- **Eine Gruppe = ein Login bleibt, auch für den Wochenplaner** (entschieden
+  2026-07-20). Es gibt bewusst **keine Identität pro Person**: Der Planer ist
+  ein Raster Person × Wochentag, in dem jeder für jeden eintragen darf — das
+  ist ehrlich zu dem, was ein geteilter Zugang ohnehin bedeutet. Echte Logins
+  pro Person würden `group_id = auth.uid()` und damit jede RLS-Policy
+  umkrempeln; das ist ein eigenes Projekt, kein Nebeneffekt eines Features.
+- **Geplantes darf die Punkte nie berühren.** `plan_availability` und
+  `plan_overrides` speichern nur, was Menschen entschieden haben. Der
+  vorgeschlagene Fahrer wird **nicht** gespeichert (berechnete Kennzahl, wie
+  Punkte und Quote), und es gibt **kein „bestätigt"-Kennzeichen**: Die
+  Bestätigung erzeugt eine Zeile in `trips`, deren Existenz am Tag *ist* die
+  Bestätigung. Dadurch sieht `computeStats` ausschließlich gefahrene Fahrten.
+  Wer hier ein Statusfeld ergänzt, baut sich zwei Wahrheiten.
+- **Der Wochenvorschlag simuliert vorwärts** (`planWeek` in
+  `core/fairness.dart`): Jeder Tag wird gegen die Statistik *inklusive* der
+  bereits vorgeschlagenen Vortage gerechnet. Ohne das ändert sich nichts, bis
+  eine Fahrt eingetragen ist — und alle fünf Tage schlagen dieselbe Person
+  vor. Tage mit echter Fahrt werden nicht zusätzlich simuliert, sonst zählen
+  sie doppelt. Beides ist in `test/plan_test.dart` festgenagelt.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
 - **Was geloggt wird, kann öffentlich werden.** `core/log.dart` hält die
   letzten 50 Zeilen in `logRing` (nur im Speicher, nie auf Platte), und die
