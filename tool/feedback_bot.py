@@ -13,10 +13,15 @@ import json
 import os
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
 MAX_TITLE = 60
+
+
+class TableMissing(Exception):
+    """Die feedback-Tabelle gibt es noch nicht (Migration nicht eingespielt)."""
 
 
 def api(method, path, body=None):
@@ -29,9 +34,15 @@ def api(method, path, body=None):
         headers["Authorization"] = f"Bearer {key}"
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(request) as response:
-        text = response.read().decode()
-        return json.loads(text) if text else None
+    try:
+        with urllib.request.urlopen(request) as response:
+            text = response.read().decode()
+            return json.loads(text) if text else None
+    except urllib.error.HTTPError as error:
+        # PostgREST meldet eine unbekannte Tabelle mit 404.
+        if error.code == 404:
+            raise TableMissing from error
+        raise
 
 
 def run(*cmd):
@@ -54,11 +65,16 @@ def mark_processed(row_id):
 
 
 def main():
-    rows = api(
-        "GET",
-        "/rest/v1/feedback?processed_at=is.null&order=created_at"
-        "&select=id,type,message,app_version,platform,created_at,groups(name)",
-    ) or []
+    try:
+        rows = api(
+            "GET",
+            "/rest/v1/feedback?processed_at=is.null&order=created_at"
+            "&select=id,type,message,app_version,platform,created_at,groups(name)",
+        ) or []
+    except TableMissing:
+        # Kein Fehler: Die Migration ist noch nicht eingespielt.
+        print("::notice::Tabelle 'feedback' existiert noch nicht — nichts zu tun.")
+        return
     print(f"{len(rows)} unverarbeitete Rückmeldungen")
 
     for row in rows:
