@@ -4,6 +4,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/export_file.dart';
 import '../core/fairness.dart';
 import '../core/supabase_config.dart';
 import '../models/app_settings.dart';
@@ -20,6 +21,14 @@ import 'supabase_repository.dart';
 final supabaseClientProvider = Provider<SupabaseClient>(
   (ref) => Supabase.instance.client,
 );
+
+/// Wie eine erzeugte Datei beim Nutzer ankommt (Download bzw. Teilen-Menü).
+/// Als Provider, damit Tests den Plattform-Pfad ersetzen können — im Test
+/// gibt es weder Browser noch Teilen-Menü.
+typedef FileSaver =
+    Future<void> Function({required String name, required String content});
+
+final fileSaverProvider = Provider<FileSaver>((ref) => saveTextFile);
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => SupabaseConfig.isConfigured
