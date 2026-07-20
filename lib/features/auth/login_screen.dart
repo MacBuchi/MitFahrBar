@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/tokens.dart';
+import '../../core/widgets/ride_buddy_mark.dart';
 import '../../data/providers.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -65,16 +66,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(
-                      Icons.directions_car,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                    const Center(child: RideBuddyMark(size: 120)),
                     const SizedBox(height: AppSpacing.m),
+                    const Center(child: RideBuddyWordmark(fontSize: 34)),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Fahrgemeinschaft',
+                      'Die faire App für eure Fahrgemeinschaft',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     TextField(
