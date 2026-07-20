@@ -193,6 +193,24 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
         if (p.active || _full.contains(p.id) || _oneWay.contains(p.id)) p,
     ]..sort((a, b) => a.name.compareTo(b.name));
 
+    // Stammgäste zuerst. In einer rein alphabetischen Liste stehen Leute, die
+    // seit Monaten nicht mehr mitfahren, gleichberechtigt zwischen denen, die
+    // man täglich antippt — und je länger die Gruppe existiert, desto mehr
+    // solcher Karteileichen sammeln sich an.
+    bool isRegular(Person p) =>
+        stats[p.id]?.participatedRecently(_date) ?? false;
+    final regulars = [
+      for (final p in visible)
+        if (isRegular(p)) p,
+    ];
+    final occasional = [
+      for (final p in visible)
+        if (!isRegular(p)) p,
+    ];
+    // Ohne Historie wäre sonst jeder „länger nicht dabei" — dann lieber eine
+    // ungeteilte Liste.
+    final split = regulars.isNotEmpty && occasional.isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Fahrt bearbeiten' : 'Fahrt eintragen'),
@@ -219,7 +237,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
             spacing: AppSpacing.s,
             runSpacing: AppSpacing.s,
             children: [
-              for (final person in visible)
+              for (final person in split ? regulars : visible)
                 _PersonTile(
                   person: person,
                   isDriver: person.id == driverId,
@@ -229,6 +247,28 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
                 ),
             ],
           ),
+          if (split) ...[
+            const SizedBox(height: AppSpacing.m),
+            Text(
+              'Länger nicht dabei',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: AppSpacing.s),
+            Wrap(
+              spacing: AppSpacing.s,
+              runSpacing: AppSpacing.s,
+              children: [
+                for (final person in occasional)
+                  _PersonTile(
+                    person: person,
+                    isDriver: person.id == driverId,
+                    isFull: _full.contains(person.id),
+                    isOneWay: _oneWay.contains(person.id),
+                    onTap: () => _cycle(person.id),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.s),
           Text(
             'Tippen: dabei → 1-way → raus. Fahrer-Kachel aufs Fahrer-Feld '

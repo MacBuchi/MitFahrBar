@@ -58,6 +58,61 @@ void main() {
       final sum = stats.values.fold<double>(0, (acc, s) => acc + s.points);
       expect(sum, closeTo(0, 1e-9));
     });
+
+    // lastDrive beantwortet „wann ist die Person zuletzt gefahren", nicht
+    // „wann war sie zuletzt dabei". Wer nur mitfährt, hat gar kein lastDrive —
+    // wäre also für die Reihenfolge im Fahrten-Editor unsichtbar, obwohl er
+    // jeden Tag im Auto sitzt.
+    test('lastParticipation zählt jede Rolle, lastDrive nur das Fahren', () {
+      final trips = [
+        trip('2026-01-05', {
+          'a': ParticipationStatus.driver,
+          'b': ParticipationStatus.passenger,
+        }),
+        trip('2026-03-10', {
+          'a': ParticipationStatus.passenger,
+          'b': ParticipationStatus.driver,
+          'c': ParticipationStatus.oneWay,
+        }),
+      ];
+      final stats = computeStats(trips, settings);
+
+      expect(stats['a']!.lastDrive, DateTime.parse('2026-01-05'));
+      expect(stats['a']!.lastParticipation, DateTime.parse('2026-03-10'));
+      expect(stats['c']!.lastDrive, isNull);
+      expect(
+        stats['c']!.lastParticipation,
+        DateTime.parse('2026-03-10'),
+        reason: 'Reine 1-way-Mitfahrer sind trotzdem dabei gewesen.',
+      );
+    });
+
+    test('participatedRecently zieht die Grenze bei 60 Tagen', () {
+      final stats = computeStats([
+        trip('2026-03-01', {
+          'a': ParticipationStatus.driver,
+          'b': ParticipationStatus.passenger,
+        }),
+      ], settings);
+
+      final justInside = DateTime.parse('2026-04-30'); // 60 Tage später
+      final justOutside = DateTime.parse('2026-05-01'); // 61 Tage später
+
+      expect(stats['a']!.participatedRecently(justInside), isTrue);
+      expect(stats['a']!.participatedRecently(justOutside), isFalse);
+    });
+
+    test('ohne Teilnahme gilt niemand als Stammgast', () {
+      const never = PersonStats(
+        personId: 'x',
+        driven: 0,
+        ridden: 0,
+        oneWay: 0,
+        carried: 0,
+        points: 0,
+      );
+      expect(never.participatedRecently(DateTime.parse('2026-03-01')), isFalse);
+    });
   });
 
   group('rankPresent / suggestDriver', () {

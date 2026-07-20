@@ -24,8 +24,11 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   clientseitig in `lib/core/fairness.dart`.
 - Preis-Historisierung mit „Gültig-ab" (§3.4) → `settings` ist nur
   `(group_id, key) → value`, ohne `valid_from`.
-- Offen aus §5.5: ein Verwaltungs-Screen für Personen, Fahrzeuge und
-  Parameter fehlt noch (`admin_screen.dart` ist nur die Gruppen-Freigabe).
+- Offen aus §5.5: Personen und Fahrzeuge pflegt seit v0.10.0
+  `features/persons/persons_screen.dart` (`/persons`), ein Screen für die
+  **Parameter** (`settings`) fehlt weiterhin — `saveSettings` hat bis heute
+  keinen Aufrufer in `lib/`. `admin_screen.dart` ist nur die
+  Gruppen-Freigabe, nicht die Datenpflege.
 
 ## Architektur-Leitplanken (nicht verhandelbar)
 
@@ -36,6 +39,12 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Formel brauchen angepasste Tests UND einen Abgleich mit `KONZEPT.md` 3.2.
 - Kennzahlen (Punkte, Quote, km, Ersparnis) werden immer berechnet, nie
   gespeichert.
+- **Personen werden nie gelöscht, nur inaktiv gesetzt.** `person_id` in
+  `trip_participations` hängt an `ON DELETE CASCADE` — ein Löschen entfernt
+  also stillschweigend alle Teilnahmen dieser Person und verändert damit
+  rückwirkend die Punkte *aller anderen*. Deshalb gibt es bewusst kein
+  `deletePerson` im Repository. `active: false` ist der Ersatz und wird von
+  `activeRankingProvider` und dem Fahrten-Editor respektiert.
 - In Screens keine rohen Farb-/Pixelwerte — `core/tokens.dart` bzw.
   `Theme.of(context)` verwenden.
 - Sicherheit serverseitig (RLS), Auth-Guard im Router (`redirect` +

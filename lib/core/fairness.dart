@@ -20,6 +20,7 @@ class PersonStats {
     required this.carried,
     required this.points,
     this.lastDrive,
+    this.lastParticipation,
   });
 
   final String personId;
@@ -37,9 +38,24 @@ class PersonStats {
   final double carried;
 
   final double points;
+
+  /// Letzter Tag, an dem diese Person selbst gefahren ist.
   final DateTime? lastDrive;
 
+  /// Letzter Tag, an dem diese Person überhaupt dabei war — egal in welcher
+  /// Rolle. Bewusst getrennt von [lastDrive]: Wer oft mitfährt, aber nie
+  /// fährt, ist ein Stammgast und trotzdem ohne [lastDrive].
+  final DateTime? lastParticipation;
+
   int get participationDays => driven + ridden + oneWay;
+
+  /// War die Person in den letzten [days] Tagen vor [reference] dabei?
+  /// Grundlage für die Reihenfolge im Fahrten-Editor: Stammgäste zuerst.
+  bool participatedRecently(DateTime reference, {int days = 60}) {
+    final last = lastParticipation;
+    if (last == null) return false;
+    return !last.isBefore(reference.subtract(Duration(days: days)));
+  }
 
   /// Wie oft gefahren, relativ zur eigenen Anwesenheit (0..1).
   double get driveShare =>
@@ -86,11 +102,16 @@ Map<String, PersonStats> computeStats(List<Trip> trips, AppSettings settings) {
   final oneWay = <String, int>{};
   final carried = <String, double>{};
   final lastDrive = <String, DateTime>{};
+  final lastParticipation = <String, DateTime>{};
 
   for (final trip in trips) {
     final tripCarried = carriedOfTrip(trip, settings);
     for (final entry in trip.participations.entries) {
       final id = entry.key;
+      final seen = lastParticipation[id];
+      if (seen == null || trip.date.isAfter(seen)) {
+        lastParticipation[id] = trip.date;
+      }
       switch (entry.value) {
         case ParticipationStatus.driver:
           driven[id] = (driven[id] ?? 0) + 1;
@@ -121,6 +142,7 @@ Map<String, PersonStats> computeStats(List<Trip> trips, AppSettings settings) {
             (ridden[id] ?? 0) -
             settings.oneWayFactor * (oneWay[id] ?? 0),
         lastDrive: lastDrive[id],
+        lastParticipation: lastParticipation[id],
       ),
   };
 }
