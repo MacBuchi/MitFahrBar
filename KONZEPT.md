@@ -57,7 +57,9 @@ Eine **Fahrt = eine Fahrgruppe an einem Tag** (in der Regel eine pro Tag; an man
 1. **Punkte** (wie viel transportiert) — aufsteigend gerankt, wenigste Punkte = Rang 1.
 2. **Fahranteil** = eigene Fahrten ÷ eigene Teilnahmetage (wie oft gefahren, relativ zur Anwesenheit) — aufsteigend gerankt, seltenster Fahrer = Rang 1.
 
-**Dran ist, wer die niedrigste Rangsumme hat** — und zwar **unter den an diesem Tag Anwesenden** (nicht über alle Aktiven). Gleichstand: Wessen letzte Fahrt am längsten her ist, fährt. Gewichtung Punkte↔Fahranteil ist ein Parameter (Standard 50/50), damit die Gruppe nachjustieren kann.
+**Dran ist, wer die niedrigste Rangsumme hat** — und zwar **unter den an diesem Tag Anwesenden** (nicht über alle Aktiven). Gleichstand: Wessen letzte Fahrt am längsten her ist, fährt. Gewichtung Punkte↔Fahranteil ist ein Parameter, damit die Gruppe nachjustieren kann.
+
+> **Korrektur 2026-07-21 (Issue #38): Der Standard steht auf „nur Punkte" (`points_weight = 1.0`).** Die Gruppe hat entschieden, dass allein die Punkte die Reihenfolge bestimmen; der Fahranteil ist reine Anzeige. Damit gilt der oben beschriebene Ausgleich **nicht mehr im Standard** — das Beispiel darunter beschreibt seitdem die Wirkung von `points_weight = 0.5`, nicht das Verhalten der App. Die bekannte Folge: Wer selten, aber mit vollem Auto fährt, baut ein Punktepolster auf und kommt an kleinen Tagen seltener an die Reihe. Der Mechanismus bleibt im Code, nur das Gewicht ist gesetzt — zurückdrehen heißt, `points_weight` zu ändern, nicht die Formel.
 
 *Beispiel:* A hat +12 Punkte (nimmt immer 4 mit), fuhr aber nur 10 von 100 Teilnahmetagen (10 %). B hat −3 Punkte, fuhr 20 von 80 Tagen (25 %). Kleiner Tag, nur A und B: Nach reinen Punkten wäre immer B dran. Kombiniert: Punkte-Rang B=1/A=2, Fahranteil-Rang A=1/B=2 → Gleichstand → es fährt, wer länger nicht gefahren ist. A kommt an kleinen Tagen also wieder regulär an die Reihe.
 

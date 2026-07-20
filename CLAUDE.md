@@ -37,6 +37,15 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
 - Die Fairness-/Punktelogik lebt NUR in `lib/core/fairness.dart` und ist durch
   `test/fairness_test.dart` inkl. Excel-Backtest abgesichert. Änderungen an der
   Formel brauchen angepasste Tests UND einen Abgleich mit `KONZEPT.md` 3.2.
+- **Die Reihenfolge entscheiden seit 2026-07-21 allein die Punkte**
+  (`points_weight = 1.0`, Issue #38). Der kombinierte Rang aus Punkten und
+  Fahranteil steckt weiter in `rankPresent` — nur das Gewicht ist gesetzt.
+  Das ist bewusst so gebaut: Zurückdrehen heißt, den Parameter zu ändern,
+  nicht die Formel. Wer den Fahranteil-Term „aufräumt", nimmt der Gruppe
+  diese Rückfahrkarte; `test/fairness_test.dart` nagelt beide Gewichte fest.
+  Der Parameter lebt **pro Gruppe in der DB** — eine Änderung der Dart-
+  Vorgabe allein erreicht keine bestehende Gruppe, dafür braucht es eine
+  Migration (siehe `20260721090000_points_only_ranking.sql`).
 - Kennzahlen (Punkte, Quote, km, Ersparnis) werden immer berechnet, nie
   gespeichert.
 - **Personen werden nie gelöscht, nur inaktiv gesetzt.** `person_id` in

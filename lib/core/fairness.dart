@@ -169,6 +169,18 @@ class RankedCandidate {
 /// pointsWeight × Punkte-Rang + (1 − pointsWeight) × Fahranteil-Rang.
 /// Gleichstand: Wessen letzte Fahrt am längsten her ist (nie gefahren
 /// zuerst), dann alphabetisch nach personId für Determinismus.
+///
+/// **`pointsWeight` steht seit 2026-07-21 auf 1.0** — es zählen allein die
+/// Punkte (Issue #38). Der Fahranteil wird weiter berechnet und als
+/// [RankedCandidate.shareRank] mitgeliefert, weil die Startseite ihn anzeigt;
+/// auf die Reihenfolge wirkt er beim Standardgewicht nicht mehr.
+///
+/// Das kehrt die ursprüngliche Begründung aus KONZEPT.md 3.2 um: Punkte
+/// messen, *wie viel* jemand transportiert hat, nicht *wie oft* er gefahren
+/// ist. Wer selten, aber mit vollem Auto fährt, sammelt ein Polster und
+/// rutscht dadurch dauerhaft nach hinten. Das ist die bewusst getragene
+/// Folge der Entscheidung, kein Versehen — mit `pointsWeight` zurückdrehbar,
+/// ohne diese Funktion anzufassen.
 List<RankedCandidate> rankPresent(
   Iterable<String> presentIds,
   Map<String, PersonStats> stats,

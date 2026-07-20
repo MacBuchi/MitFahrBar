@@ -8,7 +8,7 @@ class AppSettings {
     this.electricityPricePerKwh = 0.35,
     this.dieselPricePerLiter = 1.70,
     this.petrolPricePerLiter = 1.78,
-    this.pointsWeight = 0.5,
+    this.pointsWeight = 1.0,
   });
 
   /// Einfacher Arbeitsweg in km (überall ×2 für Hin/Rück).
@@ -22,7 +22,12 @@ class AppSettings {
   final double petrolPricePerLiter;
 
   /// Gewichtung Punkte-Rang vs. Fahranteil-Rang in der Fairness-Regel
-  /// (0.5 = 50/50; 1.0 = nur Punkte, 0.0 = nur Fahranteil).
+  /// (1.0 = nur Punkte, 0.5 = 50/50, 0.0 = nur Fahranteil).
+  ///
+  /// Steht seit 2026-07-21 auf 1.0: Die Gruppe hat entschieden, dass allein
+  /// die Punkte über die Reihenfolge bestimmen (Issue #38). Der Fahranteil
+  /// bleibt als Kennzahl sichtbar, steuert aber nichts mehr. Der Parameter
+  /// bleibt bestehen — er ist der Weg zurück, ohne die Formel anzufassen.
   final double pointsWeight;
 
   factory AppSettings.fromMap(Map<String, double> map) => AppSettings(
@@ -31,7 +36,7 @@ class AppSettings {
     electricityPricePerKwh: map['electricity_price_per_kwh'] ?? 0.35,
     dieselPricePerLiter: map['diesel_price_per_liter'] ?? 1.70,
     petrolPricePerLiter: map['petrol_price_per_liter'] ?? 1.78,
-    pointsWeight: map['points_weight'] ?? 0.5,
+    pointsWeight: map['points_weight'] ?? 1.0,
   );
 
   Map<String, double> toMap() => {

@@ -145,7 +145,7 @@ begin
     (new.id, 'electricity_price_per_kwh', 0.35),
     (new.id, 'diesel_price_per_liter', 1.70),
     (new.id, 'petrol_price_per_liter', 1.78),
-    (new.id, 'points_weight', 0.5);
+    (new.id, 'points_weight', 1.0);
   return new;
 end $$;
 
