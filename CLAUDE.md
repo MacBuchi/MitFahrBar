@@ -217,10 +217,11 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Releases im Monat nur für Abhängigkeiten. Die Guard-Regel bleibt trotzdem
   wie sie ist — ein Dependency-Wechsel geht wirklich an die Gruppen raus.
   Riverpod-Majors sind per `ignore` ausgenommen (2.x ist bewusst gepinnt).
-- **Offene Infrastruktur-Lücke:** `analysis_options.yaml` ist noch das
-  unkonfigurierte Template (Issue #21). Beim Nachrüsten beachten:
-  `require_trailing_commas` gibt es seit Dart 3.7 nicht mehr — eintragen
-  erzeugt eine „undefined lint rule" und damit rote CI. `avoid_print` und
-  `use_build_context_synchronously` sind über `flutter_lints` 6 bereits
-  aktiv und blockieren schon heute, weil `flutter analyze` auch bei
-  Info-Diagnosen ungleich null zurückgibt.
+- **`analysis_options.yaml` trägt die Leitplanken dieser Datei**: `avoid_print`
+  und `use_build_context_synchronously` auf `error` hochgestuft, dazu
+  `unawaited_futures`, `prefer_const_constructors`, `prefer_final_locals` und
+  `strict-casts`/`strict-raw-types`. Abgesichert durch
+  `test/analysis_options_test.dart` — wird eine Regel entfernt, bleibt
+  `flutter analyze` grün und die Leitplanke verschwindet lautlos.
+  **`require_trailing_commas` nie eintragen**: Die Regel gibt es seit Dart 3.7
+  nicht mehr, ein Eintrag erzeugt eine „undefined lint rule" und damit rote CI.
