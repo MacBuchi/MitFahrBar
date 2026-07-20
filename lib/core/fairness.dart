@@ -8,6 +8,7 @@
 library;
 
 import '../models/app_settings.dart';
+import '../models/plan_ride.dart';
 import '../models/person.dart';
 import '../models/trip.dart';
 
@@ -298,6 +299,7 @@ class PlannedDay {
   const PlannedDay({
     required this.date,
     required this.availableIds,
+    this.oneWayIds = const {},
     this.suggestedDriverId,
     this.driverId,
     this.confirmed = false,
@@ -307,6 +309,10 @@ class PlannedDay {
 
   /// Wer an diesem Tag mitfahren kann, alphabetisch nach Id.
   final List<String> availableIds;
+
+  /// Wer davon nur eine Richtung mitfährt. Teilmenge von [availableIds];
+  /// diese Personen kommen als Fahrer nicht in Frage.
+  final Set<String> oneWayIds;
 
   /// Was die Fairness-Regel vorschlägt — `null`, wenn niemand verfügbar ist.
   final String? suggestedDriverId;
@@ -322,6 +328,44 @@ class PlannedDay {
       !confirmed && driverId != null && driverId != suggestedDriverId;
 }
 
+/// Wer in dieser Woche die meisten Menschen mitnimmt — der „Sauber!"-Titel
+/// im Planer.
+///
+/// Gezählt werden die Mitfahrer aller Tage, an denen jemand fährt (der
+/// Fahrer selbst zählt nicht mit). Bewusst über die ganze Woche und nicht je
+/// Tag: Ein einzelner voller Tag ist Zufall, eine volle Woche nicht.
+///
+/// `null`, wenn niemand jemanden mitnimmt oder zwei Leute gleichauf liegen —
+/// eine Auszeichnung, die zwei Namen tragen könnte und sich einen aussucht,
+/// wäre schlechter als keine.
+///
+/// Eine 1-way-Mitfahrt zählt hier als **ganzer Kopf**, nicht als halbe wie in
+/// den Punkten: Die Auszeichnung feiert ein volles Auto, nicht den
+/// Punktestand — und Geplantes darf die Punkte ohnehin nie berühren.
+String? mostCarryingDriver(List<PlannedDay> days) {
+  final carried = <String, int>{};
+  for (final day in days) {
+    final driver = day.driverId;
+    if (driver == null) continue;
+    final passengers = day.availableIds.where((id) => id != driver).length;
+    carried[driver] = (carried[driver] ?? 0) + passengers;
+  }
+
+  var best = 0;
+  String? bestId;
+  var tied = false;
+  for (final entry in carried.entries) {
+    if (entry.value > best) {
+      best = entry.value;
+      bestId = entry.key;
+      tied = false;
+    } else if (entry.value == best && best > 0) {
+      tied = true;
+    }
+  }
+  return best == 0 || tied ? null : bestId;
+}
+
 int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
 
 /// Fahrer-Vorschläge für eine ganze Woche.
@@ -335,9 +379,13 @@ int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
 /// Tage mit einer bereits eingetragenen Fahrt bleiben unangetastet: Sie
 /// stecken schon in [trips] und dürfen nicht zusätzlich simuliert werden,
 /// sonst zählte derselbe Tag doppelt.
+///
+/// Wer nur eine Richtung mitfährt, **kann an dem Tag nicht Fahrer sein** —
+/// ein halber Weg stellt kein Auto. Für die Simulation zählt er als
+/// 1-way-Mitfahrt (halbe Punkte), nicht als volle.
 List<PlannedDay> planWeek({
   required List<DateTime> dates,
-  required Map<DateTime, Set<String>> availability,
+  required Map<DateTime, Map<String, PlanRide>> availability,
   required Map<DateTime, String> overrides,
   required List<Trip> trips,
   required AppSettings settings,
@@ -356,8 +404,12 @@ List<PlannedDay> planWeek({
 
   for (final date in [...dates]..sort()) {
     final key = _dayKey(date);
-    final available = (availableByDay[key] ?? const <String>{}).toList()
-      ..sort();
+    final rides = availableByDay[key] ?? const <String, PlanRide>{};
+    final available = rides.keys.toList()..sort();
+    final oneWayIds = {
+      for (final e in rides.entries)
+        if (e.value == PlanRide.oneWay) e.key,
+    };
 
     final existing = realTripByDay[key];
     if (existing != null) {
@@ -365,6 +417,7 @@ List<PlannedDay> planWeek({
         PlannedDay(
           date: date,
           availableIds: available,
+          oneWayIds: oneWayIds,
           driverId: existing.driverId,
           confirmed: true,
         ),
@@ -377,12 +430,20 @@ List<PlannedDay> planWeek({
       continue;
     }
 
+    // Wer nur eine Richtung mitfährt, stellt kein Auto — er kommt als Fahrer
+    // nicht in Frage. Sind alle verfügbaren Personen 1-way, bleibt der Tag
+    // ohne Fahrer statt jemanden vorzuschlagen, der gar nicht fahren kann.
+    final candidates = [
+      for (final id in available)
+        if (!oneWayIds.contains(id)) id,
+    ];
     final stats = computeStats(simulated, settings);
-    final suggested = suggestDriver(available, stats, settings);
-    // Ein Übersteuern auf jemanden, der inzwischen abgesagt hat, wird
-    // stillschweigend ignoriert statt eine tote Auswahl anzuzeigen.
+    final suggested = suggestDriver(candidates, stats, settings);
+    // Ein Übersteuern auf jemanden, der inzwischen abgesagt hat oder nur noch
+    // eine Richtung mitfährt, wird stillschweigend ignoriert statt eine tote
+    // Auswahl anzuzeigen.
     final override = overrideByDay[key];
-    final driver = override != null && available.contains(override)
+    final driver = override != null && candidates.contains(override)
         ? override
         : suggested;
 
@@ -390,6 +451,7 @@ List<PlannedDay> planWeek({
       PlannedDay(
         date: date,
         availableIds: available,
+        oneWayIds: oneWayIds,
         suggestedDriverId: suggested,
         driverId: driver,
       ),
@@ -404,6 +466,11 @@ List<PlannedDay> planWeek({
             for (final id in available)
               id: id == driver
                   ? ParticipationStatus.driver
+                  // 1-way zählt halb (oneWayFactor). Als volle Mitfahrt
+                  // gebucht, rechnete der Vorschlag der Folgetage mit zu
+                  // vielen Punkten und die ganze Woche kippte.
+                  : oneWayIds.contains(id)
+                  ? ParticipationStatus.oneWay
                   : ParticipationStatus.passenger,
           },
         ),

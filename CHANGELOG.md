@@ -6,13 +6,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 
 ## [0.15.0] – 2026-07-21
 
+### Neu
+
+- **1-way in der Wochenplanung.** Zweiter Tap auf eine Zelle heißt jetzt „nur
+  eine Richtung", ein dritter nimmt die Zelle wieder zurück — dieselbe Geste
+  wie beim Eintragen einer Fahrt. **Wer nur eine Richtung mitfährt, wird an
+  dem Tag nicht als Fahrer vorgeschlagen**; ein halber Weg stellt schließlich
+  kein Auto. Beim Eintragen landet die 1-way-Fahrt korrekt in den Punkten.
+- **„Hajo!" für das vollste Auto.** Wer über die Woche die meisten Leute
+  mitnimmt, bekommt im Planer ein Konfetti-Gesicht neben den Namen. Bei
+  Gleichstand gibt es keine Auszeichnung — sonst wäre sie beliebig.
+
 ### Geändert
 
 - **Die Gesichter auf der Startseite sind jetzt die eigenen.** Statt der
   grauen Standard-Symbole steht dort das RideBuddy-Smiley-Set: sieben Stufen
-  von strahlend grün bis verärgert rot, passend zum Fahranteil. Der Verlauf
-  ist feiner als vorher — es gibt jetzt auch ein „etwas mehr als die anderen"
-  statt nur zufrieden, neutral oder unzufrieden.
+  von strahlend grün bis verärgert rot.
+- **Das Gesicht zeigt den Fahranteil im Vergleich zur Runde.** Wer von euch
+  am seltensten selbst fahren musste, bekommt das glücklichste Gesicht, wer
+  am häufigsten fuhr, das traurigste; dazwischen wird gleichmäßig verteilt.
+  Fahrt alle gleich viel, bleiben alle Gesichter neutral.
+- **Der Fahranteil steht wieder als Prozentzahl in der Zeile.** Dafür ist die
+  Angabe „Ø 1,5 mit" daraus verschwunden — wie voll euer Auto ist, sagen
+  weiterhin die Titel „Volle Kischt" und „Fast alloi".
 
 ### Behoben
 

@@ -79,6 +79,13 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   ist ehrlich zu dem, was ein geteilter Zugang ohnehin bedeutet. Echte Logins
   pro Person würden `group_id = auth.uid()` und damit jede RLS-Policy
   umkrempeln; das ist ein eigenes Projekt, kein Nebeneffekt eines Features.
+- **1-way im Planer schließt das Fahren aus.** `plan_availability.one_way`
+  (Boolean, kein Status-Enum — der Fahrer wird im Plan nie gespeichert) macht
+  aus der Verfügbarkeit einen Dreizustand. `planWeek` nimmt 1-way-Personen aus
+  den Fahrer-Kandidaten, lässt ein Übersteuern auf sie verfallen und bucht sie
+  in der Simulation als `oneWay` — als volle Mitfahrt gebucht rechnete der
+  Vorschlag der Folgetage mit doppelten Punkten. Festgenagelt in
+  `test/plan_test.dart`.
 - **Geplantes darf die Punkte nie berühren.** `plan_availability` und
   `plan_overrides` speichern nur, was Menschen entschieden haben. Der
   vorgeschlagene Fahrer wird **nicht** gespeichert (berechnete Kennzahl, wie

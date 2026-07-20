@@ -38,9 +38,14 @@ Future<void> _openPlan(WidgetTester tester) async {
 }
 
 /// Zelle im Raster über ihre Beschriftung finden — dieselbe, die ein
-/// Screenreader vorliest.
-Finder _cell(String person, DateTime day) =>
-    find.bySemanticsLabel('$person, ${DateFormat('E', 'de').format(day)}');
+/// Screenreader vorliest. Die Beschriftung endet auf den Zustand („dabei",
+/// „nur eine Richtung", …); [state] prüft ihn mit.
+Finder _cell(String person, DateTime day, {String? state}) {
+  final prefix = '$person, ${DateFormat('E', 'de').format(day)}';
+  return find.bySemanticsLabel(
+    RegExp('^${RegExp.escape(prefix)}, ${state ?? '.*'}\$'),
+  );
+}
 
 void main() {
   testWidgets('der Planer zeigt Montag bis Freitag und alle Personen', (
@@ -123,5 +128,91 @@ void main() {
     await _openPlan(tester);
 
     expect(find.textContaining('Erst Personen anlegen'), findsOneWidget);
+  });
+
+  // 1-way gibt es im Fahrten-Editor seit jeher; im Planer fehlte es. Der
+  // zweite Tap ist dieselbe Geste wie dort, damit man sie nur einmal lernt.
+  testWidgets('der zweite Tap macht aus „dabei" eine 1-way-Fahrt', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    expect(_cell('Anna', monday, state: 'kann nicht'), findsOneWidget);
+
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    expect(_cell('Anna', monday, state: 'dabei|fährt'), findsOneWidget);
+
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    expect(_cell('Anna', monday, state: 'nur eine Richtung'), findsOneWidget);
+
+    // Dritter Tap zurück auf Anfang — sonst käme man aus 1-way nie heraus.
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    expect(_cell('Anna', monday, state: 'kann nicht'), findsOneWidget);
+    handle.dispose();
+  });
+
+  // Ein halber Weg stellt kein Auto.
+  testWidgets('wer nur eine Richtung fährt, wird nicht Fahrer', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    // Anna zweimal antippen: dabei → nur eine Richtung. Bert einmal.
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Bert', monday));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Bert fährt'),
+      findsOneWidget,
+      reason: 'Anna kann an dem Tag nur eine Richtung und scheidet aus.',
+    );
+    expect(find.textContaining('Anna fährt'), findsNothing);
+    handle.dispose();
+  });
+
+  testWidgets('wer die meisten mitnimmt, bekommt das Hajo', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert', 'Clara']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+
+    // Genau ein Tag mit Fahrer, also gibt es einen eindeutigen Sieger.
+    expect(find.textContaining('Nimmt diese Woche die meisten mit'), findsOne);
+    expect(find.textContaining('Hajo,'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('ohne Mitfahrer gibt es kein Hajo', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    // Nur Anna kann — sie fährt allein, das ist kein Mitnehmen.
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Hajo,'), findsNothing);
+    handle.dispose();
   });
 }

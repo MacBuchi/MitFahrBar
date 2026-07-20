@@ -167,14 +167,14 @@ class _Content extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final byId = {for (final p in persons) p.id: p};
     final points = NumberFormat('#,##0.#', 'de');
-    final average = NumberFormat('#,##0.0', 'de');
+    final percent = NumberFormat.percentPattern('de');
     final extremes = findQuoteExtremes(
       [for (final c in ranked) c.personId],
       {for (final c in ranked) c.personId: c.stats},
     );
-    // Bezugsgröße der Gesichter: der Schnitt genau dieser Liste, nicht ein
-    // fester Prozentwert (siehe core/drive_mood.dart).
-    final avgShare = averageDriveShare([
+    // Bezugsgröße der Gesichter: die Spannweite genau dieser Liste, nicht
+    // feste Prozentwerte (siehe core/drive_mood.dart).
+    final shareRange = DriveShareRange.of([
       for (final c in ranked) c.stats.driveShare,
     ]);
 
@@ -213,7 +213,7 @@ class _Content extends ConsumerWidget {
                       ),
                       _DriveMoodFace(
                         share: candidate.stats.driveShare,
-                        averageShare: avgShare,
+                        range: shareRange,
                       ),
                       if (candidate.personId == extremes.fullestId)
                         const _QuoteBadge(label: 'Volle Kischt'),
@@ -223,7 +223,7 @@ class _Content extends ConsumerWidget {
                   ),
                   subtitle: Text(
                     '${_balanceLabel(candidate.stats.points, points)}'
-                    '${_quoteLabel(candidate.stats.quote, average)}',
+                    ' · fährt ${percent.format(candidate.stats.driveShare)}',
                   ),
                   trailing: index == 0
                       ? const Icon(
@@ -253,23 +253,19 @@ String _balanceLabel(double points, NumberFormat format) {
   return 'hat ${format.format(points)} gut';
 }
 
-/// Ø Mitfahrer je eigener Fahrt — die Zahl, die erklärt, warum jemand trotz
-/// vieler Fahrten wenig Punkte hat. Fehlt, solange jemand nie gefahren ist.
-String _quoteLabel(double? quote, NumberFormat format) =>
-    quote == null ? '' : ' · Ø ${format.format(quote)} mit';
-
-/// Der Fahranteil als Gesicht: wenig gefahren = zufrieden, viel gefahren =
-/// nicht. Ersetzt die Prozentzahl, die neben Platz 1 wie ein Widerspruch
-/// aussah — die Zahl selbst bleibt im Screenreader-Text erhalten.
+/// Das Gesicht zur Zeile. Die Enden der Skala gehören der Quote (wer nimmt
+/// die meisten mit, wer fährt fast allein) und sagen damit dasselbe wie die
+/// Titel daneben; dazwischen zeigt es den Fahranteil, der als Prozentwert
+/// zusätzlich in der Zeile steht.
 class _DriveMoodFace extends StatelessWidget {
-  const _DriveMoodFace({required this.share, required this.averageShare});
+  const _DriveMoodFace({required this.share, required this.range});
 
   final double share;
-  final double averageShare;
+  final DriveShareRange range;
 
   @override
   Widget build(BuildContext context) {
-    final mood = driveMoodOf(share, averageShare);
+    final mood = driveMoodOf(share, range);
     return Padding(
       padding: const EdgeInsets.only(left: AppSpacing.s),
       child: MoodFace(

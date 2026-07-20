@@ -4,6 +4,7 @@ library;
 
 import '../models/app_settings.dart';
 import '../models/person.dart';
+import '../models/plan_ride.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
 
@@ -89,7 +90,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
 
   // Wie in der DB nach Kalendertag geschlüsselt — ein voller Zeitstempel
   // würde sonst zwei Einträge für denselben Tag erlauben.
-  final Map<DateTime, Set<String>> _availability = {};
+  final Map<DateTime, Map<String, PlanRide>> _availability = {};
   final Map<DateTime, String> _planDrivers = {};
 
   static DateTime _day(DateTime date) =>
@@ -117,11 +118,11 @@ class FakeCarpoolRepository implements CarpoolRepository {
   Future<void> setAvailability(
     DateTime date,
     String personId,
-    bool available,
+    PlanRide? ride,
   ) async {
     final key = _day(date);
-    if (available) {
-      (_availability[key] ??= <String>{}).add(personId);
+    if (ride != null) {
+      (_availability[key] ??= <String, PlanRide>{})[personId] = ride;
     } else {
       _availability[key]?.remove(personId);
     }

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_settings.dart';
 import '../models/person.dart';
+import '../models/plan_ride.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
 
@@ -159,7 +160,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
 
     final availabilityRows = await _client
         .from('plan_availability')
-        .select('plan_date, person_id')
+        .select('plan_date, person_id, one_way')
         .gte('plan_date', start)
         .lte('plan_date', end);
     final overrideRows = await _client
@@ -168,10 +169,13 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
         .gte('plan_date', start)
         .lte('plan_date', end);
 
-    final availability = <DateTime, Set<String>>{};
+    final availability = <DateTime, Map<String, PlanRide>>{};
     for (final row in availabilityRows) {
       final date = DateTime.parse(row['plan_date'] as String);
-      (availability[date] ??= <String>{}).add(row['person_id'] as String);
+      (availability[date] ??= <String, PlanRide>{})[row['person_id']
+          as String] = (row['one_way'] as bool? ?? false)
+          ? PlanRide.oneWay
+          : PlanRide.full;
     }
 
     return WeekPlan(
@@ -188,9 +192,9 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   Future<void> setAvailability(
     DateTime date,
     String personId,
-    bool available,
+    PlanRide? ride,
   ) async {
-    if (available) {
+    if (ride != null) {
       // `group_id` steht im Schlüssel (sonst wäre er über alle Gruppen
       // eindeutig) und muss deshalb auch das Konfliktziel benennen. Den Wert
       // liefert der Spalten-Default `auth.uid()`; er gehört nicht in die
@@ -198,6 +202,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
       await _client.from('plan_availability').upsert({
         'plan_date': _isoDay(date),
         'person_id': personId,
+        'one_way': ride == PlanRide.oneWay,
       }, onConflict: 'group_id,plan_date,person_id');
     } else {
       await _client

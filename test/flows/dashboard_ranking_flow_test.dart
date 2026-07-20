@@ -93,8 +93,11 @@ void main() {
 
     expect(find.text('Volle Kischt'), findsOneWidget);
     expect(find.text('Fast alloi'), findsOneWidget);
-    expect(find.textContaining('Ø 3,0 mit'), findsOneWidget);
-    expect(find.textContaining('Ø 1,0 mit'), findsOneWidget);
+    // Die Quote steht seit v0.15.0 nur noch in den Titeln; in der Zeile
+    // selbst steht der Fahranteil in Prozent.
+    expect(find.textContaining('Ø 3,0 mit'), findsNothing);
+    expect(find.textContaining('Ø 1,0 mit'), findsNothing);
+    expect(find.textContaining(RegExp(r'fährt\s*\d+\s*%')), findsWidgets);
   });
 
   testWidgets('ohne genug Fahrten bleibt die Startseite unmarkiert', (
@@ -131,10 +134,11 @@ void main() {
     expect(find.text('Fast alloi'), findsNothing);
   });
 
-  // Seit Issue #38 steuert der Fahranteil die Reihenfolge nicht mehr und
-  // steht deshalb als Gesicht statt als Prozentzahl da. Der Vorlesetext
-  // trägt die Zahl weiter — sonst verlöre ein Screenreader sie ersatzlos.
-  testWidgets('der Fahranteil steht als Gesicht, nicht als Prozentzahl', (
+  // Seit Issue #38 steuert der Fahranteil die Reihenfolge nicht mehr. Er
+  // steht als Gesicht *und* als Prozentzahl da: Das Gesicht sagt auf einen
+  // Blick, wer viel fahren musste, die Zahl bleibt für alle, die es genau
+  // wissen wollen.
+  testWidgets('der Fahranteil steht als Gesicht und als Prozentzahl', (
     tester,
   ) async {
     final backend = FakeBackend();
@@ -162,19 +166,24 @@ void main() {
     await _login(tester);
 
     expect(
-      find.textContaining('fährt 100 %'),
-      findsNothing,
-      reason: 'Die nackte Prozentzahl ist aus der Ansicht verschwunden.',
-    );
-    expect(
-      find.bySemanticsLabel(RegExp('viel öfter als die anderen')),
+      find.textContaining(RegExp(r'fährt\s*100\s*%')),
       findsOneWidget,
-      reason: 'Anna fuhr an allen Tagen selbst.',
+      reason: 'Anna fuhr an allen ihren Tagen selbst.',
     );
     expect(
-      find.bySemanticsLabel(RegExp('viel seltener als die anderen')),
+      find.textContaining(RegExp(r'fährt\s*0\s*%')),
       findsOneWidget,
       reason: 'Bert ist nie selbst gefahren.',
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('fährt am häufigsten in der Gruppe')),
+      findsOneWidget,
+      reason: 'Anna trägt das traurigste Gesicht — sie musste alles fahren.',
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('fährt am seltensten in der Gruppe')),
+      findsOneWidget,
+      reason: 'Bert trägt das glücklichste.',
     );
   });
 }
