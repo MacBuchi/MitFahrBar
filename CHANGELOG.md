@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.11.1] – 2026-07-20
+
+### Neu
+
+- **Fehlerprotokoll an eine Rückmeldung anhängen.** Meldet ihr einen Fehler,
+  könnt ihr die letzten technischen Meldungen der App mitschicken — das sagt
+  meist mehr darüber, was schiefging, als sich beschreiben lässt. Der Haken
+  ist standardmäßig aus, und was mitgehen würde, steht vorher im Klartext im
+  Dialog: Die Rückmeldung wird ein öffentlicher Eintrag im GitHub-Projekt,
+  also sollt ihr vorher sehen können, was ihr da absendet. Die Meldungen
+  liegen nur im Arbeitsspeicher und verschwinden beim Schließen der App.
+
 ## [0.11.0] – 2026-07-20
 
 ### Geändert
@@ -227,6 +239,7 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - Einmal-Import der bisherigen Excel-Historie; die berechneten Punkte
   stimmen exakt mit der Tabelle überein (durch Tests abgesichert).
 
+[0.11.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.11.1
 [0.11.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.11.0
 [0.10.1]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.1
 [0.10.0]: https://github.com/MacBuchi/Fahrgemeinschaft/releases/tag/v0.10.0

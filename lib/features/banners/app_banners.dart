@@ -332,6 +332,10 @@ class _FeedbackDialogState extends ConsumerState<_FeedbackDialog> {
   bool _busy = false;
   String? _error;
 
+  /// Bewusst standardmäßig aus: Die Rückmeldung wird ein öffentliches Issue,
+  /// also darf nichts ungefragt mitgehen.
+  bool _attachLog = false;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -349,11 +353,14 @@ class _FeedbackDialogState extends ConsumerState<_FeedbackDialog> {
       _busy = true;
     });
     try {
+      final body = _attachLog && logRing.isNotEmpty
+          ? '$message\n\n--- Protokoll ---\n${logRing.tail()}'
+          : message;
       await ref
           .read(feedbackRepositoryProvider)
           .submit(
             _type,
-            message,
+            body,
             appVersion: ref.read(currentVersionProvider).value,
             platform: kIsWeb ? 'web' : defaultTargetPlatform.name,
           );
@@ -414,6 +421,46 @@ class _FeedbackDialogState extends ConsumerState<_FeedbackDialog> {
                 _error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
+            // Nur anbieten, wenn es wirklich etwas anzuhängen gibt — eine
+            // leere Checkbox erklärt sich nicht und weckt falsche Erwartungen.
+            if (logRing.isNotEmpty) ...[
+              CheckboxListTile(
+                value: _attachLog,
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _attachLog = value ?? false),
+                title: const Text('Fehlerprotokoll anhängen'),
+                subtitle: const Text(
+                  'Technische Meldungen der App. Geht mit in den '
+                  'öffentlichen Eintrag.',
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+              // Vorschau statt Vertrauensvorschuss: Wer etwas Öffentliches
+              // mitschickt, soll vorher gesehen haben, was drinsteht.
+              if (_attachLog)
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxHeight: 120),
+                  padding: const EdgeInsets.all(AppSpacing.s),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(AppRadius.s),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      logRing.tail(),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                    ),
+                  ),
+                ),
+            ],
             const SizedBox(height: AppSpacing.s),
             Text(
               'Hinweis: Der Text landet öffentlich im GitHub-Projekt der App – '
