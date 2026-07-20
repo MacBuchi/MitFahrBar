@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../core/fairness.dart';
 import '../../core/supabase_config.dart';
 import '../../core/tokens.dart';
+import '../../core/update_check.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../core/widgets/ride_buddy_mark.dart';
@@ -41,20 +42,29 @@ class DashboardScreen extends ConsumerWidget {
               icon: const Icon(Icons.admin_panel_settings_outlined),
               onPressed: () => context.push('/admin'),
             ),
-          if (SupabaseConfig.isConfigured)
-            PopupMenuButton<String>(
-              tooltip: 'Zugang',
-              icon: const Icon(Icons.account_circle_outlined),
-              onSelected: (value) {
-                if (value == 'password') {
-                  showChangePasswordDialog(context);
-                } else if (value == 'feedback') {
-                  showFeedbackDialog(context);
-                } else if (value == 'logout') {
-                  ref.read(authRepositoryProvider).signOut();
-                }
-              },
-              itemBuilder: (context) => const [
+          // Der Lizenz-Eintrag hängt bewusst NICHT an `isConfigured`: Die
+          // SIL OFL der Schriften gilt auch im Demo-Modus.
+          PopupMenuButton<String>(
+            tooltip: 'Zugang',
+            icon: const Icon(Icons.account_circle_outlined),
+            onSelected: (value) {
+              if (value == 'password') {
+                showChangePasswordDialog(context);
+              } else if (value == 'feedback') {
+                showFeedbackDialog(context);
+              } else if (value == 'licenses') {
+                showLicensePage(
+                  context: context,
+                  applicationName: 'RideBuddy',
+                  applicationVersion: ref.read(currentVersionProvider).value,
+                  applicationLegalese: '© 2026 Marcus Bucher · MIT-Lizenz',
+                );
+              } else if (value == 'logout') {
+                ref.read(authRepositoryProvider).signOut();
+              }
+            },
+            itemBuilder: (context) => [
+              if (SupabaseConfig.isConfigured) ...const [
                 PopupMenuItem(
                   value: 'password',
                   child: ListTile(
@@ -71,7 +81,17 @@ class DashboardScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                PopupMenuItem(
+              ],
+              const PopupMenuItem(
+                value: 'licenses',
+                child: ListTile(
+                  leading: Icon(Icons.description_outlined),
+                  title: Text('Open-Source-Lizenzen'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              if (SupabaseConfig.isConfigured)
+                const PopupMenuItem(
                   value: 'logout',
                   child: ListTile(
                     leading: Icon(Icons.logout),
@@ -79,8 +99,8 @@ class DashboardScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-              ],
-            ),
+            ],
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(

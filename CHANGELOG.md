@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.9.0] – 2026-07-20
+
+### Neu
+
+- **Die verwendeten Open-Source-Lizenzen stehen jetzt in der App.** Im
+  Konto-Menü oben rechts führt „Open-Source-Lizenzen" zu einer Übersicht aller
+  Bausteine, auf denen RideBuddy aufbaut — samt der Lizenztexte der beiden
+  Schriften Space Grotesk und Manrope, deren Lizenz genau das verlangt. Der
+  Eintrag ist auch ohne Anmeldung erreichbar.
+
 ## [0.8.0] – 2026-07-20
 
 ### Behoben
