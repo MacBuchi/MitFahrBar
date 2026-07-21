@@ -11,6 +11,7 @@ import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/log.dart';
+import '../../core/release_notes.dart';
 import '../../core/reload_app.dart';
 import '../../core/tokens.dart';
 import '../../core/update_check.dart';
@@ -253,19 +254,27 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 'in der Benachrichtigung auf die Datei tippen.',
               ),
             },
-            if (_phase == _UpdatePhase.idle &&
-                (info.releaseNotes?.trim().isNotEmpty ?? false)) ...[
-              const SizedBox(height: AppSpacing.m),
-              Text(
-                'Was ist neu:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                info.releaseNotes!.trim(),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+            // Geglättet statt roh: Der Body kommt als Markdown (heute der
+            // CHANGELOG-Auszug, bei alten Releases auto-generierte
+            // PR-Titel) — ungefiltert stünden Rauten und Sternchen im Text.
+            if (_phase == _UpdatePhase.idle)
+              switch (plainReleaseNotes(info.releaseNotes ?? '')) {
+                '' => const SizedBox.shrink(),
+                final notes => Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.m),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Was ist neu:',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(notes, style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              },
           ],
         ),
       ),

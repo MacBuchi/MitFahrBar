@@ -9,6 +9,7 @@ import 'core/router.dart';
 import 'core/theme.dart';
 import 'data/providers.dart';
 import 'features/banners/update_required_screen.dart';
+import 'features/splash/splash_overlay.dart';
 
 class FahrgemeinschaftApp extends ConsumerWidget {
   const FahrgemeinschaftApp({super.key});
@@ -22,12 +23,15 @@ class FahrgemeinschaftApp extends ConsumerWidget {
       // Der Sperr-Schirm liegt über allem, auch über dem Login: Wer zu alt
       // ist, soll sich gar nicht erst anmelden. Solange der Check lädt, läuft
       // die App normal weiter — ein Ladezustand darf nicht wie eine Sperre
-      // aussehen.
+      // aussehen. Der Splash liegt noch einmal darüber: erst der Auftritt,
+      // dann die Pflichten.
       builder: (context, child) {
         final required = ref.watch(updateRequiredProvider).value;
-        return required == null
-            ? (child ?? const SizedBox.shrink())
-            : UpdateRequiredScreen(info: required);
+        return SplashGate(
+          child: required == null
+              ? (child ?? const SizedBox.shrink())
+              : UpdateRequiredScreen(info: required),
+        );
       },
       theme: lightTheme(),
       darkTheme: darkTheme(),

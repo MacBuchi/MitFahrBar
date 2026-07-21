@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/balance_label.dart';
 import '../../core/fairness.dart';
 import '../../core/mood.dart';
 import '../../core/tokens.dart';
@@ -69,9 +70,11 @@ class _Content extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.all(AppSpacing.m),
           child: Text(
+            // Seit Issue #38 zählen allein die Punkte — der Text muss das
+            // sagen, sonst erklärt er eine Regel, die nicht mehr gilt.
             'Tippt an, wann ihr könnt. RideBuddy schlägt daraufhin vor, wer '
-            'an welchem Tag fährt — so, dass Punkte und Fahranteil über die '
-            'Woche ausgeglichen werden.',
+            'an welchem Tag fährt — immer, wer laut Punkten dran ist, die '
+            'ganze Woche vorausgedacht.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -139,6 +142,11 @@ class _AvailabilityGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final weekday = DateFormat('E', 'de');
+    // Aktueller Stand aus echten Fahrten (ohne Simulation der Woche): Die
+    // kleine Zahl vor dem Namen macht den Vorschlag nachvollziehbar — wer
+    // im Minus steht, ist als Nächstes dran (zugesagt in Issue #38).
+    final stats = ref.watch(statsProvider).value;
+    final pointsFormat = NumberFormat('#,##0.#', 'de');
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
       child: Padding(
@@ -167,6 +175,36 @@ class _AvailabilityGrid extends ConsumerWidget {
                     flex: 3,
                     child: Row(
                       children: [
+                        if (stats != null) ...[
+                          SizedBox(
+                            // Feste Breite, rechtsbündig: Die Zahlen stehen
+                            // wie in einer Tabelle, die Namen fluchten.
+                            width: 34,
+                            child: Text(
+                              signedPoints(
+                                stats[person.id]?.points ?? 0,
+                                pointsFormat,
+                              ),
+                              textAlign: TextAlign.right,
+                              // Der Screenreader liest die Richtung, nicht
+                              // das Vorzeichen: „schuldet 2" statt „minus 2".
+                              semanticsLabel: balanceLabel(
+                                stats[person.id]?.points ?? 0,
+                                pointsFormat,
+                              ),
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.s),
+                        ],
                         Flexible(
                           child: Text(
                             person.name,

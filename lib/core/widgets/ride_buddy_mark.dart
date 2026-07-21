@@ -39,7 +39,10 @@ class RideBuddyMark extends StatelessWidget {
       painter: _RideBuddyMarkPainter(variant),
       child: const SizedBox.expand(),
     );
-    final content = AspectRatio(aspectRatio: 120 / 100, child: painter);
+    final content = AspectRatio(
+      aspectRatio: rideBuddyMarkAspect,
+      child: painter,
+    );
     return Semantics(
       label: 'RideBuddy',
       child: size == null ? content : SizedBox(width: size, child: content),
@@ -101,74 +104,129 @@ class _Palette {
   };
 }
 
+/// Seitenverhältnis der Marke (Breite : Höhe) — für alle, die sie selbst
+/// zeichnen (Splash-Animation) statt über [RideBuddyMark] einzubinden.
+const rideBuddyMarkAspect = 120 / 100;
+
+/// Momentaufnahme des Fahrzeugs für die Splash-Animation. Die Default-Pose
+/// ist exakt die statische Marke — [RideBuddyMark] zeichnet mit ihr, damit
+/// Animation und Logo nie zweierlei Geometrie haben.
+class RideBuddyPose {
+  const RideBuddyPose({
+    this.pitch = 0,
+    this.lift = 0,
+    this.streakOpacity = 1,
+    this.headScales = const [1, 1, 1],
+  });
+
+  /// Nick-Winkel in Radiant um den vorderen Radaufstandspunkt: positiv =
+  /// die Nase (links, Fahrtrichtung) taucht ein — die Bremsfeder.
+  final double pitch;
+
+  /// Hub der Karosserie in Entwurfseinheiten (positiv = angehoben) —
+  /// das Wippen während der Fahrt. Räder bleiben auf der Straße.
+  final double lift;
+
+  /// Speed-Streaks: 1 in voller Fahrt, 0 im Stand.
+  final double streakOpacity;
+
+  /// Größe der drei Köpfe in Fahrtrichtung: [Fahrer, Mitte, hinten].
+  /// 0 = nicht da, kurz über 1 = das Aufploppen.
+  final List<double> headScales;
+
+  static const resting = RideBuddyPose();
+}
+
+/// Zeichnet die Marke ins Entwurfsraster 120 × 100, skaliert auf
+/// [size]-Breite. Einzige Stelle mit der Fahrzeug-Geometrie (1:1 aus dem
+/// Design-Set) — Logo und Splash rufen beide hierher.
+void paintRideBuddyMark(
+  Canvas canvas,
+  Size size,
+  RideBuddyMarkVariant variant, [
+  RideBuddyPose pose = RideBuddyPose.resting,
+]) {
+  const designWidth = 120.0;
+  const designHeight = 100.0;
+  final palette = _Palette.of(variant);
+  final scale = size.width / designWidth;
+
+  canvas.save();
+  canvas.scale(scale);
+  // Streaks laufen im Entwurf über den Rahmen hinaus.
+  canvas.clipRect(const Rect.fromLTWH(0, 0, designWidth, designHeight));
+
+  void rrect(double x, double y, double w, double h, double r, Paint paint) =>
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), Radius.circular(r)),
+        paint,
+      );
+
+  // Speed-Streaks (nicht mitverschoben, leicht transparent).
+  if (pose.streakOpacity > 0.01) {
+    final streak = Paint()
+      ..color = palette.streak.withValues(alpha: 0.9 * pose.streakOpacity);
+    rrect(106, 38, 20, 5, 2.5, streak);
+    rrect(108, 54, 18, 5, 2.5, streak);
+    rrect(106, 70, 19, 5, 2.5, streak);
+  }
+
+  // Fahrzeug – im Entwurf um 10 nach links versetzt.
+  canvas.translate(-10, 0);
+
+  // Räder bleiben auf der Straße — nur die Karosserie nickt und wippt.
+  final wheel = Paint()..color = palette.wheel;
+  final hub = Paint()..color = palette.hub;
+  canvas.drawCircle(const Offset(36, 80), 12, wheel);
+  canvas.drawCircle(const Offset(92, 80), 12, wheel);
+  canvas.drawCircle(const Offset(36, 80), 5, hub);
+  canvas.drawCircle(const Offset(92, 80), 5, hub);
+
+  canvas.save();
+  // Nase links: Rotation um den vorderen Radaufstandspunkt (36, 80).
+  // Negatives Vorzeichen, weil die Canvas-Drehung sonst das Heck senkte.
+  canvas.translate(36, 80);
+  canvas.rotate(-pose.pitch);
+  canvas.translate(-36, -80 - pose.lift);
+
+  final body = Paint();
+  if (palette.bodyGradient) {
+    body.shader = AppColors.brandGradient.createShader(
+      const Rect.fromLTWH(12, 31, 102, 47),
+    );
+  } else {
+    body.color = palette.body;
+  }
+  rrect(12, 54, 102, 24, 11, body); // Unterbau
+  rrect(26, 31, 84, 27, 9, body); // Kabine
+
+  rrect(32, 37, 72, 15, 5, Paint()..color = palette.window);
+  rrect(60, 35, 4, 19, 2, body); // Säule
+  rrect(83, 35, 4, 19, 2, body); // Säule
+
+  final head = Paint()..color = palette.head;
+  // In Fahrtrichtung (nach links): vorn sitzt der Fahrer.
+  const centers = [Offset(45, 45), Offset(72, 45), Offset(95, 45)];
+  for (final (i, center) in centers.indexed) {
+    final headScale = i < pose.headScales.length ? pose.headScales[i] : 1.0;
+    if (headScale > 0.01) canvas.drawCircle(center, 5 * headScale, head);
+  }
+
+  rrect(11, 57, 7, 10, 3, Paint()..color = const Color(0xFFFACC15));
+  rrect(108, 57, 6, 10, 3, Paint()..color = const Color(0xFFEF4444));
+
+  canvas.restore();
+  canvas.restore();
+}
+
 class _RideBuddyMarkPainter extends CustomPainter {
   _RideBuddyMarkPainter(this.variant);
 
   final RideBuddyMarkVariant variant;
 
-  static const _designWidth = 120.0;
-  static const _designHeight = 100.0;
-
   @override
-  void paint(Canvas canvas, Size size) {
-    final palette = _Palette.of(variant);
-    final scale = size.width / _designWidth;
-
-    canvas.save();
-    canvas.scale(scale);
-    // Streaks laufen im Entwurf über den Rahmen hinaus.
-    canvas.clipRect(const Rect.fromLTWH(0, 0, _designWidth, _designHeight));
-
-    void rrect(double x, double y, double w, double h, double r, Paint paint) =>
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(x, y, w, h),
-            Radius.circular(r),
-          ),
-          paint,
-        );
-
-    // Speed-Streaks (nicht mitverschoben, leicht transparent).
-    final streak = Paint()..color = palette.streak.withValues(alpha: 0.9);
-    rrect(106, 38, 20, 5, 2.5, streak);
-    rrect(108, 54, 18, 5, 2.5, streak);
-    rrect(106, 70, 19, 5, 2.5, streak);
-
-    // Fahrzeug – im Entwurf um 10 nach links versetzt.
-    canvas.translate(-10, 0);
-
-    final wheel = Paint()..color = palette.wheel;
-    final hub = Paint()..color = palette.hub;
-    canvas.drawCircle(const Offset(36, 80), 12, wheel);
-    canvas.drawCircle(const Offset(92, 80), 12, wheel);
-    canvas.drawCircle(const Offset(36, 80), 5, hub);
-    canvas.drawCircle(const Offset(92, 80), 5, hub);
-
-    final body = Paint();
-    if (palette.bodyGradient) {
-      body.shader = AppColors.brandGradient.createShader(
-        const Rect.fromLTWH(12, 31, 102, 47),
-      );
-    } else {
-      body.color = palette.body;
-    }
-    rrect(12, 54, 102, 24, 11, body); // Unterbau
-    rrect(26, 31, 84, 27, 9, body); // Kabine
-
-    rrect(32, 37, 72, 15, 5, Paint()..color = palette.window);
-    rrect(60, 35, 4, 19, 2, body); // Säule
-    rrect(83, 35, 4, 19, 2, body); // Säule
-
-    final head = Paint()..color = palette.head;
-    canvas.drawCircle(const Offset(45, 45), 5, head);
-    canvas.drawCircle(const Offset(72, 45), 5, head);
-    canvas.drawCircle(const Offset(95, 45), 5, head);
-
-    rrect(11, 57, 7, 10, 3, Paint()..color = const Color(0xFFFACC15));
-    rrect(108, 57, 6, 10, 3, Paint()..color = const Color(0xFFEF4444));
-
-    canvas.restore();
-  }
+  void paint(Canvas canvas, Size size) =>
+      paintRideBuddyMark(canvas, size, variant);
 
   @override
   bool shouldRepaint(_RideBuddyMarkPainter oldDelegate) =>
