@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.19.0] – 2026-07-21
+
+### Neu
+
+- **Jemanden in die Gruppe einladen.** Im Menü hinter dem Personen-Symbol
+  steht jetzt „Jemanden einladen". RideBuddy baut daraus eine fertige
+  Nachricht mit dem Link zur App und eurem Zugangsnamen — auf dem Handy geht
+  sie ins Teilen-Menü, im Browser in die Zwischenablage.
+- **Das Passwort ist freiwillig.** Ihr könnt es in die Nachricht aufnehmen,
+  dann ist die Einladung ein Schritt. Lasst ihr das Feld leer, steht in der
+  Nachricht, dass ihr das Passwort selbst weitergebt — das ist sicherer,
+  denn ein Passwort im Chat bleibt dort dauerhaft stehen, samt Sicherungen
+  des Empfängers. Ihr seht die vollständige Nachricht, bevor sie rausgeht.
+- Zur Erinnerung, weil die Einladung es sichtbar macht: **Alle in der Gruppe
+  teilen sich einen Zugang.** Wer die Einladung bekommt, sieht und ändert
+  alles.
+
 ## [0.18.0] – 2026-07-21
 
 ### Neu

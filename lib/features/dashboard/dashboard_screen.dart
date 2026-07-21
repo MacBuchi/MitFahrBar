@@ -20,6 +20,7 @@ import '../../core/widgets/ride_buddy_mark.dart';
 import '../account/change_password_dialog.dart';
 import '../banners/app_banners.dart';
 import '../export/export_action.dart';
+import '../invite/invite_dialog.dart';
 import 'dashboard_charts.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -55,6 +56,9 @@ class DashboardScreen extends ConsumerWidget {
             onSelected: (value) {
               if (value == 'persons') {
                 context.push('/persons');
+              } else if (value == 'invite') {
+                final g = group;
+                if (g != null) unawaited(showInviteDialog(context, g));
               } else if (value == 'export') {
                 // Wie beim Bearbeiten in der Historie bewusst nicht
                 // abgewartet: Der Export meldet sich selbst per SnackBar,
@@ -86,6 +90,17 @@ class DashboardScreen extends ConsumerWidget {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+              // Einladen gibt es nur mit echtem Backend: Im Demo-Modus gibt
+              // es keinen Zugang, den man weitergeben könnte.
+              if (SupabaseConfig.isConfigured && group != null)
+                const PopupMenuItem(
+                  value: 'invite',
+                  child: ListTile(
+                    leading: Icon(Icons.person_add_alt),
+                    title: Text('Jemanden einladen'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               // Nicht an `isConfigured` gehängt: Im Demo-Modus zeigt der
               // Export, wie die Import-Vorlage aussieht.
               const PopupMenuItem(
