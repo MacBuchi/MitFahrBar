@@ -294,6 +294,13 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   ab 8.3.3 `win32 ^5.9`, `package_info_plus` aber `win32 ^6` — auflösbar wäre
   nur eine file_picker-Version von 2021. `file_selector` kommt von der
   Flutter-Foundation und deckt Web und Android mit einem Aufruf ab.
+- **Die Bedienungsanleitung ist ein Screen** (`features/help/help_screen.dart`,
+  Route `/help`, Menüpunkt „So funktioniert RideBuddy"). Bewusst in Flutter
+  statt als externe Seite: Sie erbt Theme und Schriften und zeigt die echten
+  Widgets (`MoodFace`, `RideBuddyMark`) — sie kann nicht wegdriften. Dafür
+  gilt die Paar-Regel: **Wer die Bedienung ändert, pflegt die Anleitung mit.**
+  `test/flows/help_flow_test.dart` nagelt die Kernaussagen fest, nicht den
+  Wortlaut.
 - **Feedback** landet in der Tabelle `feedback`; der Bot
   (`tool/feedback_bot.py`, `.github/workflows/feedback.yml`) macht daraus
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.

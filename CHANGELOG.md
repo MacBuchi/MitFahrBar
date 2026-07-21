@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.20.0] – 2026-07-21
+
+### Neu
+
+- **Die Anleitung wohnt jetzt in der App.** Im Menü hinter dem
+  Personen-Symbol steht „So funktioniert RideBuddy": alle Funktionen auf
+  einer Seite, einfach erklärt — von der Punkte-Regel über den Wochenplan
+  bis zum Einladen. Mit den echten Symbolen und Gesichtern der App, damit
+  ihr wiedererkennt, was gemeint ist. Auch offline da.
+
 ## [0.19.0] – 2026-07-21
 
 ### Neu
