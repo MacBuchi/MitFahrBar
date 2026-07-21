@@ -203,6 +203,13 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
 - Flutter-Version in CI gepinnt (3.41.2) — bei lokalem Upgrade auch
   `.github/workflows/*.yml` anpassen. Lokales SDK:
   `/Volumes/MacStore/Programming/Flutter/SDK/flutter`.
+- **Zum Ausprobieren in der echten App:** `.claude/skills/run-web/SKILL.md`
+  (Demo-Build → lokal ausliefern → Playwright). Flutter-Web zeichnet auf
+  Canvas, es gibt also keinen DOM-Text — geprüft wird über Screenshots, die
+  man sich ansieht. Hat mehrfach Fehler gefunden, die alle Tests durchgelassen
+  hatten: den globalen Schlüssel in `plan_overrides`, „Noch niemand verfügbar"
+  trotz eingetragener 1-way-Person und einen Datei-Dialog, der an einem alten
+  Plugin-Registrant scheiterte.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.
