@@ -130,6 +130,6 @@ final weekPlanProvider = FutureProvider<List<PlannedDay>>((ref) async {
     overrides: raw.overrides,
     trips: trips,
     settings: settings,
-    seats: {for (final p in persons) p.id: ?p.seats},
+    seats: {for (final p in persons) p.id: p.seats},
   );
 });

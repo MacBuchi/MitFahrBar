@@ -78,14 +78,39 @@ void main() {
       find.widgetWithText(FloatingActionButton, 'Person anlegen'),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Sitzplätze inkl. Fahrer (optional)'), findsOneWidget);
+    expect(find.text('Sitzplätze inkl. Fahrer'), findsOneWidget);
+
+    // Das Feld ist mit der Vorgabe befüllt — sonst wüsste niemand, was gilt.
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).controller?.text,
+      '5',
+    );
 
     await tester.enterText(find.byType(TextField).first, 'Bernd');
-    await tester.enterText(find.byType(TextField).last, '5');
+    await tester.enterText(find.byType(TextField).last, '7');
     await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('5 Sitze'), findsOneWidget);
+    expect(find.textContaining('7 Sitze'), findsOneWidget);
+  });
+
+  // Vorgabe 5 = Fahrer + 4, der normale PKW. Damit greift die Prüfung vom
+  // ersten Tag an, ohne dass jemand etwas pflegen muss.
+  testWidgets('ohne Angabe gilt der normale PKW mit 5 Sitzen', (tester) async {
+    await pumpApp(tester, _backend());
+    await _login(tester);
+    await _openPersons(tester);
+
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Bernd');
+    await tester.enterText(find.byType(TextField).last, '');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('5 Sitze'), findsWidgets);
   });
 
   testWidgets('ein Einsitzer wird abgelehnt', (tester) async {

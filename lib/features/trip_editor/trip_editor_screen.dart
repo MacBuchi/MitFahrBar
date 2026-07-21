@@ -197,16 +197,16 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       a.year == b.year && a.month == b.month && a.day == b.day;
 
   /// Hinweis, wenn mehr Leute dabei sind als ins Auto des Fahrers passen —
-  /// `null`, solange alles passt oder die Sitzplätze nicht gepflegt sind.
+  /// `null`, solange alles passt.
   ///
   /// 1-way zählt als besetzter Platz: Wer eine Richtung mitfährt, sitzt auf
   /// dieser Strecke genauso im Auto.
   String? _seatWarning(Person? driver) {
-    final seats = driver?.seats;
-    if (seats == null) return null;
+    if (driver == null) return null;
     final people = _full.length + _oneWay.length;
-    if (people <= seats) return null;
-    return '${driver!.name}s Auto hat $seats Sitzplätze — ihr seid $people.';
+    if (people <= driver.seats) return null;
+    return '${driver.name}s Auto hat ${driver.seats} Sitzplätze — '
+        'ihr seid $people.';
   }
 
   @override

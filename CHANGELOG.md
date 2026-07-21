@@ -10,8 +10,10 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 
 - **Sitzplätze je Auto.** Bei jeder Person lässt sich jetzt eintragen, wie
   viele Sitzplätze das Auto hat — **inklusive Fahrer**, also die Zahl aus dem
-  Fahrzeugschein, die ihr von eurem Auto kennt. Das Feld ist freiwillig; wer
-  es leer lässt, merkt von den folgenden zwei Punkten nichts.
+  Fahrzeugschein, die ihr von eurem Auto kennt. Voreingestellt sind **5**
+  (Fahrer + 4), der normale PKW: Damit greifen die folgenden zwei Punkte
+  sofort, ohne dass jemand etwas pflegen muss. Wer einen Van oder einen
+  Zweisitzer fährt, korrigiert es einmal.
 - **Der Wochenplaner schlägt ein Auto vor, in das alle passen.** Können an
   einem Tag vier Leute und hat einer davon nur einen Viersitzer, schlägt
   RideBuddy jemanden mit genug Plätzen vor. Passt niemandes Auto, bleibt es

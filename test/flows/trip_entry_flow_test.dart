@@ -236,7 +236,10 @@ void main() {
     );
   });
 
-  testWidgets('ohne gepflegte Sitzplätze gibt es keine Warnung', (
+  // Vorgabe ist der normale PKW (Fahrer + 4). Wer nichts pflegt, bekommt
+  // deshalb erst ab dem sechsten Menschen einen Hinweis — und nicht schon,
+  // weil die Angabe fehlt.
+  testWidgets('der voreingestellte Fünfsitzer trägt drei ohne Murren', (
     tester,
   ) async {
     final backend = FakeBackend();
@@ -264,7 +267,7 @@ void main() {
     expect(
       find.textContaining('Sitzplätze'),
       findsNothing,
-      reason: 'Eine fehlende Angabe darf nie zu einer Warnung werden.',
+      reason: 'Drei Leute passen in jeden normalen PKW.',
     );
   });
 

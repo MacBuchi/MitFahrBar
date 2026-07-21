@@ -349,12 +349,10 @@ class _DayRow extends ConsumerWidget {
   }
 
   /// Zusatz am Tag, wenn das Auto des vorgeschlagenen Fahrers nicht für alle
-  /// reicht. Leer, solange es passt oder die Sitzplätze nicht gepflegt sind —
-  /// aus einer fehlenden Angabe darf nie eine Warnung werden.
+  /// reicht. Leer, solange es passt.
   String _seatHint(Person? driver) {
-    final seats = driver?.seats;
-    if (seats == null || day.availableIds.length <= seats) return '';
-    return ' · nur $seats Plätze für ${day.availableIds.length}';
+    if (driver == null || day.availableIds.length <= driver.seats) return '';
+    return ' · nur ${driver.seats} Plätze für ${day.availableIds.length}';
   }
 
   @override

@@ -451,9 +451,10 @@ List<PlannedDay> planWeek({
       for (final id in available)
         if (!oneWayIds.contains(id)) id,
     ];
-    // Wessen Auto reicht für alle, die an dem Tag können? Wer keine
-    // Sitzplätze gepflegt hat, wird nie aussortiert — sonst bestraft die
-    // App Gruppen, die das Feld nicht ausfüllen.
+    // Wessen Auto reicht für alle, die an dem Tag können? Ein fehlender
+    // Eintrag sortiert nie aus — jede Person hat zwar eine Vorgabe (5), aber
+    // die Karte kann unvollständig übergeben werden, und daraus darf kein
+    // stiller Ausschluss werden.
     final fitting = [
       for (final id in candidates)
         if ((seats[id] ?? available.length) >= available.length) id,

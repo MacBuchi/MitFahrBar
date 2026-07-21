@@ -3,6 +3,9 @@ library;
 
 enum EnergyType { electric, diesel, petrol }
 
+/// Sitzplätze eines normalen PKW: Fahrer + 4.
+const defaultSeats = 5;
+
 class Person {
   const Person({
     required this.id,
@@ -11,7 +14,7 @@ class Person {
     this.vehicle,
     this.energyType,
     this.consumptionPer100km,
-    this.seats,
+    this.seats = defaultSeats,
   });
 
   final String id;
@@ -28,10 +31,10 @@ class Person {
   /// hieße, bei jeder Eingabe eins abzuziehen, und erzeugt genau die
   /// Off-by-one-Fehler, die man später nicht mehr erklären kann.
   ///
-  /// `null` heißt „unbekannt" und darf nie zu einer Warnung oder zu einem
-  /// Ausschluss führen — sonst bestraft die App Gruppen, die das Feld nicht
-  /// pflegen.
-  final int? seats;
+  /// Vorgabe [defaultSeats]: Die Prüfung greift damit vom ersten Tag an, ohne
+  /// dass jemand etwas pflegen muss. Wer einen Van oder einen Zweisitzer
+  /// fährt, korrigiert es einmal.
+  final int seats;
 
   factory Person.fromJson(Map<String, dynamic> json) => Person(
     id: json['id'] as String,
@@ -42,7 +45,8 @@ class Person {
         ? null
         : EnergyType.values.byName(json['energy_type'] as String),
     consumptionPer100km: (json['consumption_per_100km'] as num?)?.toDouble(),
-    seats: (json['seats'] as num?)?.toInt(),
+    // Bestandszeilen ohne Wert gelten als normaler PKW.
+    seats: (json['seats'] as num?)?.toInt() ?? defaultSeats,
   );
 
   Map<String, dynamic> toJson() => {

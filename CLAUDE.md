@@ -82,12 +82,12 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
 - **Sitzplätze (`persons.seats`) filtern die Fahrerwahl, sie rechnen nicht
   mit.** `planWeek` engt die Kandidaten vor der Fairness-Regel auf die ein,
   deren Auto für die Anwesenden reicht — die Punkte bleiben unangetastet.
-  Zwei Sicherungen gehören zusammen und dürfen nicht wegoptimiert werden:
-  Ein fehlender Eintrag (`null`) schließt **nie** aus, und passt niemandes
-  Auto, gilt wieder das ganze Kandidatenfeld — ein Tag ohne Fahrer wäre
-  schlechter als einer mit zu wenig Plätzen. Gespeichert wird die Zahl
-  **inklusive Fahrer** (Fahrzeugschein); Mitfahrer-Plätze zu speichern
-  erzeugt Off-by-one-Fehler, die später niemand mehr erklären kann.
+  Passt niemandes Auto, gilt wieder das ganze Kandidatenfeld — ein Tag ohne
+  Fahrer wäre schlechter als einer mit zu wenig Plätzen; diese Rückfalllinie
+  darf nicht wegoptimiert werden. Gespeichert wird die Zahl **inklusive
+  Fahrer** (Fahrzeugschein), Vorgabe `defaultSeats` = 5 (`not null` in der
+  DB): So wirkt die Prüfung ohne Pflegeaufwand. Mitfahrer-Plätze zu speichern
+  erzeugte Off-by-one-Fehler, die später niemand mehr erklären kann.
 - **1-way im Planer schließt das Fahren aus.** `plan_availability.one_way`
   (Boolean, kein Status-Enum — der Fahrer wird im Plan nie gespeichert) macht
   aus der Verfügbarkeit einen Dreizustand. `planWeek` nimmt 1-way-Personen aus

@@ -117,12 +117,11 @@ class _PersonTile extends ConsumerWidget {
     final vehicle = person.vehicle;
     final energy = person.energyType;
     final consumption = person.consumptionPer100km;
-    final seats = person.seats;
     final details = <String>[
       if (vehicle != null && vehicle.isNotEmpty) vehicle,
       if (energy != null) _energyLabel(energy),
       if (consumption != null) '$consumption / 100 km',
-      if (seats != null) '$seats Sitze',
+      '${person.seats} Sitze',
     ];
 
     return ListTile(
@@ -164,8 +163,10 @@ class _PersonDialogState extends State<_PersonDialog> {
   late final TextEditingController _consumption = TextEditingController(
     text: widget.person?.consumptionPer100km?.toString() ?? '',
   );
+  // Neue Personen starten mit der Vorgabe im Feld, statt es leer zu lassen:
+  // Sonst wüsste niemand, dass 5 gilt, wenn man nichts einträgt.
   late final TextEditingController _seats = TextEditingController(
-    text: widget.person?.seats?.toString() ?? '',
+    text: (widget.person?.seats ?? defaultSeats).toString(),
   );
   late EnergyType? _energy = widget.person?.energyType;
   String? _error;
@@ -196,10 +197,11 @@ class _PersonDialogState extends State<_PersonDialog> {
     }
 
     // Sitzplätze inklusive Fahrer. Eine 1 wäre fast immer ein Vertipper —
-    // ein Einsitzer kann keine Fahrgemeinschaft fahren.
+    // ein Einsitzer kann keine Fahrgemeinschaft fahren. Ein leeres Feld
+    // heißt „normaler PKW", nicht „unbekannt".
     final seatsText = _seats.text.trim();
-    final seats = seatsText.isEmpty ? null : int.tryParse(seatsText);
-    if (seatsText.isNotEmpty && (seats == null || seats < 2)) {
+    final seats = seatsText.isEmpty ? defaultSeats : int.tryParse(seatsText);
+    if (seats == null || seats < 2) {
       setState(() => _error = 'Sitzplätze bitte als ganze Zahl ab 2.');
       return;
     }
@@ -277,7 +279,7 @@ class _PersonDialogState extends State<_PersonDialog> {
               // Zahl aus dem Fahrzeugschein ein und der andere zieht sich
               // selbst ab — und keine der beiden Zahlen stimmt später.
               decoration: const InputDecoration(
-                labelText: 'Sitzplätze inkl. Fahrer (optional)',
+                labelText: 'Sitzplätze inkl. Fahrer',
                 helperText: 'Damit auffällt, wenn ihr mehr seid als passen.',
               ),
             ),
