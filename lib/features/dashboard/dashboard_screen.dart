@@ -70,6 +70,8 @@ class DashboardScreen extends ConsumerWidget {
                 showChangePasswordDialog(context);
               } else if (value == 'feedback') {
                 showFeedbackDialog(context);
+              } else if (value == 'help') {
+                unawaited(context.push('/help'));
               } else if (value == 'licenses') {
                 showLicensePage(
                   context: context,
@@ -137,6 +139,14 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ),
               ],
+              const PopupMenuItem(
+                value: 'help',
+                child: ListTile(
+                  leading: Icon(Icons.menu_book_outlined),
+                  title: Text('So funktioniert RideBuddy'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               const PopupMenuItem(
                 value: 'licenses',
                 child: ListTile(
