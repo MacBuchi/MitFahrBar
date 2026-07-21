@@ -15,6 +15,7 @@ import '../features/auth/pending_screen.dart';
 import '../features/auth/request_group_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/history/history_screen.dart';
+import '../features/import/import_screen.dart';
 import '../features/persons/persons_screen.dart';
 import '../features/plan/plan_screen.dart';
 import '../features/stats/stats_screen.dart';
@@ -58,6 +59,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RequestGroupScreen(),
       ),
       GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
+      GoRoute(
+        path: '/import',
+        builder: (context, state) => const ImportScreen(),
+      ),
       GoRoute(
         path: '/persons',
         builder: (context, state) => const PersonsScreen(),

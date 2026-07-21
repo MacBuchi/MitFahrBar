@@ -247,6 +247,20 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   `;` als Trenner, CRLF als Zeilenende und ein UTF-8-BOM. Der Export **ist**
   die Import-Vorlage (Issue #34) — ein zweiter Template-Generator wäre eine
   zweite Wahrheit über das Format.
+- **CSV-Import** (`core/csv_import.dart` = reines Parsen,
+  `features/import/import_screen.dart` = Ablauf) liest genau das Format, das
+  der Export schreibt; `test/csv_import_test.dart` prüft den **Rundlauf**
+  Export → Import. Zwei Regeln sind der eigentliche Inhalt, nicht Komfort:
+  Der Import legt **nie** still Personen an — `persons.name` hat keine
+  Eindeutigkeit, aus „Bernd"/„Bernnd" würden zwei Personen und das verschiebt
+  rückwirkend die Punkte *aller anderen* (Issue #34). Und eine Fahrt, an der
+  eine weggelassene Person beteiligt war, wird **ganz** übersprungen statt
+  ohne sie angelegt; sonst änderten sich still die Punkte der übrigen an dem
+  Tag. Tage mit vorhandener Fahrt bleiben unberührt.
+- **Dateiauswahl: `file_selector`, nicht `file_picker`.** Letzteres verlangt
+  ab 8.3.3 `win32 ^5.9`, `package_info_plus` aber `win32 ^6` — auflösbar wäre
+  nur eine file_picker-Version von 2021. `file_selector` kommt von der
+  Flutter-Foundation und deckt Web und Android mit einem Aufruf ab.
 - **Feedback** landet in der Tabelle `feedback`; der Bot
   (`tool/feedback_bot.py`, `.github/workflows/feedback.yml`) macht daraus
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/export_file.dart';
+import '../core/import_file.dart';
 import '../core/fairness.dart';
 import '../core/supabase_config.dart';
 import '../models/app_settings.dart';
@@ -29,6 +30,13 @@ typedef FileSaver =
     Future<void> Function({required String name, required String content});
 
 final fileSaverProvider = Provider<FileSaver>((ref) => saveTextFile);
+
+/// Dateiauswahl fürs Einlesen — `null` heißt abgebrochen. Ebenfalls als
+/// Provider, damit Tests eine Datei vortäuschen können; im Test gibt es
+/// keinen Dateidialog.
+typedef FilePicker = Future<String?> Function();
+
+final filePickerProvider = Provider<FilePicker>((ref) => pickCsvText);
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => SupabaseConfig.isConfigured
