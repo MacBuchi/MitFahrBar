@@ -92,6 +92,16 @@ create table public.feedback (
 create index feedback_unprocessed_idx on public.feedback (created_at)
   where processed_at is null;
 
+-- Gruppenübergreifende Konfiguration. **Einzige Tabelle ohne `group_id`** —
+-- sie enthält keine Gruppendaten, alle Gruppen müssen denselben Wert sehen,
+-- und Clients dürfen sie nur lesen (Issue #19). Der Wert wird ausschließlich
+-- von Migrationen gesetzt.
+create table public.app_config (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
 -- Wochenplaner. Gespeichert wird nur, was Menschen entschieden haben:
 -- Verfügbarkeit und ein etwaiges Übersteuern des Fahrer-Vorschlags. Der
 -- Vorschlag selbst ist berechnet (KONZEPT.md §4) und steht deshalb nirgends;
@@ -197,6 +207,13 @@ create policy plan_overrides_isolated on public.plan_overrides
   for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
+
+-- Konfiguration: nur lesen. Bewusst keine Schreib-Policy — sonst könnte ein
+-- Client die Mindestversion hochsetzen und damit alle aussperren. `anon`
+-- darf lesen, damit der Sperr-Schirm schon vor dem Login greift.
+alter table public.app_config enable row level security;
+create policy app_config_read on public.app_config
+  for select to anon, authenticated using (true);
 
 -- Feedback: eigenes einreichen und nachlesen, mehr nicht.
 create policy feedback_insert on public.feedback for insert to authenticated

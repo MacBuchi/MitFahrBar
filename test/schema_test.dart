@@ -47,6 +47,26 @@ void main() {
     });
   }
 
+  // `app_config` hält die Mindestversion, die veraltete Clients aussperrt.
+  // Eine Schreib-Policy dort wäre der Weg, sich selbst auszusperren: Ein
+  // Client könnte den Wert hochsetzen und käme nie wieder in die App. Der
+  // Wert gehört ausschließlich in Migrationen.
+  test('app_config ist für Clients nur lesbar', () {
+    final policies = RegExp(
+      r'create policy \w+ on public\.app_config\s+for (\w+)',
+    ).allMatches(schema).map((m) => m.group(1)).toList();
+
+    expect(policies, isNotEmpty, reason: 'ohne Policy liest niemand die Zeile');
+    expect(
+      policies,
+      everyElement('select'),
+      reason:
+          'Nur SELECT. Mit „for all" oder einer insert/update-Policy könnte '
+          'ein Client die Mindestversion hochsetzen und damit die ganze '
+          'Gruppe aussperren.',
+    );
+  });
+
   // Weicht das Konfliktziel vom Schlüssel ab, meldet Postgres beim Speichern
   // „there is no unique or exclusion constraint matching the ON CONFLICT
   // specification". Auch das sieht man erst am Gerät.

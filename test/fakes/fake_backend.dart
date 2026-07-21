@@ -9,6 +9,7 @@ library;
 import 'dart:async';
 
 import 'package:fahrgemeinschaft/core/update_check.dart';
+import 'package:fahrgemeinschaft/data/app_config_repository.dart';
 import 'package:fahrgemeinschaft/data/carpool_repository.dart';
 import 'package:fahrgemeinschaft/data/fake_repository.dart';
 import 'package:fahrgemeinschaft/data/feedback_repository.dart';
@@ -35,6 +36,10 @@ class FakeBackend {
 
   /// Optionales „verfügbares Update" für Banner-Tests.
   UpdateInfo? update;
+
+  /// Kleinste unterstützte Version — `null` heißt „unbekannt" und sperrt
+  /// niemanden aus, genau wie ein Netzwerkfehler in der echten App.
+  String? minSupportedVersion;
 
   String? currentEmail;
   int _nextId = 1;
@@ -158,6 +163,15 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
   @override
   Future<void> setPlanDriver(DateTime date, String? driverId) =>
       _target.setPlanDriver(date, driverId);
+}
+
+class FakeAppConfigRepository implements AppConfigRepository {
+  FakeAppConfigRepository(this.backend);
+
+  final FakeBackend backend;
+
+  @override
+  Future<String?> minSupportedVersion() async => backend.minSupportedVersion;
 }
 
 class FakeFeedbackRepository implements FeedbackRepository {

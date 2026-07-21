@@ -37,6 +37,12 @@ Future<void> pumpApp(
         feedbackRepositoryProvider.overrideWithValue(
           FakeFeedbackRepository(backend),
         ),
+        // Ohne diesen Fake liefe der Sperr-Schirm gegen einen nicht
+        // initialisierten Supabase-Client — und jeder Flow-Test scheiterte
+        // daran statt an seinem eigentlichen Inhalt.
+        appConfigRepositoryProvider.overrideWithValue(
+          FakeAppConfigRepository(backend),
+        ),
         // Kein Netzzugriff im Test: standardmäßig kein Update.
         updateInfoProvider.overrideWith((ref) => Future.value(backend.update)),
         currentVersionProvider.overrideWith((ref) => Future.value('1.0.0')),

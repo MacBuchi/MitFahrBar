@@ -58,6 +58,25 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   `Theme.of(context)` verwenden.
 - Sicherheit serverseitig (RLS), Auth-Guard im Router (`redirect` +
   `refreshListenable`), nicht nur in der UI.
+- **`app_config` ist die einzige Tabelle ohne `group_id`** — und muss die
+  einzige bleiben. Sie hält gruppenübergreifende Konfiguration
+  (`min_supported_version`, Issue #19), enthält keine Gruppendaten und ist für
+  Clients **nur lesbar**: bewusst keine Insert-/Update-Policy, sonst könnte ein
+  Client die Mindestversion hochsetzen und alle aussperren. `anon` darf lesen,
+  damit der Sperr-Schirm schon vor dem Login greift. `test/schema_test.dart`
+  nagelt fest, dass dort nur `select` steht.
+- **Die Regel dazu:** Jede Migration, die etwas entfernt oder umbenennt, das
+  ein veröffentlichter Client liest, hebt **im selben File** die
+  `min_supported_version` auf die Version, die damit umgehen kann. Der Wert
+  liegt genau deshalb in der DB und nicht im Repo: So kann er dem Schema nicht
+  vorauseilen.
+- **Der Sperr-Schirm darf nie zur Falle werden.** `updateRequiredProvider`
+  (`data/providers.dart`) sperrt nur, wenn es ein installierbares Update gibt,
+  nie bei unbekannter Mindestversion (offline) und nie bei Gleichstand. Damit
+  gilt: Der neueste Client kommt immer durch. Wer eine dieser drei Bedingungen
+  „aufräumt", baut eine Aussperrung, die nur ein neues Release behebt —
+  `test/update_check_test.dart` und `test/flows/update_required_flow_test.dart`
+  halten alle drei fest.
 - **Multi-Tenant:** Eine Gruppe = ein Login (`group_id = auth.uid()`). Alle
   Datentabellen tragen `group_id` (Default `auth.uid()`), RLS erzwingt
   `group_id = auth.uid() AND my_group_active()`. Neue Gruppen sind `pending`

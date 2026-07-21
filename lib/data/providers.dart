@@ -8,10 +8,12 @@ import '../core/export_file.dart';
 import '../core/import_file.dart';
 import '../core/fairness.dart';
 import '../core/supabase_config.dart';
+import '../core/update_check.dart';
 import '../models/app_settings.dart';
 import '../models/group.dart';
 import '../models/person.dart';
 import '../models/trip.dart';
+import 'app_config_repository.dart';
 import 'auth_repository.dart';
 import 'carpool_repository.dart';
 import 'fake_repository.dart';
@@ -55,6 +57,52 @@ final groupRepositoryProvider = Provider<GroupRepository>(
       ? SupabaseGroupRepository(ref.watch(supabaseClientProvider))
       : DemoGroupRepository(),
 );
+
+final appConfigRepositoryProvider = Provider<AppConfigRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabaseAppConfigRepository(ref.watch(supabaseClientProvider))
+      : NoopAppConfigRepository(),
+);
+
+/// Kleinste noch unterstützte App-Version — `null`, wenn unbekannt. Hängt
+/// bewusst **nicht** an `currentUserIdProvider`: Der Wert gilt gruppen- und
+/// anmeldungsunabhängig, und der Sperr-Schirm soll schon vor dem Login greifen.
+final minSupportedVersionProvider = FutureProvider<String?>(
+  (ref) => ref.watch(appConfigRepositoryProvider).minSupportedVersion(),
+);
+
+/// Das Update, das **erzwungen** werden muss — sonst `null`.
+///
+/// Hintergrund (Issue #19): Migrationen laufen automatisch beim Push auf
+/// `main`, ein installiertes APK bleibt aber, wo es ist. Die Datenbank kann
+/// dem Client also davonlaufen, und der scheitert dann still oder zeigt
+/// Teildaten. Besser ein ehrlicher Schirm als eine App, die halb funktioniert.
+///
+/// Liegt hier und nicht in `core/update_check.dart`, weil er einen
+/// Core-Provider mit einem Data-Provider verknüpft — `core/` darf `data/`
+/// nicht kennen.
+///
+/// Drei Sicherungen, die zusammengehören; jede einzelne wegzulassen macht aus
+/// dem Schutz eine Falle:
+///
+/// 1. **Kein Update verfügbar ⇒ nie sperren.** Damit ist zugesichert, dass
+///    der neueste Client nie ausgesperrt wird — es gibt immer einen Weg
+///    heraus. Ohne das sperrte ein Tippfehler in der Mindestversion
+///    (`99.0.0`) alle aus, und die einzige Korrektur wäre eine weitere
+///    Migration.
+/// 2. **Mindestversion unbekannt ⇒ nie sperren.** `null` heißt offline,
+///    Tabelle fehlt oder Zeile fehlt. Eine Sperre aus einem Netzwerkfehler
+///    wäre schlimmer als der veraltete Client, den sie verhindern soll.
+/// 3. **Gleichstand ist erlaubt.** Gesperrt wird nur *unterhalb* der
+///    Mindestversion; `isNewerVersion` liefert bei Gleichstand `false`.
+final updateRequiredProvider = FutureProvider<UpdateInfo?>((ref) async {
+  final update = await ref.watch(updateInfoProvider.future);
+  if (update == null) return null;
+  final minimum = await ref.watch(minSupportedVersionProvider.future);
+  if (minimum == null) return null;
+  final current = await ref.watch(currentVersionProvider.future);
+  return isNewerVersion(minimum, current) ? update : null;
+});
 
 final feedbackRepositoryProvider = Provider<FeedbackRepository>(
   (ref) => SupabaseConfig.isConfigured
