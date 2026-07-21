@@ -325,6 +325,85 @@ void main() {
     });
   });
 
+  group('Sitzplätze in der Fahrerwahl', () {
+    // Ohne Historie sind alle punktgleich; die Reihenfolge entscheidet dann
+    // alphabetisch — a wäre dran. Mit Sitzplätzen muss b gewinnen, weil in
+    // as Auto nicht alle passen.
+    test('ein Auto mit genug Plätzen wird bevorzugt', () {
+      final plan = planWeek(
+        dates: [week.first],
+        availability: {
+          week.first: ride({'a', 'b', 'c', 'd'}),
+        },
+        overrides: const {},
+        trips: const [],
+        settings: settings,
+        seats: const {'a': 2, 'b': 5},
+      );
+
+      expect(plan.first.driverId, 'b');
+    });
+
+    test('passt niemandes Auto, bleibt es trotzdem bei einem Fahrer', () {
+      // Ein Tag ganz ohne Vorschlag wäre schlechter als einer, an dem man
+      // zusammenrückt oder ein zweites Auto nimmt.
+      final plan = planWeek(
+        dates: [week.first],
+        availability: {
+          week.first: ride({'a', 'b', 'c', 'd'}),
+        },
+        overrides: const {},
+        trips: const [],
+        settings: settings,
+        seats: const {'a': 2, 'b': 2, 'c': 2, 'd': 2},
+      );
+
+      expect(plan.first.driverId, isNotNull);
+      expect(plan.first.driverId, 'a', reason: 'wieder die normale Regel');
+    });
+
+    test('ohne gepflegte Sitzplätze ändert sich nichts', () {
+      List<String?> driversFor(Map<String, int> seats) => [
+        for (final day in planWeek(
+          dates: week,
+          availability: allAvailable({'a', 'b'}),
+          overrides: const {},
+          trips: const [],
+          settings: settings,
+          seats: seats,
+        ))
+          day.driverId,
+      ];
+
+      expect(driversFor(const {}), ['a', 'b', 'a', 'b', 'a']);
+      expect(
+        driversFor(const {'a': 5}),
+        driversFor(const {}),
+        reason:
+            'Ein einzelner gepflegter Wert darf die anderen nicht '
+            'aussortieren — sonst bestraft die App unvollständige Daten.',
+      );
+    });
+
+    test('ein zu kleines Auto schließt nicht vom Übersteuern aus', () {
+      // Die Sitzplätze steuern den Vorschlag, nicht die freie Wahl: Wer von
+      // Hand jemanden setzt, weiß, was er tut.
+      final plan = planWeek(
+        dates: [week.first],
+        availability: {
+          week.first: ride({'a', 'b', 'c'}),
+        },
+        overrides: {week.first: 'a'},
+        trips: const [],
+        settings: settings,
+        seats: const {'a': 2, 'b': 5},
+      );
+
+      expect(plan.first.driverId, 'a');
+      expect(plan.first.isOverridden, isTrue);
+    });
+  });
+
   group('mostCarryingDriver', () {
     PlannedDay day(DateTime date, String? driver, List<String> available) =>
         PlannedDay(date: date, availableIds: available, driverId: driver);

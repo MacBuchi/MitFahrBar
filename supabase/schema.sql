@@ -31,6 +31,9 @@ create table public.persons (
   vehicle text,
   energy_type text check (energy_type in ('electric', 'diesel', 'petrol')),
   consumption_per_100km numeric check (consumption_per_100km > 0),
+  -- Sitzplätze inklusive Fahrer (Fahrzeugschein-Zahl). Vorgabe 5 = normaler
+  -- PKW, damit die Prüfung ohne Pflegeaufwand greift.
+  seats int not null default 5 check (seats > 1),
   created_at timestamptz not null default now()
 );
 

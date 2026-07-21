@@ -196,6 +196,19 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
   static bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
+  /// Hinweis, wenn mehr Leute dabei sind als ins Auto des Fahrers passen —
+  /// `null`, solange alles passt.
+  ///
+  /// 1-way zählt als besetzter Platz: Wer eine Richtung mitfährt, sitzt auf
+  /// dieser Strecke genauso im Auto.
+  String? _seatWarning(Person? driver) {
+    if (driver == null) return null;
+    final people = _full.length + _oneWay.length;
+    if (people <= driver.seats) return null;
+    return '${driver.name}s Auto hat ${driver.seats} Sitzplätze — '
+        'ihr seid $people.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final personsAsync = ref.watch(personsProvider);
@@ -271,6 +284,10 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
             onAccept: (id) => setState(() => _manualDriverId = id),
             onReset: () => setState(() => _manualDriverId = null),
           ),
+          if (_seatWarning(byId[driverId]) case final warning?) ...[
+            const SizedBox(height: AppSpacing.s),
+            _SeatWarning(text: warning),
+          ],
           const SizedBox(height: AppSpacing.m),
           Text(
             'Wer ist dabei?',
@@ -331,6 +348,45 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
                   : driverId == null
                   ? 'Mindestens 1 Person auswählen'
                   : 'Speichern – ${byId[driverId]?.name} fährt',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bewusst ein Hinweis und keine Sperre: Zur Not rückt man zusammen oder es
+/// fahren zwei Autos. Eine harte Grenze würde jemanden daran hindern, eine
+/// Fahrt einzutragen, die tatsächlich so stattgefunden hat.
+class _SeatWarning extends StatelessWidget {
+  const _SeatWarning({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.s),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(AppRadius.s),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.airline_seat_recline_normal_outlined,
+            size: 18,
+            color: scheme.onErrorContainer,
+          ),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onErrorContainer),
             ),
           ),
         ],

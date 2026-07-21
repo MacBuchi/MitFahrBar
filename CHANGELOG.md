@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.16.0] – 2026-07-21
+
+### Neu
+
+- **Sitzplätze je Auto.** Bei jeder Person lässt sich jetzt eintragen, wie
+  viele Sitzplätze das Auto hat — **inklusive Fahrer**, also die Zahl aus dem
+  Fahrzeugschein, die ihr von eurem Auto kennt. Voreingestellt sind **5**
+  (Fahrer + 4), der normale PKW: Damit greifen die folgenden zwei Punkte
+  sofort, ohne dass jemand etwas pflegen muss. Wer einen Van oder einen
+  Zweisitzer fährt, korrigiert es einmal.
+- **Der Wochenplaner schlägt ein Auto vor, in das alle passen.** Können an
+  einem Tag vier Leute und hat einer davon nur einen Viersitzer, schlägt
+  RideBuddy jemanden mit genug Plätzen vor. Passt niemandes Auto, bleibt es
+  beim normalen Vorschlag und der Tag sagt dazu „nur 4 Plätze für 5" — lieber
+  ein Hinweis als gar kein Fahrer.
+- **Beim Eintragen fällt Überbelegung auf.** Sind mehr Leute ausgewählt als
+  Sitzplätze da sind, erscheint ein Hinweis wie „Annas Auto hat 4 Sitzplätze
+  — ihr seid 5". Speichern geht trotzdem: Zur Not rückt man zusammen, oder es
+  sind zwei Autos gefahren, und beides muss eintragbar bleiben.
+
 ## [0.15.0] – 2026-07-21
 
 ### Neu

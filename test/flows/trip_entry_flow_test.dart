@@ -181,6 +181,96 @@ void main() {
     );
   });
 
+  // Hinweis, keine Sperre: Zur Not rückt man zusammen oder es fahren zwei
+  // Autos. Verbieten würde heißen, eine Fahrt nicht eintragen zu können,
+  // die tatsächlich so stattgefunden hat.
+  testWidgets('zu viele Leute fürs Auto werden angemerkt', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    // Anna fährt einen Zweisitzer, die anderen haben nichts hinterlegt.
+    await data.createPerson(
+      const Person(id: '', name: 'Anna', active: true, seats: 2),
+    );
+    for (final name in ['Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    // Anna + Bert = 2 Personen, das passt noch.
+    await tester.tap(find.text('Anna'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bert'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Sitzplätze'), findsNothing);
+
+    // Mit Clara sind es drei — einer zu viel.
+    await tester.tap(find.text('Clara'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Annas Auto hat 2 Sitzplätze — ihr seid 3.'),
+      findsOneWidget,
+    );
+
+    // Speichern bleibt möglich.
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.ancestor(
+              of: find.textContaining('Speichern'),
+              matching: find.byType(FilledButton),
+            ),
+          )
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  // Vorgabe ist der normale PKW (Fahrer + 4). Wer nichts pflegt, bekommt
+  // deshalb erst ab dem sechsten Menschen einen Hinweis — und nicht schon,
+  // weil die Angabe fehlt.
+  testWidgets('der voreingestellte Fünfsitzer trägt drei ohne Murren', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await tester.tap(find.text(name));
+      await tester.pumpAndSettle();
+    }
+
+    expect(
+      find.textContaining('Sitzplätze'),
+      findsNothing,
+      reason: 'Drei Leute passen in jeden normalen PKW.',
+    );
+  });
+
   // Eine Fahrt im Voraus einzutragen verschiebt die Punkte aller anderen
   // für etwas, das noch nicht passiert ist. Geplant wird im Wochenplaner.
   testWidgets('in die Zukunft lässt sich nichts eintragen', (tester) async {

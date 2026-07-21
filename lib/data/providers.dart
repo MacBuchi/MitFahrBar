@@ -123,11 +123,13 @@ final weekPlanProvider = FutureProvider<List<PlannedDay>>((ref) async {
       .loadPlan(dates.first, days: 7);
   final trips = await ref.watch(tripsProvider.future);
   final settings = await ref.watch(settingsProvider.future);
+  final persons = await ref.watch(personsProvider.future);
   return planWeek(
     dates: dates,
     availability: raw.availability,
     overrides: raw.overrides,
     trips: trips,
     settings: settings,
+    seats: {for (final p in persons) p.id: p.seats},
   );
 });

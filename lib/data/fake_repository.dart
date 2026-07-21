@@ -36,6 +36,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
       vehicle: person.vehicle,
       energyType: person.energyType,
       consumptionPer100km: person.consumptionPer100km,
+      seats: person.seats,
     );
     _persons.add(created);
     return created;
@@ -149,6 +150,7 @@ FakeCarpoolRepository demoRepository() {
       vehicle: 'Tesla',
       energyType: EnergyType.electric,
       consumptionPer100km: 16,
+      seats: 5,
     ),
     Person(
       id: 'p2',
@@ -157,6 +159,8 @@ FakeCarpoolRepository demoRepository() {
       vehicle: 'Dacia',
       energyType: EnergyType.diesel,
       consumptionPer100km: 6,
+      // Kleinwagen: zeigt im Demo-Modus, was die Sitzplätze bewirken.
+      seats: 2,
     ),
     Person(
       id: 'p3',
@@ -165,6 +169,7 @@ FakeCarpoolRepository demoRepository() {
       vehicle: 'Astra',
       energyType: EnergyType.petrol,
       consumptionPer100km: 7,
+      seats: 5,
     ),
     Person(
       id: 'p4',
@@ -173,6 +178,7 @@ FakeCarpoolRepository demoRepository() {
       vehicle: 'BMW',
       energyType: EnergyType.diesel,
       consumptionPer100km: 5,
+      seats: 4,
     ),
   ];
   final repo = FakeCarpoolRepository(persons: persons);

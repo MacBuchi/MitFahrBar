@@ -146,7 +146,7 @@ Pro Person: gefahren / mitgefahren / 1-way / mitgenommen / Quote / Punkte / km /
 
 ### 5.5 Verwaltung
 - Personen: anlegen, **aktiv/inaktiv** schalten (inaktiv = raus aus dem Ranking, Historie bleibt — Felix, Stefan H, Noah).
-- Fahrzeuge: Antriebsart + Verbrauch.
+- Fahrzeuge: Antriebsart + Verbrauch + Sitzplätze (inkl. Fahrer, seit v0.16.0).
 - Parameter: Arbeitsweg, 1-way-Faktor, Energiepreise (mit Gültig-ab).
 
 ## 6. Excel-Import
