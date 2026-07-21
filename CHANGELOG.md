@@ -4,6 +4,28 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.17.0] – 2026-07-21
+
+### Neu
+
+- **Fahrten aus einer CSV übernehmen.** Im Menü hinter dem Personen-Symbol
+  steht jetzt „Fahrten importieren (CSV)". Am einfachsten nehmt ihr eine Datei
+  aus dem Export — sie hat genau das richtige Format. Gebraucht werden nur
+  Datum und wer gefahren bzw. mitgefahren ist; Fahrzeug, Verbrauch und
+  Sitzplätze pflegt ihr weiter in der App.
+- **Erst wird gezeigt, dann geschrieben.** RideBuddy liest die Datei, sagt
+  euch, wie viele Fahrten drinstehen und welche Zeilen nicht stimmen — und
+  erst wenn ihr bestätigt, wird etwas übernommen.
+- **Ihr entscheidet, wer wer ist.** Bekannte Namen werden automatisch
+  zugeordnet. Für jeden unbekannten Namen könnt ihr wählen: neu anlegen, einer
+  vorhandenen Person zuordnen (praktisch bei Tippfehlern) oder weglassen. Das
+  ist wichtig, weil aus „Bernd" und „Bernnd" sonst zwei Personen würden — und
+  das verschiebt rückwirkend die Punkte aller anderen.
+- **Nichts wird still verfälscht.** Tage, an denen schon eine Fahrt
+  eingetragen ist, bleiben unberührt. Und wer jemanden weglässt, dessen Fahrten
+  werden komplett übersprungen statt ohne ihn angelegt — sonst stimmten die
+  Punkte der übrigen Mitfahrer an dem Tag nicht mehr.
+
 ## [0.16.0] – 2026-07-21
 
 ### Neu

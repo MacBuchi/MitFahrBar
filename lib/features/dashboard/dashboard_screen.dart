@@ -60,6 +60,8 @@ class DashboardScreen extends ConsumerWidget {
                 // abgewartet: Der Export meldet sich selbst per SnackBar,
                 // und ein await hielte das Menü bis dahin offen.
                 unawaited(exportTripsCsv(context, ref));
+              } else if (value == 'import') {
+                unawaited(context.push('/import'));
               } else if (value == 'password') {
                 showChangePasswordDialog(context);
               } else if (value == 'feedback') {
@@ -91,6 +93,14 @@ class DashboardScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: Icon(Icons.download_outlined),
                   title: Text('Fahrten exportieren (CSV)'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'import',
+                child: ListTile(
+                  leading: Icon(Icons.upload_outlined),
+                  title: Text('Fahrten importieren (CSV)'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
