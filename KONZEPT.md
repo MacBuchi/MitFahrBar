@@ -127,10 +127,12 @@ erDiagram
 
 ### 5.2 Fahrt eintragen (der 10-Sekunden-Flow)
 
-1. Datum vorbelegt mit **heute**, per Tap auf **morgen** umschaltbar (Vortags-Eintrag) oder frei wählbar.
+1. Datum vorbelegt mit **heute**, per Tap auf **gestern** umschaltbar (Nachtrag) oder frei wählbar.
 2. **Teilnehmer als Kacheln antippen** (aktive Personen als große Tap-Flächen); zweiter Tap ⇒ `1-way`, dritter Tap ⇒ wieder abgewählt.
 3. Die App setzt **automatisch den Fahrer**: Wer von den Ausgewählten laut Fairness-Rang dran ist, rutscht als Fahrer-Kachel **nach oben**. Passt es nicht (Werkstatt, Termin …), zieht man eine andere Kachel auf den Fahrer-Platz — der Default bleibt als Hinweis sichtbar.
 4. Speichern. Fertig — Punkte aktualisieren sich sofort.
+
+> **Korrektur 2026-07-21: Es lässt sich nichts in der Zukunft eintragen.** Der Datumswähler endet bei heute, der Schnellwahl-Chip „Morgen" ist durch „Gestern" ersetzt. Ein Eintrag im Voraus verschiebt die Punkte aller anderen für etwas, das noch nicht passiert ist — und seit v0.12.0 ist der **Wochenplaner** der Ort dafür. Damit gilt der folgende Absatz zur Vortags-Planung nicht mehr; er beschreibt den Stand vor dem Planer.
 
 **Vortags-Planung = derselbe Eintrag:** Am Vorabend trägt man ein, wer morgen mitfahren möchte — die Fahrt für morgen entsteht mit automatisch gesetztem Fahrer (das ist zugleich die Antwort für den WhatsApp-Chat: „App sagt: X fährt"). Sagt jemand spontan ab oder zu, wird nur die Kachel an-/abgewählt und der Fahrer-Vorschlag passt sich live an. Es gibt keinen separaten Planungs-Status: Der Eintrag bleibt einfach editierbar, gezählt wird, was am Ende drinsteht.
 

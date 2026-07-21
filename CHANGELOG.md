@@ -16,6 +16,17 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 - **„Hajo!" für das vollste Auto.** Wer über die Woche die meisten Leute
   mitnimmt, bekommt im Planer ein Konfetti-Gesicht neben den Namen. Bei
   Gleichstand gibt es keine Auszeichnung — sonst wäre sie beliebig.
+- **Eingetragene Tage sind im Planer gesperrt.** Sie stehen blass da und
+  lassen sich nicht mehr antippen, damit niemand aus Versehen an einer
+  bereits gefahrenen Fahrt dreht. Statt „Eintragen" steht dort jetzt
+  „Bearbeiten" — anders eingefärbt und direkt in der Fahrt, kein Suchen in
+  der Historie.
+- **Eine eingetragene Fahrt zu ändern fragt nach.** Änderungen verschieben
+  die Punkte aller Beteiligten rückwirkend; das soll kein Tipper auslösen.
+- **Für die Zukunft lässt sich nichts mehr eintragen.** Der Kalender endet
+  bei heute, und aus dem Schnellwahl-Knopf „Morgen" ist „Gestern" geworden —
+  Nachtragen ist der Fall, der wirklich vorkommt. Vorausgeplant wird im
+  Wochenplan; eingetragen wird, was gefahren wurde.
 
 ### Geändert
 

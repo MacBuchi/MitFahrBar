@@ -303,6 +303,7 @@ class PlannedDay {
     this.suggestedDriverId,
     this.driverId,
     this.confirmed = false,
+    this.tripId,
   });
 
   final DateTime date;
@@ -323,6 +324,11 @@ class PlannedDay {
   /// Für diesen Tag existiert bereits eine echte Fahrt. Dann ist nichts mehr
   /// zu planen und der Tag zählt regulär in die Statistik.
   final bool confirmed;
+
+  /// Die eingetragene Fahrt, falls [confirmed] — damit der Planer direkt in
+  /// deren Bearbeitung springen kann, statt sie in der Historie suchen zu
+  /// lassen.
+  final String? tripId;
 
   bool get isOverridden =>
       !confirmed && driverId != null && driverId != suggestedDriverId;
@@ -420,6 +426,7 @@ List<PlannedDay> planWeek({
           oneWayIds: oneWayIds,
           driverId: existing.driverId,
           confirmed: true,
+          tripId: existing.id,
         ),
       );
       continue;

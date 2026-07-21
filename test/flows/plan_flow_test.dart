@@ -3,6 +3,7 @@ library;
 
 import 'package:fahrgemeinschaft/core/fairness.dart';
 import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:fahrgemeinschaft/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
@@ -209,6 +210,48 @@ void main() {
     // Die übrigen Tage sind wirklich leer und sagen das auch weiterhin.
     // Kein fester Zähler: Die Liste baut nur, was sichtbar ist.
     expect(find.textContaining('Noch niemand verfügbar'), findsWidgets);
+    handle.dispose();
+  });
+
+  // Ein eingetragener Tag ist Geschichte. Bliebe das Raster dort bedienbar,
+  // würde ein Fehlgriff stillschweigend die Planung einer gefahrenen Fahrt
+  // ändern — und der Tag sähe aus wie jeder andere.
+  testWidgets('ein eingetragener Tag ist gesperrt und führt zum Bearbeiten', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final backend = await _backend(['Anna', 'Bert']);
+    final data = backend.dataFor(backend.currentGroupId ?? 'group-1');
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final monday = planningWeek().first;
+    await data.createTrip(monday, {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await _openPlan(tester);
+
+    expect(
+      _cell('Anna', monday, state: '.*bereits eingetragen'),
+      findsOneWidget,
+      reason: 'Die Zelle sagt auch dem Screenreader, warum nichts geht.',
+    );
+    expect(find.textContaining('ist gefahren'), findsOneWidget);
+
+    // Kein „Eintragen" mehr — der Tag ist durch.
+    expect(find.widgetWithText(FilledButton, 'Eintragen'), findsNothing);
+    final edit = find.widgetWithText(OutlinedButton, 'Bearbeiten');
+    expect(edit, findsOneWidget);
+
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Speichern'),
+      findsOneWidget,
+      reason: 'Der Knopf führt direkt in die Bearbeitung dieser Fahrt.',
+    );
     handle.dispose();
   });
 

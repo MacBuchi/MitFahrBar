@@ -86,6 +86,18 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   in der Simulation als `oneWay` — als volle Mitfahrt gebucht rechnete der
   Vorschlag der Folgetage mit doppelten Punkten. Festgenagelt in
   `test/plan_test.dart`.
+- **Nichts wird in der Zukunft eingetragen** (entschieden 2026-07-21). Der
+  Datumswähler im Fahrten-Editor endet bei heute, der Schnellwahl-Chip heißt
+  „Gestern" statt „Morgen", und `_save` bricht bei einem künftigen Datum ab —
+  eine ältere Fahrt kann eines tragen. Ein Eintrag im Voraus verschiebt die
+  Punkte aller anderen für etwas, das nicht passiert ist; dafür gibt es den
+  Wochenplaner. `KONZEPT.md` 5.2 ist an der Stelle überholt und trägt einen
+  Korrekturhinweis.
+- **Eine eingetragene Fahrt ist im Planer gesperrt** (blass, nicht antippbar)
+  und trägt statt „Eintragen" einen andersfarbigen „Bearbeiten"-Knopf, der
+  über `PlannedDay.tripId` direkt in den Fahrten-Editor springt. Das Ändern
+  einer bestehenden Fahrt fragt nach — es verschiebt die Punkte aller
+  Beteiligten rückwirkend.
 - **Geplantes darf die Punkte nie berühren.** `plan_availability` und
   `plan_overrides` speichern nur, was Menschen entschieden haben. Der
   vorgeschlagene Fahrer wird **nicht** gespeichert (berechnete Kennzahl, wie

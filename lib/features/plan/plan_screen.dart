@@ -1,8 +1,11 @@
 /// plan_screen.dart – Wochenplaner: wer kann wann, wer fährt.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/fairness.dart';
@@ -242,7 +245,7 @@ class _Cell extends StatelessWidget {
       _ => (Icons.circle_outlined, scheme.outlineVariant, 'kann nicht'),
     };
     return Semantics(
-      label: '$label, $state',
+      label: enabled ? '$label, $state' : '$label, $state, bereits eingetragen',
       enabled: enabled,
       button: enabled,
       child: InkWell(
@@ -250,7 +253,12 @@ class _Cell extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.s),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
-          child: Center(child: Icon(icon, size: 20, color: color)),
+          // Eingetragene Tage sind Geschichte: blass statt anfassbar, damit
+          // niemand hier versehentlich an einer gefahrenen Fahrt dreht.
+          child: Opacity(
+            opacity: enabled ? 1 : 0.38,
+            child: Center(child: Icon(icon, size: 20, color: color)),
+          ),
         ),
       ),
     );
@@ -365,22 +373,32 @@ class _DayRow extends ConsumerWidget {
         day.confirmed ? Icons.check_circle : Icons.event_available_outlined,
         color: day.confirmed ? AppColors.driver : null,
       ),
-      trailing: day.confirmed || driver == null
-          ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Fahrer ändern',
-                  icon: const Icon(Icons.swap_horiz),
-                  onPressed: () => _pickDriver(context, ref),
-                ),
-                FilledButton(
-                  onPressed: _confirmable ? () => _confirm(context, ref) : null,
-                  child: const Text('Eintragen'),
-                ),
-              ],
+      trailing: switch ((day.confirmed, day.tripId, driver)) {
+        // Eingetragen: kein „Eintragen" mehr, sondern der Weg zum Bearbeiten
+        // — deutlich anders eingefärbt, damit man die beiden Zustände nicht
+        // verwechselt und nicht aus Gewohnheit weiterklickt.
+        (true, final id?, _) => OutlinedButton.icon(
+          onPressed: () => unawaited(context.push('/trip/$id')),
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('Bearbeiten'),
+        ),
+        (true, _, _) => null,
+        (false, _, null) => null,
+        (false, _, _) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Fahrer ändern',
+              icon: const Icon(Icons.swap_horiz),
+              onPressed: () => _pickDriver(context, ref),
             ),
+            FilledButton(
+              onPressed: _confirmable ? () => _confirm(context, ref) : null,
+              child: const Text('Eintragen'),
+            ),
+          ],
+        ),
+      },
     );
   }
 }

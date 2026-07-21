@@ -180,4 +180,85 @@ void main() {
           'der Trennlinie und die Überschrift nur verwirrend.',
     );
   });
+
+  // Eine Fahrt im Voraus einzutragen verschiebt die Punkte aller anderen
+  // für etwas, das noch nicht passiert ist. Geplant wird im Wochenplaner.
+  testWidgets('in die Zukunft lässt sich nichts eintragen', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Morgen'),
+      findsNothing,
+      reason: 'Der Schnellwahl-Chip für morgen ist bewusst entfallen.',
+    );
+    expect(
+      find.text('Gestern'),
+      findsOneWidget,
+      reason: 'Nachtragen bleibt der häufige Fall und muss leicht bleiben.',
+    );
+    expect(find.text('Heute'), findsOneWidget);
+  });
+
+  // Ändern verschiebt die Punkte aller Beteiligten rückwirkend — das darf
+  // nicht mit einem Tipper passieren.
+  testWidgets('das Ändern einer eingetragenen Fahrt fragt nach', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    await data.createTrip(DateTime(now.year, now.month, now.day), {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+
+    // Über die Historie in die Bearbeitung.
+    await tester.tap(find.text('Historie'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(ListTile).first);
+    await tester.pumpAndSettle();
+
+    // Der Knopf trägt den Fahrernamen („Speichern – Anna fährt").
+    await tester.tap(find.textContaining('Speichern'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Eingetragene Fahrt ändern?'), findsOneWidget);
+
+    // Abbrechen lässt die Fahrt unangetastet.
+    await tester.tap(find.widgetWithText(TextButton, 'Abbrechen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Eingetragene Fahrt ändern?'), findsNothing);
+    expect(
+      (await data.loadTrips()).single.participations[ids['Anna']],
+      ParticipationStatus.driver,
+    );
+  });
 }

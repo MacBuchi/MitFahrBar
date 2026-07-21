@@ -78,6 +78,29 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       for (final id in _oneWay) id: ParticipationStatus.oneWay,
     };
 
+    // Letzte Bremse gegen einen Eintrag in der Zukunft. Der Datumswähler
+    // lässt ihn nicht mehr zu, eine ältere Fahrt kann aber ein künftiges
+    // Datum tragen — dann soll das Speichern daran scheitern, nicht still
+    // durchgehen.
+    if (_date.isAfter(_today())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Fahrten lassen sich frühestens am Fahrtag eintragen — '
+            'für später ist der Wochenplan da.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Eine bestehende Fahrt zu ändern verschiebt die Punkte aller
+    // Beteiligten rückwirkend. Das soll niemand aus Versehen tun.
+    if (_isEdit) {
+      final proceed = await _confirmEdit();
+      if (proceed != true) return;
+    }
+
     // Mehrere Fahrten pro Tag sind erlaubt (z. B. zweites Auto), aber ein
     // versehentlicher Doppel-Eintrag soll auffallen -> Rückfrage.
     if (!_isEdit) {
@@ -123,6 +146,27 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       if (mounted) setState(() => _saving = false);
     }
   }
+
+  Future<bool?> _confirmEdit() => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Eingetragene Fahrt ändern?'),
+      content: const Text(
+        'Diese Fahrt ist bereits eingetragen. Wird sie geändert, verschieben '
+        'sich die Punkte aller Beteiligten rückwirkend.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Ändern'),
+        ),
+      ],
+    ),
+  );
 
   Future<bool?> _confirmSecondTrip(int existing) {
     final word = existing == 1 ? 'eine Fahrt' : '$existing Fahrten';
@@ -305,7 +349,7 @@ class _DateRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
+    final yesterday = today.subtract(const Duration(days: 1));
     final format = DateFormat('EE, dd.MM.yyyy', 'de');
 
     return Wrap(
@@ -317,10 +361,15 @@ class _DateRow extends StatelessWidget {
           selected: date == today,
           onSelected: (_) => onChanged(today),
         ),
+        // Früher stand hier „Morgen". Eine Fahrt im Voraus einzutragen
+        // verschiebt die Punkte aller anderen für etwas, das noch nicht
+        // passiert ist — geplant wird im Wochenplaner, eingetragen wird
+        // frühestens am Fahrtag. „Gestern" ist der häufige Fall dafür,
+        // dass man das Eintragen vergessen hat.
         ChoiceChip(
-          label: const Text('Morgen'),
-          selected: date == tomorrow,
-          onSelected: (_) => onChanged(tomorrow),
+          label: const Text('Gestern'),
+          selected: date == yesterday,
+          onSelected: (_) => onChanged(yesterday),
         ),
         ActionChip(
           avatar: const Icon(Icons.calendar_month, size: 18),
@@ -328,9 +377,10 @@ class _DateRow extends StatelessWidget {
           onPressed: () async {
             final picked = await showDatePicker(
               context: context,
-              initialDate: date,
+              initialDate: date.isAfter(today) ? today : date,
               firstDate: DateTime(2020),
-              lastDate: today.add(const Duration(days: 30)),
+              // Kein Tag in der Zukunft — dieselbe Regel wie im Planer.
+              lastDate: today,
               locale: const Locale('de'),
             );
             if (picked != null) {
