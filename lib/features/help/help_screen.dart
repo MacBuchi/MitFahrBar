@@ -156,7 +156,10 @@ class HelpScreen extends StatelessWidget {
                     'RideBuddy schlägt für jeden Tag einen Fahrer vor und '
                     'denkt dabei die ganze Woche mit — deshalb wechseln '
                     'sich die Namen ab. Wer nur eine Richtung kann oder '
-                    'zu wenig Sitze hat, wird nicht vorgeschlagen.',
+                    'zu wenig Sitze hat, wird nicht vorgeschlagen. Steht '
+                    'es bei den Punkten fast gleich, bekommt, wer selten '
+                    'fährt, eher die kleinen Tage — so gleicht sich auch '
+                    'aus, wie oft jede und jeder fährt.',
               ),
               _Line(
                 leading: Icon(Icons.swap_horiz),
@@ -174,8 +177,8 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 leading: MoodFace(mood: Mood.celebrating, size: 22),
                 text:
-                    'Hajo! Das Konfetti bekommt, wer diese Woche die '
-                    'meisten Leute mitnimmt.',
+                    'Hajo! Das Konfetti bekommt, wer das vollste Auto der '
+                    'Woche fährt — bei Gleichstand alle.',
               ),
             ],
           ),

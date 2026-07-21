@@ -4,6 +4,33 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.22.0] – 2026-07-22
+
+### Neu
+
+- **Die Gesichter leben.** Alle Stimmungs-Gesichter sind jetzt animiert —
+  sie blinzeln, nicken, wippen oder zittern, jedes auf seine Art, und das
+  Konfetti-Gesicht feiert richtig. Wer im System „Bewegung reduzieren"
+  eingestellt hat, sieht weiterhin die ruhigen Gesichter.
+- **Der Wochenplan reagiert sofort.** Ein Tipp im Raster wird auf der
+  Stelle sichtbar; gespeichert wird im Hintergrund. Klappt das Speichern
+  ausnahmsweise nicht, sagt die App Bescheid und stellt den alten Stand
+  wieder her.
+
+### Verbessert
+
+- **Das Konfetti feiert das vollste Auto.** Ausgezeichnet wird, wer am
+  vollsten Tag der Woche fährt — stehen mehrere gleichauf, bekommen alle
+  ihr Konfetti (bisher ging bei Gleichstand niemand mit Titel heim).
+- **Der Fahrer-Vorschlag gleicht jetzt auch aus, wie oft jemand fährt.**
+  Steht es bei den Punkten fast gleich (bis zu 2 Punkte Unterschied, je
+  näher, desto eher), bekommt, wer selten fährt, eher die kleinen Tage
+  und, wer oft fährt, die vollen. So nähern sich die Fahranteile an,
+  ohne dass die Punkte-Regel kippt — bei größerem Abstand entscheiden
+  wie immer allein die Punkte.
+- Beim Losfahren im Startbildschirm bäumt sich das Auto ganz kurz auf —
+  wie im echten Leben.
+
 ## [0.21.0] – 2026-07-22
 
 ### Neu

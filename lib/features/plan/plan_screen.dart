@@ -15,7 +15,6 @@ import '../../core/tokens.dart';
 import '../../core/widgets/mood_face.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
-import '../../models/plan_ride.dart';
 import '../../models/trip.dart';
 
 class PlanScreen extends ConsumerWidget {
@@ -62,28 +61,33 @@ class _Content extends ConsumerWidget {
     }
 
     final byId = {for (final p in persons) p.id: p};
-    final celebratedId = mostCarryingDriver(days);
-    final celebrated = celebratedId == null ? null : byId[celebratedId];
+    final celebratedIds = celebratedDrivers(days);
+    final celebratedNames = [
+      for (final p in persons)
+        if (celebratedIds.contains(p.id)) p.name,
+    ];
     return ListView(
       padding: const EdgeInsets.only(bottom: AppSpacing.xl),
       children: [
         Padding(
           padding: const EdgeInsets.all(AppSpacing.m),
           child: Text(
-            // Seit Issue #38 zählen allein die Punkte — der Text muss das
-            // sagen, sonst erklärt er eine Regel, die nicht mehr gilt.
+            // Punkte zuerst (Issue #38), dazu der begrenzte
+            // Fahrraten-Ausgleich aus `suggestPlanDriver` — der Text soll
+            // beides sagen, sonst wundert man sich über den Vorschlag.
             'Tippt an, wann ihr könnt. RideBuddy schlägt daraufhin vor, wer '
-            'an welchem Tag fährt — immer, wer laut Punkten dran ist, die '
-            'ganze Woche vorausgedacht.',
+            'an welchem Tag fährt — nach den Punkten, die ganze Woche '
+            'vorausgedacht. Steht es fast gleich, bekommt, wer selten '
+            'fährt, eher die kleinen Tage und, wer oft fährt, die vollen.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
         _AvailabilityGrid(
           days: days,
           persons: persons,
-          celebratedId: celebratedId,
+          celebratedIds: celebratedIds,
         ),
-        if (celebrated != null)
+        if (celebratedNames.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.m,
@@ -92,7 +96,11 @@ class _Content extends ConsumerWidget {
               0,
             ),
             child: Text(
-              'Hajo, ${celebrated.name}! Nimmt diese Woche die meisten mit.',
+              celebratedNames.length == 1
+                  ? 'Hajo, ${celebratedNames.single}! '
+                        'Das vollste Auto der Woche.'
+                  : 'Hajo, ${celebratedNames.join(' & ')}! '
+                        'Die vollsten Autos der Woche.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -109,34 +117,35 @@ class _AvailabilityGrid extends ConsumerWidget {
   const _AvailabilityGrid({
     required this.days,
     required this.persons,
-    this.celebratedId,
+    this.celebratedIds = const {},
   });
 
   final List<PlannedDay> days;
   final List<Person> persons;
 
-  /// Wer diese Woche die meisten mitnimmt — `null`, wenn es niemanden gibt
-  /// oder zwei gleichauf liegen.
-  final String? celebratedId;
+  /// Wer das vollste Auto der Woche fährt — bei Gleichstand mehrere.
+  final Set<String> celebratedIds;
 
   /// Ein Tap schaltet weiter: kann nicht → dabei → nur eine Richtung →
   /// kann nicht. Dieselbe Abfolge wie die Kacheln im Fahrten-Editor, damit
   /// man sie nicht zweimal lernen muss.
-  Future<void> _cycle(WidgetRef ref, PlannedDay day, String personId) async {
-    final current = !day.availableIds.contains(personId)
-        ? null
-        : day.oneWayIds.contains(personId)
-        ? PlanRide.oneWay
-        : PlanRide.full;
-    final next = switch (current) {
-      null => PlanRide.full,
-      PlanRide.full => PlanRide.oneWay,
-      PlanRide.oneWay => null,
-    };
-    await ref
-        .read(carpoolRepositoryProvider)
-        .setAvailability(day.date, personId, next);
-    ref.invalidate(weekPlanProvider);
+  ///
+  /// Der Notifier zeigt die Änderung sofort und schreibt im Hintergrund —
+  /// hier wird nur noch der Fehlerfall gemeldet.
+  Future<void> _cycle(
+    BuildContext context,
+    WidgetRef ref,
+    PlannedDay day,
+    String personId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(weekPlanProvider.notifier).cycleRide(day.date, personId);
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+      );
+    }
   }
 
   @override
@@ -212,13 +221,13 @@ class _AvailabilityGrid extends ConsumerWidget {
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
-                        if (person.id == celebratedId) ...[
+                        if (celebratedIds.contains(person.id)) ...[
                           const SizedBox(width: AppSpacing.xs),
                           const MoodFace(
                             mood: Mood.celebrating,
                             size: 18,
                             semanticLabel:
-                                'Hajo! Nimmt diese Woche die meisten mit',
+                                'Hajo! Fährt das vollste Auto der Woche',
                           ),
                         ],
                       ],
@@ -238,7 +247,8 @@ class _AvailabilityGrid extends ConsumerWidget {
                         // Bereits eingetragene Tage sind Geschichte, keine
                         // Planung mehr.
                         enabled: !day.confirmed,
-                        onTap: () => _cycle(ref, day, person.id),
+                        onTap: () =>
+                            unawaited(_cycle(context, ref, day, person.id)),
                       ),
                     ),
                 ],
@@ -331,11 +341,18 @@ class _DayRow extends ConsumerWidget {
         ],
       ),
     );
-    if (chosen == null) return;
-    await ref
-        .read(carpoolRepositoryProvider)
-        .setPlanDriver(day.date, chosen.isEmpty ? null : chosen);
-    ref.invalidate(weekPlanProvider);
+    if (chosen == null || !context.mounted) return;
+    // Optimistisch über den Notifier — die Zeile springt sofort um.
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(weekPlanProvider.notifier)
+          .setDriver(day.date, chosen.isEmpty ? null : chosen);
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+      );
+    }
   }
 
   Future<void> _confirm(BuildContext context, WidgetRef ref) async {

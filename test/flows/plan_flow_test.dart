@@ -1,8 +1,12 @@
 /// plan_flow_test.dart – Wochenplaner über die echte App.
 library;
 
+import 'dart:async';
+
 import 'package:fahrgemeinschaft/core/fairness.dart';
+import 'package:fahrgemeinschaft/data/providers.dart';
 import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:fahrgemeinschaft/models/plan_ride.dart';
 import 'package:fahrgemeinschaft/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +14,39 @@ import 'package:intl/intl.dart';
 
 import '../fakes/fake_backend.dart';
 import '../fakes/test_app.dart';
+
+/// Schreibt erst, wenn der Test es erlaubt — macht die Optimistik sichtbar.
+class _SlowWriteRepository extends FakeRoutingCarpoolRepository {
+  _SlowWriteRepository(super.backend);
+
+  final _gate = Completer<void>();
+
+  void release() => _gate.complete();
+
+  @override
+  Future<void> setAvailability(
+    DateTime date,
+    String personId,
+    PlanRide? ride,
+  ) async {
+    await _gate.future;
+    await super.setAvailability(date, personId, ride);
+  }
+}
+
+/// Jeder Schreib scheitert — der Planer muss zur Server-Wahrheit zurück.
+class _FailingWriteRepository extends FakeRoutingCarpoolRepository {
+  _FailingWriteRepository(super.backend);
+
+  @override
+  Future<void> setAvailability(
+    DateTime date,
+    String personId,
+    PlanRide? ride,
+  ) async {
+    throw Exception('kein Netz');
+  }
+}
 
 Future<void> _login(WidgetTester tester) async {
   await tester.enterText(find.byType(TextField).first, 'daciaracing');
@@ -268,8 +305,34 @@ void main() {
     }
 
     // Genau ein Tag mit Fahrer, also gibt es einen eindeutigen Sieger.
-    expect(find.textContaining('Nimmt diese Woche die meisten mit'), findsOne);
+    expect(find.textContaining('Das vollste Auto der Woche'), findsOne);
     expect(find.textContaining('Hajo,'), findsOneWidget);
+    handle.dispose();
+  });
+
+  // Entschieden 2026-07-22: Gefeiert wird das vollste Auto eines Tages,
+  // bei Gleichstand alle — nicht mehr die Wochensumme mit Titel-Verzicht.
+  testWidgets('bei Gleichstand feiern beide Fahrer', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert', 'Clara']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final week = planningWeek();
+    // Montag fährt Anna (2 Mitfahrer), Dienstag Bert (2 Mitfahrer) — die
+    // Vorwärts-Simulation setzt die Fahrer genau so, weil Anna nach Montag
+    // im Plus steht.
+    for (final day in [week[0], week[1]]) {
+      for (final name in ['Anna', 'Bert', 'Clara']) {
+        await tester.tap(_cell(name, day));
+        await tester.pumpAndSettle();
+      }
+    }
+
+    expect(find.textContaining('Anna fährt'), findsOneWidget);
+    expect(find.textContaining('Bert fährt'), findsOneWidget);
+    expect(find.textContaining('Die vollsten Autos der Woche'), findsOne);
+    expect(find.textContaining('Hajo, Anna & Bert!'), findsOneWidget);
     handle.dispose();
   });
 
@@ -285,6 +348,72 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Hajo,'), findsNothing);
+    handle.dispose();
+  });
+
+  // Der Trägheits-Fix vom 2026-07-22: Der Tap wird sofort eingerechnet,
+  // der Netz-Schreib läuft hinterher. Der Fake schreibt erst, wenn der
+  // Test es erlaubt — wäre der Planer noch synchron, bliebe die Zelle
+  // bis dahin leer.
+  testWidgets('ein Tap wirkt sofort, bevor der Server antwortet', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final backend = await _backend(['Anna', 'Bert']);
+    final slow = _SlowWriteRepository(backend);
+    await pumpApp(
+      tester,
+      backend,
+      overrides: [carpoolRepositoryProvider.overrideWithValue(slow)],
+    );
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    await tester.tap(_cell('Anna', monday));
+    await tester.pump();
+
+    expect(
+      _cell('Anna', monday, state: 'fährt'),
+      findsOneWidget,
+      reason: 'Die Zelle muss umspringen, obwohl der Schreib noch hängt.',
+    );
+
+    slow.release();
+    await tester.pumpAndSettle();
+    expect(_cell('Anna', monday, state: 'fährt'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('schlägt der Schreib fehl, springt die Zelle zurück', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final backend = await _backend(['Anna', 'Bert']);
+    await pumpApp(
+      tester,
+      backend,
+      overrides: [
+        carpoolRepositoryProvider.overrideWithValue(
+          _FailingWriteRepository(backend),
+        ),
+      ],
+    );
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Speichern fehlgeschlagen.'), findsOneWidget);
+    expect(
+      _cell('Anna', monday, state: 'kann nicht'),
+      findsOneWidget,
+      reason:
+          'Nach dem Fehlschlag muss wieder die Server-Wahrheit stehen — '
+          'sonst zeigt der Plan etwas, das nie gespeichert wurde.',
+    );
     handle.dispose();
   });
 

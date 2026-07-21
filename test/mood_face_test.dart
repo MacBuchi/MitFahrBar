@@ -56,4 +56,48 @@ void main() {
     );
     expect(find.bySemanticsLabel('fährt viel'), findsOneWidget);
   });
+
+  // Seit dem Design-Stand „Animated versions" leben die Gesichter. Geprüft
+  // wird nicht die Choreografie (die sieht man sich an), sondern dass jede
+  // Schleife über die volle Länge ohne Ausnahme zeichnet — ein Fehler in
+  // einer Keyframe-Stützstelle fiele sonst erst mitten im Betrieb auf.
+  testWidgets('jede Stimmung durchläuft ihre Schleife ohne Ausnahme', (
+    tester,
+  ) async {
+    for (final mood in Mood.values) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(child: MoodFace(mood: mood, size: 48)),
+        ),
+      );
+      // Länger als die längste Schleife (4 s), in groben Schritten.
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(tester.takeException(), isNull, reason: 'Stimmung: $mood');
+      }
+    }
+    // Aufräumen, damit kein Ticker in den nächsten Test lebt.
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('bei „Bewegung reduzieren" ruht das Gesicht', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(child: MoodFace(mood: Mood.celebrating, size: 48)),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      tester.binding.hasScheduledFrame,
+      isFalse,
+      reason:
+          'Ohne Animation darf kein weiterer Frame anstehen — genau darauf '
+          'verlassen sich alle Flow-Tests (pumpAndSettle).',
+    );
+  });
 }

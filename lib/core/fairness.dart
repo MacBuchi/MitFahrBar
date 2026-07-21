@@ -7,6 +7,8 @@
 /// an einem Tag Anwesenden (siehe KONZEPT.md 3.2).
 library;
 
+import 'dart:math' as math;
+
 import '../models/app_settings.dart';
 import '../models/plan_ride.dart';
 import '../models/person.dart';
@@ -243,6 +245,86 @@ String? suggestDriver(
   AppSettings settings,
 ) => rankPresent(presentIds, stats, settings).firstOrNull?.personId;
 
+/// Verstärkung des Fahrraten-Trims im Wochenvorschlag — und zugleich seine
+/// **Autoritätsgrenze**: Zwei Kandidaten können höchstens
+/// `kRateBalance · Δ-Fahrrate · |dayFactor|` Punkte überbrücken, also nie
+/// mehr als 2 (Raten liegen in 0..1). Jenseits dieses Bandes entscheiden
+/// exakt die Punkte — die Grenze steckt in der Verstärkung selbst, nicht in
+/// einer Sonderklausel (entschieden 2026-07-22, „bis ±2 Punkte").
+const kRateBalance = 2.0;
+
+/// Fahrer-Auswahl für einen **Plan-Tag**: Punkte zuerst, dazu ein begrenzter
+/// Fahrraten-Trim (nur hier — Dashboard und Fahrten-Editor bleiben bei
+/// [suggestDriver]).
+///
+/// Das Muster ist eine Kaskadenregelung mit begrenzter Autorität: Der
+/// schnelle innere Kreis sind die Punkte („wer am wenigsten hat, ist dran"),
+/// der langsame äußere die Fahrrate. Sie trimmt als reiner P-Regler den
+/// wirksamen Punktestand:
+///
+///   wirksam = Punkte − kRateBalance · (Fahrrate − Ø-Rate des Pools) · dayFactor
+///
+/// [dayFactor] ∈ [−1, 1] ist die normierte Tagesgröße (−1 = kleinster Tag
+/// der Woche, +1 = vollster, 0 = Durchschnitt oder alle gleich). Wenigfahrer
+/// (Rate unter Ø) werden so an kleinen Tagen günstiger, Vielfahrer an
+/// vollen — ein kleiner Tag hebt die Rate pro gewonnenem Punkt stark, ein
+/// voller kaum, also gleichen sich die Raten an, während die Punkte die
+/// Frequenz von allein nachregeln. Bewusst **kein I-Anteil**: Die Rate ist
+/// selbst schon ein integrierender Zustand; ein Integrator darauf wäre
+/// Doppel-Integration und schwänge (über-/unterkorrigierte Personen im
+/// Wechsel).
+///
+/// Greift nur bei `pointsWeight == 1.0`: Der Trim ist in Punkte-Einheiten
+/// definiert. Fährt eine Gruppe das Gewicht zurück (die „Rückfahrkarte"),
+/// gilt wieder unverändert der kombinierte Rang aus [rankPresent].
+String? suggestPlanDriver(
+  Iterable<String> presentIds,
+  Map<String, PersonStats> stats,
+  AppSettings settings, {
+  required double dayFactor,
+}) {
+  final ids = presentIds.toList();
+  if (ids.isEmpty) return null;
+  if (settings.pointsWeight != 1.0 || dayFactor == 0) {
+    return suggestDriver(ids, stats, settings);
+  }
+
+  PersonStats of(String id) =>
+      stats[id] ??
+      PersonStats(
+        personId: id,
+        driven: 0,
+        ridden: 0,
+        oneWay: 0,
+        carried: 0,
+        points: 0,
+      );
+
+  final meanShare =
+      ids.map((id) => of(id).driveShare).reduce((a, b) => a + b) / ids.length;
+  double effective(String id) =>
+      of(id).points -
+      kRateBalance * (of(id).driveShare - meanShare) * dayFactor;
+
+  // Gleicher Tie-Break wie in [rankPresent]: am längsten nicht gefahren
+  // zuerst (nie gefahren vor allen), dann Id für Determinismus.
+  final sorted = [...ids]
+    ..sort((a, b) {
+      final byEffective = effective(a).compareTo(effective(b));
+      if (byEffective != 0) return byEffective;
+      final aLast = of(a).lastDrive;
+      final bLast = of(b).lastDrive;
+      if (aLast == null && bLast != null) return -1;
+      if (aLast != null && bLast == null) return 1;
+      if (aLast != null && bLast != null) {
+        final byLast = aLast.compareTo(bLast);
+        if (byLast != 0) return byLast;
+      }
+      return a.compareTo(b);
+    });
+  return sorted.first;
+}
+
 /// Die beiden Auffälligkeiten für die Startseite: Wer fährt mit vollem Auto,
 /// wer meist fast allein? Beides ist [PersonStats.quote] — Ø Mitfahrer je
 /// eigener Fahrt.
@@ -334,42 +416,30 @@ class PlannedDay {
       !confirmed && driverId != null && driverId != suggestedDriverId;
 }
 
-/// Wer in dieser Woche die meisten Menschen mitnimmt — der „Sauber!"-Titel
-/// im Planer.
+/// Wer das vollste Auto der Woche fährt — das Konfetti im Planer.
 ///
-/// Gezählt werden die Mitfahrer aller Tage, an denen jemand fährt (der
-/// Fahrer selbst zählt nicht mit). Bewusst über die ganze Woche und nicht je
-/// Tag: Ein einzelner voller Tag ist Zufall, eine volle Woche nicht.
-///
-/// `null`, wenn niemand jemanden mitnimmt oder zwei Leute gleichauf liegen —
-/// eine Auszeichnung, die zwei Namen tragen könnte und sich einen aussucht,
-/// wäre schlechter als keine.
+/// Gezählt wird **je Tag** (Mitfahrer des Tages, der Fahrer selbst nicht):
+/// Gefeiert wird der vollste einzelne Tag der Woche, nicht die Wochensumme —
+/// entschieden 2026-07-22. Bei Gleichstand bekommen **alle** Fahrer solcher
+/// Tage das Konfetti; leer, wenn niemand jemanden mitnimmt.
 ///
 /// Eine 1-way-Mitfahrt zählt hier als **ganzer Kopf**, nicht als halbe wie in
 /// den Punkten: Die Auszeichnung feiert ein volles Auto, nicht den
 /// Punktestand — und Geplantes darf die Punkte ohnehin nie berühren.
-String? mostCarryingDriver(List<PlannedDay> days) {
-  final carried = <String, int>{};
+Set<String> celebratedDrivers(List<PlannedDay> days) {
+  final fullest = <String, int>{}; // Fahrer → vollster eigener Tag.
   for (final day in days) {
     final driver = day.driverId;
     if (driver == null) continue;
     final passengers = day.availableIds.where((id) => id != driver).length;
-    carried[driver] = (carried[driver] ?? 0) + passengers;
+    fullest[driver] = math.max(fullest[driver] ?? 0, passengers);
   }
-
-  var best = 0;
-  String? bestId;
-  var tied = false;
-  for (final entry in carried.entries) {
-    if (entry.value > best) {
-      best = entry.value;
-      bestId = entry.key;
-      tied = false;
-    } else if (entry.value == best && best > 0) {
-      tied = true;
-    }
-  }
-  return best == 0 || tied ? null : bestId;
+  final best = fullest.values.fold(0, math.max);
+  if (best == 0) return const {};
+  return {
+    for (final entry in fullest.entries)
+      if (entry.value == best) entry.key,
+  };
 }
 
 int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
@@ -395,6 +465,9 @@ int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
 /// Fairness-Regel gefiltert, nicht in sie hineingerechnet: Die Punkte bleiben
 /// unangetastet, es wird nur die Auswahl eingeschränkt. Fehlt der Eintrag oder
 /// passt niemandes Auto, gilt wieder das ganze Kandidatenfeld.
+///
+/// Die Fahrerwahl je Tag trifft [suggestPlanDriver]: Punkte zuerst, dazu der
+/// auf ±2 Punkte begrenzte Fahrraten-Trim entlang der Tagesgrößen.
 List<PlannedDay> planWeek({
   required List<DateTime> dates,
   required Map<DateTime, Map<String, PlanRide>> availability,
@@ -410,6 +483,28 @@ List<PlannedDay> planWeek({
     for (final entry in overrides.entries) _dayKey(entry.key): entry.value,
   };
   final realTripByDay = {for (final trip in trips) _dayKey(trip.date): trip};
+
+  // Tagesgrößen der noch planbaren Tage (Mitfahrer = Verfügbare − Fahrer),
+  // normiert auf [−1, 1] um das Wochenmittel — der [dayFactor] für den
+  // Fahrraten-Trim in [suggestPlanDriver]. Eingetragene und leere Tage
+  // zählen nicht mit: Dort gibt es nichts mehr zu wählen.
+  final dayPassengers = <int, int>{
+    for (final date in dates)
+      if (!realTripByDay.containsKey(_dayKey(date)) &&
+          (availableByDay[_dayKey(date)] ?? const {}).isNotEmpty)
+        _dayKey(date): availableByDay[_dayKey(date)]!.length - 1,
+  };
+  final meanPassengers = dayPassengers.isEmpty
+      ? 0.0
+      : dayPassengers.values.reduce((a, b) => a + b) / dayPassengers.length;
+  final maxDeviation = dayPassengers.values.fold(
+    0.0,
+    (max, v) => math.max(max, (v - meanPassengers).abs()),
+  );
+  double dayFactorOf(int key) => maxDeviation == 0
+      ? 0
+      : ((dayPassengers[key] ?? meanPassengers) - meanPassengers) /
+            maxDeviation;
 
   // Wächst mit jedem geplanten Tag — das ist die Simulation.
   final simulated = <Trip>[...trips];
@@ -464,7 +559,12 @@ List<PlannedDay> planWeek({
     // an dem man zusammenrückt oder ein zweites Auto nimmt.
     final pool = fitting.isEmpty ? candidates : fitting;
     final stats = computeStats(simulated, settings);
-    final suggested = suggestDriver(pool, stats, settings);
+    final suggested = suggestPlanDriver(
+      pool,
+      stats,
+      settings,
+      dayFactor: dayFactorOf(key),
+    );
     // Ein Übersteuern auf jemanden, der inzwischen abgesagt hat oder nur noch
     // eine Richtung mitfährt, wird stillschweigend ignoriert statt eine tote
     // Auswahl anzuzeigen.

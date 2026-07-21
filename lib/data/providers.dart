@@ -13,6 +13,7 @@ import '../core/update_check.dart';
 import '../models/app_settings.dart';
 import '../models/group.dart';
 import '../models/person.dart';
+import '../models/plan_ride.dart';
 import '../models/trip.dart';
 import 'app_config_repository.dart';
 import 'auth_repository.dart';
@@ -185,21 +186,104 @@ final activeRankingProvider = FutureProvider<List<RankedCandidate>>((
 });
 
 /// Wochenplan der zu planenden Woche, inklusive Fahrer-Vorschlägen.
-final weekPlanProvider = FutureProvider<List<PlannedDay>>((ref) async {
-  ref.watch(currentUserIdProvider);
-  final dates = planningWeek();
-  final raw = await ref
-      .watch(carpoolRepositoryProvider)
-      .loadPlan(dates.first, days: 7);
-  final trips = await ref.watch(tripsProvider.future);
-  final settings = await ref.watch(settingsProvider.future);
-  final persons = await ref.watch(personsProvider.future);
-  return planWeek(
-    dates: dates,
-    availability: raw.availability,
-    overrides: raw.overrides,
-    trips: trips,
-    settings: settings,
-    seats: {for (final p in persons) p.id: p.seats},
+///
+/// Als Notifier statt FutureProvider, damit Tippen im Raster **sofort**
+/// sichtbar wird: Die Änderung wird lokal eingerechnet (`planWeek` ist
+/// reine, schnelle Rechnung) und erst danach zum Server geschrieben.
+/// Vorher waren es zwei serielle Netz-Roundtrips pro Tap — der Planer
+/// fühlte sich träge an. Schlägt der Schreib fehl, holt `invalidateSelf`
+/// die Server-Wahrheit zurück, und der Fehler geht an den Aufrufer
+/// (SnackBar im Screen).
+final weekPlanProvider =
+    AsyncNotifierProvider<WeekPlanNotifier, List<PlannedDay>>(
+      WeekPlanNotifier.new,
+    );
+
+class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
+  /// Server-Rohzustand, an dem die optimistischen Änderungen ansetzen —
+  /// Schlüssel auf Tagesbeginn normiert, damit Taps ihre Zeile finden.
+  var _availability = <DateTime, Map<String, PlanRide>>{};
+  var _overrides = <DateTime, String>{};
+  var _dates = const <DateTime>[];
+  var _trips = const <Trip>[];
+  var _settings = const AppSettings();
+  var _seats = const <String, int>{};
+
+  static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  @override
+  Future<List<PlannedDay>> build() async {
+    ref.watch(currentUserIdProvider);
+    _dates = planningWeek();
+    final raw = await ref
+        .watch(carpoolRepositoryProvider)
+        .loadPlan(_dates.first, days: 7);
+    _availability = {
+      for (final e in raw.availability.entries) _day(e.key): {...e.value},
+    };
+    _overrides = {for (final e in raw.overrides.entries) _day(e.key): e.value};
+    // Per watch: Ändern sich Fahrten, Personen oder Parameter, rechnet der
+    // Notifier von allein neu — wie vorher der FutureProvider.
+    _trips = await ref.watch(tripsProvider.future);
+    _settings = await ref.watch(settingsProvider.future);
+    final persons = await ref.watch(personsProvider.future);
+    _seats = {for (final p in persons) p.id: p.seats};
+    return _plan();
+  }
+
+  List<PlannedDay> _plan() => planWeek(
+    dates: _dates,
+    availability: _availability,
+    overrides: _overrides,
+    trips: _trips,
+    settings: _settings,
+    seats: _seats,
   );
-});
+
+  /// Erst lokal zeigen, dann schreiben; bei Fehler Server-Wahrheit zurück
+  /// und den Fehler nach oben reichen.
+  Future<void> _apply(void Function() mutate, Future<void> write) async {
+    mutate();
+    state = AsyncData(_plan());
+    try {
+      await write;
+    } catch (_) {
+      ref.invalidateSelf();
+      rethrow;
+    }
+  }
+
+  /// Ein Tap im Raster: kann nicht → dabei → nur eine Richtung → kann nicht.
+  Future<void> cycleRide(DateTime date, String personId) {
+    final day = _day(date);
+    final rides = {...(_availability[day] ?? const <String, PlanRide>{})};
+    final next = switch (rides[personId]) {
+      null => PlanRide.full,
+      PlanRide.full => PlanRide.oneWay,
+      PlanRide.oneWay => null,
+    };
+    return _apply(
+      () {
+        if (next == null) {
+          rides.remove(personId);
+        } else {
+          rides[personId] = next;
+        }
+        _availability[day] = rides;
+      },
+      ref.read(carpoolRepositoryProvider).setAvailability(date, personId, next),
+    );
+  }
+
+  /// Fahrer übersteuern; `null` kehrt zum Vorschlag zurück.
+  Future<void> setDriver(DateTime date, String? driverId) {
+    final day = _day(date);
+    return _apply(() {
+      if (driverId == null) {
+        _overrides.remove(day);
+      } else {
+        _overrides[day] = driverId;
+      }
+    }, ref.read(carpoolRepositoryProvider).setPlanDriver(date, driverId));
+  }
+}

@@ -119,8 +119,10 @@ class RideBuddyPose {
     this.headScales = const [1, 1, 1],
   });
 
-  /// Nick-Winkel in Radiant um den vorderen Radaufstandspunkt: positiv =
-  /// die Nase (links, Fahrtrichtung) taucht ein — die Bremsfeder.
+  /// Nick-Winkel in Radiant. Positiv = die Nase (links, Fahrtrichtung)
+  /// taucht ein — die Bremsfeder, gedreht um das **vordere** Rad. Negativ =
+  /// Anfahren: die Front hebt sich, gedreht um das **hintere** Rad — sonst
+  /// tauchte das Heck unter die Straße.
   final double pitch;
 
   /// Hub der Karosserie in Entwurfseinheiten (positiv = angehoben) —
@@ -183,11 +185,14 @@ void paintRideBuddyMark(
   canvas.drawCircle(const Offset(92, 80), 5, hub);
 
   canvas.save();
-  // Nase links: Rotation um den vorderen Radaufstandspunkt (36, 80).
-  // Negatives Vorzeichen, weil die Canvas-Drehung sonst das Heck senkte.
-  canvas.translate(36, 80);
+  // Drehpunkt je nach Vorzeichen: Bremsen nickt um das vordere Rad (36, 80),
+  // Anfahren bäumt sich um das hintere (92, 80) auf — so bleiben die Räder
+  // in beiden Fällen auf der Straße. Negatives Rotations-Vorzeichen, weil
+  // die Canvas-Drehung sonst das Heck senkte.
+  final pivotX = pose.pitch >= 0 ? 36.0 : 92.0;
+  canvas.translate(pivotX, 80);
   canvas.rotate(-pose.pitch);
-  canvas.translate(-36, -80 - pose.lift);
+  canvas.translate(-pivotX, -80 - pose.lift);
 
   final body = Paint();
   if (palette.bodyGradient) {
