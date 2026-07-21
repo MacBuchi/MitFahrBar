@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/export_file.dart';
 import '../core/import_file.dart';
 import '../core/fairness.dart';
+import '../core/share_text.dart';
 import '../core/supabase_config.dart';
 import '../core/update_check.dart';
 import '../models/app_settings.dart';
@@ -32,6 +33,14 @@ typedef FileSaver =
     Future<void> Function({required String name, required String content});
 
 final fileSaverProvider = Provider<FileSaver>((ref) => saveTextFile);
+
+/// Wie ein Text weitergegeben wird (Teilen-Menü bzw. Zwischenablage).
+/// Als Provider, damit Tests den Plattform-Pfad ersetzen können — im Test
+/// hängt der echte Aufruf, statt zu scheitern.
+typedef TextSharer =
+    Future<ShareOutcome> Function(String text, {String? subject});
+
+final textSharerProvider = Provider<TextSharer>((ref) => shareText);
 
 /// Dateiauswahl fürs Einlesen — `null` heißt abgebrochen. Ebenfalls als
 /// Provider, damit Tests eine Datei vortäuschen können; im Test gibt es

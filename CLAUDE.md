@@ -140,6 +140,13 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   vor. Tage mit echter Fahrt werden nicht zusätzlich simuliert, sonst zählen
   sie doppelt. Beides ist in `test/plan_test.dart` festgenagelt.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
+- **Der Einladungstext darf nie ins Log.** „Jemanden einladen"
+  (`features/invite/`) kann auf Wunsch das **Gruppenpasswort** enthalten —
+  bewusste Entscheidung, damit eine Einladung ein Schritt bleibt. Deshalb:
+  nicht speichern, nicht loggen, und im Fehlerfall **ohne** den Fehlertext
+  melden (der trägt sonst die Nachricht mit). Käme der Text in `logRing`,
+  stünde der Gruppenzugang im nächsten öffentlichen Feedback-Issue.
+  `test/flows/invite_flow_test.dart` prüft genau das am Fehlerpfad.
 - **Was geloggt wird, kann öffentlich werden.** `core/log.dart` hält die
   letzten 50 Zeilen in `logRing` (nur im Speicher, nie auf Platte), und die
   Nutzerin kann sie einer Rückmeldung anhängen — die der Feedback-Bot in ein
