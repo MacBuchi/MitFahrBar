@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/balance_label.dart';
 import '../../core/drive_mood.dart';
 import '../../core/fairness.dart';
 import '../../core/supabase_config.dart';
@@ -257,7 +258,7 @@ class _Content extends ConsumerWidget {
                     ],
                   ),
                   subtitle: Text(
-                    '${_balanceLabel(candidate.stats.points, points)}'
+                    '${balanceLabel(candidate.stats.points, points)}'
                     ' · fährt ${percent.format(candidate.stats.driveShare)}',
                   ),
                   trailing: index == 0
@@ -277,15 +278,6 @@ class _Content extends ConsumerWidget {
       ],
     );
   }
-}
-
-/// „2,5 Punkte" sagt nicht, in welche Richtung sie zeigen. Punkte sind
-/// zero-sum: negativ heißt, dass die Gruppe einem noch Fahrten schuldet —
-/// genau andersherum, als eine nackte Zahl sich anfühlt.
-String _balanceLabel(double points, NumberFormat format) {
-  if (points.abs() < 0.05) return 'ausgeglichen';
-  if (points < 0) return 'schuldet ${format.format(points.abs())}';
-  return 'hat ${format.format(points)} gut';
 }
 
 /// Das Gesicht zur Zeile. Die Enden der Skala gehören der Quote (wer nimmt

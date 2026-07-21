@@ -287,4 +287,36 @@ void main() {
     expect(find.textContaining('Hajo,'), findsNothing);
     handle.dispose();
   });
+
+  // Zugesagt in Issue #38: Der Punktestand steht im Raster vor dem Namen,
+  // damit man dem Vorschlag ansieht, warum er auf diese Person fällt.
+  testWidgets('das Raster zeigt den Punktestand vor dem Namen', (tester) async {
+    final backend = FakeBackend();
+    final id = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(id);
+    final anna = await data.createPerson(
+      const Person(id: '', name: 'Anna', active: true),
+    );
+    final bert = await data.createPerson(
+      const Person(id: '', name: 'Bert', active: true),
+    );
+    // Anna nimmt Bert mit: Anna +1, Bert −1.
+    await data.createTrip(DateTime(2026, 3, 9), {
+      anna.id: ParticipationStatus.driver,
+      bert.id: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await _openPlan(tester);
+
+    expect(find.text('+1'), findsOneWidget);
+    // Typografisches Minus (U+2212), nicht der Bindestrich — gleiche Breite
+    // wie das Plus, damit die Spalte nicht flattert.
+    expect(find.text('−1'), findsOneWidget);
+  });
 }

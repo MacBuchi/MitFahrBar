@@ -169,6 +169,26 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
   static int _dayKey(DateTime d) => d.year * 10000 + d.month * 100 + d.day;
 
+  /// Was beim Übernehmen wirklich ankäme — dieselben Regeln wie `_import`:
+  /// Tage mit vorhandener Fahrt bleiben liegen, Fahrten mit einer
+  /// weggelassenen Person fallen ganz weg. Der Knopf verspricht sonst
+  /// „3 Fahrten", wo 2 passieren (Gerätetest 2026-07-21).
+  int _applicable(ImportResult result, List<Trip> existing) {
+    final takenDays = {for (final t in existing) _dayKey(t.date)};
+    var count = 0;
+    for (final trip in result.trips) {
+      if (takenDays.contains(_dayKey(trip.date))) continue;
+      if (trip.participations.keys.any((n) => _choice[n] == _skipPerson)) {
+        continue;
+      }
+      // Wie in `_import` zählt ein Import-Tag nur einmal, auch wenn die
+      // Datei ihn doppelt enthält.
+      takenDays.add(_dayKey(trip.date));
+      count++;
+    }
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
     final persons = ref.watch(personsProvider).value ?? const <Person>[];
@@ -225,14 +245,25 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                   onChanged: (value) => setState(() => _choice[name] = value),
                 ),
               const SizedBox(height: AppSpacing.l),
-              FilledButton.icon(
-                onPressed: _busy ? null : () => _import(persons, trips),
-                icon: const Icon(Icons.check),
-                label: Text(
-                  _busy
-                      ? 'Übernehme …'
-                      : '${result.trips.length} Fahrten übernehmen',
-                ),
+              Builder(
+                builder: (context) {
+                  final applicable = _applicable(result, trips);
+                  return FilledButton.icon(
+                    onPressed: _busy || applicable == 0
+                        ? null
+                        : () => _import(persons, trips),
+                    icon: const Icon(Icons.check),
+                    label: Text(
+                      _busy
+                          ? 'Übernehme …'
+                          : switch (applicable) {
+                              0 => 'Nichts zu übernehmen',
+                              1 => '1 Fahrt übernehmen',
+                              final n => '$n Fahrten übernehmen',
+                            },
+                    ),
+                  );
+                },
               ),
             ],
           ],

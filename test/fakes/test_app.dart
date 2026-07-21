@@ -19,16 +19,22 @@ import 'fake_backend.dart';
 /// [overrides] hängt hinten an und sticht deshalb die Standard-Fakes —
 /// gedacht für Provider, die auf die Plattform zugreifen (z. B. das
 /// Ablegen einer Datei), die es im Test nicht gibt.
+///
+/// [splash] ist standardmäßig aus: Sonst müsste jeder Flow-Test erst die
+/// Anfahr-Animation abwarten, bevor er ans Login kommt. Nur der
+/// Splash-Flow-Test schaltet sie ein.
 Future<void> pumpApp(
   WidgetTester tester,
   FakeBackend backend, {
   List<Override> overrides = const [],
+  bool splash = false,
 }) async {
   await initializeDateFormatting('de');
   addTearDown(backend.dispose);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        splashEnabledProvider.overrideWithValue(splash),
         authRepositoryProvider.overrideWithValue(FakeAuthRepository(backend)),
         carpoolRepositoryProvider.overrideWithValue(
           FakeRoutingCarpoolRepository(backend),
@@ -51,5 +57,12 @@ Future<void> pumpApp(
       child: const FahrgemeinschaftApp(),
     ),
   );
-  await tester.pumpAndSettle();
+  if (splash) {
+    // Nicht settlen: pumpAndSettle spulte die Animation komplett ab, und
+    // der Test fände einen Splash vor, der schon vorbei ist. Die Zeit
+    // steuert der Test selbst.
+    await tester.pump();
+  } else {
+    await tester.pumpAndSettle();
+  }
 }

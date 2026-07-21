@@ -173,14 +173,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
       # Es kann (noch) keine APK geben — dann bleibt das Release web-only.
       - uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           merge-multiple: true
+      # Release-Body = der deutsche CHANGELOG-Abschnitt der Version. Die App
+      # zeigt den Body wortwörtlich im Update-Dialog — auto-generierte
+      # englische PR-Titel wären dort Entwickler-Kauderwelsch (Gerätetest
+      # 2026-07-21). Fehlt der Abschnitt, gibt es einen Link statt Leere.
+      - name: Release-Notes aus CHANGELOG schneiden
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { hit = 1; next }
+            hit && /^## \[/ { exit }
+            hit { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > release-body.md
+          if [ ! -s release-body.md ]; then
+            echo "::warning::Kein CHANGELOG-Abschnitt für $version — Fallback-Link."
+            echo "Details: https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md" > release-body.md
+          fi
+          cat release-body.md
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
-          generate_release_notes: true
+          body_path: release-body.md
           files: fahrgemeinschaft-*.apk
           fail_on_unmatched_files: false

@@ -117,7 +117,7 @@ void main() {
     await tester.tap(find.text('ist Bernd').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, '1 Fahrten übernehmen'));
+    await tester.tap(find.widgetWithText(FilledButton, '1 Fahrt übernehmen'));
     await tester.pumpAndSettle();
 
     final persons = await backend.dataFor(groupId).loadPersons();
@@ -148,10 +148,48 @@ void main() {
   });
 
   // Die Fahrt ohne die weggelassene Person anzulegen, änderte still die
-  // Punkte aller übrigen an diesem Tag.
+  // Punkte aller übrigen an diesem Tag. Und der Knopf sagt die ehrliche
+  // Zahl an — nicht, was in der Datei steht (Gerätetest 2026-07-21).
   testWidgets('wird jemand weggelassen, entfällt seine Fahrt ganz', (
     tester,
   ) async {
+    await addPersons(['Anna']);
+    // Fahrt 1 hat Bernd dabei, Fahrt 2 nicht — nur sie bleibt übrig.
+    await pumpApp(
+      tester,
+      backend,
+      overrides: _file(
+        'Datum;Anna;Bernd;Notiz\r\n'
+        '09.03.2026;Fahrer;Mit;\r\n'
+        '10.03.2026;Fahrer;;\r\n',
+      ),
+    );
+    await _login(tester);
+    await _openImport(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'CSV-Datei wählen'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, '2 Fahrten übernehmen'), findsOne);
+
+    await tester.tap(find.text('neu anlegen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('weglassen').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, '1 Fahrt übernehmen'));
+    await tester.pumpAndSettle();
+
+    expect(
+      await backend.dataFor(groupId).loadTrips(),
+      hasLength(1),
+      reason: 'Die Fahrt mit Bernd entfällt ganz, die ohne ihn bleibt.',
+    );
+    expect(find.textContaining('jemand war weggelassen'), findsOneWidget);
+  });
+
+  // Bleibt gar nichts übrig, gibt es auch nichts zu drücken — ein Knopf,
+  // der „2 Fahrten übernehmen" verspricht und 0 schreibt, wäre gelogen.
+  testWidgets('entfallen alle Fahrten, ist der Knopf aus', (tester) async {
     await addPersons(['Anna']);
     await pumpApp(tester, backend, overrides: _file(csv));
     await _login(tester);
@@ -164,15 +202,11 @@ void main() {
     await tester.tap(find.text('weglassen').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, '2 Fahrten übernehmen'));
-    await tester.pumpAndSettle();
-
-    expect(
-      await backend.dataFor(groupId).loadTrips(),
-      isEmpty,
-      reason: 'Beide Fahrten haben Bernd dabei — beide entfallen.',
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Nichts zu übernehmen'),
     );
-    expect(find.textContaining('jemand war weggelassen'), findsOneWidget);
+    expect(button.onPressed, isNull);
+    expect(await backend.dataFor(groupId).loadTrips(), isEmpty);
   });
 
   testWidgets('ein Tag, der schon eingetragen ist, wird nicht verdoppelt', (
@@ -188,7 +222,8 @@ void main() {
     await _openImport(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'CSV-Datei wählen'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, '2 Fahrten übernehmen'));
+    // Der Knopf rechnet den belegten Tag schon heraus.
+    await tester.tap(find.widgetWithText(FilledButton, '1 Fahrt übernehmen'));
     await tester.pumpAndSettle();
 
     expect(await backend.dataFor(groupId).loadTrips(), hasLength(2));
@@ -212,7 +247,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Zeile 3'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '1 Fahrten übernehmen'), findsOne);
+    expect(find.widgetWithText(FilledButton, '1 Fahrt übernehmen'), findsOne);
   });
 
   testWidgets('eine Datei ohne Kopfzeile führt zu keinem Schreibknopf', (

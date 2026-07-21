@@ -4,6 +4,31 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.21.0] – 2026-07-22
+
+### Neu
+
+- **RideBuddy fährt jetzt vor.** Beim Öffnen der App kommt das Auto von
+  rechts ins Bild, bremst, die Mitfahrer ploppen auf — und los geht's.
+  Wer es eilig hat: einmal tippen, und die Animation ist übersprungen.
+  Ist im System „Bewegung reduzieren" eingestellt, startet die App wie
+  bisher direkt.
+- **Der Wochenplan zeigt den Punktestand.** Vor jedem Namen steht jetzt
+  die kleine Zahl, um die es geht — so sieht man dem Vorschlag an, warum
+  er auf diese Person fällt.
+
+### Verbessert
+
+- **Update-Hinweise auf Deutsch.** Unter „Was ist neu" steht künftig
+  dieser Änderungstext hier — nicht mehr die englischen technischen
+  Notizen, die dort bisher auftauchten.
+- **Der Import-Knopf sagt die ehrliche Zahl.** Wer Personen weglässt oder
+  schon eingetragene Tage importiert, sieht schon vor dem Übernehmen, wie
+  viele Fahrten wirklich ankommen — nicht mehr, wie viele in der Datei
+  stehen.
+- Die Erklärung über dem Wochenplan sagt jetzt korrekt: Der Vorschlag
+  richtet sich allein nach den Punkten.
+
 ## [0.20.0] – 2026-07-21
 
 ### Neu

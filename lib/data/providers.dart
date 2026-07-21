@@ -42,6 +42,11 @@ typedef TextSharer =
 
 final textSharerProvider = Provider<TextSharer>((ref) => shareText);
 
+/// Ob die Anfahr-Animation beim Start läuft (`features/splash/`). Als
+/// Provider, damit `pumpApp` sie stilllegen kann — sonst müsste jeder
+/// Flow-Test erst 3 Sekunden Splash abwarten, bevor er ans Login kommt.
+final splashEnabledProvider = Provider<bool>((ref) => true);
+
 /// Dateiauswahl fürs Einlesen — `null` heißt abgebrochen. Ebenfalls als
 /// Provider, damit Tests eine Datei vortäuschen können; im Test gibt es
 /// keinen Dateidialog.

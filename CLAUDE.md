@@ -333,6 +333,19 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   aus — ein direkter Push auf `main` käme sonst am Branch-Schutz vorbei
   ungeprüft bis in Tag, APK und Pages-Deploy. Das Gate darf nie hinter das
   Taggen rutschen.
+- **Der Release-Body ist der CHANGELOG-Auszug der Version** (seit v0.21.0).
+  Die App zeigt ihn wortwörtlich unter „Was ist neu" im Update-Dialog —
+  auto-generierte englische PR-Titel standen sonst roh vor der Gruppe.
+  Fehlt der Abschnitt, setzt der Workflow einen Link statt Leere; die
+  Anzeige glättet Markdown-Reste über `core/release_notes.dart`
+  (`test/release_notes_test.dart`). Keine zweite Notes-Quelle einführen.
+- **Der Start-Splash** (`features/splash/splash_overlay.dart`) liegt im
+  `builder` der MaterialApp über allem und zeichnet die Bildmarke über
+  `paintRideBuddyMark` + `RideBuddyPose` — Geometrie nur in
+  `core/widgets/ride_buddy_mark.dart`, die Animation ist reine
+  Choreografie. Tipp überspringt, `disableAnimations` unterbindet ihn,
+  und in Tests ist er über `splashEnabledProvider` standardmäßig aus
+  (`pumpApp(splash: …)`) — sonst wartete jeder Flow-Test 3 Sekunden.
 - **Dependabot läuft monatlich und gebündelt** (`.github/dependabot.yml`).
   Die Bündelung über `groups:` ist kein Kosmetik-Detail: `pubspec.yaml` ist
   nicht vom Version Guard ausgenommen, jeder pub-PR verlangt also einen
