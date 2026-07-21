@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.18.0] – 2026-07-21
+
+### Neu
+
+- **Zu alte App-Versionen werden künftig gestoppt.** Wenn eine Änderung an der
+  Datenbank eine ältere App unbrauchbar macht, zeigt diese ab jetzt einen
+  klaren „Update erforderlich"-Schirm statt Fahrten und Punkte unvollständig
+  anzuzeigen. Bisher konnte man den Update-Hinweis wegklicken und danach mit
+  einer App weiterarbeiten, die stillschweigend falsche Zahlen zeigt.
+- **Ausgesperrt wird niemand.** Der Schirm erscheint nur, wenn es auch
+  wirklich ein Update zu installieren gibt — wer schon die neueste Version
+  hat, kommt immer in die App. Und wenn RideBuddy gerade kein Netz hat, wird
+  ebenfalls nicht gesperrt.
+- Für euch ändert sich mit diesem Update erst mal nichts: Die Mindestversion
+  steht auf „egal". Sie wird erst dann angehoben, wenn eine Änderung es
+  wirklich nötig macht.
+
 ## [0.17.0] – 2026-07-21
 
 ### Neu
