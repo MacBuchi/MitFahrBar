@@ -46,6 +46,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
           'vehicle': person.vehicle,
           'energy_type': person.energyType?.name,
           'consumption_per_100km': person.consumptionPer100km,
+          'seats': person.seats,
         })
         .select()
         .single();
@@ -62,6 +63,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
           'vehicle': person.vehicle,
           'energy_type': person.energyType?.name,
           'consumption_per_100km': person.consumptionPer100km,
+          'seats': person.seats,
         })
         .eq('id', person.id);
   }

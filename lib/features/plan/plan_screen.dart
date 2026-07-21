@@ -348,6 +348,15 @@ class _DayRow extends ConsumerWidget {
       ..invalidate(weekPlanProvider);
   }
 
+  /// Zusatz am Tag, wenn das Auto des vorgeschlagenen Fahrers nicht für alle
+  /// reicht. Leer, solange es passt oder die Sitzplätze nicht gepflegt sind —
+  /// aus einer fehlenden Angabe darf nie eine Warnung werden.
+  String _seatHint(Person? driver) {
+    final seats = driver?.seats;
+    if (seats == null || day.availableIds.length <= seats) return '';
+    return ' · nur $seats Plätze für ${day.availableIds.length}';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final label = DateFormat('EEEE, d.M.', 'de').format(day.date);
@@ -365,9 +374,12 @@ class _DayRow extends ConsumerWidget {
         (false, null) when day.availableIds.isEmpty => 'Noch niemand verfügbar',
         (false, null) => 'Kein Fahrer möglich — alle nur eine Richtung',
         (false, final d?) =>
-          day.isOverridden
-              ? '${d.name} fährt · von Hand gesetzt'
-              : '${d.name} fährt · Vorschlag',
+          '${d.name} fährt · '
+              '${day.isOverridden ? 'von Hand gesetzt' : 'Vorschlag'}'
+              // Der Planer bevorzugt ein Auto mit genug Plätzen; passt an
+              // dem Tag keines, sagt er das, statt still zu wenige Sitze
+              // vorzuschlagen.
+              '${_seatHint(driver)}',
       }),
       leading: Icon(
         day.confirmed ? Icons.check_circle : Icons.event_available_outlined,

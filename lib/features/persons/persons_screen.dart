@@ -117,10 +117,12 @@ class _PersonTile extends ConsumerWidget {
     final vehicle = person.vehicle;
     final energy = person.energyType;
     final consumption = person.consumptionPer100km;
+    final seats = person.seats;
     final details = <String>[
       if (vehicle != null && vehicle.isNotEmpty) vehicle,
       if (energy != null) _energyLabel(energy),
       if (consumption != null) '$consumption / 100 km',
+      if (seats != null) '$seats Sitze',
     ];
 
     return ListTile(
@@ -162,6 +164,9 @@ class _PersonDialogState extends State<_PersonDialog> {
   late final TextEditingController _consumption = TextEditingController(
     text: widget.person?.consumptionPer100km?.toString() ?? '',
   );
+  late final TextEditingController _seats = TextEditingController(
+    text: widget.person?.seats?.toString() ?? '',
+  );
   late EnergyType? _energy = widget.person?.energyType;
   String? _error;
 
@@ -170,6 +175,7 @@ class _PersonDialogState extends State<_PersonDialog> {
     _name.dispose();
     _vehicle.dispose();
     _consumption.dispose();
+    _seats.dispose();
     super.dispose();
   }
 
@@ -189,6 +195,15 @@ class _PersonDialogState extends State<_PersonDialog> {
       return;
     }
 
+    // Sitzplätze inklusive Fahrer. Eine 1 wäre fast immer ein Vertipper —
+    // ein Einsitzer kann keine Fahrgemeinschaft fahren.
+    final seatsText = _seats.text.trim();
+    final seats = seatsText.isEmpty ? null : int.tryParse(seatsText);
+    if (seatsText.isNotEmpty && (seats == null || seats < 2)) {
+      setState(() => _error = 'Sitzplätze bitte als ganze Zahl ab 2.');
+      return;
+    }
+
     final vehicle = _vehicle.text.trim();
     Navigator.of(context).pop(
       Person(
@@ -198,6 +213,7 @@ class _PersonDialogState extends State<_PersonDialog> {
         vehicle: vehicle.isEmpty ? null : vehicle,
         energyType: _energy,
         consumptionPer100km: consumption,
+        seats: seats,
       ),
     );
   }
@@ -251,6 +267,18 @@ class _PersonDialogState extends State<_PersonDialog> {
               decoration: const InputDecoration(
                 labelText: 'Verbrauch je 100 km (optional)',
                 helperText: 'Nur damit die Ersparnis berechnet werden kann.',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s),
+            TextField(
+              controller: _seats,
+              keyboardType: TextInputType.number,
+              // „inkl. Fahrer" muss dranstehen: Sonst trägt der eine die
+              // Zahl aus dem Fahrzeugschein ein und der andere zieht sich
+              // selbst ab — und keine der beiden Zahlen stimmt später.
+              decoration: const InputDecoration(
+                labelText: 'Sitzplätze inkl. Fahrer (optional)',
+                helperText: 'Damit auffällt, wenn ihr mehr seid als passen.',
               ),
             ),
             if (_error case final error?) ...[

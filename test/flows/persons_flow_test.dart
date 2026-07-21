@@ -64,6 +64,52 @@ void main() {
     );
   });
 
+  // Die Sitzplätze zählen inklusive Fahrer — steht so an der Beschriftung,
+  // sonst trägt der eine die Zahl aus dem Fahrzeugschein ein und der andere
+  // zieht sich selbst ab.
+  testWidgets('Sitzplätze lassen sich pflegen und stehen in der Liste', (
+    tester,
+  ) async {
+    await pumpApp(tester, _backend());
+    await _login(tester);
+    await _openPersons(tester);
+
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Sitzplätze inkl. Fahrer (optional)'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'Bernd');
+    await tester.enterText(find.byType(TextField).last, '5');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('5 Sitze'), findsOneWidget);
+  });
+
+  testWidgets('ein Einsitzer wird abgelehnt', (tester) async {
+    await pumpApp(tester, _backend());
+    await _login(tester);
+    await _openPersons(tester);
+
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Bernd');
+    await tester.enterText(find.byType(TextField).last, '1');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Sitzplätze bitte als ganze Zahl ab 2.'),
+      findsOneWidget,
+      reason: 'Ein Einsitzer kann keine Fahrgemeinschaft fahren.',
+    );
+    expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
   testWidgets('ohne Namen wird nicht angelegt', (tester) async {
     await pumpApp(tester, _backend());
     await _login(tester);

@@ -389,12 +389,19 @@ int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
 /// Wer nur eine Richtung mitfährt, **kann an dem Tag nicht Fahrer sein** —
 /// ein halber Weg stellt kein Auto. Für die Simulation zählt er als
 /// 1-way-Mitfahrt (halbe Punkte), nicht als volle.
+///
+/// [seats] sind die gepflegten Sitzplätze (inklusive Fahrer) je Person. Wessen
+/// Auto für die Anwesenden reicht, wird bevorzugt — aber **vor** der
+/// Fairness-Regel gefiltert, nicht in sie hineingerechnet: Die Punkte bleiben
+/// unangetastet, es wird nur die Auswahl eingeschränkt. Fehlt der Eintrag oder
+/// passt niemandes Auto, gilt wieder das ganze Kandidatenfeld.
 List<PlannedDay> planWeek({
   required List<DateTime> dates,
   required Map<DateTime, Map<String, PlanRide>> availability,
   required Map<DateTime, String> overrides,
   required List<Trip> trips,
   required AppSettings settings,
+  Map<String, int> seats = const {},
 }) {
   final availableByDay = {
     for (final entry in availability.entries) _dayKey(entry.key): entry.value,
@@ -444,8 +451,19 @@ List<PlannedDay> planWeek({
       for (final id in available)
         if (!oneWayIds.contains(id)) id,
     ];
+    // Wessen Auto reicht für alle, die an dem Tag können? Wer keine
+    // Sitzplätze gepflegt hat, wird nie aussortiert — sonst bestraft die
+    // App Gruppen, die das Feld nicht ausfüllen.
+    final fitting = [
+      for (final id in candidates)
+        if ((seats[id] ?? available.length) >= available.length) id,
+    ];
+    // Passt an einem Tag niemandes Auto, bleibt der beste Vorschlag aus allen
+    // Kandidaten stehen: ein Tag ganz ohne Fahrer wäre schlechter als einer,
+    // an dem man zusammenrückt oder ein zweites Auto nimmt.
+    final pool = fitting.isEmpty ? candidates : fitting;
     final stats = computeStats(simulated, settings);
-    final suggested = suggestDriver(candidates, stats, settings);
+    final suggested = suggestDriver(pool, stats, settings);
     // Ein Übersteuern auf jemanden, der inzwischen abgesagt hat oder nur noch
     // eine Richtung mitfährt, wird stillschweigend ignoriert statt eine tote
     // Auswahl anzuzeigen.
