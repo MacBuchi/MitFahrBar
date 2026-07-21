@@ -3,6 +3,7 @@ library;
 
 import '../models/app_settings.dart';
 import '../models/person.dart';
+import '../models/plan_ride.dart';
 import '../models/trip.dart';
 
 abstract class CarpoolRepository {
@@ -32,7 +33,8 @@ abstract class CarpoolRepository {
   Future<WeekPlan> loadPlan(DateTime from, {int days = 7});
 
   /// Setzt oder entfernt die Verfügbarkeit einer Person an einem Tag.
-  Future<void> setAvailability(DateTime date, String personId, bool available);
+  /// [ride] `null` heißt „kann nicht" und löscht den Eintrag.
+  Future<void> setAvailability(DateTime date, String personId, PlanRide? ride);
 
   /// Übersteuert den Fahrer-Vorschlag; [driverId] `null` nimmt das
   /// Übersteuern zurück und lässt wieder den Vorschlag gelten.
@@ -45,8 +47,8 @@ class WeekPlan {
 
   const WeekPlan.empty() : availability = const {}, overrides = const {};
 
-  /// Tag → Personen, die an diesem Tag können.
-  final Map<DateTime, Set<String>> availability;
+  /// Tag → Person → wie sie mitfährt. Wer fehlt, kann an dem Tag nicht.
+  final Map<DateTime, Map<String, PlanRide>> availability;
 
   /// Tag → von Hand gesetzter Fahrer.
   final Map<DateTime, String> overrides;

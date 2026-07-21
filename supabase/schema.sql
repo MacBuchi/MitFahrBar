@@ -99,8 +99,13 @@ create table public.plan_availability (
     references public.groups(id) on delete cascade,
   plan_date date not null,
   person_id uuid not null references public.persons(id) on delete cascade,
+  -- Nur eine Richtung. Kein Status-Enum: Der Fahrer wird im Plan nie
+  -- gespeichert, also bleibt nur „ganz" gegen „eine Richtung".
+  one_way boolean not null default false,
   created_at timestamptz not null default now(),
-  primary key (plan_date, person_id)
+  -- `group_id` gehört in den Schlüssel: Ohne ihn wäre er global eindeutig
+  -- und zwei Gruppen kämen sich am selben Tag ins Gehege.
+  primary key (group_id, plan_date, person_id)
 );
 
 create table public.plan_overrides (
@@ -109,7 +114,7 @@ create table public.plan_overrides (
   plan_date date not null,
   driver_id uuid not null references public.persons(id) on delete cascade,
   created_at timestamptz not null default now(),
-  primary key (plan_date)
+  primary key (group_id, plan_date)
 );
 
 create index plan_availability_group_idx on public.plan_availability (group_id);

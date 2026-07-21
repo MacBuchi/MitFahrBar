@@ -16,6 +16,7 @@ import 'package:fahrgemeinschaft/data/group_repository.dart';
 import 'package:fahrgemeinschaft/models/app_settings.dart';
 import 'package:fahrgemeinschaft/models/group.dart';
 import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:fahrgemeinschaft/models/plan_ride.dart';
 import 'package:fahrgemeinschaft/models/trip.dart';
 
 class FakeAccount {
@@ -151,8 +152,8 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
   Future<void> setAvailability(
     DateTime date,
     String personId,
-    bool available,
-  ) => _target.setAvailability(date, personId, available);
+    PlanRide? ride,
+  ) => _target.setAvailability(date, personId, ride);
 
   @override
   Future<void> setPlanDriver(DateTime date, String? driverId) =>

@@ -4,6 +4,52 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.15.0] – 2026-07-21
+
+### Neu
+
+- **1-way in der Wochenplanung.** Zweiter Tap auf eine Zelle heißt jetzt „nur
+  eine Richtung", ein dritter nimmt die Zelle wieder zurück — dieselbe Geste
+  wie beim Eintragen einer Fahrt. **Wer nur eine Richtung mitfährt, wird an
+  dem Tag nicht als Fahrer vorgeschlagen**; ein halber Weg stellt schließlich
+  kein Auto. Beim Eintragen landet die 1-way-Fahrt korrekt in den Punkten.
+- **„Hajo!" für das vollste Auto.** Wer über die Woche die meisten Leute
+  mitnimmt, bekommt im Planer ein Konfetti-Gesicht neben den Namen. Bei
+  Gleichstand gibt es keine Auszeichnung — sonst wäre sie beliebig.
+- **Eingetragene Tage sind im Planer gesperrt.** Sie stehen blass da und
+  lassen sich nicht mehr antippen, damit niemand aus Versehen an einer
+  bereits gefahrenen Fahrt dreht. Statt „Eintragen" steht dort jetzt
+  „Bearbeiten" — anders eingefärbt und direkt in der Fahrt, kein Suchen in
+  der Historie.
+- **Eine eingetragene Fahrt zu ändern fragt nach.** Änderungen verschieben
+  die Punkte aller Beteiligten rückwirkend; das soll kein Tipper auslösen.
+- **Für die Zukunft lässt sich nichts mehr eintragen.** Der Kalender endet
+  bei heute, und aus dem Schnellwahl-Knopf „Morgen" ist „Gestern" geworden —
+  Nachtragen ist der Fall, der wirklich vorkommt. Vorausgeplant wird im
+  Wochenplan; eingetragen wird, was gefahren wurde.
+
+### Geändert
+
+- **Die Gesichter auf der Startseite sind jetzt die eigenen.** Statt der
+  grauen Standard-Symbole steht dort das RideBuddy-Smiley-Set: sieben Stufen
+  von strahlend grün bis verärgert rot.
+- **Das Gesicht zeigt den Fahranteil im Vergleich zur Runde.** Wer von euch
+  am seltensten selbst fahren musste, bekommt das glücklichste Gesicht, wer
+  am häufigsten fuhr, das traurigste; dazwischen wird gleichmäßig verteilt.
+  Fahrt alle gleich viel, bleiben alle Gesichter neutral.
+- **Der Fahranteil steht wieder als Prozentzahl in der Zeile.** Dafür ist die
+  Angabe „Ø 1,5 mit" daraus verschwunden — wie voll euer Auto ist, sagen
+  weiterhin die Titel „Volle Kischt" und „Fast alloi".
+
+### Behoben
+
+- **Zwei Gruppen konnten sich in der Wochenplanung gegenseitig blockieren.**
+  Hatte eine Gruppe an einem Tag den Fahrer von Hand gesetzt, schlug dieselbe
+  Aktion bei jeder anderen Gruppe an genau diesem Tag mit einer Fehlermeldung
+  fehl. Grund war ein Schlüssel in der Datenbank, der die Gruppe nicht
+  mitgezählt hat. Betroffen war nur das Übersteuern des Fahrers; eingetragene
+  Fahrten und Punkte waren nie in Gefahr.
+
 ## [0.14.0] – 2026-07-21
 
 ### Geändert

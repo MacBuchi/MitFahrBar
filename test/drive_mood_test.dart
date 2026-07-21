@@ -1,68 +1,116 @@
-/// drive_mood_test.dart – Schwellen der Fahranteil-Gesichter.
+/// drive_mood_test.dart – Die Gesichter zum Fahranteil.
 ///
-/// Der Kern ist, dass die Bewertung *relativ* ist: Dieselben 20 % sind in
-/// einer Fünfergruppe genau der eigene Teil und in einer Zweiergruppe
-/// auffällig wenig. Feste Prozentgrenzen würden die Gruppengröße messen.
+/// Der Kern ist, dass die Skala über die **Spannweite der Gruppe** läuft:
+/// Dieselben 20 % sind einmal der niedrigste Wert der Runde und einmal der
+/// höchste. Feste Prozentgrenzen würden die Gruppengröße messen.
 library;
 
 import 'package:fahrgemeinschaft/core/drive_mood.dart';
+import 'package:fahrgemeinschaft/core/mood.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('driveMoodOf', () {
-    test('wer seinen Teil fährt, bekommt ein neutrales Gesicht', () {
-      expect(driveMoodOf(0.25, 0.25), DriveMood.neutral);
-      expect(driveMoodOf(0.20, 0.20), DriveMood.neutral);
+    test('der niedrigste Fahranteil bekommt das glücklichste Gesicht', () {
+      final range = DriveShareRange.of([0.1, 0.25, 0.5]);
+      expect(driveMoodOf(0.1, range), Mood.ecstatic);
     });
 
-    test('dieselben 20 % je nach Gruppe zufrieden oder nicht', () {
-      // Fünfergruppe: 20 % ist der eigene Teil.
-      expect(driveMoodOf(0.20, 0.20), DriveMood.neutral);
-      // Zweiergruppe: bei 50 % Schnitt sind 20 % auffällig wenig.
-      expect(driveMoodOf(0.20, 0.50), DriveMood.veryHappy);
+    test('der höchste Fahranteil bekommt das traurigste', () {
+      final range = DriveShareRange.of([0.1, 0.25, 0.5]);
+      expect(driveMoodOf(0.5, range), Mood.angry);
     });
 
-    test('deutlich seltener als der Schnitt = strahlend', () {
-      expect(driveMoodOf(0.10, 0.25), DriveMood.veryHappy);
+    test('die Mitte landet in der Mitte', () {
+      final range = DriveShareRange.of([0.0, 1.0]);
+      expect(driveMoodOf(0.5, range), Mood.neutral);
     });
 
-    test('etwas seltener = zufrieden', () {
-      expect(driveMoodOf(0.20, 0.25), DriveMood.happy);
+    test('dieselben 20 % je nach Runde oben oder unten', () {
+      expect(
+        driveMoodOf(0.2, DriveShareRange.of([0.2, 0.4, 0.6])),
+        Mood.ecstatic,
+        reason: 'hier ist 20 % der niedrigste Wert',
+      );
+      expect(
+        driveMoodOf(0.2, DriveShareRange.of([0.05, 0.1, 0.2])),
+        Mood.angry,
+        reason: 'hier ist derselbe Wert der höchste',
+      );
     });
 
-    test('etwas öfter = unzufrieden', () {
-      expect(driveMoodOf(0.32, 0.25), DriveMood.unhappy);
+    test('die Skala läuft über alle sieben Stufen', () {
+      // Ein Durchlauf über die volle Spannweite, damit keine Stufe
+      // unerreichbar wird, wenn jemand an der Interpolation dreht.
+      final range = DriveShareRange.of([0.0, 1.0]);
+      expect(
+        [for (var i = 0; i <= 6; i++) driveMoodOf(i / 6, range)],
+        [
+          Mood.ecstatic,
+          Mood.happy,
+          Mood.good,
+          Mood.neutral,
+          Mood.meh,
+          Mood.sad,
+          Mood.angry,
+        ],
+      );
     });
 
-    test('deutlich öfter als der Schnitt = sehr unzufrieden', () {
-      expect(driveMoodOf(0.50, 0.25), DriveMood.veryUnhappy);
+    test('fahren alle gleich viel, urteilt niemand', () {
+      // Ohne Abstand gibt es nichts zu interpolieren. Jemanden zum
+      // Traurigsten zu erklären, weil er einen Hauch über den anderen liegt,
+      // wäre eine erfundene Aussage.
+      final range = DriveShareRange.of([0.3, 0.3, 0.3]);
+      expect(range.isFlat, isTrue);
+      expect(driveMoodOf(0.3, range), Mood.neutral);
     });
 
-    test('ohne gefahrene Tage urteilt niemand', () {
-      // 0 ÷ 0 darf kein Gesicht erzeugen — am Anfang hat noch keiner
-      // etwas verdient oder verbockt.
-      expect(driveMoodOf(0, 0), DriveMood.neutral);
+    test('eine einzelne Person ist weder oben noch unten', () {
+      expect(driveMoodOf(0.8, DriveShareRange.of([0.8])), Mood.neutral);
+    });
+
+    test('ohne Werte bleibt alles neutral', () {
+      expect(driveMoodOf(0.5, DriveShareRange.of(const [])), Mood.neutral);
+    });
+
+    test('zwei Personen besetzen nur die Enden', () {
+      final range = DriveShareRange.of([0.2, 0.8]);
+      expect(driveMoodOf(0.2, range), Mood.ecstatic);
+      expect(driveMoodOf(0.8, range), Mood.angry);
+    });
+
+    test('das Konfetti-Gesicht ist keine Bewertungsstufe', () {
+      // Es steht für einen Erfolg und wird gezielt gesetzt; käme es aus
+      // der Skala, bekäme es irgendwann jemand für einen Fahranteil.
+      final range = DriveShareRange.of([0.0, 1.0]);
+      for (var i = 0; i <= 20; i++) {
+        expect(driveMoodOf(i / 20, range), isNot(Mood.celebrating));
+      }
     });
   });
 
-  group('averageDriveShare', () {
-    test('Schnitt über die übergebenen Anteile', () {
-      expect(averageDriveShare([0.1, 0.2, 0.3]), closeTo(0.2, 1e-9));
-    });
-
-    test('leere Liste ergibt 0 und damit lauter neutrale Gesichter', () {
-      expect(averageDriveShare(const []), 0);
-      expect(driveMoodOf(0.5, averageDriveShare(const [])), DriveMood.neutral);
+  group('DriveShareRange', () {
+    test('nimmt den kleinsten und größten Wert', () {
+      final range = DriveShareRange.of([0.4, 0.1, 0.9, 0.3]);
+      expect(range.lowest, 0.1);
+      expect(range.highest, 0.9);
+      expect(range.isFlat, isFalse);
     });
   });
 
   group('driveMoodLabel', () {
-    test('nennt den Prozentwert, der aus der Ansicht verschwunden ist', () {
-      expect(driveMoodLabel(DriveMood.veryHappy, 0.12), contains('12 %'));
-      expect(
-        driveMoodLabel(DriveMood.veryUnhappy, 0.5),
-        contains('viel öfter'),
-      );
+    test('nennt den Prozentwert, der auch in der Zeile steht', () {
+      expect(driveMoodLabel(Mood.ecstatic, 0.12), contains('12 %'));
+    });
+
+    test('jede Stufe hat einen eigenen Text', () {
+      final labels = {
+        for (final mood in Mood.values) driveMoodLabel(mood, 0.2),
+      };
+      // celebrating teilt sich den Text mit neutral (es wird hier nie
+      // vergeben), deshalb sieben statt acht.
+      expect(labels, hasLength(7));
     });
   });
 }

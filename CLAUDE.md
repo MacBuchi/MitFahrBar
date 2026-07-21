@@ -64,12 +64,40 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   bis eine Admin-Gruppe sie freigibt. Login = Handle → `handle@grp.local`
   (`core/group_login.dart`). Neue Datentabellen brauchen zwingend `group_id`
   plus dieselbe RLS-Policy, sonst lecken Daten zwischen Gruppen.
+- **`group_id` gehört auch in fachliche Primärschlüssel.** Wo der Schlüssel
+  keine generierte UUID ist, sondern aus Fachdaten besteht (`plan_date`,
+  `person_id`, …), muss `group_id` darin stehen — sonst ist er über alle
+  Gruppen eindeutig, und die zweite Gruppe läuft beim Speichern in eine
+  Unique-Verletzung auf einer Zeile, die die RLS ihr nicht einmal zeigt.
+  Genau so lag `plan_overrides` bis v0.15.0 im Schema. Das Konfliktziel des
+  `upsert` im Repository muss denselben Schlüssel nennen; driften beide
+  auseinander, meldet Postgres „no unique or exclusion constraint matching
+  the ON CONFLICT specification". Beides prüft `test/schema_test.dart`.
 - **Eine Gruppe = ein Login bleibt, auch für den Wochenplaner** (entschieden
   2026-07-20). Es gibt bewusst **keine Identität pro Person**: Der Planer ist
   ein Raster Person × Wochentag, in dem jeder für jeden eintragen darf — das
   ist ehrlich zu dem, was ein geteilter Zugang ohnehin bedeutet. Echte Logins
   pro Person würden `group_id = auth.uid()` und damit jede RLS-Policy
   umkrempeln; das ist ein eigenes Projekt, kein Nebeneffekt eines Features.
+- **1-way im Planer schließt das Fahren aus.** `plan_availability.one_way`
+  (Boolean, kein Status-Enum — der Fahrer wird im Plan nie gespeichert) macht
+  aus der Verfügbarkeit einen Dreizustand. `planWeek` nimmt 1-way-Personen aus
+  den Fahrer-Kandidaten, lässt ein Übersteuern auf sie verfallen und bucht sie
+  in der Simulation als `oneWay` — als volle Mitfahrt gebucht rechnete der
+  Vorschlag der Folgetage mit doppelten Punkten. Festgenagelt in
+  `test/plan_test.dart`.
+- **Nichts wird in der Zukunft eingetragen** (entschieden 2026-07-21). Der
+  Datumswähler im Fahrten-Editor endet bei heute, der Schnellwahl-Chip heißt
+  „Gestern" statt „Morgen", und `_save` bricht bei einem künftigen Datum ab —
+  eine ältere Fahrt kann eines tragen. Ein Eintrag im Voraus verschiebt die
+  Punkte aller anderen für etwas, das nicht passiert ist; dafür gibt es den
+  Wochenplaner. `KONZEPT.md` 5.2 ist an der Stelle überholt und trägt einen
+  Korrekturhinweis.
+- **Eine eingetragene Fahrt ist im Planer gesperrt** (blass, nicht antippbar)
+  und trägt statt „Eintragen" einen andersfarbigen „Bearbeiten"-Knopf, der
+  über `PlannedDay.tripId` direkt in den Fahrten-Editor springt. Das Ändern
+  einer bestehenden Fahrt fragt nach — es verschiebt die Punkte aller
+  Beteiligten rückwirkend.
 - **Geplantes darf die Punkte nie berühren.** `plan_availability` und
   `plan_overrides` speichern nur, was Menschen entschieden haben. Der
   vorgeschlagene Fahrer wird **nicht** gespeichert (berechnete Kennzahl, wie
@@ -215,6 +243,18 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.
   Die Issue-Templates unter `.github/ISSUE_TEMPLATE/` und die Felder im
   Feedback-Dialog gehören zusammen — Änderungen immer paarweise.
+- **Stimmungs-Gesichter** kommen aus dem Design-Set „RideBuddy Smiley Set"
+  (Claude-Design-Projekt `ae532219-705e-4cdb-becd-cf734e17215a`). Sie sind
+  **gezeichnet, nicht eingebunden** (`core/widgets/mood_face.dart`,
+  CustomPainter) — dieselbe Linie wie bei den Charts, ein SVG-Renderer nur
+  für acht Gesichter wäre eine Dependency zu viel. Die Geometrie steht 1:1
+  im Koordinatensystem der Vorlage (viewBox 100×100) und wird erst beim
+  Zeichnen skaliert, damit sie mit dem Design vergleichbar bleibt. Die
+  Farben in `AppFace` sind aus **oklch** umgerechnet (Flutter kennt oklch
+  nicht) — bei einer Änderung im Design-Set neu umrechnen, **nie von Hand
+  nachjustieren**, sonst driftet die Skala auseinander. `Mood.celebrating`
+  steht bewusst außerhalb der Bewertungsskala und kann von `driveMoodOf`
+  nicht zurückgegeben werden; es zeichnet einen Erfolg aus, keine Stufe.
 - **Branding:** `tool/brand/mark.svg` ist die einzige Quelle der Bildmarke.
   `tool/brand/build_icons.sh` (braucht `rsvg-convert` + python3) erzeugt
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps
