@@ -356,4 +356,27 @@ create policy feedback_insert on public.feedback for insert to authenticated
 create policy feedback_select_own on public.feedback for select to authenticated
   using (group_id = auth.uid());
 
-grant all on public.feedback to service_role;
+-- ------------------------------------------------------------------ Grants
+-- Explizit statt Plattform-Default: Neuere Stacks (lokaler CLI-Stack,
+-- Postgres-17-Image) sind „secure by default" und geben Client-Rollen ohne
+-- Grant weder DML noch EXECUTE — die App fände auf einem frischen Stack
+-- keine Tabelle vor. Die Zugriffskontrolle bleibt vollständig bei den
+-- RLS-Policies oben; service_role braucht die Rechte für den Feedback-Bot
+-- und die E2E-Tests.
+
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete
+  on all tables in schema public to anon, authenticated;
+grant all on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public
+  to anon, authenticated, service_role;
+grant execute on all functions in schema public
+  to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to anon, authenticated;
+alter default privileges in schema public
+  grant all on tables to service_role;
+alter default privileges in schema public
+  grant usage, select on sequences to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant execute on functions to anon, authenticated, service_role;

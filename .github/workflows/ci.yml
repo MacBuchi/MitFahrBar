@@ -79,8 +79,30 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
-  housekeeping:
-    name: Version Guard
+  e2e:
+    name: E2E (Supabase-Stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # CLI-Version gepinnt wie Flutter — ein CLI-Upgrade ändert den
+      # lokalen Stack (Ports/Sektionen in config.toml) und gehört bewusst
+      # zusammen mit einem lokalen Upgrade getestet.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.109.1"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      # Startet den lokalen Stack (Docker ist auf ubuntu-latest vorhanden),
+      # spielt alle Migrationen ein und fährt test/e2e/ dagegen — echte RLS,
+      # echte Auth-Mails (Mailpit). Ohne Stack überspringen sich die Tests.
+      - name: E2E-Tests gegen lokalen Stack
+        run: tool/e2e.sh
+
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
