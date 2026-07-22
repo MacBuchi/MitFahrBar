@@ -31,6 +31,15 @@ Future<void> pumpApp(
 }) async {
   await initializeDateFormatting('de');
   addTearDown(backend.dispose);
+  // „Bewegung reduzieren" wie im System: Die Dauerschleifen der Gesichter
+  // ruhen, sonst käme kein pumpAndSettle je zur Ruhe. Bewusst nicht beim
+  // Splash-Test gesetzt — der prüft ja gerade eine Animation und steuert
+  // die Zeit von Hand (auf dem Login gibt es keine Gesichter).
+  if (!splash) {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [

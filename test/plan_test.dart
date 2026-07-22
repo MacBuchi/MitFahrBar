@@ -404,18 +404,19 @@ void main() {
     });
   });
 
-  group('mostCarryingDriver', () {
+  group('celebratedDrivers', () {
     PlannedDay day(DateTime date, String? driver, List<String> available) =>
         PlannedDay(date: date, availableIds: available, driverId: driver);
 
-    test('zählt die Mitfahrer über die ganze Woche', () {
-      // a fährt zweimal mit je einem Mitfahrer, b einmal mit dreien.
+    test('gefeiert wird der vollste einzelne Tag, nicht die Wochensumme', () {
+      // a fährt zweimal mit je einem Mitfahrer (Summe 2), b einmal mit
+      // dreien — b hat den vollsten Tag, die Summe zählt nicht.
       final plan = [
         day(week[0], 'a', ['a', 'b']),
         day(week[1], 'a', ['a', 'c']),
         day(week[2], 'b', ['b', 'a', 'c', 'd']),
       ];
-      expect(mostCarryingDriver(plan), 'b');
+      expect(celebratedDrivers(plan), {'b'});
     });
 
     test('der Fahrer zählt sich nicht selbst', () {
@@ -423,27 +424,34 @@ void main() {
         day(week[0], 'a', ['a']),
       ];
       expect(
-        mostCarryingDriver(plan),
-        isNull,
+        celebratedDrivers(plan),
+        isEmpty,
         reason: 'Allein zu fahren ist kein Mitnehmen.',
       );
     });
 
-    test('bei Gleichstand gibt es keine Auszeichnung', () {
-      // Eine Auszeichnung, die zwei Namen tragen könnte und sich einen
-      // aussucht, wäre schlechter als keine.
+    test('bei Gleichstand werden alle gefeiert', () {
+      // Entschieden 2026-07-22: mehrere volle Autos, mehrere Konfettis.
       final plan = [
         day(week[0], 'a', ['a', 'b']),
         day(week[1], 'b', ['b', 'a']),
       ];
-      expect(mostCarryingDriver(plan), isNull);
+      expect(celebratedDrivers(plan), {'a', 'b'});
+    });
+
+    test('derselbe Fahrer zweimal am Maximum bleibt ein Eintrag', () {
+      final plan = [
+        day(week[0], 'a', ['a', 'b']),
+        day(week[1], 'a', ['a', 'c']),
+      ];
+      expect(celebratedDrivers(plan), {'a'});
     });
 
     test('ohne Fahrer gibt es nichts zu feiern', () {
       final plan = [
         day(week[0], null, ['a', 'b']),
       ];
-      expect(mostCarryingDriver(plan), isNull);
+      expect(celebratedDrivers(plan), isEmpty);
     });
 
     test('eine 1-way-Mitfahrt zählt als ganzer Kopf', () {
@@ -458,7 +466,98 @@ void main() {
         ),
         day(week[1], 'd', ['d', 'e']),
       ];
-      expect(mostCarryingDriver(plan), 'a');
+      expect(celebratedDrivers(plan), {'a'});
+    });
+  });
+
+  group('Fahrraten-Trim (suggestPlanDriver in planWeek)', () {
+    Trip trip(
+      int day, {
+      required String driver,
+      List<String> passengers = const [],
+    }) => Trip(
+      id: 't$day',
+      // Februar — vor der Planwoche (2. März), also reine Historie.
+      date: DateTime(2026, 2, day),
+      participations: {
+        driver: ParticipationStatus.driver,
+        for (final p in passengers) p: ParticipationStatus.passenger,
+      },
+    );
+
+    // Historie mit Punktgleichstand (a und b je +2), aber verschiedener
+    // Fahrrate: a fuhr 1 von 2 Anwesenheiten (0,5), b 3 von 4 (0,75).
+    // Wichtig: a ist zuletzt gefahren — der alte Tie-Break („am längsten
+    // nicht gefahren") nähme also b. Wählt der Planer trotzdem a für den
+    // kleinen Tag, war es beweisbar der Trim.
+    List<Trip> history() => [
+      trip(1, driver: 'b', passengers: ['c']),
+      trip(2, driver: 'b', passengers: ['d']),
+      trip(3, driver: 'b', passengers: ['a']),
+      trip(4, driver: 'a', passengers: ['b', 'c', 'd']),
+    ];
+
+    test('bei Punktgleichstand: Wenigfahrer auf den kleinen Tag, '
+        'Vielfahrer auf den vollen', () {
+      // Mittwoch ist klein (2 Leute), Donnerstag voll (4, davon fahren nur
+      // a und b in Frage — c und d sind 1-way). Der Trim gibt a (Rate 0,5)
+      // den kleinen Tag; am vollen Tag ist b dann laut Punkten dran.
+      final plan = planWeek(
+        dates: [week[2], week[3]],
+        availability: {
+          week[2]: ride({'a', 'b'}),
+          week[3]: ride({'a', 'b'}, oneWay: {'c', 'd'}),
+        },
+        overrides: const {},
+        trips: history(),
+        settings: settings,
+      );
+
+      expect(plan[0].suggestedDriverId, 'a', reason: 'kleiner Tag → a');
+      expect(plan[1].suggestedDriverId, 'b', reason: 'voller Tag → b');
+    });
+
+    test('mehr als 2 Punkte Abstand überstimmt der Trim nie', () {
+      // a liegt weit vorn (+4), b weit hinten (−2) — egal wie die Raten
+      // stehen und wie groß der Tag ist: Es fährt der Punktärmere.
+      final trips = [
+        trip(1, driver: 'a', passengers: ['b', 'c', 'd']),
+        trip(2, driver: 'a', passengers: ['b']),
+      ];
+      final plan = planWeek(
+        dates: [week[2], week[3]],
+        availability: {
+          week[2]: ride({'a', 'b'}),
+          week[3]: ride({'a', 'b'}, oneWay: {'c', 'd'}),
+        },
+        overrides: const {},
+        trips: trips,
+        settings: settings,
+      );
+
+      expect(plan[0].suggestedDriverId, 'b');
+      // Auch nach dem simulierten Mittwoch trennen a und b noch 4 Punkte —
+      // der volle Tag geht wieder an b, der Trim (Deckel 2) ändert nichts.
+      expect(plan[1].suggestedDriverId, 'b');
+    });
+
+    test('gleich große Tage lassen alles beim Alten', () {
+      // dayFactor ist überall 0 — der Trim hebt sich auf, es gilt die
+      // reine Punktereihenfolge samt bisherigem Tie-Break: b ist am
+      // längsten nicht gefahren und kommt zuerst, danach a.
+      final plan = planWeek(
+        dates: [week[2], week[3]],
+        availability: {
+          week[2]: ride({'a', 'b'}),
+          week[3]: ride({'a', 'b'}),
+        },
+        overrides: const {},
+        trips: history(),
+        settings: settings,
+      );
+
+      expect(plan[0].suggestedDriverId, 'b');
+      expect(plan[1].suggestedDriverId, 'a');
     });
   });
 }

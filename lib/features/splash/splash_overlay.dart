@@ -158,7 +158,12 @@ class _Scene extends StatelessWidget {
         // Überschwingen der Kurve ist das Nachwippen des Fahrwerks.
         final press = _seg(0.30, 0.42, Curves.easeOut);
         final release = _seg(0.42, 0.64, Curves.elasticOut);
-        final pitch = 0.10 * press * (1 - release);
+        // Anfahren: ein Hauch Aufbäumen (~⅓ des Bremswinkels, bewusst
+        // marginal), klingt bis zum Bildrand wieder ab.
+        final launch =
+            _seg(0.80, 0.86, Curves.easeOut) *
+            (1 - _seg(0.90, 1.0, Curves.easeIn));
+        final pitch = 0.10 * press * (1 - release) - 0.035 * launch;
 
         // In Fahrt wippt die Karosserie leicht; im Stand steht sie.
         final rolling = math.max(1 - _seg(0.26, 0.36, Curves.easeIn), driveOut);

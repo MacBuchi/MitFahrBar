@@ -139,6 +139,25 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   eine Fahrt eingetragen ist — und alle fünf Tage schlagen dieselbe Person
   vor. Tage mit echter Fahrt werden nicht zusätzlich simuliert, sonst zählen
   sie doppelt. Beides ist in `test/plan_test.dart` festgenagelt.
+- **Der Planer trimmt die Fahrrate — begrenzt auf ±2 Punkte** (entschieden
+  2026-07-22, `suggestPlanDriver`): Wer selten fährt, bekommt bei fast
+  gleichem Punktestand eher die kleinen Tage, Vielfahrer die vollen — so
+  gleichen sich die Fahranteile an. Das ist eine Kaskadenregelung mit
+  begrenzter Autorität: reiner P-Regler auf der Raten-Abweichung
+  (bewusst **kein** I-Anteil — die Rate ist selbst ein integrierender
+  Zustand, ein Integrator darauf schwänge), Verstärkung `kRateBalance = 2`
+  ist zugleich der harte Deckel. Jenseits des Bandes entscheiden exakt die
+  Punkte; Dashboard/„Wer ist dran?" (`rankPresent`) bleiben unberührt.
+  Wer den Trim „vereinfacht" (Deckel raus, I-Anteil rein, auch fürs
+  Dashboard), bricht den Punkte-Vorrang oder baut Schwingen ein —
+  `test/plan_test.dart` nagelt Deckel und Zuordnung fest.
+- **Der Wochenplan schreibt optimistisch** (`WeekPlanNotifier` in
+  `data/providers.dart`): Ein Tap wird lokal eingerechnet und sofort
+  gezeigt, der Netz-Schreib läuft hinterher; scheitert er, holt
+  `invalidateSelf` die Server-Wahrheit zurück und der Screen meldet es.
+  Wer hier wieder „erst speichern, dann neu laden" einbaut, macht aus
+  jedem Tap zwei serielle Roundtrips — genau die Trägheit, die 2026-07-22
+  behoben wurde.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
 - **Der Einladungstext darf nie ins Log.** „Jemanden einladen"
   (`features/invite/`) kann auf Wunsch das **Gruppenpasswort** enthalten —
@@ -318,6 +337,13 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   nachjustieren**, sonst driftet die Skala auseinander. `Mood.celebrating`
   steht bewusst außerhalb der Bewertungsskala und kann von `driveMoodOf`
   nicht zurückgegeben werden; es zeichnet einen Erfolg aus, keine Stufe.
+  Seit dem Design-Stand „Animated versions" (2026-07-22) sind die Gesichter
+  **animiert**: Die CSS-Keyframes stehen 1:1 als Stützstellen in
+  `mood_face.dart` — bei Änderungen im Design-Set neu übernehmen, nicht
+  nachempfinden. Bei `disableAnimations` (Systemeinstellung „Bewegung
+  reduzieren") ruhen sie; `pumpApp` setzt genau diese Flagge, sonst käme
+  kein `pumpAndSettle` je zur Ruhe — wer sie dort entfernt, hängt jeden
+  Flow-Test auf.
 - **Branding:** `tool/brand/mark.svg` ist die einzige Quelle der Bildmarke.
   `tool/brand/build_icons.sh` (braucht `rsvg-convert` + python3) erzeugt
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps
