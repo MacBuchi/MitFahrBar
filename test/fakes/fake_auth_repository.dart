@@ -59,8 +59,39 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> changePassword(String newPassword) async {
     final email = backend.currentEmail;
     if (email == null) throw Exception('not signed in');
-    backend.accounts[email]!.password = newPassword;
+    // Gilt für beide Kontoarten — wie updateUser in Supabase.
+    final admin = backend.adminAccounts[email];
+    if (admin != null) {
+      admin.password = newPassword;
+    } else {
+      backend.accounts[email]!.password = newPassword;
+    }
   }
+
+  @override
+  bool get isAdminSession =>
+      backend.adminAccounts.containsKey(backend.currentEmail);
+
+  @override
+  Future<void> signUpAdmin(String email, String password) async {
+    if (backend.adminAccounts.containsKey(email)) {
+      throw Exception('already registered');
+    }
+    // Wie in Produktion mit Bestätigungs-Mail: Registrieren meldet nicht an.
+    backend.adminAccounts[email] = FakeAdminAccount(password: password);
+  }
+
+  @override
+  Future<void> signInAdmin(String email, String password) async {
+    final account = backend.adminAccounts[email];
+    if (account == null || account.password != password) {
+      throw Exception('invalid credentials');
+    }
+    backend.setCurrentEmail(email);
+  }
+
+  @override
+  Future<void> sendAdminPasswordReset(String email) async {}
 
   @override
   Future<void> signOut() async => backend.setCurrentEmail(null);

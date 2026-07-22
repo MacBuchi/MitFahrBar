@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'fake_admin_repository.dart';
 import 'fake_auth_repository.dart';
 import 'fake_backend.dart';
 
@@ -49,6 +50,7 @@ Future<void> pumpApp(
           FakeRoutingCarpoolRepository(backend),
         ),
         groupRepositoryProvider.overrideWithValue(FakeGroupRepository(backend)),
+        adminRepositoryProvider.overrideWithValue(FakeAdminRepository(backend)),
         feedbackRepositoryProvider.overrideWithValue(
           FakeFeedbackRepository(backend),
         ),

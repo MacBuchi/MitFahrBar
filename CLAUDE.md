@@ -98,6 +98,23 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   ist ehrlich zu dem, was ein geteilter Zugang ohnehin bedeutet. Echte Logins
   pro Person würden `group_id = auth.uid()` und damit jede RLS-Policy
   umkrempeln; das ist ein eigenes Projekt, kein Nebeneffekt eines Features.
+- **Daneben: höchstens EIN Verwalter-Konto je Gruppe** (Issue #55, v0.23.0) —
+  echte E-Mail, `account_type: 'admin'` in den Auth-Metadata. Es sieht
+  **keine** Gruppendaten (anderer uid, RLS blockt) und kann ausschließlich
+  über SECURITY-DEFINER-Funktionen: Gruppenpasswort neu setzen und Gruppe
+  löschen (`admin_delete_group` löscht den Gruppen-**Auth-User** — die
+  Kaskade nimmt alles mit; nie einzelne Tabellen löschen). `group_admins`
+  hat bewusst **null Policies**; der Signup-Trigger überspringt
+  Admin-Konten, sonst entstehen Geister-„pending"-Gruppen; die
+  Erst-Verknüpfung beweist sich mit dem Gruppen-Login und **rastet ein**
+  (dokumentierte Grenze: bis dahin gewinnt das erste Postfach — der
+  Verwalter verknüpft direkt nach dem Release). „Passwort ändern" gibt es
+  im Gruppen-Menü nicht mehr — nur die Konsole setzt es neu, damit kein
+  Mitglied alle aussperrt und der Verwalter jeden Schaden selbst heilt
+  (kein Betreiber-Eingriff). Auth-Mails (Reset, Bestätigung) brauchen
+  **eigenes SMTP** in Supabase (Brevo Free) — Supabases Standardversand
+  liefert nur an Projekt-Teammitglieder. `test/schema_test.dart` nagelt
+  alle vier Annahmen fest.
 - **Sitzplätze (`persons.seats`) filtern die Fahrerwahl, sie rechnen nicht
   mit.** `planWeek` engt die Kandidaten vor der Fairness-Regel auf die ein,
   deren Auto für die Anwesenden reicht — die Punkte bleiben unangetastet.

@@ -18,7 +18,6 @@ import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../core/widgets/mood_face.dart';
 import '../../core/widgets/ride_buddy_mark.dart';
-import '../account/change_password_dialog.dart';
 import '../banners/app_banners.dart';
 import '../export/export_action.dart';
 import '../invite/invite_dialog.dart';
@@ -67,8 +66,6 @@ class DashboardScreen extends ConsumerWidget {
                 unawaited(exportTripsCsv(context, ref));
               } else if (value == 'import') {
                 unawaited(context.push('/import'));
-              } else if (value == 'password') {
-                showChangePasswordDialog(context);
               } else if (value == 'feedback') {
                 showFeedbackDialog(context);
               } else if (value == 'help') {
@@ -122,16 +119,13 @@ class DashboardScreen extends ConsumerWidget {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-              if (SupabaseConfig.isConfigured) ...const [
-                PopupMenuItem(
-                  value: 'password',
-                  child: ListTile(
-                    leading: Icon(Icons.key_outlined),
-                    title: Text('Passwort ändern'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                PopupMenuItem(
+              // „Passwort ändern" gibt es hier bewusst nicht mehr: Das
+              // Gruppenpasswort setzt seit Issue #55 nur noch das
+              // Verwalter-Konto (Konsole) neu. So sperrt kein Mitglied
+              // versehentlich alle aus — und wenn doch etwas schiefgeht,
+              // holt der Verwalter den Zugang selbst zurück.
+              if (SupabaseConfig.isConfigured)
+                const PopupMenuItem(
                   value: 'feedback',
                   child: ListTile(
                     leading: Icon(Icons.lightbulb_outline),
@@ -139,7 +133,6 @@ class DashboardScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-              ],
               const PopupMenuItem(
                 value: 'help',
                 child: ListTile(

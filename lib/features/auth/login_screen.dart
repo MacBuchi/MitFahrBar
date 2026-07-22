@@ -116,6 +116,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       onPressed: _busy ? null : () => context.push('/request'),
                       child: const Text('Neue Gruppe anfragen'),
                     ),
+                    // Dezent: Der Weg für die eine Person je Gruppe, die
+                    // verwaltet — alle anderen brauchen ihn nie.
+                    TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => context.push('/console/login'),
+                      child: const Text('Verwalter-Konsole'),
+                    ),
                   ],
                 ),
               ),

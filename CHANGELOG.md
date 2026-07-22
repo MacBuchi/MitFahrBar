@@ -4,6 +4,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.23.0] – 2026-07-22
+
+### Neu
+
+- **Die Verwalter-Konsole.** Eine Person je Gruppe — die, die sich um
+  die Verwaltung kümmert — kann sich über den Login-Bildschirm ein
+  eigenes Verwalter-Konto mit ihrer E-Mail-Adresse anlegen und mit der
+  Gruppe verknüpfen. Damit gehen zwei Dinge, die bisher niemand konnte:
+  das **Gruppenpasswort neu setzen**, wenn es verloren ging, und die
+  **Gruppe endgültig löschen** (mit doppelter Bestätigung und deutlicher
+  Warnung). Für alle anderen ändert sich nichts: Der Gruppen-Login
+  bleibt Name + geteiltes Passwort, und die E-Mail des Verwalters
+  bekommt niemand aus der Gruppe zu sehen.
+- **„Passwort vergessen" für den Verwalter** läuft klassisch per E-Mail
+  — Link anklicken, neues Passwort setzen, fertig.
+
+### Verbessert
+
+- **„Passwort ändern" ist aus dem Gruppen-Menü verschwunden.** Das
+  Gruppenpasswort setzt jetzt ausschließlich die Verwalter-Konsole neu.
+  Vorher konnte jedes Mitglied es ändern und damit versehentlich alle
+  aussperren — und niemand hätte es selbst reparieren können.
+
 ## [0.22.1] – 2026-07-22
 
 ### Behoben

@@ -9,6 +9,15 @@
 -- und nur wenn sie freigegeben ('active') ist. Neue Gruppen sind 'pending'
 -- und werden von einer Admin-Gruppe freigegeben. Der Publishable-Key im
 -- Client ist öffentlich; die Zugriffskontrolle liegt vollständig hier.
+--
+-- Daneben kann je Gruppe EIN Verwalter-Konto stehen (echte E-Mail,
+-- account_type = 'admin' in den Metadata): Es sieht keine Gruppendaten
+-- (anderer uid) und kann über SECURITY-DEFINER-Funktionen ausschließlich
+-- das Gruppenpasswort neu setzen und die Gruppe löschen. Passwort-Reset
+-- läuft dafür über Supabases Standard-Mailfluss — ohne Betreiber.
+
+-- crypt()/gen_salt() für die Passwortprüfungen der Konsolen-Funktionen.
+create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------- Tabellen
 
@@ -133,6 +142,15 @@ create table public.plan_overrides (
 create index plan_availability_group_idx on public.plan_availability (group_id);
 create index plan_overrides_group_idx on public.plan_overrides (group_id);
 
+-- Verknüpfung Verwalter-Konto ↔ Gruppe. `group_id unique` = höchstens ein
+-- Admin je Gruppe; die Erst-Verknüpfung beweist sich mit dem Gruppen-Login
+-- (claim_admin_group) und rastet danach ein.
+create table public.group_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  group_id uuid unique not null references public.groups(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
 -- --------------------------------------------------------------- Funktionen
 
 -- SECURITY-DEFINER-Helfer: lesen groups ohne RLS-Rekursion.
@@ -153,6 +171,10 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare
   new_handle text := split_part(new.email, '@', 1);
 begin
+  -- Konsolen-Registrierungen erzeugen keine Geister-„pending"-Gruppe.
+  if new.raw_user_meta_data->>'account_type' = 'admin' then
+    return new;
+  end if;
   insert into public.groups (id, name, handle, status, is_admin)
   values (new.id,
           coalesce(nullif(new.raw_user_meta_data->>'group_name', ''), new_handle),
@@ -171,6 +193,116 @@ create trigger on_auth_user_created_group
   after insert on auth.users
   for each row execute function public.handle_new_group();
 
+-- ------------------------------------------------- Verwalter-Konsole (#55)
+
+-- Verknüpft das angemeldete Admin-Konto mit einer Gruppe. Beweis ist das
+-- Gruppen-Login (Handle + Gruppenpasswort) — und nur, solange die Gruppe
+-- noch keinen Admin hat. Grenze des geteilten Logins: Das erste Postfach
+-- gewinnt; der Verwalter verknüpft direkt nach dem Release.
+create or replace function public.claim_admin_group(
+  claim_handle text,
+  group_password text
+) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  caller record;
+  target record;
+  stored text;
+begin
+  select id, raw_user_meta_data into caller
+    from auth.users where id = auth.uid();
+  if caller.id is null
+     or caller.raw_user_meta_data->>'account_type' is distinct from 'admin' then
+    raise exception 'not an admin account';
+  end if;
+
+  select g.id into target from public.groups g
+    where g.handle = claim_handle and g.status = 'active';
+  if target.id is null then
+    raise exception 'wrong group credentials';
+  end if;
+
+  select encrypted_password into stored from auth.users where id = target.id;
+  if stored is null or stored <> crypt(group_password, stored) then
+    raise exception 'wrong group credentials';
+  end if;
+
+  if exists (select 1 from public.group_admins where group_id = target.id) then
+    raise exception 'group already claimed';
+  end if;
+  if exists (select 1 from public.group_admins where user_id = auth.uid()) then
+    raise exception 'admin already linked';
+  end if;
+
+  insert into public.group_admins (user_id, group_id)
+  values (auth.uid(), target.id);
+end $$;
+
+-- Die verknüpfte Gruppe fürs Konsolen-UI (leer, wenn unverknüpft).
+create or replace function public.my_admin_group()
+returns table (handle text, name text)
+language sql stable security definer set search_path = public as $$
+  select g.handle, g.name
+    from public.group_admins ga
+    join public.groups g on g.id = ga.group_id
+   where ga.user_id = auth.uid();
+$$;
+
+-- Setzt das Passwort des GRUPPEN-Kontos neu — die Rettungsleine, wenn das
+-- geteilte Passwort verloren ging oder jemand alle ausgesperrt hat.
+create or replace function public.admin_reset_group_password(
+  new_password text
+) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  target uuid;
+begin
+  select group_id into target from public.group_admins
+    where user_id = auth.uid();
+  if target is null then
+    raise exception 'not linked';
+  end if;
+  if length(coalesce(new_password, '')) < 8 then
+    raise exception 'password too short';
+  end if;
+  update auth.users
+     set encrypted_password = crypt(new_password, gen_salt('bf'))
+   where id = target;
+end $$;
+
+-- Löscht Gruppe UND Admin-Konto. Sudo-Muster: eigenes Admin-Passwort erneut
+-- plus getippter Handle. Der Gruppen-Auth-User zieht über die Kaskade
+-- (groups.id -> auth.users, Datentabellen -> groups) alles mit.
+create or replace function public.admin_delete_group(
+  admin_password text,
+  handle_confirmation text
+) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  target uuid;
+  target_handle text;
+  own text;
+begin
+  select ga.group_id, g.handle into target, target_handle
+    from public.group_admins ga
+    join public.groups g on g.id = ga.group_id
+   where ga.user_id = auth.uid();
+  if target is null then
+    raise exception 'not linked';
+  end if;
+
+  select encrypted_password into own from auth.users where id = auth.uid();
+  if own is null or own <> crypt(admin_password, own) then
+    raise exception 'wrong admin password';
+  end if;
+  if handle_confirmation is distinct from target_handle then
+    raise exception 'handle mismatch';
+  end if;
+
+  delete from auth.users where id = target;
+  delete from auth.users where id = auth.uid();
+end $$;
+
 -- --------------------------------------------------------------------- RLS
 
 alter table public.groups              enable row level security;
@@ -180,6 +312,9 @@ alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
 alter table public.plan_availability   enable row level security;
 alter table public.plan_overrides      enable row level security;
+-- Bewusst KEINE Policies auf group_admins: Kein Client liest oder schreibt
+-- die Verknüpfung direkt, alles läuft über die Konsolen-Funktionen.
+alter table public.group_admins        enable row level security;
 
 -- Eigene Gruppe lesen; Admins sehen alle (Freigabe-Liste). Insert = Trigger.
 create policy groups_select on public.groups for select to authenticated
