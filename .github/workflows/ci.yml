@@ -103,6 +103,8 @@ jobs:
       - name: E2E-Tests gegen lokalen Stack
         run: tool/e2e.sh
 
+  housekeeping:
+    name: Version Guard
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
