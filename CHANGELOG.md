@@ -14,6 +14,9 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   sogar als Mitfahrt gebucht worden, was rückwirkend die Punkte
   verschoben hätte. Auf einem echten Handy gefunden, bevor es passieren
   konnte.
+- **„Person anlegen" verdeckt niemanden mehr.** Der Knopf schwebte über
+  der Liste und lag genau auf dem untersten Eintrag — jetzt steht er
+  unter dem letzten Teilnehmer und scrollt mit.
 
 ## [0.22.0] – 2026-07-22
 

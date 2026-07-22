@@ -17,27 +17,39 @@ class PersonsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Personen')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _edit(context, ref, null),
-        icon: const Icon(Icons.person_add_alt),
-        label: const Text('Person anlegen'),
-      ),
+      // Bewusst kein schwebender Knopf: Der überdeckte die unterste Person
+      // in der Liste (Marcus' Handy-Fund, 2026-07-22). „Person anlegen"
+      // steht stattdessen unter dem letzten Eintrag und scrollt mit.
       body: switch (persons) {
-        AsyncData(value: final list) when list.isEmpty => const Center(
-          child: Padding(
-            padding: EdgeInsets.all(AppSpacing.l),
-            child: Text('Noch niemand angelegt.'),
-          ),
-        ),
         AsyncData(value: final list) => ListView(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xl * 2),
+          padding: const EdgeInsets.only(bottom: AppSpacing.xl),
           children: [
-            const _DeactivateHint(),
-            for (final person in _sorted(list))
-              _PersonTile(
-                person: person,
-                onEdit: () => _edit(context, ref, person),
+            if (list.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(AppSpacing.l),
+                child: Text('Noch niemand angelegt.'),
+              )
+            else ...[
+              const _DeactivateHint(),
+              for (final person in _sorted(list))
+                _PersonTile(
+                  person: person,
+                  onEdit: () => _edit(context, ref, person),
+                ),
+            ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.m,
+                AppSpacing.m,
+                AppSpacing.m,
+                0,
               ),
+              child: FilledButton.tonalIcon(
+                onPressed: () => _edit(context, ref, null),
+                icon: const Icon(Icons.person_add_alt),
+                label: const Text('Person anlegen'),
+              ),
+            ),
           ],
         ),
         AsyncError(:final error) => Center(
