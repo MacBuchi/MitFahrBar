@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.22.1] – 2026-07-22
+
+### Behoben
+
+- **Inaktive Personen zählen im Wochenplan nicht mehr mit.** Wer inaktiv
+  gestellt ist, konnte über alte Verfügbarkeits-Einträge unsichtbar als
+  Kopf mitzählen — falsches Konfetti, und beim Eintragen wäre die Person
+  sogar als Mitfahrt gebucht worden, was rückwirkend die Punkte
+  verschoben hätte. Auf einem echten Handy gefunden, bevor es passieren
+  konnte.
+- **„Person anlegen" verdeckt niemanden mehr.** Der Knopf schwebte über
+  der Liste und lag genau auf dem untersten Eintrag — jetzt steht er
+  unter dem letzten Teilnehmer und scrollt mit.
+
 ## [0.22.0] – 2026-07-22
 
 ### Neu

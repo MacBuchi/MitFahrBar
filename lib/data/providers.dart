@@ -218,16 +218,31 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
     final raw = await ref
         .watch(carpoolRepositoryProvider)
         .loadPlan(_dates.first, days: 7);
-    _availability = {
-      for (final e in raw.availability.entries) _day(e.key): {...e.value},
-    };
-    _overrides = {for (final e in raw.overrides.entries) _day(e.key): e.value};
     // Per watch: Ändern sich Fahrten, Personen oder Parameter, rechnet der
     // Notifier von allein neu — wie vorher der FutureProvider.
     _trips = await ref.watch(tripsProvider.future);
     _settings = await ref.watch(settingsProvider.future);
     final persons = await ref.watch(personsProvider.future);
     _seats = {for (final p in persons) p.id: p.seats};
+    // Verfügbarkeiten **inaktiver** Personen bleiben draußen — dieselbe
+    // Regel wie in Rangliste und Fahrten-Editor. Wer inaktiv gestellt
+    // wird, kann noch Einträge aus seiner aktiven Zeit haben; die zählten
+    // sonst unsichtbar als Kopf (Tagesgröße, Sitzplatz-Prüfung, vollstes
+    // Auto) und würden beim „Eintragen" sogar als Mitfahrt gebucht — das
+    // verschöbe rückwirkend die Punkte (am Tages-Hajo gefunden,
+    // 2026-07-22: das Raster zeigt Inaktive nicht, der Zähler sah sie).
+    final active = {
+      for (final p in persons)
+        if (p.active) p.id,
+    };
+    _availability = {
+      for (final e in raw.availability.entries)
+        _day(e.key): {
+          for (final r in e.value.entries)
+            if (active.contains(r.key)) r.key: r.value,
+        },
+    };
+    _overrides = {for (final e in raw.overrides.entries) _day(e.key): e.value};
     return _plan();
   }
 

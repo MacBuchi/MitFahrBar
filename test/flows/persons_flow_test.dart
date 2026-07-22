@@ -45,10 +45,11 @@ void main() {
 
     expect(find.text('Anna'), findsOneWidget);
     expect(find.text('Bernd'), findsNothing);
+    // Bewusst kein schwebender Knopf: Der überdeckte die unterste Person
+    // (Handy-Fund 2026-07-22) — „Person anlegen" steht unter der Liste.
+    expect(find.byType(FloatingActionButton), findsNothing);
 
-    await tester.tap(
-      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Person anlegen'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Bernd');
     await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
@@ -74,9 +75,7 @@ void main() {
     await _login(tester);
     await _openPersons(tester);
 
-    await tester.tap(
-      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Person anlegen'));
     await tester.pumpAndSettle();
     expect(find.text('Sitzplätze inkl. Fahrer'), findsOneWidget);
 
@@ -101,9 +100,7 @@ void main() {
     await _login(tester);
     await _openPersons(tester);
 
-    await tester.tap(
-      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Person anlegen'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Bernd');
     await tester.enterText(find.byType(TextField).last, '');
@@ -118,9 +115,7 @@ void main() {
     await _login(tester);
     await _openPersons(tester);
 
-    await tester.tap(
-      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Person anlegen'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'Bernd');
     await tester.enterText(find.byType(TextField).last, '1');
@@ -140,9 +135,7 @@ void main() {
     await _login(tester);
     await _openPersons(tester);
 
-    await tester.tap(
-      find.widgetWithText(FloatingActionButton, 'Person anlegen'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Person anlegen'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
     await tester.pumpAndSettle();

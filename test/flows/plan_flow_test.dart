@@ -417,6 +417,56 @@ void main() {
     handle.dispose();
   });
 
+  // Marcus' Handy-Fund vom 2026-07-22: Eine inaktive Person hatte noch eine
+  // Verfügbarkeit aus ihrer aktiven Zeit — das Raster zeigte sie nicht,
+  // aber der Planer zählte sie als Kopf (falsches Hajo), und „Eintragen"
+  // hätte sie als Mitfahrt gebucht und die Punkte rückwirkend verschoben.
+  testWidgets('Verfügbarkeiten inaktiver Personen zählen nicht', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final id = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(id);
+    final anna = await data.createPerson(
+      const Person(id: '', name: 'Anna', active: true),
+    );
+    final bert = await data.createPerson(
+      const Person(id: '', name: 'Bert', active: true),
+    );
+    final ghost = await data.createPerson(
+      const Person(id: '', name: 'Carla', active: true),
+    );
+    final monday = planningWeek().first;
+    for (final p in [anna, bert, ghost]) {
+      await data.setAvailability(monday, p.id, PlanRide.full);
+    }
+    // Erst nach dem Eintragen der Verfügbarkeit inaktiv gestellt — genau
+    // die Reihenfolge, in der der Geist entsteht.
+    await data.updatePerson(
+      Person(id: ghost.id, name: ghost.name, active: false),
+    );
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await _openPlan(tester);
+
+    // Fahrer + genau EIN Mitfahrer — Carla darf nicht mitzählen.
+    await tester.tap(find.widgetWithText(FilledButton, 'Eintragen'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Dabei: Anna, Bert'), findsOneWidget);
+    expect(
+      find.textContaining('Carla'),
+      findsNothing,
+      reason:
+          'Eine inaktive Person darf beim Bestätigen nicht in die Fahrt '
+          'gebucht werden — das verschöbe rückwirkend die Punkte aller.',
+    );
+  });
+
   // Zugesagt in Issue #38: Der Punktestand steht im Raster vor dem Namen,
   // damit man dem Vorschlag ansieht, warum er auf diese Person fällt.
   testWidgets('das Raster zeigt den Punktestand vor dem Namen', (tester) async {
