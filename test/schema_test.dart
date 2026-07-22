@@ -86,4 +86,83 @@ void main() {
       reason: 'setPlanDriver muss auf den vollen Schlüssel upserten.',
     );
   });
+
+  // Verwalter-Konsole (Issue #55): Die Sicherheit hängt an drei Annahmen,
+  // die alle nur in der echten Datenbank auffallen würden.
+  group('Verwalter-Konsole', () {
+    test('groups hat weiterhin keine Delete-Policy', () {
+      final policies = RegExp(
+        r'create policy \w+ on public\.groups\s+for (\w+)',
+      ).allMatches(schema).map((m) => m.group(1)).toList();
+
+      expect(
+        policies,
+        isNot(contains('delete')),
+        reason:
+            'Gelöscht wird ausschließlich über admin_delete_group — eine '
+            'Delete-Policy gäbe jedem Mitglied des geteilten Logins die '
+            'Löschtaste.',
+      );
+      expect(
+        policies,
+        isNot(contains('all')),
+        reason: '„for all" wäre delete.',
+      );
+    });
+
+    test('group_admins hat RLS an und bewusst keine einzige Policy', () {
+      expect(
+        schema,
+        contains(
+          'alter table public.group_admins        enable row level '
+          'security',
+        ),
+        reason: 'Ohne RLS läse jeder authenticated die Verknüpfungen.',
+      );
+      expect(
+        RegExp(r'create policy \w+ on public\.group_admins').hasMatch(schema),
+        isFalse,
+        reason:
+            'Jede Policy öffnete die Tabelle für Clients — der Zugriff '
+            'gehört ausschließlich den SECURITY-DEFINER-Funktionen.',
+      );
+    });
+
+    test('der Signup-Trigger überspringt Verwalter-Konten', () {
+      final trigger = RegExp(
+        r'create or replace function public\.handle_new_group.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(trigger, isNotNull);
+      expect(
+        trigger,
+        contains("account_type' = 'admin'"),
+        reason:
+            'Ohne die Ausnahme erzeugte jede Konsolen-Registrierung eine '
+            'Geister-„pending"-Gruppe in der Freigabeliste.',
+      );
+    });
+
+    test('admin_delete_group löscht über auth.users, nicht Datentabellen', () {
+      final function = RegExp(
+        r'create or replace function public\.admin_delete_group.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        function,
+        contains('delete from auth.users'),
+        reason:
+            'Der Auth-User ist die Wurzel der Kaskade (groups.id → '
+            'auth.users): Nur so verschwinden Login, Gruppe und alle Daten '
+            'ohne Reste. Einzelne Tabellen zu löschen hieße, bei jeder '
+            'neuen Tabelle ans Nachziehen denken zu müssen.',
+      );
+      expect(
+        function,
+        isNot(contains('delete from public.')),
+        reason: 'Kein Einzel-Löschen von Datentabellen — die Kaskade trägt.',
+      );
+    });
+  });
 }

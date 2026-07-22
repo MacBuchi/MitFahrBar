@@ -27,8 +27,18 @@ class FakeAccount {
   final String groupId;
 }
 
+/// Verwalter-Konto (Konsole): echte E-Mail, eigenes Passwort, optional mit
+/// einer Gruppe verknüpft.
+class FakeAdminAccount {
+  FakeAdminAccount({required this.password});
+
+  String password;
+  String? groupId;
+}
+
 class FakeBackend {
   final Map<String, FakeAccount> accounts = {};
+  final Map<String, FakeAdminAccount> adminAccounts = {};
   final Map<String, Group> groups = {};
   final Map<String, FakeCarpoolRepository> _data = {};
   final List<Map<String, Object?>> feedback = [];
@@ -100,6 +110,15 @@ class FakeBackend {
       createdAt: DateTime(2026, 1, _nextId),
     );
     accounts[email] = FakeAccount(password: password, groupId: id);
+  }
+
+  /// Löscht wie die Kaskade der echten Datenbank: Gruppe, Daten, Zugang
+  /// und die Verwalter-Verknüpfung in einem Schlag.
+  void deleteGroupCompletely(String groupId) {
+    groups.remove(groupId);
+    _data.remove(groupId);
+    accounts.removeWhere((_, account) => account.groupId == groupId);
+    adminAccounts.removeWhere((_, admin) => admin.groupId == groupId);
   }
 
   void dispose() => _authController.close();

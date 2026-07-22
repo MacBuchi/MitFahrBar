@@ -30,6 +30,20 @@ abstract class AuthRepository {
   /// Passwort des aktuell eingeloggten Gruppen-Accounts ändern.
   Future<void> changePassword(String newPassword);
 
+  /// Ist die aktuelle Sitzung ein Verwalter-Konto (Konsole) statt eines
+  /// Gruppen-Logins? Entscheidet den Router-Redirect.
+  bool get isAdminSession;
+
+  /// Verwalter-Konto registrieren (echte E-Mail). Die `account_type`-Metadata
+  /// hält den Signup-Trigger davon ab, eine Geister-Gruppe anzulegen.
+  Future<void> signUpAdmin(String email, String password);
+
+  Future<void> signInAdmin(String email, String password);
+
+  /// Passwort-vergessen-Mail für ein Verwalter-Konto — Supabase-Standard,
+  /// der Betreiber ist nicht beteiligt.
+  Future<void> sendAdminPasswordReset(String email);
+
   Future<void> signOut();
 }
 
@@ -67,6 +81,31 @@ class SupabaseAuthRepository implements AuthRepository {
       _client.auth.updateUser(UserAttributes(password: newPassword));
 
   @override
+  bool get isAdminSession =>
+      _client.auth.currentUser?.userMetadata?['account_type'] == 'admin';
+
+  @override
+  Future<void> signUpAdmin(String email, String password) =>
+      _client.auth.signUp(
+        email: email,
+        password: password,
+        data: {'account_type': 'admin'},
+      );
+
+  @override
+  Future<void> signInAdmin(String email, String password) =>
+      _client.auth.signInWithPassword(email: email, password: password);
+
+  @override
+  Future<void> sendAdminPasswordReset(String email) =>
+      // Der Link führt auf die Web-App (Groß-F!); dort fängt der
+      // passwordRecovery-Auth-Event den Nutzer mit dem Neu-Setzen-Dialog ab.
+      _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'https://macbuchi.github.io/Fahrgemeinschaft/',
+      );
+
+  @override
   Future<void> signOut() => _client.auth.signOut();
 }
 
@@ -93,6 +132,18 @@ class AlwaysLoggedInAuthRepository implements AuthRepository {
 
   @override
   Future<void> changePassword(String newPassword) async {}
+
+  @override
+  bool get isAdminSession => false;
+
+  @override
+  Future<void> signUpAdmin(String email, String password) async {}
+
+  @override
+  Future<void> signInAdmin(String email, String password) async {}
+
+  @override
+  Future<void> sendAdminPasswordReset(String email) async {}
 
   @override
   Future<void> signOut() async {}

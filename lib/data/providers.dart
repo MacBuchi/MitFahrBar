@@ -15,6 +15,7 @@ import '../models/group.dart';
 import '../models/person.dart';
 import '../models/plan_ride.dart';
 import '../models/trip.dart';
+import 'admin_repository.dart';
 import 'app_config_repository.dart';
 import 'auth_repository.dart';
 import 'carpool_repository.dart';
@@ -72,6 +73,18 @@ final groupRepositoryProvider = Provider<GroupRepository>(
       ? SupabaseGroupRepository(ref.watch(supabaseClientProvider))
       : DemoGroupRepository(),
 );
+
+final adminRepositoryProvider = Provider<AdminRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabaseAdminRepository(ref.watch(supabaseClientProvider))
+      : NoopAdminRepository(),
+);
+
+/// Die verknüpfte Gruppe eines Verwalter-Kontos (`null` = unverknüpft).
+final adminGroupProvider = FutureProvider<AdminGroup?>((ref) {
+  ref.watch(currentUserIdProvider);
+  return ref.watch(adminRepositoryProvider).myAdminGroup();
+});
 
 final appConfigRepositoryProvider = Provider<AppConfigRepository>(
   (ref) => SupabaseConfig.isConfigured

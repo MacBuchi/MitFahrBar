@@ -255,6 +255,15 @@ class HelpScreen extends StatelessWidget {
                     'und ändert alles — wie an einer gemeinsamen Pinnwand.',
               ),
               _Line(
+                leading: Icon(Icons.admin_panel_settings_outlined),
+                text:
+                    'Eine Person je Gruppe kann sich auf dem Login-Bildschirm '
+                    'eine Verwalter-Konsole einrichten (eigenes E-Mail-Konto): '
+                    'Dort wird das Gruppenpasswort neu gesetzt, wenn es '
+                    'verloren geht — und nur dort lässt sich die Gruppe '
+                    'löschen. Eure E-Mail sieht dabei niemand aus der Gruppe.',
+              ),
+              _Line(
                 text:
                     'Geplantes zählt nicht. Punkte entstehen erst, wenn '
                     'eine Fahrt eingetragen ist — Absagen kostet also '

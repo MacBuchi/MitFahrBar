@@ -13,6 +13,8 @@ import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/pending_screen.dart';
 import '../features/auth/request_group_screen.dart';
+import '../features/console/console_login_screen.dart';
+import '../features/console/console_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/history/history_screen.dart';
@@ -48,13 +50,33 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loggedIn = authRepository.loggedIn;
       final loc = state.matchedLocation;
-      final onAuthPage = loc == '/login' || loc == '/request';
-      if (!loggedIn) return onAuthPage ? null : '/login';
-      if (onAuthPage) return '/';
+      final onAuthPage =
+          loc == '/login' || loc == '/request' || loc == '/console/login';
+      if (!loggedIn) {
+        if (onAuthPage) return null;
+        // Wer die Konsole ansteuert, landet auf deren Anmeldung, nicht auf
+        // dem Gruppen-Login.
+        return loc.startsWith('/console') ? '/console/login' : '/login';
+      }
+      // Verwalter-Sitzungen bleiben in der Konsole — sie sehen ohnehin
+      // keine Gruppendaten (anderer uid, RLS blockt), aber der Redirect
+      // erspart die verwirrende Leer-Ansicht.
+      if (authRepository.isAdminSession) {
+        return loc == '/console' ? null : '/console';
+      }
+      if (onAuthPage || loc.startsWith('/console')) return '/';
       return null;
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/console/login',
+        builder: (context, state) => const ConsoleLoginScreen(),
+      ),
+      GoRoute(
+        path: '/console',
+        builder: (context, state) => const ConsoleScreen(),
+      ),
       GoRoute(
         path: '/request',
         builder: (context, state) => const RequestGroupScreen(),
