@@ -16,6 +16,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   bereits eingetragenen Fahrten zeigte im Planer nur eine davon, und das
   Hajo zählte dort die Plan-Einträge statt der tatsächlichen Mitfahrer.
 
+## [0.25.1] – 2026-07-24
+
+### Verbessert
+
+- **Verwalter-Konsole: rundere Anmeldung.** „Passwort vergessen" fragt
+  jetzt nur noch die E-Mail-Adresse ab — das Passwortfeld verschwindet,
+  bis der Reset-Link angefordert ist. Und beim Registrieren will
+  RideBuddy das Passwort zweimal sehen: Ein Tippfehler sperrte sonst
+  das frische Konto sofort wieder aus.
+
 ## [0.25.0] – 2026-07-23
 
 ### Neu
