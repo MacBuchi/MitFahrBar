@@ -152,6 +152,70 @@ void main() {
     expect(backend.groups, hasLength(1));
   });
 
+  testWidgets('Passwort vergessen fragt nur die E-Mail ab', (tester) async {
+    final backend = _backend();
+    await pumpApp(tester, backend, splash: false);
+    await _openConsoleLogin(tester);
+
+    await _tap(tester, find.text('Passwort vergessen?'));
+    expect(
+      find.byType(TextField),
+      findsOneWidget,
+      reason: 'Im Reset-Modus gibt es kein Passwortfeld — nur die E-Mail.',
+    );
+
+    await tester.enterText(find.byType(TextField), _adminEmail);
+    await _tap(tester, find.widgetWithText(FilledButton, 'Reset-Link senden'));
+
+    expect(find.textContaining('Reset-Link unterwegs'), findsOneWidget);
+    expect(backend.passwordResets, [
+      _adminEmail,
+    ], reason: 'Der Reset wurde wirklich angefordert.');
+
+    await _tap(tester, find.text('Zurück zur Anmeldung'));
+    expect(
+      find.byType(TextField),
+      findsNWidgets(2),
+      reason: 'Zurück im Anmelden-Modus sind E-Mail und Passwort wieder da.',
+    );
+    expect(find.widgetWithText(FilledButton, 'Anmelden'), findsOneWidget);
+  });
+
+  testWidgets('Registrieren verlangt die passende Wiederholung', (
+    tester,
+  ) async {
+    final backend = _backend();
+    await pumpApp(tester, backend, splash: false);
+    await _openConsoleLogin(tester);
+
+    await _tap(tester, find.text('Registrieren'));
+    expect(
+      find.byType(TextField),
+      findsNWidgets(3),
+      reason:
+          'Registrieren fragt das Passwort doppelt ab — ein Tippfehler '
+          'sperrte sonst das frische Konto sofort aus.',
+    );
+
+    await tester.enterText(find.byType(TextField).at(0), 'neu@example.org');
+    await tester.enterText(find.byType(TextField).at(1), 'ganz-geheim-12');
+    await tester.enterText(find.byType(TextField).at(2), 'ganz-geheim-21');
+    await _tap(tester, find.widgetWithText(FilledButton, 'Registrieren'));
+
+    expect(find.text('Die Passwörter stimmen nicht überein.'), findsOneWidget);
+    expect(
+      backend.adminAccounts.containsKey('neu@example.org'),
+      isFalse,
+      reason: 'Bei abweichender Wiederholung entsteht kein Konto.',
+    );
+
+    await tester.enterText(find.byType(TextField).at(2), 'ganz-geheim-12');
+    await _tap(tester, find.widgetWithText(FilledButton, 'Registrieren'));
+
+    expect(find.textContaining('Bestätigungs-Link'), findsOneWidget);
+    expect(backend.adminAccounts.containsKey('neu@example.org'), isTrue);
+  });
+
   testWidgets('korrektes Löschen entfernt Gruppe, Konto und Login', (
     tester,
   ) async {

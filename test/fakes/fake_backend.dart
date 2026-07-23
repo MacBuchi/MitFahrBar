@@ -39,6 +39,10 @@ class FakeAdminAccount {
 class FakeBackend {
   final Map<String, FakeAccount> accounts = {};
   final Map<String, FakeAdminAccount> adminAccounts = {};
+
+  /// Adressen, für die ein Passwort-Reset angefordert wurde — die Fake-
+  /// Entsprechung der Mail, die in Produktion rausgeht.
+  final List<String> passwordResets = [];
   final Map<String, Group> groups = {};
   final Map<String, FakeCarpoolRepository> _data = {};
   final List<Map<String, Object?>> feedback = [];
