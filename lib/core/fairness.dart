@@ -265,9 +265,10 @@ String? suggestDriver(
 /// einer Sonderklausel (entschieden 2026-07-22, „bis ±2 Punkte").
 const kRateBalance = 2.0;
 
-/// Fahrer-Auswahl für einen **Plan-Tag**: Punkte zuerst, dazu ein begrenzter
-/// Fahrraten-Trim (nur hier — Dashboard und Fahrten-Editor bleiben bei
-/// [suggestDriver]).
+/// Volle Fairness-Reihenfolge für einen **Plan-Tag**: Punkte zuerst, dazu ein
+/// begrenzter Fahrraten-Trim (nur hier — Dashboard und Fahrten-Editor bleiben
+/// bei [suggestDriver]). [suggestPlanDriver] ist der erste Eintrag; die
+/// Mehr-Auto-Wahl (Issue #62) braucht die ganze Liste.
 ///
 /// Das Muster ist eine Kaskadenregelung mit begrenzter Autorität: Der
 /// schnelle innere Kreis sind die Punkte („wer am wenigsten hat, ist dran"),
@@ -286,19 +287,27 @@ const kRateBalance = 2.0;
 /// Doppel-Integration und schwänge (über-/unterkorrigierte Personen im
 /// Wechsel).
 ///
+/// Die Reihenfolge ist **pool-unabhängig**: `meanShare` verschiebt alle
+/// Kandidaten desselben Pools um denselben Betrag und ändert die Ordnung
+/// nie — filtern vor oder nach dem Sortieren ist gleichwertig. Darauf
+/// stützt sich die Sitzplatz-Auswahl in [planWeek].
+///
 /// Greift nur bei `pointsWeight == 1.0`: Der Trim ist in Punkte-Einheiten
 /// definiert. Fährt eine Gruppe das Gewicht zurück (die „Rückfahrkarte"),
 /// gilt wieder unverändert der kombinierte Rang aus [rankPresent].
-String? suggestPlanDriver(
+List<String> rankedPlanDrivers(
   Iterable<String> presentIds,
   Map<String, PersonStats> stats,
   AppSettings settings, {
   required double dayFactor,
 }) {
   final ids = presentIds.toList();
-  if (ids.isEmpty) return null;
+  if (ids.isEmpty) return const [];
   if (settings.pointsWeight != 1.0 || dayFactor == 0) {
-    return suggestDriver(ids, stats, settings);
+    return [
+      for (final candidate in rankPresent(ids, stats, settings))
+        candidate.personId,
+    ];
   }
 
   PersonStats of(String id) =>
@@ -320,22 +329,33 @@ String? suggestPlanDriver(
 
   // Gleicher Tie-Break wie in [rankPresent]: am längsten nicht gefahren
   // zuerst (nie gefahren vor allen), dann Id für Determinismus.
-  final sorted = [...ids]
-    ..sort((a, b) {
-      final byEffective = effective(a).compareTo(effective(b));
-      if (byEffective != 0) return byEffective;
-      final aLast = of(a).lastDrive;
-      final bLast = of(b).lastDrive;
-      if (aLast == null && bLast != null) return -1;
-      if (aLast != null && bLast == null) return 1;
-      if (aLast != null && bLast != null) {
-        final byLast = aLast.compareTo(bLast);
-        if (byLast != 0) return byLast;
-      }
-      return a.compareTo(b);
-    });
-  return sorted.first;
+  return [...ids]..sort((a, b) {
+    final byEffective = effective(a).compareTo(effective(b));
+    if (byEffective != 0) return byEffective;
+    final aLast = of(a).lastDrive;
+    final bLast = of(b).lastDrive;
+    if (aLast == null && bLast != null) return -1;
+    if (aLast != null && bLast == null) return 1;
+    if (aLast != null && bLast != null) {
+      final byLast = aLast.compareTo(bLast);
+      if (byLast != 0) return byLast;
+    }
+    return a.compareTo(b);
+  });
 }
+
+/// Fahrer-Vorschlag für einen Plan-Tag — Kopf von [rankedPlanDrivers].
+String? suggestPlanDriver(
+  Iterable<String> presentIds,
+  Map<String, PersonStats> stats,
+  AppSettings settings, {
+  required double dayFactor,
+}) => rankedPlanDrivers(
+  presentIds,
+  stats,
+  settings,
+  dayFactor: dayFactor,
+).firstOrNull;
 
 /// Die beiden Auffälligkeiten für die Startseite: Wer fährt mit vollem Auto,
 /// wer meist fast allein? Beides ist [PersonStats.quote] — Ø Mitfahrer je
@@ -388,16 +408,44 @@ QuoteExtremes findQuoteExtremes(
   );
 }
 
+/// Ein Auto eines Plan-Tags: Fahrer plus die ihm zugeteilten Mitfahrer.
+///
+/// Die Aufteilung ist eine berechnete Kennzahl wie der Fahrer selbst — sie
+/// wird nie gespeichert (Konzept zu Issue #62). An bestätigten Tagen stehen
+/// hier die **echten** Insassen der eingetragenen Fahrt(en); nur dort trägt
+/// das Auto eine [tripId].
+class PlannedCar {
+  const PlannedCar({
+    required this.driverId,
+    this.fullIds = const [],
+    this.oneWayIds = const [],
+    this.tripId,
+  });
+
+  final String driverId;
+
+  /// Volle Mitfahrer dieses Autos (ohne Fahrer), sortiert nach Id.
+  final List<String> fullIds;
+
+  /// 1-way-Mitfahrer dieses Autos, sortiert nach Id.
+  final List<String> oneWayIds;
+
+  /// Die echte Fahrt hinter diesem Auto — nur an bestätigten Tagen.
+  final String? tripId;
+
+  /// Personen im Auto inklusive Fahrer — das Gegenstück zu [Person.seats].
+  int get headcount => 1 + fullIds.length + oneWayIds.length;
+}
+
 /// Ein Tag im Wochenplan.
 class PlannedDay {
   const PlannedDay({
     required this.date,
     required this.availableIds,
     this.oneWayIds = const {},
-    this.suggestedDriverId,
-    this.driverId,
+    this.suggestedDriverIds = const [],
+    this.cars = const [],
     this.confirmed = false,
-    this.tripId,
   });
 
   final DateTime date;
@@ -409,23 +457,40 @@ class PlannedDay {
   /// diese Personen kommen als Fahrer nicht in Frage.
   final Set<String> oneWayIds;
 
-  /// Was die Fairness-Regel vorschlägt — `null`, wenn niemand verfügbar ist.
-  final String? suggestedDriverId;
+  /// Was die Fairness-Regel vorschlägt, Auto 1 zuerst — leer, wenn niemand
+  /// fahren kann oder der Tag bestätigt ist.
+  final List<String> suggestedDriverIds;
 
-  /// Wer tatsächlich fahren soll: der Vorschlag oder das Übersteuern.
-  final String? driverId;
+  /// Die Autos des Tages mit zugeteilten Mitfahrern: der Vorschlag oder das
+  /// Übersteuern. Leer = kein Fahrer möglich.
+  final List<PlannedCar> cars;
 
-  /// Für diesen Tag existiert bereits eine echte Fahrt. Dann ist nichts mehr
-  /// zu planen und der Tag zählt regulär in die Statistik.
+  /// Für diesen Tag existiert bereits mindestens eine echte Fahrt. Dann ist
+  /// nichts mehr zu planen und der Tag zählt regulär in die Statistik.
   final bool confirmed;
 
-  /// Die eingetragene Fahrt, falls [confirmed] — damit der Planer direkt in
-  /// deren Bearbeitung springen kann, statt sie in der Historie suchen zu
-  /// lassen.
-  final String? tripId;
+  /// Alle Fahrer des Tages, in Auto-Reihenfolge.
+  List<String> get driverIds => [for (final car in cars) car.driverId];
 
-  bool get isOverridden =>
-      !confirmed && driverId != null && driverId != suggestedDriverId;
+  /// Fahrer des ersten Autos. Solange die UI nur ein Auto kennt (Teil 1 von
+  /// Issue #62), hält dieser Getter sie unverändert am Laufen.
+  String? get driverId => cars.firstOrNull?.driverId;
+
+  /// Erster Vorschlags-Fahrer — Gegenstück zu [driverId].
+  String? get suggestedDriverId => suggestedDriverIds.firstOrNull;
+
+  /// Die eingetragene Fahrt des ersten Autos, falls [confirmed] — damit der
+  /// Planer direkt in deren Bearbeitung springen kann, statt sie in der
+  /// Historie suchen zu lassen.
+  String? get tripId => cars.firstOrNull?.tripId;
+
+  /// Von Hand gesetzt heißt: Die Fahrer-MENGE weicht vom Vorschlag ab.
+  bool get isOverridden {
+    if (confirmed || cars.isEmpty) return false;
+    final actual = {for (final car in cars) car.driverId};
+    final suggested = suggestedDriverIds.toSet();
+    return actual.length != suggested.length || !actual.containsAll(suggested);
+  }
 }
 
 /// Wer das vollste Auto der Woche fährt — das Konfetti im Planer.
@@ -442,20 +507,21 @@ class PlannedDay {
 /// Mitfahrten ein „volleres" Auto anzeigten als eine ganze. Das Hajo
 /// bleibt trotzdem reine Dekoration: berechnet, nie gespeichert, und
 /// Geplantes berührt die Punkte weiterhin nicht.
+///
+/// Seit Issue #62 zählt jedes **Auto** für sich (ein Tag kann mehrere
+/// haben). Bestätigte Tage zählen damit die echten Insassen ihrer Fahrt
+/// statt der Plan-Verfügbarkeit — die frühere Zählung übers ganze Raster
+/// war nur richtig, solange Fahrt und Plan deckungsgleich waren.
 Set<String> celebratedDrivers(
   List<PlannedDay> days, {
   required double oneWayFactor,
 }) {
-  final fullest = <String, double>{}; // Fahrer → punktstärkster eigener Tag.
+  final fullest = <String, double>{}; // Fahrer → punktstärkstes eigenes Auto.
   for (final day in days) {
-    final driver = day.driverId;
-    if (driver == null) continue;
-    var carried = 0.0;
-    for (final id in day.availableIds) {
-      if (id == driver) continue;
-      carried += day.oneWayIds.contains(id) ? oneWayFactor : 1;
+    for (final car in day.cars) {
+      final carried = car.fullIds.length + oneWayFactor * car.oneWayIds.length;
+      fullest[car.driverId] = math.max(fullest[car.driverId] ?? 0, carried);
     }
-    fullest[driver] = math.max(fullest[driver] ?? 0, carried);
   }
   final best = fullest.values.fold(0.0, math.max);
   if (best <= 0) return const {};
@@ -467,11 +533,13 @@ Set<String> celebratedDrivers(
 
 /// Vorschau: Statistik, wie sie NACH der geplanten Woche aussähe.
 ///
-/// Die geplanten (noch nicht bestätigten) Tage mit Fahrer werden als
-/// Pseudo-Fahrten zu den echten dazugerechnet — Fahrer, volle Mitfahrer,
-/// 1-way wie eingetragen. Bestätigte Tage stecken schon in [trips] und
-/// werden nicht doppelt gezählt; ein geplanter Solo-Tag fällt über die
-/// Solo-Regel (Issue #61) von selbst heraus.
+/// Die geplanten (noch nicht bestätigten) Tage werden **je Auto** als
+/// Pseudo-Fahrt zu den echten dazugerechnet — Fahrer, volle Mitfahrer,
+/// 1-way wie eingetragen; so teilt sich das „Mitgenommen" eines
+/// Mehr-Auto-Tags auf seine Fahrer (Issue #62). Bestätigte Tage stecken
+/// schon in [trips] und werden nicht doppelt gezählt; ein geplanter
+/// Solo-Tag — oder ein Auto ohne Mitfahrer — fällt über die Solo-Regel
+/// (Issue #61) von selbst heraus, genau wie der echte Eintrag später auch.
 ///
 /// Nur fürs **Anzeigen** von Deltas im Planer (Issue #60): Punktediff und
 /// Fahrraten-Änderung der Woche. Geplantes berührt die echten Punkte nie —
@@ -483,19 +551,17 @@ Map<String, PersonStats> statsWithPlannedWeek(
 ) {
   final planned = <Trip>[
     for (final day in days)
-      if (!day.confirmed && day.driverId != null)
-        Trip(
-          id: 'geplant-${_dayKey(day.date)}',
-          date: day.date,
-          participations: {
-            for (final id in day.availableIds)
-              id: id == day.driverId
-                  ? ParticipationStatus.driver
-                  : day.oneWayIds.contains(id)
-                  ? ParticipationStatus.oneWay
-                  : ParticipationStatus.passenger,
-          },
-        ),
+      if (!day.confirmed)
+        for (final (i, car) in day.cars.indexed)
+          Trip(
+            id: 'geplant-${_dayKey(day.date)}-$i',
+            date: day.date,
+            participations: {
+              car.driverId: ParticipationStatus.driver,
+              for (final id in car.fullIds) id: ParticipationStatus.passenger,
+              for (final id in car.oneWayIds) id: ParticipationStatus.oneWay,
+            },
+          ),
   ];
   return computeStats([...trips, ...planned], settings);
 }
@@ -512,27 +578,37 @@ int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
 ///
 /// Tage mit einer bereits eingetragenen Fahrt bleiben unangetastet: Sie
 /// stecken schon in [trips] und dürfen nicht zusätzlich simuliert werden,
-/// sonst zählte derselbe Tag doppelt.
+/// sonst zählte derselbe Tag doppelt. Jede echte Fahrt des Tages erscheint
+/// als eigenes Auto (bis Issue #62 kollabierten mehrere auf die letzte).
 ///
 /// Wer nur eine Richtung mitfährt, **kann an dem Tag nicht Fahrer sein** —
 /// ein halber Weg stellt kein Auto. Für die Simulation zählt er als
 /// 1-way-Mitfahrt (halbe Punkte), nicht als volle.
 ///
-/// [seats] sind die gepflegten Sitzplätze (inklusive Fahrer) je Person. Wessen
-/// Auto für die Anwesenden reicht, wird bevorzugt — aber **vor** der
-/// Fairness-Regel gefiltert, nicht in sie hineingerechnet: Die Punkte bleiben
-/// unangetastet, es wird nur die Auswahl eingeschränkt. Fehlt der Eintrag oder
-/// passt niemandes Auto, gilt wieder das ganze Kandidatenfeld.
+/// **Sitzplätze und Autozahl (Issue #62):** [seats] sind die gepflegten
+/// Plätze (inklusive Fahrer) je Person; ein fehlender Eintrag sortiert nie
+/// aus. Reicht ein einzelnes Auto für alle, bleibt es bei einem. Sonst
+/// fahren so wenige Autos wie möglich: k ist die kleinste Zahl, deren k
+/// größte Kandidaten-Autos alle fassen — ein 7-Sitzer schlägt zwei kleine.
+/// **Wer** fährt, entscheidet weiter die Fairness: die punktbeste machbare
+/// k-Teilmenge entlang [rankedPlanDrivers] (die Reihenfolge ist
+/// pool-unabhängig, siehe dort — deshalb ist k = 1 exakt der alte
+/// „passendes Auto zuerst"-Filter). Reichen selbst alle Autos zusammen
+/// nicht, fällt die Sitzprüfung weg: lieber zu wenige Plätze als ein Tag
+/// ohne Fahrer — die alte Rückfalllinie, verallgemeinert.
 ///
-/// Die Fahrerwahl je Tag trifft [suggestPlanDriver]: Punkte zuerst, dazu der
-/// auf ±2 Punkte begrenzte Fahrraten-Trim entlang der Tagesgrößen.
+/// [maxCars] begrenzt die Autozahl; `1` erzwingt die alte Ein-Auto-Regel
+/// samt Rückfalllinie. Das nutzt der `WeekPlanNotifier`, bis die UI mehrere
+/// Autos anzeigen und eintragen kann (Issue #62, Teil 2); `null` heißt: so
+/// viele wie nötig.
 List<PlannedDay> planWeek({
   required List<DateTime> dates,
   required Map<DateTime, Map<String, PlanRide>> availability,
-  required Map<DateTime, String> overrides,
+  required Map<DateTime, Set<String>> overrides,
   required List<Trip> trips,
   required AppSettings settings,
   Map<String, int> seats = const {},
+  int? maxCars,
 }) {
   final availableByDay = {
     for (final entry in availability.entries) _dayKey(entry.key): entry.value,
@@ -540,15 +616,21 @@ List<PlannedDay> planWeek({
   final overrideByDay = {
     for (final entry in overrides.entries) _dayKey(entry.key): entry.value,
   };
-  final realTripByDay = {for (final trip in trips) _dayKey(trip.date): trip};
+  final realTripsByDay = <int, List<Trip>>{};
+  for (final trip in trips) {
+    realTripsByDay.putIfAbsent(_dayKey(trip.date), () => []).add(trip);
+  }
 
-  // Tagesgrößen der noch planbaren Tage (Mitfahrer = Verfügbare − Fahrer),
+  // Tagesgrößen der noch planbaren Tage (Mitfahrer = Verfügbare − 1),
   // normiert auf [−1, 1] um das Wochenmittel — der [dayFactor] für den
-  // Fahrraten-Trim in [suggestPlanDriver]. Eingetragene und leere Tage
-  // zählen nicht mit: Dort gibt es nichts mehr zu wählen.
+  // Fahrraten-Trim in [rankedPlanDrivers]. Eingetragene und leere Tage
+  // zählen nicht mit: Dort gibt es nichts mehr zu wählen. Dass ein
+  // Mehr-Auto-Tag eigentlich k Fahrer stellt, ignoriert die Größe bewusst:
+  // k steht erst nach der Wahl fest, und der Trim ist ohnehin auf ±2 Punkte
+  // gedeckelt — eine genauere Tagesgröße änderte nur Nuancen.
   final dayPassengers = <int, int>{
     for (final date in dates)
-      if (!realTripByDay.containsKey(_dayKey(date)) &&
+      if (!realTripsByDay.containsKey(_dayKey(date)) &&
           (availableByDay[_dayKey(date)] ?? const {}).isNotEmpty)
         _dayKey(date): availableByDay[_dayKey(date)]!.length - 1,
   };
@@ -577,16 +659,32 @@ List<PlannedDay> planWeek({
         if (e.value == PlanRide.oneWay) e.key,
     };
 
-    final existing = realTripByDay[key];
+    final existing = realTripsByDay[key];
     if (existing != null) {
       plan.add(
         PlannedDay(
           date: date,
           availableIds: available,
           oneWayIds: oneWayIds,
-          driverId: existing.driverId,
           confirmed: true,
-          tripId: existing.id,
+          cars: [
+            // Eine (importierte) Fahrt ganz ohne Fahrer stellt kein Auto —
+            // sie bleibt über die Historie erreichbar.
+            for (final trip in existing)
+              if (trip.driverId case final driverId?)
+                PlannedCar(
+                  driverId: driverId,
+                  fullIds: [
+                    for (final e in trip.participations.entries)
+                      if (e.value == ParticipationStatus.passenger) e.key,
+                  ]..sort(),
+                  oneWayIds: [
+                    for (final e in trip.participations.entries)
+                      if (e.value == ParticipationStatus.oneWay) e.key,
+                  ]..sort(),
+                  tripId: trip.id,
+                ),
+          ],
         ),
       );
       continue;
@@ -604,58 +702,150 @@ List<PlannedDay> planWeek({
       for (final id in available)
         if (!oneWayIds.contains(id)) id,
     ];
-    // Wessen Auto reicht für alle, die an dem Tag können? Ein fehlender
-    // Eintrag sortiert nie aus — jede Person hat zwar eine Vorgabe (5), aber
-    // die Karte kann unvollständig übergeben werden, und daraus darf kein
-    // stiller Ausschluss werden.
-    final fitting = [
-      for (final id in candidates)
-        if ((seats[id] ?? available.length) >= available.length) id,
-    ];
-    // Passt an einem Tag niemandes Auto, bleibt der beste Vorschlag aus allen
-    // Kandidaten stehen: ein Tag ganz ohne Fahrer wäre schlechter als einer,
-    // an dem man zusammenrückt oder ein zweites Auto nimmt.
-    final pool = fitting.isEmpty ? candidates : fitting;
+    final n = available.length;
+    // Ein fehlender Eintrag sortiert nie aus — jede Person hat zwar eine
+    // Vorgabe (5), aber die Karte kann unvollständig übergeben werden, und
+    // daraus darf kein stiller Ausschluss werden.
+    int seatOf(String id) => seats[id] ?? n;
+
     final stats = computeStats(simulated, settings);
-    final suggested = suggestPlanDriver(
-      pool,
+    final ranked = rankedPlanDrivers(
+      candidates,
       stats,
       settings,
       dayFactor: dayFactorOf(key),
     );
-    // Ein Übersteuern auf jemanden, der inzwischen abgesagt hat oder nur noch
-    // eine Richtung mitfährt, wird stillschweigend ignoriert statt eine tote
-    // Auswahl anzuzeigen.
-    final override = overrideByDay[key];
-    final driver = override != null && candidates.contains(override)
-        ? override
-        : suggested;
+
+    // Minimale Autozahl: kleinstes k, dessen k größte Autos alle fassen.
+    final bySeatDesc = [...candidates]
+      ..sort((a, b) {
+        final bySeat = seatOf(b).compareTo(seatOf(a));
+        return bySeat != 0 ? bySeat : a.compareTo(b);
+      });
+    final limit = math.min(maxCars ?? candidates.length, candidates.length);
+    var k = limit;
+    var coverable = false;
+    var seatSum = 0;
+    for (var i = 0; i < limit; i++) {
+      seatSum += seatOf(bySeatDesc[i]);
+      if (seatSum >= n) {
+        k = i + 1;
+        coverable = true;
+        break;
+      }
+    }
+
+    List<String> suggested;
+    if (!coverable) {
+      // Reichen selbst alle (erlaubten) Autos zusammen nicht, fällt die
+      // Sitzprüfung weg: lieber zu wenige Plätze als ein Tag ohne Fahrer —
+      // die alte Rückfalllinie, verallgemeinert auf k Autos.
+      suggested = ranked.take(k).toList();
+    } else {
+      // Fairness-erste machbare k-Teilmenge: je Slot der punktbeste
+      // Kandidat, mit dem die restlichen Slots — besetzt mit den größten
+      // übrigen Autos — noch auf n Plätze kommen. Die Prüfung ist exakt,
+      // deshalb findet jeder Slot einen Fahrer.
+      suggested = <String>[];
+      var pickedSeats = 0;
+      for (var slot = 0; slot < k; slot++) {
+        final restSlots = k - slot - 1;
+        for (final cand in ranked) {
+          if (suggested.contains(cand)) continue;
+          var rest = 0;
+          var counted = 0;
+          for (final other in bySeatDesc) {
+            if (counted == restSlots) break;
+            if (other == cand || suggested.contains(other)) continue;
+            rest += seatOf(other);
+            counted++;
+          }
+          if (pickedSeats + seatOf(cand) + rest >= n) {
+            suggested.add(cand);
+            pickedSeats += seatOf(cand);
+            break;
+          }
+        }
+      }
+    }
+
+    // Ein Übersteuern auf jemanden, der inzwischen abgesagt hat oder nur
+    // noch eine Richtung mitfährt, verfällt JE PERSON statt eine tote
+    // Auswahl anzuzeigen; verfallen alle, gilt wieder der Vorschlag. Eine
+    // gültige Menge ersetzt den Vorschlag komplett — ohne Sitzprüfung, das
+    // ist eine Menschenentscheidung (wie bisher beim einzelnen Fahrer).
+    final override = {
+      for (final id in overrideByDay[key] ?? const <String>{})
+        if (candidates.contains(id)) id,
+    };
+    final driverSet = override.isEmpty
+        ? suggested
+        : [
+            for (final id in ranked)
+              if (override.contains(id)) id,
+          ];
+
+    // Mitfahrer deterministisch ausgeglichen verteilen: jede Person ins
+    // Auto mit den meisten freien Plätzen (Gleichstand: erstes Auto). So
+    // teilt sich das „Mitgenommen" des Tages möglichst gleichmäßig auf die
+    // Fahrer, und kein Auto wird überfüllt, solange die Plätze insgesamt
+    // reichen. 1-way belegt dabei einen Sitz — dieselbe Regel wie im
+    // Fahrten-Editor.
+    final carFull = [for (final _ in driverSet) <String>[]];
+    final carOneWay = [for (final _ in driverSet) <String>[]];
+    if (driverSet.isNotEmpty) {
+      for (final id in available) {
+        if (driverSet.contains(id)) continue;
+        var best = 0;
+        var bestFree = -n - 1;
+        for (var i = 0; i < driverSet.length; i++) {
+          final free =
+              seatOf(driverSet[i]) -
+              1 -
+              carFull[i].length -
+              carOneWay[i].length;
+          if (free > bestFree) {
+            bestFree = free;
+            best = i;
+          }
+        }
+        (oneWayIds.contains(id) ? carOneWay : carFull)[best].add(id);
+      }
+    }
+    final cars = [
+      for (var i = 0; i < driverSet.length; i++)
+        PlannedCar(
+          driverId: driverSet[i],
+          fullIds: carFull[i],
+          oneWayIds: carOneWay[i],
+        ),
+    ];
 
     plan.add(
       PlannedDay(
         date: date,
         availableIds: available,
         oneWayIds: oneWayIds,
-        suggestedDriverId: suggested,
-        driverId: driver,
+        suggestedDriverIds: suggested,
+        cars: cars,
       ),
     );
 
-    if (driver != null) {
+    // Je Auto eine Pseudo-Fahrt — so verteilt sich das „Mitgenommen" des
+    // Tages auf alle Fahrer. Ein Auto ohne Mitfahrer ist dabei eine
+    // Solo-Fahrt und zählt nichts (Issue #61), genau wie der spätere echte
+    // Eintrag. 1-way zählt halb (oneWayFactor); als volle Mitfahrt gebucht,
+    // rechnete der Vorschlag der Folgetage mit zu vielen Punkten und die
+    // ganze Woche kippte.
+    for (final (i, car) in cars.indexed) {
       simulated.add(
         Trip(
-          id: 'plan-$key',
+          id: 'plan-$key-$i',
           date: date,
           participations: {
-            for (final id in available)
-              id: id == driver
-                  ? ParticipationStatus.driver
-                  // 1-way zählt halb (oneWayFactor). Als volle Mitfahrt
-                  // gebucht, rechnete der Vorschlag der Folgetage mit zu
-                  // vielen Punkten und die ganze Woche kippte.
-                  : oneWayIds.contains(id)
-                  ? ParticipationStatus.oneWay
-                  : ParticipationStatus.passenger,
+            car.driverId: ParticipationStatus.driver,
+            for (final id in car.fullIds) id: ParticipationStatus.passenger,
+            for (final id in car.oneWayIds) id: ParticipationStatus.oneWay,
           },
         ),
       );
