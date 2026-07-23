@@ -12,6 +12,7 @@ import '../../core/fairness.dart';
 import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
+import '../../models/plan_ride.dart';
 import '../../models/trip.dart';
 
 class TripEditorScreen extends ConsumerStatefulWidget {
@@ -29,6 +30,14 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
   final Set<String> _oneWay = {};
   String? _manualDriverId;
   bool _initialized = false;
+
+  /// Für welchen Tag die Auswahl zuletzt aus dem Wochenplan vorbelegt wurde —
+  /// `null`, solange die Plan-Daten noch nicht da sind.
+  DateTime? _prefilledFor;
+
+  /// Sobald von Hand gewählt wurde, wird nie mehr vorbelegt — auch dann
+  /// nicht, wenn die Plan-Daten erst nach dem ersten Tipp eintreffen.
+  bool _dirty = false;
   bool _saving = false;
 
   static DateTime _today() {
@@ -57,6 +66,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
 
   void _cycle(String personId) {
     setState(() {
+      _dirty = true;
       if (_full.contains(personId)) {
         _full.remove(personId);
         // 1-way braucht jemanden, der wirklich fährt: Bleibt sonst niemand
@@ -236,6 +246,27 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       _initialized = true;
     }
 
+    // Neue Fahrt: Teilnehmer aus dem Wochenplan des gewählten Tages
+    // vorbelegen (Issue #65). Mutation im Build wie bei _initFromTrip —
+    // der restliche Build rechnet direkt mit der frischen Auswahl
+    // (Fahrer-Vorschlag, Kachel-Zustand).
+    if (!_isEdit && !_dirty) {
+      final rides = ref.watch(dayAvailabilityProvider(_date)).value;
+      if (_prefilledFor != _date) {
+        // Sofort leeren: Zwischen Datumswechsel und Datenankunft darf keine
+        // Vorauswahl des alten Tages stehen — sonst speichert ein schneller
+        // Tipp die falschen Leute.
+        _full.clear();
+        _oneWay.clear();
+        if (rides != null) {
+          for (final e in rides.entries) {
+            (e.value == PlanRide.full ? _full : _oneWay).add(e.key);
+          }
+          _prefilledFor = _date;
+        }
+      }
+    }
+
     // Fahrer-Vorschlag aus der Historie OHNE die gerade bearbeitete Fahrt,
     // sonst beeinflusst der bisherige Eintrag seinen eigenen Vorschlag.
     final stats = computeStats([
@@ -284,7 +315,10 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
             driver: driverId == null ? null : byId[driverId],
             suggested: suggestedId == null ? null : byId[suggestedId],
             overridden: driverId != suggestedId,
-            onAccept: (id) => setState(() => _manualDriverId = id),
+            onAccept: (id) => setState(() {
+              _manualDriverId = id;
+              _dirty = true;
+            }),
             onReset: () => setState(() => _manualDriverId = null),
           ),
           if (_seatWarning(byId[driverId]) case final warning?) ...[
@@ -296,6 +330,14 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
             'Wer ist dabei?',
             style: Theme.of(context).textTheme.titleMedium,
           ),
+          if (!_isEdit &&
+              !_dirty &&
+              _prefilledFor == _date &&
+              (_full.isNotEmpty || _oneWay.isNotEmpty))
+            Text(
+              'Vorauswahl aus dem Wochenplan übernommen.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           const SizedBox(height: AppSpacing.s),
           Wrap(
             spacing: AppSpacing.s,

@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.25.0] – 2026-07-23
+
+### Neu
+
+- **„Fahrt eintragen" übernimmt den Wochenplan** (euer Wunsch): Wer für
+  den gewählten Tag im Planer eingetragen ist, steht beim Öffnen schon
+  in der Auswahl — 1-way bleibt 1-way. Wechselt das Datum, wandert die
+  Vorauswahl mit, solange nichts von Hand geändert wurde; Handarbeit
+  gewinnt immer. Den Fahrer schlägt RideBuddy wie gewohnt nach
+  Punktestand vor.
+
 ## [0.24.0] – 2026-07-23
 
 ### Neu

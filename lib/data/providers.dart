@@ -315,3 +315,31 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
     }, ref.read(carpoolRepositoryProvider).setPlanDriver(date, driverId));
   }
 }
+
+/// Gespeicherte Verfügbarkeit EINES Tages (Person → wie sie mitfährt),
+/// gefiltert auf aktive Personen — dieselbe Regel wie im [WeekPlanNotifier]
+/// (Issue #54). Der Fahrten-Editor belegt damit bei einer NEUEN Fahrt die
+/// Teilnehmer-Auswahl vor (Issue #65). Bewusst nicht über [weekPlanProvider]:
+/// Der deckt nur die zu planende Woche ab, der Editor aber jedes vergangene
+/// Datum. Der Schlüssel muss auf Tagesbeginn normiert sein, sonst entsteht
+/// je Uhrzeit ein eigener Cache-Eintrag; `autoDispose` räumt verlassene Tage
+/// beim Datumswechsel weg.
+final dayAvailabilityProvider = FutureProvider.autoDispose
+    .family<Map<String, PlanRide>, DateTime>((ref, day) async {
+      ref.watch(currentUserIdProvider);
+      final plan = await ref
+          .watch(carpoolRepositoryProvider)
+          .loadPlan(day, days: 1);
+      final persons = await ref.watch(personsProvider.future);
+      final active = {
+        for (final p in persons)
+          if (p.active) p.id,
+      };
+      // Nur ein Tag abgefragt — alles Zurückgekommene gehört zu [day];
+      // so hängt nichts am Schlüsselformat der Antwort.
+      return {
+        for (final rides in plan.availability.values)
+          for (final e in rides.entries)
+            if (active.contains(e.key)) e.key: e.value,
+      };
+    });

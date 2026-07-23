@@ -122,6 +122,12 @@ class HelpScreen extends StatelessWidget {
                     'eine Richtung. Ein drittes Mal: wieder raus.',
               ),
               _Line(
+                leading: Icon(Icons.event_available_outlined),
+                text:
+                    'Steht der Tag schon im Wochenplan, sind die Leute von '
+                    'dort vorausgewählt — Antippen ändert es wie gewohnt.',
+              ),
+              _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
                 text:
                     'Den Fahrer setzt RideBuddy automatisch — wer laut '
