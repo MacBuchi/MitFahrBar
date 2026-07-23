@@ -12,7 +12,7 @@ Drei Betriebsarten, ein und dieselbe Suite (`test/e2e/`):
 | --- | --- | --- |
 | Mac (lokal) | Entwicklung, schnelle Iteration | `tool/e2e.sh` |
 | CI (GitHub Actions) | jeder PR, automatisch | Job „E2E (Supabase-Stack)" |
-| Proxmox-VM `ridebuddy-test` | dauerhaft an, Handy-Browser-Tests | Suite per `E2E_*`-Variablen dagegen fahren |
+| Proxmox-VM `ridebuddy-test` | auf Abruf (Default: gestoppt), Handy-Browser-Tests | `tool/e2e_vm.sh` |
 
 ## Die E2E-Suite (`test/e2e/`)
 
@@ -77,34 +77,30 @@ Ein CLI-Upgrade ändert den lokalen Stack (Ports/Sektionen in
 `supabase/config.toml`) und wird zusammen mit einem lokalen Upgrade
 getestet, nie nebenbei.
 
-## Proxmox-VM `ridebuddy-test` (VM 120)
+## Proxmox-VM `ridebuddy-test` (VM 120) — auf Abruf
 
-Dauerhaft laufendes Testbackend im LAN — für Tests vom Handy-Browser aus
-und als Ziel für Suite-Läufe ohne lokalen Docker. IP/Zugang stehen bewusst
-nicht hier (öffentliches Repo), sondern in der lokalen Secrets-Ablage.
+Testbackend im LAN für Tests vom Handy-Browser aus und Suite-Läufe ohne
+lokalen Docker. **Die VM ist standardmäßig gestoppt** (der Host ist
+RAM-knapp — eine dauerlaufende VM wurde vom Ballooning erdrückt, siehe
+Fundstücke): Sie fährt nur für einen Testlauf hoch, holt sich davor den
+aktuellen Git-Stand und eine frische Datenbank und fährt danach wieder
+herunter. IP/Zugang stehen bewusst nicht hier (öffentliches Repo),
+sondern in der lokalen Secrets-Ablage.
+
+Der ganze Zyklus ist ein Befehl (Umgebungsvariablen: siehe Skript-Kopf
+bzw. Secrets-Ablage):
+
+```bash
+tool/e2e_vm.sh                  # VM hoch → pull + db reset → Suite → VM aus
+RIDEBUDDY_VM_KEEP=1 tool/e2e_vm.sh   # VM anlassen, z. B. für Handy-Tests
+```
 
 Aufbau (einmalig, so wurde sie erstellt): Ubuntu 24.04 Cloud-Image,
-Docker + Supabase-CLI (gleiche Version wie CI), Repo-Klon, systemd-Unit
-`supabase-stack.service` startet den Stack beim Boot (`--onboot 1`).
-
-Suite von einem Entwicklungsrechner gegen die VM:
-
-```bash
-E2E_SUPABASE_URL=http://<vm-ip>:55321 \
-E2E_SUPABASE_ANON_KEY=<ANON_KEY> \
-E2E_SUPABASE_SERVICE_KEY=<SERVICE_ROLE_KEY> \
-E2E_MAILPIT_URL=http://<vm-ip>:55324 \
-tool/e2e.sh
-```
-
-(Die Keys zeigt `supabase status` auf der VM; es sind die bekannten
-Demo-Keys des lokalen Stacks, keine Geheimnisse.)
-
-Schema aktualisieren bzw. frisch aufsetzen — auf der VM:
-
-```bash
-cd ~/Fahrgemeinschaft && git pull && supabase db reset
-```
+2,5 GB RAM (Ballooning bewusst aus) + 2 GB Swap, Docker + Supabase-CLI
+(gleiche Version wie CI), Repo-Klon in `~/Fahrgemeinschaft`, systemd-Unit
+`supabase-stack.service` zieht den Stack bei jedem VM-Start automatisch
+hoch. Die Keys des Stacks sind die bekannten Demo-Keys, keine
+Geheimnisse.
 
 Web-App fürs Handy: Build wie oben mit `SUPABASE_URL=http://<vm-ip>:55321`,
 per `python3 -m http.server 8731` ausliefern (Mac oder VM) und im
@@ -127,6 +123,11 @@ bewusst außerhalb des Umfangs.
   Brevo-Log auf eine Signup-Mail wartet, wartet vergeblich; nur
   Passwort-Reset-Mails werden verschickt. Festgenagelt in
   `auth_mail_e2e_test.dart`.
+- **Auto-Ballooning erdrückt den Stack**: Auf einem RAM-knappen Host
+  schrumpft Proxmox laufende VMs Richtung Balloon-Minimum — die Test-VM
+  wurde bei laufendem `db reset` auf ~1,2 GB gedrückt und war nur noch
+  per Ping erreichbar. Deshalb: Ballooning für die Test-VM aus, 2 GB
+  Swap als Puffer, und die VM läuft grundsätzlich nur auf Abruf.
 
 ## Grenzen
 
