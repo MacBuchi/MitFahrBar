@@ -178,7 +178,8 @@ class HelpScreen extends StatelessWidget {
                 leading: MoodFace(mood: Mood.celebrating, size: 22),
                 text:
                     'Hajo! Das Konfetti bekommt, wer das vollste Auto der '
-                    'Woche fährt — bei Gleichstand alle.',
+                    'Woche fährt — gezählt wie die Punkte, eine 1-way-'
+                    'Mitfahrt also halb. Bei Gleichstand alle.',
               ),
             ],
           ),

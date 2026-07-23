@@ -14,6 +14,7 @@ import '../../core/mood.dart';
 import '../../core/tokens.dart';
 import '../../core/widgets/mood_face.dart';
 import '../../data/providers.dart';
+import '../../models/app_settings.dart';
 import '../../models/person.dart';
 import '../../models/trip.dart';
 
@@ -61,7 +62,15 @@ class _Content extends ConsumerWidget {
     }
 
     final byId = {for (final p in persons) p.id: p};
-    final celebratedIds = celebratedDrivers(days);
+    // 1-way wiegt im Hajo wie in den Punkten (Issue #59) — der Faktor kommt
+    // aus den Gruppen-Settings; bis sie geladen sind, gilt die Vorgabe.
+    final oneWayFactor = ref
+        .watch(settingsProvider)
+        .maybeWhen(data: (s) => s.oneWayFactor, orElse: () => null);
+    final celebratedIds = celebratedDrivers(
+      days,
+      oneWayFactor: oneWayFactor ?? const AppSettings().oneWayFactor,
+    );
     final celebratedNames = [
       for (final p in persons)
         if (celebratedIds.contains(p.id)) p.name,

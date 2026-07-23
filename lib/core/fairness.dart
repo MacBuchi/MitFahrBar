@@ -423,19 +423,30 @@ class PlannedDay {
 /// entschieden 2026-07-22. Bei Gleichstand bekommen **alle** Fahrer solcher
 /// Tage das Konfetti; leer, wenn niemand jemanden mitnimmt.
 ///
-/// Eine 1-way-Mitfahrt zählt hier als **ganzer Kopf**, nicht als halbe wie in
-/// den Punkten: Die Auszeichnung feiert ein volles Auto, nicht den
-/// Punktestand — und Geplantes darf die Punkte ohnehin nie berühren.
-Set<String> celebratedDrivers(List<PlannedDay> days) {
-  final fullest = <String, int>{}; // Fahrer → vollster eigener Tag.
+/// Gewichtet wird **wie in den Punkten** (Issue #59, Wunsch der Gruppe):
+/// volle Mitfahrt = 1, 1-way = [oneWayFactor] — derselbe Faktor aus den
+/// Gruppen-Settings, den auch `carriedOfTrip` nutzt. Ursprünglich zählte
+/// hier jeder Kopf ganz; das fühlte sich falsch an, weil zwei halbe
+/// Mitfahrten ein „volleres" Auto anzeigten als eine ganze. Das Hajo
+/// bleibt trotzdem reine Dekoration: berechnet, nie gespeichert, und
+/// Geplantes berührt die Punkte weiterhin nicht.
+Set<String> celebratedDrivers(
+  List<PlannedDay> days, {
+  required double oneWayFactor,
+}) {
+  final fullest = <String, double>{}; // Fahrer → punktstärkster eigener Tag.
   for (final day in days) {
     final driver = day.driverId;
     if (driver == null) continue;
-    final passengers = day.availableIds.where((id) => id != driver).length;
-    fullest[driver] = math.max(fullest[driver] ?? 0, passengers);
+    var carried = 0.0;
+    for (final id in day.availableIds) {
+      if (id == driver) continue;
+      carried += day.oneWayIds.contains(id) ? oneWayFactor : 1;
+    }
+    fullest[driver] = math.max(fullest[driver] ?? 0, carried);
   }
-  final best = fullest.values.fold(0, math.max);
-  if (best == 0) return const {};
+  final best = fullest.values.fold(0.0, math.max);
+  if (best <= 0) return const {};
   return {
     for (final entry in fullest.entries)
       if (entry.value == best) entry.key,
