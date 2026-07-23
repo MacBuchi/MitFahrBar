@@ -113,6 +113,66 @@ void main() {
       );
       expect(never.participatedRecently(DateTime.parse('2026-03-01')), isFalse);
     });
+
+    // Issue #61: Eine Fahrt ganz allein ist keine Fahrgemeinschafts-Fahrt.
+    // Sie darf in KEINE Kennzahl eingehen — der Fahranteil steuert seit dem
+    // Raten-Trim die Planer-Vorschläge, eine Solo-Fahrt würde sie verzerren.
+    group('Solo-Fahrten (Issue #61)', () {
+      test('eine Solo-Fahrt erzeugt gar keine Statistik', () {
+        final stats = computeStats([
+          trip('2026-01-05', {'a': ParticipationStatus.driver}),
+        ], settings);
+        expect(stats, isEmpty);
+      });
+
+      test('Solo-Fahrten verändern keine Kennzahl einer echten Fahrt', () {
+        final real = trip('2026-01-05', {
+          'a': ParticipationStatus.driver,
+          'b': ParticipationStatus.passenger,
+        });
+        final withSolo = computeStats([
+          real,
+          trip('2026-01-06', {'a': ParticipationStatus.driver}),
+          trip('2026-01-07', {'b': ParticipationStatus.driver}),
+        ], settings);
+        final without = computeStats([real], settings);
+
+        for (final id in ['a', 'b']) {
+          expect(withSolo[id]!.points, without[id]!.points);
+          expect(withSolo[id]!.driven, without[id]!.driven);
+          expect(withSolo[id]!.driveShare, without[id]!.driveShare);
+          expect(withSolo[id]!.quote, without[id]!.quote);
+          expect(
+            withSolo[id]!.participationDays,
+            without[id]!.participationDays,
+            reason: 'Auch Kilometer hängen an den Teilnahmetagen.',
+          );
+        }
+        expect(
+          withSolo['a']!.lastDrive,
+          DateTime.parse('2026-01-05'),
+          reason:
+              'Die spätere Solo-Fahrt darf lastDrive nicht anfassen — '
+              'eine Wahrheit, nicht zwei.',
+        );
+      });
+
+      test('isSoloTrip erkennt genau die Ein-Personen-Fahrt', () {
+        expect(
+          isSoloTrip(trip('2026-01-05', {'a': ParticipationStatus.driver})),
+          isTrue,
+        );
+        expect(
+          isSoloTrip(
+            trip('2026-01-05', {
+              'a': ParticipationStatus.driver,
+              'b': ParticipationStatus.oneWay,
+            }),
+          ),
+          isFalse,
+        );
+      });
+    });
   });
 
   group('rankPresent / suggestDriver', () {

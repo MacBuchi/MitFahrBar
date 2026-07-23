@@ -59,7 +59,10 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
     setState(() {
       if (_full.contains(personId)) {
         _full.remove(personId);
-        _oneWay.add(personId);
+        // 1-way braucht jemanden, der wirklich fährt: Bleibt sonst niemand
+        // voll dabei, geht es direkt auf „raus" statt in einen Zustand, in
+        // dem kein Fahrer mehr möglich ist (Issue #61).
+        if (_full.isNotEmpty) _oneWay.add(personId);
         if (_manualDriverId == personId) _manualDriverId = null;
       } else if (_oneWay.contains(personId)) {
         _oneWay.remove(personId);

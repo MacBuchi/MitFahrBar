@@ -113,9 +113,102 @@ class _Content extends ConsumerWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
+        _WeekDeltas(days: days, persons: persons),
         const SizedBox(height: AppSpacing.m),
         for (final day in days) _DayRow(day: day, byId: byId),
       ],
+    );
+  }
+}
+
+/// Was die geplante Woche ändern würde — je Person als Punktediff oder als
+/// Fahrraten-Änderung in Promille, umschaltbar (Issue #60). Reine Vorschau
+/// aus [statsWithPlannedWeek]: berechnet, nie gespeichert.
+class _WeekDeltas extends ConsumerStatefulWidget {
+  const _WeekDeltas({required this.days, required this.persons});
+
+  final List<PlannedDay> days;
+  final List<Person> persons;
+
+  @override
+  ConsumerState<_WeekDeltas> createState() => _WeekDeltasState();
+}
+
+class _WeekDeltasState extends ConsumerState<_WeekDeltas> {
+  bool _showRate = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final trips = ref.watch(tripsProvider).valueOrNull;
+    final settings = ref.watch(settingsProvider).valueOrNull;
+    if (trips == null || settings == null) return const SizedBox.shrink();
+
+    final before = computeStats(trips, settings);
+    final after = statsWithPlannedWeek(widget.days, trips, settings);
+
+    final entries = <(String, String)>[];
+    for (final person in widget.persons) {
+      final b = before[person.id];
+      final a = after[person.id];
+      final pointsDelta = (a?.points ?? 0) - (b?.points ?? 0);
+      final rateDelta = (a?.driveShare ?? 0) - (b?.driveShare ?? 0);
+      // Wen die Woche gar nicht berührt, den zeigt die Zeile auch nicht.
+      if (pointsDelta.abs() < 0.05 && rateDelta.abs() < 0.0005) continue;
+      final format = NumberFormat('0.#', 'de');
+      entries.add((
+        person.name,
+        _showRate
+            ? signedPerMille(rateDelta)
+            : signedPoints(pointsDelta, format),
+      ));
+    }
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.m,
+        AppSpacing.s,
+        AppSpacing.m,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Was diese Woche ändert:',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Punkte')),
+                  ButtonSegment(value: true, label: Text('Fahrrate')),
+                ],
+                selected: {_showRate},
+                onSelectionChanged: (selection) =>
+                    setState(() => _showRate = selection.single),
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: AppSpacing.m,
+            runSpacing: AppSpacing.xs,
+            children: [
+              for (final (name, delta) in entries)
+                Text(
+                  '$name $delta',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

@@ -22,3 +22,11 @@ String signedPoints(double points, NumberFormat format) {
   final value = format.format(points.abs());
   return points < 0 ? '−$value' : '+$value';
 }
+
+/// Fahrraten-Änderung als Promille mit Vorzeichen: „+83 ‰" / „−125 ‰".
+/// [share] ist die Differenz zweier Fahrraten (0..1) — Issue #60.
+String signedPerMille(double share) {
+  final perMille = (share * 1000).round();
+  if (perMille == 0) return '±0 ‰';
+  return perMille < 0 ? '−${-perMille} ‰' : '+$perMille ‰';
+}

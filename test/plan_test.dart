@@ -518,6 +518,73 @@ void main() {
     });
   });
 
+  // Issue #60: Vorschau, was die geplante Woche an Punkten und Fahrrate
+  // ändern würde — Geplantes berührt die echten Punkte weiterhin nie.
+  group('statsWithPlannedWeek', () {
+    test('geplante Tage zählen wie Fahrten — inklusive 1-way', () {
+      final days = [
+        PlannedDay(
+          date: week[0],
+          availableIds: const ['a', 'b', 'c'],
+          oneWayIds: const {'c'},
+          driverId: 'a',
+        ),
+      ];
+      final stats = statsWithPlannedWeek(days, const [], settings);
+
+      expect(stats['a']!.points, 1.5); // 1 voll + 0,5 × 1-way mitgenommen
+      expect(stats['b']!.points, -1);
+      expect(stats['c']!.points, -0.5);
+      expect(stats['a']!.driveShare, 1);
+    });
+
+    test('bestätigte Tage werden nicht doppelt gezählt', () {
+      final confirmedTrip = Trip(
+        id: 'echt',
+        date: week[0],
+        participations: const {
+          'a': ParticipationStatus.driver,
+          'b': ParticipationStatus.passenger,
+        },
+      );
+      final days = [
+        PlannedDay(
+          date: week[0],
+          availableIds: const ['a', 'b'],
+          driverId: 'a',
+          confirmed: true,
+          tripId: 'echt',
+        ),
+      ];
+      final stats = statsWithPlannedWeek(days, [confirmedTrip], settings);
+
+      expect(
+        stats['a']!.driven,
+        1,
+        reason: 'Der Tag steckt schon in den echten Fahrten.',
+      );
+      expect(stats['a']!.points, 1);
+    });
+
+    test('ein geplanter Solo-Tag fällt über die Solo-Regel heraus', () {
+      final days = [
+        PlannedDay(date: week[0], availableIds: const ['a'], driverId: 'a'),
+      ];
+      expect(
+        statsWithPlannedWeek(days, const [], settings),
+        isEmpty,
+        reason: 'Issue #61 gilt auch für die Vorschau.',
+      );
+    });
+
+    test('Tage ohne Fahrer ändern nichts', () {
+      final days = [
+        PlannedDay(date: week[0], availableIds: const ['a', 'b']),
+      ];
+      expect(statsWithPlannedWeek(days, const [], settings), isEmpty);
+    });
+  });
+
   group('Fahrraten-Trim (suggestPlanDriver in planWeek)', () {
     Trip trip(
       int day, {

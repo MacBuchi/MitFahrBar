@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/fairness.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../models/trip.dart';
@@ -59,6 +60,9 @@ class _TripList extends ConsumerWidget {
       itemBuilder: (context, index) {
         final trip = trips[index];
         final driver = trip.driverId;
+        // Solo-Fahrten zählen in keiner Kennzahl (Issue #61) — die Liste
+        // zeigt sie blass und sagt dazu, warum.
+        final solo = isSoloTrip(trip);
         final passengers = [
           for (final e in trip.participations.entries)
             if (e.value == ParticipationStatus.passenger) nameOf(e.key),
@@ -67,10 +71,14 @@ class _TripList extends ConsumerWidget {
               '${nameOf(e.key)} (1-way)',
         ];
         return ListTile(
+          // Blass, aber weiter antipp-/bearbeitbar — vielleicht fehlt ja
+          // nur ein vergessener Mitfahrer.
+          textColor: solo ? Theme.of(context).disabledColor : null,
           title: Text(dateFormat.format(trip.date)),
           subtitle: Text(
             '${driver == null ? 'Kein Fahrer' : 'Fahrer: ${nameOf(driver)}'}'
-            '${passengers.isEmpty ? '' : ' · Mit: ${passengers.join(', ')}'}',
+            '${passengers.isEmpty ? '' : ' · Mit: ${passengers.join(', ')}'}'
+            '${solo ? ' · allein gefahren, zählt nicht' : ''}',
           ),
           onTap: () => context.push('/trip/${trip.id}'),
           trailing: PopupMenuButton<String>(

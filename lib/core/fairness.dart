@@ -85,6 +85,15 @@ class PersonStats {
   }
 }
 
+/// Eine Solo-Fahrt: nur eine Person beteiligt, niemand wurde mitgenommen.
+///
+/// Sie ist keine Fahrgemeinschafts-Fahrt und zählt deshalb **gar nicht**
+/// (Issue #61, Wunsch der Gruppe): nicht in den Punkten (dort war sie
+/// schon immer 0), nicht im Fahranteil — der steuert seit dem Raten-Trim
+/// die Planer-Vorschläge — und nicht in Quote oder Kilometern. Die
+/// Historie zeigt sie blass mit dem Hinweis „zählt nicht".
+bool isSoloTrip(Trip trip) => trip.participations.length == 1;
+
 /// „Mitgenommen" einer einzelnen Fahrt: volle Mitfahrer + Faktor × 1-way.
 double carriedOfTrip(Trip trip, AppSettings settings) {
   var carried = 0.0;
@@ -108,6 +117,9 @@ Map<String, PersonStats> computeStats(List<Trip> trips, AppSettings settings) {
   final lastParticipation = <String, DateTime>{};
 
   for (final trip in trips) {
+    // Solo-Fahrten sind für jede Kennzahl unsichtbar (Issue #61) — auch
+    // für lastDrive/lastParticipation, damit es nur eine Wahrheit gibt.
+    if (isSoloTrip(trip)) continue;
     final tripCarried = carriedOfTrip(trip, settings);
     for (final entry in trip.participations.entries) {
       final id = entry.key;
@@ -451,6 +463,41 @@ Set<String> celebratedDrivers(
     for (final entry in fullest.entries)
       if (entry.value == best) entry.key,
   };
+}
+
+/// Vorschau: Statistik, wie sie NACH der geplanten Woche aussähe.
+///
+/// Die geplanten (noch nicht bestätigten) Tage mit Fahrer werden als
+/// Pseudo-Fahrten zu den echten dazugerechnet — Fahrer, volle Mitfahrer,
+/// 1-way wie eingetragen. Bestätigte Tage stecken schon in [trips] und
+/// werden nicht doppelt gezählt; ein geplanter Solo-Tag fällt über die
+/// Solo-Regel (Issue #61) von selbst heraus.
+///
+/// Nur fürs **Anzeigen** von Deltas im Planer (Issue #60): Punktediff und
+/// Fahrraten-Änderung der Woche. Geplantes berührt die echten Punkte nie —
+/// das hier wird berechnet, nie gespeichert.
+Map<String, PersonStats> statsWithPlannedWeek(
+  List<PlannedDay> days,
+  List<Trip> trips,
+  AppSettings settings,
+) {
+  final planned = <Trip>[
+    for (final day in days)
+      if (!day.confirmed && day.driverId != null)
+        Trip(
+          id: 'geplant-${_dayKey(day.date)}',
+          date: day.date,
+          participations: {
+            for (final id in day.availableIds)
+              id: id == day.driverId
+                  ? ParticipationStatus.driver
+                  : day.oneWayIds.contains(id)
+                  ? ParticipationStatus.oneWay
+                  : ParticipationStatus.passenger,
+          },
+        ),
+  ];
+  return computeStats([...trips, ...planned], settings);
 }
 
 int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;

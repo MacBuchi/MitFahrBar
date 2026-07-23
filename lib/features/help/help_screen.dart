@@ -181,6 +181,13 @@ class HelpScreen extends StatelessWidget {
                     'Woche fährt — gezählt wie die Punkte, eine 1-way-'
                     'Mitfahrt also halb. Bei Gleichstand alle.',
               ),
+              _Line(
+                leading: Icon(Icons.tune),
+                text:
+                    '„Was diese Woche ändert" rechnet die geplante Woche '
+                    'vor: je Person der Punktediff oder — umgeschaltet — '
+                    'die Fahrraten-Änderung in Promille.',
+              ),
             ],
           ),
 
@@ -193,6 +200,12 @@ class HelpScreen extends StatelessWidget {
                     'Die Historie listet alle Fahrten. Antippen zum Ändern '
                     '— die App fragt vorher nach, weil sich dabei die '
                     'Punkte aller Beteiligten rückwirkend verschieben.',
+              ),
+              _Line(
+                text:
+                    'Wer ganz allein fährt, steht blass in der Liste: So '
+                    'eine Fahrt zählt in keiner Kennzahl — weder Punkte '
+                    'noch Fahranteil.',
               ),
               _Line(
                 text:
