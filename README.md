@@ -95,7 +95,13 @@ beendet beides wieder:
 
 Ohne hinterlegtes Supabase-Projekt (`lib/core/supabase_config.dart`) startet
 die App in einem **Demo-Modus** mit Beispieldaten – praktisch zum Ausprobieren
-ohne Backend.
+ohne Backend. Beide Werte lassen sich per `--dart-define=SUPABASE_URL=…` und
+`--dart-define=SUPABASE_KEY=…` zur Build-Zeit übersteuern, ohne die Datei
+anzufassen.
+
+**Testbackend:** E2E-Tests laufen gegen einen echten lokalen Supabase-Stack
+(echte RLS, echte Auth-Mails via Mailpit) — ein Befehl: `tool/e2e.sh`.
+Details, CI-Anbindung und die dauerhafte Test-VM: [doc/testbackend.md](doc/testbackend.md).
 
 Marke und Gestaltung folgen dem Design-Set „RideBuddy": Tokens in
 [lib/core/tokens.dart](lib/core/tokens.dart), die Bildmarke als Widget in

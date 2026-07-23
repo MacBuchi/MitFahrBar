@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.23.1] – 2026-07-23
+
+### Intern
+
+- **Für die Gruppen ändert sich nichts Sichtbares.** Unter der Haube
+  bekommt RideBuddy ein automatisches Testsystem: Jede Änderung wird ab
+  jetzt gegen eine echte Test-Datenbank geprüft — inklusive der neuen
+  Verwalter-Konsole und der Passwort-E-Mails. Dabei wurden die
+  Datenbank-Zugriffsrechte ausdrücklich festgeschrieben (bisher galten
+  sie nur stillschweigend). Das macht kommende Updates sicherer.
+
 ## [0.23.0] – 2026-07-22
 
 ### Neu

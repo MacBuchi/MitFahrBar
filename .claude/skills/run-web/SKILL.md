@@ -20,26 +20,32 @@ In-Memory-Daten, **kein Login**, vier Personen (Anna, Ben, Clara, David)
 mit Fahrten der letzten zwei Wochen. Das ist fast immer der richtige
 Stand — kein echter Gruppenzugang, keine Migrationsabhängigkeit.
 
+Der Platzhalter kommt per `--dart-define` in den Build — **keine Datei
+anfassen**, das Arbeitsverzeichnis bleibt sauber:
+
 ```bash
 export PATH="/Volumes/MacStore/Programming/Flutter/SDK/flutter/bin:$PATH"
-sed -i '' "s|azrlhlcxhpwmxcinjovp.supabase.co|REPLACE-ME.supabase.co|" \
-  lib/core/supabase_config.dart
-flutter build web
-git checkout -- lib/core/supabase_config.dart   # SOFORT zurück
-git status --short lib/core/supabase_config.dart  # muss leer sein
+flutter build web --dart-define=SUPABASE_URL=https://REPLACE-ME.supabase.co
 ```
 
-**Immer sofort zurücksetzen und das prüfen.** Der Platzhalter darf nie
-committet werden — sonst läuft die veröffentlichte App im Demo-Modus.
+Braucht der Testfall stattdessen ein **echtes Backend** (Auth-Mails,
+RLS, Migrations), gibt es das Testsetup auf dem Proxmox-Host — Anleitung
+in `doc/testbackend.md`. Dann zeigen beide Defines dorthin:
+
+```bash
+flutter build web \
+  --dart-define=SUPABASE_URL=http://<vm-ip>:54321 \
+  --dart-define=SUPABASE_KEY=<anon-key-des-teststacks>
+```
+
+Braucht der Testfall etwas, das weder Demo noch Testbackend hergeben
+(z. B. eine gesetzte Mindestversion oder ein verfügbares Update), **eine**
+Datei per Kopie sichern, patchen, bauen, zurückkopieren.
 
 > **`git checkout --` wirkt nur auf getrackte Dateien.** Wer für einen
 > Testbau eine *neue* Datei anfasst, muss sie aus einer Kopie
 > zurückholen. Das ist hier schon einmal schiefgegangen und hinterließ
 > geänderte Werte im Arbeitsverzeichnis.
-
-Braucht der Testfall etwas, das die Demo nicht hergibt (z. B. eine
-gesetzte Mindestversion oder ein verfügbares Update), dazu **eine**
-weitere Datei per Kopie sichern, patchen, bauen, zurückkopieren.
 
 ### Nach jeder neuen Dependency: `flutter clean`
 
@@ -124,7 +130,9 @@ p.on('filechooser', async (fc) => fc.setFiles('probe.csv'));
   (`file_selector`) und das In-App-Update (`ota_update`) laufen im
   Browser über andere Pfade. Wer die prüfen will, braucht ein Gerät.
 - **Echte Gruppendaten.** Bewusst nicht: Für Tests gibt es keinen echten
-  Gruppenzugang.
+  Gruppenzugang. Wer echte Backend-Abläufe braucht, nimmt das
+  Testbackend (`doc/testbackend.md`) — eigene DB, eigene Nutzer,
+  Production bleibt unberührt.
 
 ## Zum Schluss
 

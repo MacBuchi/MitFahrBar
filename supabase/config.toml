@@ -1,7 +1,34 @@
-# config.toml – Minimal-Konfiguration für die Supabase-GitHub-Integration.
+# config.toml – Konfiguration für die Supabase-GitHub-Integration UND den
+# lokalen Test-Stack (`supabase start`, siehe doc/testbackend.md).
 # Migrationen unter supabase/migrations/ werden bei Push auf main
-# automatisch in das verbundene Projekt eingespielt.
+# automatisch in das verbundene Projekt eingespielt; die Abschnitte darunter
+# betreffen ausschließlich den lokalen Stack (Ports, Mail-Catcher) und haben
+# auf Production keinen Einfluss.
 project_id = "Fahrgemeinschaft"
+
+# Eigener Port-Bereich (5532x statt 5432x), damit der Stack neben dem einer
+# anderen App auf derselben Maschine laufen kann.
+[api]
+port = 55321
 
 [db]
 major_version = 17
+port = 55322
+shadow_port = 55320
+
+[studio]
+port = 55323
+
+# Mailpit: fängt alle Auth-Mails (Bestätigung, Passwort-Reset) lokal ab —
+# Web-UI und REST-API unter diesem Port. Grundlage der E2E-Mail-Tests.
+[local_smtp]
+port = 55324
+
+# Log-Analytics braucht der Teststack nicht — spart einen Container.
+[analytics]
+enabled = false
+
+# Standardlimit sind 2 Mails/Stunde — zu knapp für eine E2E-Suite, die
+# Passwort-Reset-Mails real verschickt. Wirkt nur lokal.
+[auth.rate_limit]
+email_sent = 100
