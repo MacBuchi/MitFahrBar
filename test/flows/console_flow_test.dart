@@ -181,6 +181,53 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Anmelden'), findsOneWidget);
   });
 
+  testWidgets('unbestätigtes Konto: Anmelden erklärt es, Resend geht', (
+    tester,
+  ) async {
+    final backend = _backend();
+    backend.adminAccounts['frisch@example.org'] = FakeAdminAccount(
+      password: 'frisch-geheim-1',
+      confirmed: false,
+    );
+    await pumpApp(tester, backend, splash: false);
+    await _openConsoleLogin(tester);
+
+    await tester.enterText(find.byType(TextField).first, 'frisch@example.org');
+    await tester.enterText(find.byType(TextField).last, 'frisch-geheim-1');
+    await _tap(tester, find.widgetWithText(FilledButton, 'Anmelden'));
+
+    expect(
+      find.textContaining('noch nicht bestätigt'),
+      findsOneWidget,
+      reason:
+          'Ein unbestätigtes Konto ist kein „Passwort falsch" — die '
+          'Nutzerin muss wissen, dass die Mail der nächste Schritt ist.',
+    );
+
+    await _tap(tester, find.text('Bestätigungs-Mail erneut senden'));
+    expect(
+      backend.confirmationResends,
+      ['frisch@example.org'],
+      reason: 'Der Resend wurde wirklich angefordert.',
+    );
+    expect(find.textContaining('Bestätigungs-Mail unterwegs'), findsOneWidget);
+  });
+
+  testWidgets('das Auge macht das Passwort sichtbar', (tester) async {
+    await pumpApp(tester, _backend(), splash: false);
+    await _openConsoleLogin(tester);
+
+    TextField password() =>
+        tester.widget<TextField>(find.byType(TextField).last);
+    expect(password().obscureText, isTrue);
+
+    await _tap(tester, find.byTooltip('Passwort anzeigen'));
+    expect(password().obscureText, isFalse);
+
+    await _tap(tester, find.byTooltip('Passwort verbergen'));
+    expect(password().obscureText, isTrue);
+  });
+
   testWidgets('Registrieren verlangt die passende Wiederholung', (
     tester,
   ) async {

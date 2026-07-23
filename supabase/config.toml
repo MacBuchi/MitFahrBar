@@ -32,3 +32,21 @@ enabled = false
 # Passwort-Reset-Mails real verschickt. Wirkt nur lokal.
 [auth.rate_limit]
 email_sent = 100
+
+# Bestätigungspflicht wie in Production (dort seit dem Brevo-Setup am
+# 23.07.2026 aktiv): Verwalter-Konten müssen den Link aus der
+# Registrierungs-Mail einlösen. Gruppen-Konten entstehen deshalb NUR noch
+# serverseitig über die Edge Function request-group (email_confirm) — ein
+# Client-Signup bliebe an der unzustellbaren Fake-Adresse für immer hängen.
+# Der Teststack spiegelt das bewusst, damit die E2E-Suite die Prod-Wahrheit
+# prüft und dieser Drift nie wieder unbemerkt bleibt.
+[auth.email]
+enable_confirmations = true
+
+# Deklariert für den lokalen Stack UND fürs Deployment über die
+# GitHub-Integration (sie deployt die in config.toml deklarierten
+# Functions). Nach einem Merge, der supabase/functions/ ändert, prüfen,
+# ob die Function in Production angekommen ist — sonst manuell:
+# `supabase functions deploy request-group --project-ref <ref>`.
+[functions.request-group]
+verify_jwt = true

@@ -5,6 +5,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/group_login.dart';
 
+/// Der gewünschte Anmeldename ist schon vergeben.
+class HandleTakenException implements Exception {
+  const HandleTakenException();
+}
+
+/// Das Verwalter-Konto existiert, hat den Bestätigungs-Link aber noch nicht
+/// angetippt — die Anmeldung ist bis dahin gesperrt.
+class EmailNotConfirmedException implements Exception {
+  const EmailNotConfirmedException();
+}
+
 abstract class AuthRepository {
   bool get loggedIn;
 
@@ -21,6 +32,8 @@ abstract class AuthRepository {
 
   /// Neue Gruppe anfragen: legt den Login an; die zugehörige Gruppe entsteht
   /// per DB-Trigger im Status 'pending' und muss freigegeben werden.
+  /// Meldet NICHT an — die Anfrage bleibt eine Anfrage.
+  /// Wirft [HandleTakenException], wenn der Anmeldename vergeben ist.
   Future<void> requestGroup({
     required String handle,
     required String password,
@@ -38,7 +51,13 @@ abstract class AuthRepository {
   /// hält den Signup-Trigger davon ab, eine Geister-Gruppe anzulegen.
   Future<void> signUpAdmin(String email, String password);
 
+  /// Wirft [EmailNotConfirmedException], solange der Bestätigungs-Link aus
+  /// der Registrierungs-Mail nicht eingelöst ist.
   Future<void> signInAdmin(String email, String password);
+
+  /// Bestätigungs-Mail der Registrierung erneut anstoßen (z. B. Mail weg
+  /// oder im Spam) — GoTrue drosselt Wiederholungen selbst.
+  Future<void> resendAdminConfirmation(String email);
 
   /// Passwort-vergessen-Mail für ein Verwalter-Konto — Supabase-Standard,
   /// der Betreiber ist nicht beteiligt.
@@ -70,11 +89,26 @@ class SupabaseAuthRepository implements AuthRepository {
     required String handle,
     required String password,
     required String groupName,
-  }) => _client.auth.signUp(
-    email: handleToEmail(handle),
-    password: password,
-    data: {'group_name': groupName},
-  );
+  }) async {
+    // Serverseitig statt auth.signUp: Seit Verwalter-Konten ihre E-Mail
+    // bestätigen müssen (mailer_autoconfirm aus), würde ein Client-Signup
+    // eine Bestätigungsmail an die unzustellbare Gruppen-Fake-Adresse
+    // schicken — und das Konto bliebe für immer gesperrt. Die Edge Function
+    // legt es per Admin-API als bestätigt an, ganz ohne Mail.
+    try {
+      await _client.functions.invoke(
+        'request-group',
+        body: {
+          'handle': normalizeHandle(handle),
+          'password': password,
+          'groupName': groupName,
+        },
+      );
+    } on FunctionException catch (e) {
+      if (e.status == 409) throw const HandleTakenException();
+      rethrow;
+    }
+  }
 
   @override
   Future<void> changePassword(String newPassword) =>
@@ -93,8 +127,20 @@ class SupabaseAuthRepository implements AuthRepository {
       );
 
   @override
-  Future<void> signInAdmin(String email, String password) =>
-      _client.auth.signInWithPassword(email: email, password: password);
+  Future<void> signInAdmin(String email, String password) async {
+    try {
+      await _client.auth.signInWithPassword(email: email, password: password);
+    } on AuthApiException catch (e) {
+      if (e.code == 'email_not_confirmed') {
+        throw const EmailNotConfirmedException();
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> resendAdminConfirmation(String email) =>
+      _client.auth.resend(type: OtpType.signup, email: email);
 
   @override
   Future<void> sendAdminPasswordReset(String email) =>
@@ -141,6 +187,9 @@ class AlwaysLoggedInAuthRepository implements AuthRepository {
 
   @override
   Future<void> signInAdmin(String email, String password) async {}
+
+  @override
+  Future<void> resendAdminConfirmation(String email) async {}
 
   @override
   Future<void> sendAdminPasswordReset(String email) async {}

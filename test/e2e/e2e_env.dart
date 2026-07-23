@@ -85,14 +85,22 @@ class GroupAccount {
   final SupabaseClient client;
 }
 
-/// Registriert eine neue Gruppe wie die App: Handle → interne Login-E-Mail.
+/// Registriert eine neue Gruppe wie die App: über die Edge Function
+/// `request-group` (serverseitig, ohne Mail) und meldet sich danach an.
 /// Der Signup-Trigger legt dazu die pending-`groups`-Zeile an.
 Future<GroupAccount> registerGroup(String label) async {
   final handle = uniqueName(label);
   final email = '$handle@$e2eGroupDomain';
   const password = 'gruppen-passwort-1';
   final client = newAnonClient();
-  final res = await client.auth.signUp(email: email, password: password);
+  await client.functions.invoke(
+    'request-group',
+    body: {'handle': handle, 'password': password, 'groupName': 'E2E $label'},
+  );
+  final res = await client.auth.signInWithPassword(
+    email: email,
+    password: password,
+  );
   return GroupAccount(
     handle: handle,
     email: email,
@@ -122,16 +130,22 @@ class AdminAccount {
 }
 
 /// Registriert ein Verwalter-Konto wie die Konsole: echte E-Mail plus
-/// `account_type: 'admin'` in den Metadata.
+/// `account_type: 'admin'` in den Metadata — und löst wie in Production
+/// den Bestätigungs-Link aus der Mail ein, bevor es sich anmeldet.
 Future<AdminAccount> registerAdmin({
   String password = 'admin-passwort-1',
 }) async {
   final email = '${uniqueName('admin')}@e2e-postfach.test';
   final client = newAnonClient();
-  final res = await client.auth.signUp(
+  await client.auth.signUp(
     email: email,
     password: password,
     data: {'account_type': 'admin'},
+  );
+  await openAuthLink(firstLink(await waitForMail(email, subject: 'Confirm')));
+  final res = await client.auth.signInWithPassword(
+    email: email,
+    password: password,
   );
   return AdminAccount(
     email: email,
@@ -144,15 +158,19 @@ Future<AdminAccount> registerAdmin({
 // ------------------------------------------------------------------ Mailpit
 
 /// Wartet, bis Mailpit eine Mail an [to] hat, und liefert Text+HTML zurück.
+/// [subject] grenzt per Mailpit-Suche ein — wichtig, sobald ein Postfach
+/// mehrere Auth-Mails trägt (Bestätigung UND Reset), damit nicht die
+/// falsche zurückkommt.
 Future<String> waitForMail(
   String to, {
+  String? subject,
   Duration timeout = const Duration(seconds: 20),
 }) async {
   final http = HttpClient();
   try {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
-      final id = await _firstMessageId(http, to);
+      final id = await _firstMessageId(http, to, subject: subject);
       if (id != null) return _messageBody(http, id);
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
@@ -160,8 +178,8 @@ Future<String> waitForMail(
     http.close(force: true);
   }
   throw StateError(
-    'Keine Mail an $to innerhalb von ${timeout.inSeconds}s '
-    '(Mailpit: $e2eMailpitUrl)',
+    'Keine Mail an $to (subject: $subject) innerhalb von '
+    '${timeout.inSeconds}s (Mailpit: $e2eMailpitUrl)',
   );
 }
 
@@ -199,8 +217,36 @@ String rebaseAuthLink(String link) {
       .toString();
 }
 
-Future<String?> _firstMessageId(HttpClient http, String to) async {
-  final query = Uri.encodeQueryComponent('to:"$to"');
+/// Löst einen GoTrue-Mail-Link ein (Bestätigung oder Recovery): folgt ihm
+/// einmal und verlangt eine fehlerfreie Weiterleitung — genau das passiert,
+/// wenn eine Nutzerin den Link in der Mail antippt.
+Future<void> openAuthLink(String link) async {
+  final http = HttpClient();
+  try {
+    final request = await http.getUrl(Uri.parse(rebaseAuthLink(link)));
+    request.followRedirects = false;
+    final response = await request.close();
+    await response.drain<void>();
+    final location = response.headers.value('location') ?? '';
+    if (response.statusCode < 300 ||
+        response.statusCode >= 400 ||
+        location.contains('error')) {
+      throw StateError(
+        'Auth-Link nicht einlösbar (${response.statusCode}): $location',
+      );
+    }
+  } finally {
+    http.close(force: true);
+  }
+}
+
+Future<String?> _firstMessageId(
+  HttpClient http,
+  String to, {
+  String? subject,
+}) async {
+  final search = 'to:"$to"${subject == null ? '' : ' subject:"$subject"'}';
+  final query = Uri.encodeQueryComponent(search);
   final json = await _getJson(
     http,
     '$e2eMailpitUrl/api/v1/search?query=$query',

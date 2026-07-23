@@ -12,7 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/tokens.dart';
+import '../../core/widgets/password_field.dart';
 import '../../core/widgets/ride_buddy_mark.dart';
+import '../../data/auth_repository.dart';
 import '../../data/providers.dart';
 
 /// Drei Zustände statt zwei: „Passwort vergessen" ist ein eigener Modus,
@@ -35,6 +37,10 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
   bool _busy = false;
   String? _notice;
 
+  /// Nach einer Registrierung oder einem „noch nicht bestätigt"-Fehler:
+  /// bietet an, die Bestätigungs-Mail erneut zu verschicken.
+  bool _offerResend = false;
+
   @override
   void dispose() {
     _email.dispose();
@@ -46,6 +52,7 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
   void _switchMode(_Mode mode) => setState(() {
     _mode = mode;
     _notice = null;
+    _offerResend = false;
   });
 
   Future<void> _submit() async {
@@ -72,14 +79,24 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
       if (_mode == _Mode.register) {
         await auth.signUpAdmin(email, password);
         if (!mounted) return;
-        setState(
-          () => _notice =
+        setState(() {
+          _notice =
               'Fast geschafft: Bitte den Bestätigungs-Link aus der '
-              'E-Mail antippen, danach hier anmelden.',
-        );
+              'E-Mail antippen, danach hier anmelden.';
+          _offerResend = true;
+        });
       } else {
         await auth.signInAdmin(email, password);
         // Der Router-Redirect übernimmt und führt in die Konsole.
+      }
+    } on EmailNotConfirmedException {
+      if (mounted) {
+        setState(() {
+          _notice =
+              'Dieses Konto ist noch nicht bestätigt — bitte zuerst den '
+              'Link aus der Registrierungs-Mail antippen.';
+          _offerResend = true;
+        });
       }
     } catch (_) {
       // Bewusst ohne Fehlertext: Er könnte verraten, ob die Adresse ein
@@ -93,6 +110,30 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _resendConfirmation() async {
+    final email = _email.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _notice = 'Bitte eine gültige E-Mail-Adresse angeben.');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(authRepositoryProvider).resendAdminConfirmation(email);
+    } catch (_) {
+      // Gleiche Meldung wie im Erfolgsfall (kein Konto-Orakel) — auch wenn
+      // GoTrue drosselt, weil gerade erst eine Mail rausging.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _notice =
+              'Wenn es zu dieser Adresse ein unbestätigtes Konto gibt, '
+              'ist eine neue Bestätigungs-Mail unterwegs.';
+        });
+      }
     }
   }
 
@@ -182,13 +223,9 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
                     ),
                     if (!forgot) ...[
                       const SizedBox(height: AppSpacing.m),
-                      TextField(
+                      PasswordField(
                         controller: _password,
-                        decoration: const InputDecoration(
-                          labelText: 'Passwort',
-                          border: OutlineInputBorder(),
-                        ),
-                        obscureText: true,
+                        labelText: 'Passwort',
                         autofillHints: [
                           if (_mode == _Mode.register)
                             AutofillHints.newPassword
@@ -204,13 +241,9 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
                     ],
                     if (_mode == _Mode.register) ...[
                       const SizedBox(height: AppSpacing.m),
-                      TextField(
+                      PasswordField(
                         controller: _repeat,
-                        decoration: const InputDecoration(
-                          labelText: 'Passwort wiederholen',
-                          border: OutlineInputBorder(),
-                        ),
-                        obscureText: true,
+                        labelText: 'Passwort wiederholen',
                         autofillHints: const [AutofillHints.newPassword],
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => _busy ? null : _submit(),
@@ -240,6 +273,11 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
                               _Mode.forgot => 'Reset-Link senden',
                             }),
                     ),
+                    if (_offerResend && !forgot)
+                      TextButton(
+                        onPressed: _busy ? null : _resendConfirmation,
+                        child: const Text('Bestätigungs-Mail erneut senden'),
+                      ),
                     if (forgot)
                       TextButton(
                         onPressed: _busy

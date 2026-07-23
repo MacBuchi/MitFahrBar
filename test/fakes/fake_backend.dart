@@ -28,11 +28,14 @@ class FakeAccount {
 }
 
 /// Verwalter-Konto (Konsole): echte E-Mail, eigenes Passwort, optional mit
-/// einer Gruppe verknüpft.
+/// einer Gruppe verknüpft. `confirmed` bildet die Bestätigungspflicht ab:
+/// Frisch registrierte Konten sind unbestätigt und können sich nicht
+/// anmelden, bis der Mail-Link (im Fake: das Flag) eingelöst ist.
 class FakeAdminAccount {
-  FakeAdminAccount({required this.password});
+  FakeAdminAccount({required this.password, this.confirmed = true});
 
   String password;
+  bool confirmed;
   String? groupId;
 }
 
@@ -43,6 +46,9 @@ class FakeBackend {
   /// Adressen, für die ein Passwort-Reset angefordert wurde — die Fake-
   /// Entsprechung der Mail, die in Produktion rausgeht.
   final List<String> passwordResets = [];
+
+  /// Adressen, für die die Bestätigungs-Mail erneut angefordert wurde.
+  final List<String> confirmationResends = [];
   final Map<String, Group> groups = {};
   final Map<String, FakeCarpoolRepository> _data = {};
   final List<Map<String, Object?>> feedback = [];

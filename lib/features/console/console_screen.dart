@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/tokens.dart';
+import '../../core/widgets/password_field.dart';
 import '../../data/admin_repository.dart';
 import '../../data/providers.dart';
 
@@ -366,24 +367,16 @@ class _GroupPasswordDialogState extends ConsumerState<_GroupPasswordDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
+          PasswordField(
             controller: _password,
-            decoration: const InputDecoration(
-              labelText: 'Neues Gruppenpasswort',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
+            labelText: 'Neues Gruppenpasswort',
             autofocus: true,
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: AppSpacing.s),
-          TextField(
+          PasswordField(
             controller: _repeat,
-            decoration: const InputDecoration(
-              labelText: 'Wiederholen',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
+            labelText: 'Wiederholen',
             onSubmitted: (_) => _busy ? null : _submit(),
           ),
           if (_error case final error?) ...[
@@ -462,24 +455,16 @@ class _AdminPasswordDialogState extends ConsumerState<_AdminPasswordDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
+          PasswordField(
             controller: _password,
-            decoration: const InputDecoration(
-              labelText: 'Neues Passwort',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
+            labelText: 'Neues Passwort',
             autofocus: true,
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: AppSpacing.s),
-          TextField(
+          PasswordField(
             controller: _repeat,
-            decoration: const InputDecoration(
-              labelText: 'Wiederholen',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
+            labelText: 'Wiederholen',
             onSubmitted: (_) => _busy ? null : _submit(),
           ),
           if (_error case final error?) ...[
@@ -578,13 +563,9 @@ class _DeleteGroupDialogState extends ConsumerState<_DeleteGroupDialog> {
             'Verwalter-Konto gleich mit. Es gibt kein Zurück.',
           ),
           const SizedBox(height: AppSpacing.m),
-          TextField(
+          PasswordField(
             controller: _adminPassword,
-            decoration: const InputDecoration(
-              labelText: 'Dein Admin-Passwort',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
+            labelText: 'Dein Admin-Passwort',
             autofocus: true,
             textInputAction: TextInputAction.next,
           ),
