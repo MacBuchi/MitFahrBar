@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.23.2] – 2026-07-23
+
+### Verbessert
+
+- **Das Hajo im Wochenplaner rechnet jetzt wie die Punkte** (euer
+  Wunsch aus der Rückmeldung): Eine 1-way-Mitfahrt zählt fürs „vollste
+  Auto der Woche" nur noch halb — genau wie beim Punktestand. Vorher
+  zählte jeder Kopf ganz, und zwei halbe Mitfahrten wirkten „voller"
+  als eine ganze.
+
 ## [0.23.1] – 2026-07-23
 
 ### Intern

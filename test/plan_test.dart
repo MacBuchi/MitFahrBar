@@ -408,6 +408,11 @@ void main() {
     PlannedDay day(DateTime date, String? driver, List<String> available) =>
         PlannedDay(date: date, availableIds: available, driverId: driver);
 
+    // Vorgabe wie in AppSettings — die Tests unten pinnen zusätzlich,
+    // dass der Faktor wirklich aus dem Parameter kommt.
+    Set<String> celebrated(List<PlannedDay> plan, {double factor = 0.5}) =>
+        celebratedDrivers(plan, oneWayFactor: factor);
+
     test('gefeiert wird der vollste einzelne Tag, nicht die Wochensumme', () {
       // a fährt zweimal mit je einem Mitfahrer (Summe 2), b einmal mit
       // dreien — b hat den vollsten Tag, die Summe zählt nicht.
@@ -416,7 +421,7 @@ void main() {
         day(week[1], 'a', ['a', 'c']),
         day(week[2], 'b', ['b', 'a', 'c', 'd']),
       ];
-      expect(celebratedDrivers(plan), {'b'});
+      expect(celebrated(plan), {'b'});
     });
 
     test('der Fahrer zählt sich nicht selbst', () {
@@ -424,7 +429,7 @@ void main() {
         day(week[0], 'a', ['a']),
       ];
       expect(
-        celebratedDrivers(plan),
+        celebrated(plan),
         isEmpty,
         reason: 'Allein zu fahren ist kein Mitnehmen.',
       );
@@ -436,7 +441,7 @@ void main() {
         day(week[0], 'a', ['a', 'b']),
         day(week[1], 'b', ['b', 'a']),
       ];
-      expect(celebratedDrivers(plan), {'a', 'b'});
+      expect(celebrated(plan), {'a', 'b'});
     });
 
     test('derselbe Fahrer zweimal am Maximum bleibt ein Eintrag', () {
@@ -444,19 +449,46 @@ void main() {
         day(week[0], 'a', ['a', 'b']),
         day(week[1], 'a', ['a', 'c']),
       ];
-      expect(celebratedDrivers(plan), {'a'});
+      expect(celebrated(plan), {'a'});
     });
 
     test('ohne Fahrer gibt es nichts zu feiern', () {
       final plan = [
         day(week[0], null, ['a', 'b']),
       ];
-      expect(celebratedDrivers(plan), isEmpty);
+      expect(celebrated(plan), isEmpty);
     });
 
-    test('eine 1-way-Mitfahrt zählt als ganzer Kopf', () {
-      // Die Auszeichnung feiert ein volles Auto, nicht den Punktestand —
-      // ein besetzter Platz ist ein besetzter Platz.
+    test('eine 1-way-Mitfahrt zählt halb — wie in den Punkten (#59)', () {
+      // a nimmt drei 1-way mit (3 × 0,5 = 1,5), d einen ganzen (1,0):
+      // a gewinnt. Zwei ganze (2,0) schlagen wiederum die drei halben.
+      final oneWayDay = PlannedDay(
+        date: week[0],
+        availableIds: const ['a', 'b', 'c', 'f'],
+        oneWayIds: const {'b', 'c', 'f'},
+        driverId: 'a',
+      );
+      expect(
+        celebrated([
+          oneWayDay,
+          day(week[1], 'd', ['d', 'e']),
+        ]),
+        {'a'},
+      );
+      expect(
+        celebrated([
+          oneWayDay,
+          day(week[1], 'd', ['d', 'e', 'g']),
+        ]),
+        {'d'},
+        reason: 'Zwei ganze Mitfahrten (2,0) schlagen drei halbe (1,5).',
+      );
+    });
+
+    test('der 1-way-Faktor kommt aus den Settings, nicht aus der Formel', () {
+      // Zwei 1-way von a gegen eine volle Mitfahrt von d: Mit der Vorgabe
+      // 0,5 steht es 1,0 zu 1,0 — Gleichstand. Ein anderer Faktor kippt
+      // den Sieger in beide Richtungen; der Parameter wirkt also wirklich.
       final plan = [
         PlannedDay(
           date: week[0],
@@ -466,7 +498,23 @@ void main() {
         ),
         day(week[1], 'd', ['d', 'e']),
       ];
-      expect(celebratedDrivers(plan), {'a'});
+      expect(celebrated(plan), {'a', 'd'});
+      expect(celebrated(plan, factor: 0.25), {'d'});
+      expect(celebrated(plan, factor: 1.0), {'a'});
+    });
+
+    test('nur 1-way-Mitfahrten sind trotzdem ein Hajo wert', () {
+      // Halbe Punkte sind mehr als null — der einzige Fahrer der Woche
+      // mit einer 1-way-Mitfahrt bekommt das Konfetti.
+      final plan = [
+        PlannedDay(
+          date: week[0],
+          availableIds: const ['a', 'b'],
+          oneWayIds: const {'b'},
+          driverId: 'a',
+        ),
+      ];
+      expect(celebrated(plan), {'a'});
     });
   });
 

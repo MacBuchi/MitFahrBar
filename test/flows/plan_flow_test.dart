@@ -351,6 +351,40 @@ void main() {
     handle.dispose();
   });
 
+  // Issue #59: Das Hajo wiegt wie die Punkte — eine 1-way-Mitfahrt halb.
+  // Nach Köpfen stünde es hier 1:1 (beide Tage je ein Mitfahrer) und beide
+  // Fahrer würden gefeiert; nach Punkten schlägt die ganze Mitfahrt (1,0)
+  // die halbe (0,5).
+  testWidgets('eine 1-way-Mitfahrt wiegt im Hajo nur halb', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert', 'Clara']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final week = planningWeek();
+    // Montag: Anna fährt, Bert nur eine Richtung (zweiter Tap) → 0,5.
+    await tester.tap(_cell('Anna', week[0]));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Bert', week[0]));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Bert', week[0]));
+    await tester.pumpAndSettle();
+    // Dienstag: Bert (schuldet nach Montag am meisten) fährt Clara — 1,0.
+    await tester.tap(_cell('Bert', week[1]));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Clara', week[1]));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Bert fährt'), findsOneWidget);
+    expect(find.textContaining('Hajo, Bert!'), findsOneWidget);
+    expect(
+      find.textContaining('Hajo, Anna'),
+      findsNothing,
+      reason: 'Nach Köpfen wäre es ein Gleichstand — nach Punkten nicht.',
+    );
+    handle.dispose();
+  });
+
   // Der Trägheits-Fix vom 2026-07-22: Der Tap wird sofort eingerechnet,
   // der Netz-Schreib läuft hinterher. Der Fake schreibt erst, wenn der
   // Test es erlaubt — wäre der Planer noch synchron, bliebe die Zelle
