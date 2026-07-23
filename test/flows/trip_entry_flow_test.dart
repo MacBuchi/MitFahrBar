@@ -2,6 +2,7 @@
 library;
 
 import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:fahrgemeinschaft/models/plan_ride.dart';
 import 'package:fahrgemeinschaft/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -383,5 +384,220 @@ void main() {
       (await data.loadTrips()).single.participations[ids['Anna']],
       ParticipationStatus.driver,
     );
+  });
+
+  // Issue #65: Wer im Wochenplan steht, ist beim Eintragen schon gewählt —
+  // 1-way bleibt 1-way, den Fahrer setzt weiterhin die Fairness.
+  testWidgets('der Wochenplan belegt die Auswahl vor', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await data.setAvailability(today, ids['Anna']!, PlanRide.full);
+    await data.setAvailability(today, ids['Bert']!, PlanRide.oneWay);
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Vorauswahl aus dem Wochenplan übernommen.'),
+      findsOneWidget,
+    );
+    // Anna ist die einzige volle Teilnehmerin und damit Fahrerin.
+    expect(find.text('Speichern – Anna fährt'), findsOneWidget);
+    expect(find.text('1-way'), findsOneWidget); // Bert wie geplant
+    expect(find.text('–'), findsOneWidget); // Clara bleibt draußen
+  });
+
+  testWidgets('beim Datumswechsel wandert die Vorauswahl mit', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    await data.setAvailability(today, ids['Anna']!, PlanRide.full);
+    await data.setAvailability(yesterday, ids['Bert']!, PlanRide.full);
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Speichern – Anna fährt'), findsOneWidget);
+
+    await tester.tap(find.text('Gestern'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Speichern – Bert fährt'), findsOneWidget);
+    expect(find.text('–'), findsOneWidget); // Anna stand gestern nicht im Plan
+  });
+
+  // Der Dirty-Schutz: Sobald von Hand gewählt wurde, überschreibt kein
+  // Datumswechsel (und keine spät eintreffende Antwort) die Auswahl.
+  testWidgets('Handarbeit überlebt den Datumswechsel', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    await data.setAvailability(today, ids['Anna']!, PlanRide.full);
+    await data.setAvailability(yesterday, ids['Bert']!, PlanRide.full);
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Clara')); // von Hand dazu → Handarbeit
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gestern'));
+    await tester.pumpAndSettle();
+
+    // Keine Neu-Vorbelegung: Anna + Clara bleiben gewählt, Bert draußen.
+    expect(find.text('fährt'), findsOneWidget);
+    expect(find.text('dabei'), findsOneWidget);
+    expect(find.text('–'), findsOneWidget); // nur Bert
+    expect(
+      find.text('Vorauswahl aus dem Wochenplan übernommen.'),
+      findsNothing,
+    );
+  });
+
+  // Dieselbe Regel wie im Planer (Issue #54): Wer inaktiv ist, taucht auch
+  // über alte Plan-Einträge nicht wieder auf.
+  testWidgets('Verfügbarkeit inaktiver Personen belegt nicht vor', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.setAvailability(today, ids[name]!, PlanRide.full);
+    }
+    await data.updatePerson(
+      Person(id: ids['Clara']!, name: 'Clara', active: false),
+    );
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    // Inaktiv und nicht gewählt heißt: gar nicht erst auf der Maske.
+    expect(find.text('Clara'), findsNothing);
+    expect(find.text('fährt'), findsOneWidget);
+    expect(find.text('dabei'), findsOneWidget);
+  });
+
+  // Ein reiner 1-way-Plan hat keinen möglichen Fahrer — die Vorbelegung
+  // zeigt das ehrlich, statt jemanden zum Fahrer zu erfinden.
+  testWidgets('nur 1-way im Plan lässt Speichern gesperrt', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await data.setAvailability(today, ids['Anna']!, PlanRide.oneWay);
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1-way'), findsOneWidget);
+    expect(find.text('Mindestens 1 Person auswählen'), findsOneWidget);
+  });
+
+  // Beim Bearbeiten zeigt die Maske die Fahrt, wie sie war — der Plan des
+  // Tages hat dort nichts mehr zu sagen.
+  testWidgets('Bearbeiten wird nicht vorbelegt', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    await data.createTrip(yesterday, {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+    await data.setAvailability(yesterday, ids['Clara']!, PlanRide.full);
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(find.text('Historie'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(ListTile).first);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Vorauswahl aus dem Wochenplan übernommen.'),
+      findsNothing,
+    );
+    expect(find.text('–'), findsOneWidget); // Clara bleibt draußen
   });
 }
