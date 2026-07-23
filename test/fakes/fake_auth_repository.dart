@@ -91,7 +91,9 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> sendAdminPasswordReset(String email) async {}
+  Future<void> sendAdminPasswordReset(String email) async {
+    backend.passwordResets.add(email);
+  }
 
   @override
   Future<void> signOut() async => backend.setCurrentEmail(null);
