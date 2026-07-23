@@ -77,6 +77,11 @@ class FakeBackend {
     _authController.add(email);
   }
 
+  /// Schiebt ein rohes Auth-Ereignis in den Stream — z. B.
+  /// 'passwordRecovery', wie es Supabase nach einem Reset-Link meldet.
+  /// Die Konsole erkennt das Ereignis über seine String-Form.
+  void emitAuthEvent(Object? event) => _authController.add(event);
+
   FakeCarpoolRepository dataFor(String groupId) =>
       _data.putIfAbsent(groupId, FakeCarpoolRepository.new);
 
