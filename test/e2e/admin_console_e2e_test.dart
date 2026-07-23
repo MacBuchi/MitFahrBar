@@ -116,6 +116,40 @@ void main() {
     expect(await admin.client.from('group_admins').select(), isEmpty);
   });
 
+  test('derselbe Admin kann keine zweite Gruppe verknüpfen', () async {
+    // Die 1:1-Zusage gilt in beide Richtungen: nicht nur ein Konto je
+    // Gruppe, auch eine Gruppe je Konto (user_id ist Primärschlüssel).
+    final second = await registerGroup('zweitgruppe');
+    await activateGroup(service, second.id);
+    await expectRpcError(
+      admin.client.rpc(
+        'claim_admin_group',
+        params: {
+          'claim_handle': second.handle,
+          'group_password': second.password,
+        },
+      ),
+      'admin already linked',
+    );
+  });
+
+  test('eine pending-Gruppe lässt sich nicht verknüpfen', () async {
+    // Erst die Freigabe macht die Gruppe verknüpfbar — vorher lehnt der
+    // Server ab, selbst mit korrektem Gruppen-Login.
+    final pending = await registerGroup('pend');
+    final fresh = await registerAdmin();
+    await expectRpcError(
+      fresh.client.rpc(
+        'claim_admin_group',
+        params: {
+          'claim_handle': pending.handle,
+          'group_password': pending.password,
+        },
+      ),
+      'wrong group credentials',
+    );
+  });
+
   test('Gruppenpasswort-Reset: zu kurz prallt ab, sonst wirkt er', () async {
     await expectRpcError(
       admin.client.rpc(

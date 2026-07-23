@@ -30,10 +30,14 @@ Abgedeckt ist, was die In-Memory-Fakes nur nachbilden können:
   Geister-pending beim Admin-Signup, Verknüpfung nur mit Gruppen-Login,
   Einrasten, Gruppenpasswort-Reset wirkt, Löschen reißt über die
   Auth-Kaskade alles mit.
-- **Passwort-Workflows mit echten Mails** (`auth_mail_e2e_test.dart`):
-  Recovery-Mail kommt in Mailpit an, der Link ist einlösbar, und
-  Gruppen-Signups verschicken KEINE Mail (Autoconfirm — die
-  Produktions-Einstellung, festgenagelt samt Begründung im Test).
+- **Auth-Workflows mit echten Mails** (`auth_mail_e2e_test.dart`): Der
+  Stack läuft wie Production mit **Bestätigungspflicht**
+  (`enable_confirmations = true` in config.toml). Festgenagelt sind:
+  Gruppen-Anlage über die Edge Function `request-group` (keine Mail,
+  sofort anmeldbar, Trigger legt die pending-Gruppe an), Admin-Signup
+  verlangt den Mail-Link wirklich, Recovery-Mail kommt an und der Link
+  ist einlösbar. Der lokale Stack serviert die Functions aus
+  `supabase/functions/` automatisch mit.
 
 Der Service-Role-Key dient in der Suite nur zum Arrangieren/Prüfen
 (Gruppe freischalten, Kaskade nachsehen) — nie, um App-Verhalten
@@ -117,12 +121,16 @@ bewusst außerhalb des Umfangs.
   fände auf jedem frischen Stack keine Tabelle vor. Production lief nur,
   weil das Cloud-Projekt noch die klassischen impliziten Grants trägt.
   Sicherheit liegt unverändert allein in den RLS-Policies.
-- **Autoconfirm vs. Bestätigungsmail**: Mit Autoconfirm (Prod-Einstellung,
-  nötig für die Fake-Gruppen-Adressen) verschickt Supabase **keine**
-  Registrierungs-Bestätigung — auch nicht für Verwalter-Konten. Wer im
-  Brevo-Log auf eine Signup-Mail wartet, wartet vergeblich; nur
-  Passwort-Reset-Mails werden verschickt. Festgenagelt in
-  `auth_mail_e2e_test.dart`.
+- **Autoconfirm vs. Bestätigungsmail** (historisch, bis v0.26.x): Mit
+  Autoconfirm verschickt Supabase **keine** Registrierungs-Bestätigung —
+  auch nicht für Verwalter-Konten. Beim Brevo-Setup (23.07.2026) wurde in
+  Production die Bestätigungspflicht eingeschaltet; der Teststack lief
+  aber weiter mit Autoconfirm und konnte den Drift nicht sehen — so blieb
+  unbemerkt, dass „Neue Gruppe anfragen" in Production an einer nie
+  zustellbaren Bestätigungsmail hängen geblieben wäre. Deshalb entstehen
+  Gruppen-Konten seit v0.27.0 serverseitig (`request-group`), der Stack
+  läuft mit Bestätigungspflicht, und `auth_mail_e2e_test.dart` nagelt
+  beides fest.
 - **Auto-Ballooning erdrückt den Stack**: Auf einem RAM-knappen Host
   schrumpft Proxmox laufende VMs Richtung Balloon-Minimum — die Test-VM
   wurde bei laufendem `db reset` auf ~1,2 GB gedrückt und war nur noch

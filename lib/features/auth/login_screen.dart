@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/tokens.dart';
+import '../../core/widgets/password_field.dart';
 import '../../core/widgets/ride_buddy_mark.dart';
 import '../../data/providers.dart';
 
@@ -89,13 +90,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       autofillHints: const [AutofillHints.username],
                     ),
                     const SizedBox(height: AppSpacing.m),
-                    TextField(
+                    PasswordField(
                       controller: _password,
-                      decoration: const InputDecoration(
-                        labelText: 'Passwort',
-                        border: OutlineInputBorder(),
-                      ),
-                      obscureText: true,
+                      labelText: 'Passwort',
                       autofillHints: const [AutofillHints.password],
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _busy ? null : _signIn(),

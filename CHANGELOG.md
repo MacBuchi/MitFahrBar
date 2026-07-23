@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.27.0] – 2026-07-24
+
+### Neu
+
+- **Auge-Symbol an allen Passwortfeldern.** Antippen zeigt das Getippte —
+  der beste Schutz vor Tippfehlern, gerade auf dem Handy.
+- **Bestätigungs-Mail im Griff.** Wer ein Verwalter-Konto anlegt und den
+  Bestätigungs-Link verlegt (oder ihn im Spam vermutet), kann die Mail
+  jetzt direkt in der Konsole erneut anfordern. Und wer sich vor der
+  Bestätigung anzumelden versucht, erfährt, woran es liegt — statt eines
+  irreführenden „Passwort falsch".
+
+### Behoben
+
+- **„Neue Gruppe anfragen" wäre ins Leere gelaufen.** Seit Verwalter-
+  Konten ihre E-Mail-Adresse wirklich bestätigen müssen, hätte auch eine
+  neue Gruppen-Anfrage auf eine Bestätigungsmail gewartet — die bei einem
+  Gruppen-Zugang nie ankommen kann. Die Anlage läuft jetzt auf dem Server
+  und braucht gar keine Mail mehr. Betroffen war niemand: Seit der
+  Umstellung gab es keine neue Anfrage.
+
 ## [0.26.0] – 2026-07-24
 
 ### Intern

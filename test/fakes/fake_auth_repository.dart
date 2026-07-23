@@ -44,15 +44,15 @@ class FakeAuthRepository implements AuthRepository {
   }) async {
     final email = handleToEmail(handle);
     if (backend.accounts.containsKey(email)) {
-      throw Exception('handle already taken');
+      throw const HandleTakenException();
     }
+    // Wie die Edge Function in Produktion: legt nur an, meldet nicht an.
     backend.createPendingAccount(
       email: email,
       password: password,
       groupName: groupName,
       handle: normalizeHandle(handle),
     );
-    backend.setCurrentEmail(email);
   }
 
   @override
@@ -77,8 +77,12 @@ class FakeAuthRepository implements AuthRepository {
     if (backend.adminAccounts.containsKey(email)) {
       throw Exception('already registered');
     }
-    // Wie in Produktion mit Bestätigungs-Mail: Registrieren meldet nicht an.
-    backend.adminAccounts[email] = FakeAdminAccount(password: password);
+    // Wie in Produktion: Registrieren meldet nicht an, und bis zum
+    // Bestätigungs-Link bleibt das Konto gesperrt.
+    backend.adminAccounts[email] = FakeAdminAccount(
+      password: password,
+      confirmed: false,
+    );
   }
 
   @override
@@ -87,7 +91,15 @@ class FakeAuthRepository implements AuthRepository {
     if (account == null || account.password != password) {
       throw Exception('invalid credentials');
     }
+    if (!account.confirmed) {
+      throw const EmailNotConfirmedException();
+    }
     backend.setCurrentEmail(email);
+  }
+
+  @override
+  Future<void> resendAdminConfirmation(String email) async {
+    backend.confirmationResends.add(email);
   }
 
   @override

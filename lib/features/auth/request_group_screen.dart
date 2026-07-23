@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/group_login.dart';
 import '../../core/tokens.dart';
+import '../../core/widgets/password_field.dart';
+import '../../data/auth_repository.dart';
 import '../../data/providers.dart';
 
 class RequestGroupScreen extends ConsumerStatefulWidget {
@@ -61,16 +63,23 @@ class _RequestGroupScreenState extends ConsumerState<RequestGroupScreen> {
             groupName: _name.text.trim(),
           );
       // Signalisiert dem Passwort-Manager, die Zugangsdaten zu speichern.
+      // Anmelden tut die Anfrage seit dem Wechsel auf die Edge Function
+      // ohnehin nicht mehr — sie bleibt eine Anfrage.
       TextInput.finishAutofillContext();
-      // Damit die Anfrage nur eine Anfrage bleibt: sofort wieder ausloggen.
-      await ref.read(authRepositoryProvider).signOut();
       if (!mounted) return;
       setState(() => _done = true);
+    } on HandleTakenException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Der Anmeldename ist schon vergeben.')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Anfrage fehlgeschlagen: Name evtl. schon vergeben.'),
+          content: Text(
+            'Anfrage fehlgeschlagen – bitte später erneut versuchen.',
+          ),
         ),
       );
     } finally {
@@ -156,13 +165,9 @@ class _RequestGroupScreenState extends ConsumerState<RequestGroupScreen> {
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: AppSpacing.m),
-        TextField(
+        PasswordField(
           controller: _password,
-          decoration: const InputDecoration(
-            labelText: 'Gemeinsames Passwort',
-            border: OutlineInputBorder(),
-          ),
-          obscureText: true,
+          labelText: 'Gemeinsames Passwort',
           autofillHints: const [AutofillHints.newPassword],
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _busy ? null : _submit(),

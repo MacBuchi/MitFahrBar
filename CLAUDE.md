@@ -83,6 +83,25 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   bis eine Admin-Gruppe sie freigibt. Login = Handle → `handle@grp.local`
   (`core/group_login.dart`). Neue Datentabellen brauchen zwingend `group_id`
   plus dieselbe RLS-Policy, sonst lecken Daten zwischen Gruppen.
+- **Gruppen-Konten entstehen nur serverseitig** (seit v0.27.0, Edge Function
+  `supabase/functions/request-group/`). Grund: In Production ist die
+  Mail-Bestätigung Pflicht (`mailer_autoconfirm` aus — nötig, damit
+  Verwalter-Konten ihr Postfach beweisen und „Passwort vergessen"
+  funktioniert). Ein Client-`signUp` für eine Gruppe schickte damit eine
+  Bestätigungsmail an die unzustellbare Fake-Adresse (Bounce bei Brevo) und
+  das Konto bliebe für immer gesperrt. Die Function legt es per Admin-API
+  mit `email_confirm: true` an — mail-frei; der Signup-Trigger macht daraus
+  wie immer die pending-Gruppe. Drei Fallen: Das Handle-Mapping existiert
+  doppelt (Dart in `core/group_login.dart`, TypeScript in der Function) und
+  muss synchron bleiben; wer `mailer_autoconfirm` wieder einschaltet, nimmt
+  den Verwalter-Konten die Postfach-Verifizierung; und der Teststack läuft
+  bewusst mit `enable_confirmations = true` (config.toml), damit die E2E-
+  Suite (`test/e2e/auth_mail_e2e_test.dart`) genau diese Prod-Wahrheit
+  prüft — genau dieser Config-Drift hat den Fehler ursprünglich versteckt.
+  Nach jedem Merge, der `supabase/functions/` ändert: prüfen, ob die
+  GitHub-Integration die Function deployt hat (sie deployt die in
+  config.toml deklarierten), sonst manuell
+  `supabase functions deploy request-group`.
 - **`group_id` gehört auch in fachliche Primärschlüssel.** Wo der Schlüssel
   keine generierte UUID ist, sondern aus Fachdaten besteht (`plan_date`,
   `person_id`, …), muss `group_id` darin stehen — sonst ist er über alle

@@ -127,6 +127,45 @@ void main() {
     );
   });
 
+  testWidgets('der Reset-Link mündet im Dialog und setzt das Passwort', (
+    tester,
+  ) async {
+    final backend = _backend();
+    backend.adminAccounts[_adminEmail]!.groupId = backend.groups.keys.first;
+
+    await pumpApp(tester, backend, splash: false);
+    await _signInToConsole(tester);
+
+    // Der Klick auf den Reset-Link in der Mail meldet die Sitzung an und
+    // GoTrue signalisiert 'passwordRecovery' — die Konsole muss daraufhin
+    // von selbst den Ändern-Dialog öffnen, sonst endet der Link im Nichts.
+    backend.emitAuthEvent('passwordRecovery');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Admin-Passwort ändern'),
+      findsOneWidget,
+      reason:
+          'Nach dem Reset-Link darf niemand raten müssen, wo es '
+          'weitergeht.',
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'reset-neu-gesetzt');
+    await tester.enterText(find.byType(TextField).last, 'reset-neu-gesetzt');
+    await _tap(tester, find.widgetWithText(FilledButton, 'Ändern'));
+
+    expect(
+      backend.adminAccounts[_adminEmail]!.password,
+      'reset-neu-gesetzt',
+      reason: 'Das neue Admin-Passwort muss wirklich gesetzt sein.',
+    );
+    expect(
+      logRing.lines.join('\n'),
+      isNot(contains('reset-neu-gesetzt')),
+      reason: 'Ein Passwort darf nie im Protokoll landen.',
+    );
+  });
+
   testWidgets('Löschen scheitert folgenlos an falscher Sudo-Eingabe', (
     tester,
   ) async {
@@ -179,6 +218,53 @@ void main() {
       reason: 'Zurück im Anmelden-Modus sind E-Mail und Passwort wieder da.',
     );
     expect(find.widgetWithText(FilledButton, 'Anmelden'), findsOneWidget);
+  });
+
+  testWidgets('unbestätigtes Konto: Anmelden erklärt es, Resend geht', (
+    tester,
+  ) async {
+    final backend = _backend();
+    backend.adminAccounts['frisch@example.org'] = FakeAdminAccount(
+      password: 'frisch-geheim-1',
+      confirmed: false,
+    );
+    await pumpApp(tester, backend, splash: false);
+    await _openConsoleLogin(tester);
+
+    await tester.enterText(find.byType(TextField).first, 'frisch@example.org');
+    await tester.enterText(find.byType(TextField).last, 'frisch-geheim-1');
+    await _tap(tester, find.widgetWithText(FilledButton, 'Anmelden'));
+
+    expect(
+      find.textContaining('noch nicht bestätigt'),
+      findsOneWidget,
+      reason:
+          'Ein unbestätigtes Konto ist kein „Passwort falsch" — die '
+          'Nutzerin muss wissen, dass die Mail der nächste Schritt ist.',
+    );
+
+    await _tap(tester, find.text('Bestätigungs-Mail erneut senden'));
+    expect(
+      backend.confirmationResends,
+      ['frisch@example.org'],
+      reason: 'Der Resend wurde wirklich angefordert.',
+    );
+    expect(find.textContaining('Bestätigungs-Mail unterwegs'), findsOneWidget);
+  });
+
+  testWidgets('das Auge macht das Passwort sichtbar', (tester) async {
+    await pumpApp(tester, _backend(), splash: false);
+    await _openConsoleLogin(tester);
+
+    TextField password() =>
+        tester.widget<TextField>(find.byType(TextField).last);
+    expect(password().obscureText, isTrue);
+
+    await _tap(tester, find.byTooltip('Passwort anzeigen'));
+    expect(password().obscureText, isFalse);
+
+    await _tap(tester, find.byTooltip('Passwort verbergen'));
+    expect(password().obscureText, isTrue);
   });
 
   testWidgets('Registrieren verlangt die passende Wiederholung', (
