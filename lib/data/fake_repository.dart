@@ -92,7 +92,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
   // Wie in der DB nach Kalendertag geschlüsselt — ein voller Zeitstempel
   // würde sonst zwei Einträge für denselben Tag erlauben.
   final Map<DateTime, Map<String, PlanRide>> _availability = {};
-  final Map<DateTime, String> _planDrivers = {};
+  final Map<DateTime, Set<String>> _planDrivers = {};
 
   static DateTime _day(DateTime date) =>
       DateTime(date.year, date.month, date.day);
@@ -110,7 +110,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
       },
       overrides: {
         for (final e in _planDrivers.entries)
-          if (inRange(e.key)) e.key: e.value,
+          if (inRange(e.key)) e.key: {...e.value},
       },
     );
   }
@@ -130,12 +130,12 @@ class FakeCarpoolRepository implements CarpoolRepository {
   }
 
   @override
-  Future<void> setPlanDriver(DateTime date, String? driverId) async {
+  Future<void> setPlanDrivers(DateTime date, Set<String> driverIds) async {
     final key = _day(date);
-    if (driverId == null) {
+    if (driverIds.isEmpty) {
       _planDrivers.remove(key);
     } else {
-      _planDrivers[key] = driverId;
+      _planDrivers[key] = {...driverIds};
     }
   }
 }
@@ -169,7 +169,10 @@ FakeCarpoolRepository demoRepository() {
       vehicle: 'Astra',
       energyType: EnergyType.petrol,
       consumptionPer100km: 7,
-      seats: 5,
+      // Drei nutzbare Plätze (Kindersitz hinten) — zusammen mit Davids
+      // Dreisitzer wird im Demo-Modus ein Zwei-Auto-Tag erreichbar:
+      // Anna auf 1-way stellen, schon reicht kein einzelnes Auto mehr.
+      seats: 3,
     ),
     Person(
       id: 'p4',
@@ -178,7 +181,7 @@ FakeCarpoolRepository demoRepository() {
       vehicle: 'BMW',
       energyType: EnergyType.diesel,
       consumptionPer100km: 5,
-      seats: 4,
+      seats: 3,
     ),
   ];
   final repo = FakeCarpoolRepository(persons: persons);

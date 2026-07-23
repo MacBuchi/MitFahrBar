@@ -345,7 +345,9 @@ class _AvailabilityGrid extends ConsumerWidget {
                         label: '${person.name}, ${weekday.format(day.date)}',
                         available: day.availableIds.contains(person.id),
                         oneWay: day.oneWayIds.contains(person.id),
-                        isDriver: day.driverId == person.id,
+                        // Ein Tag kann mehrere Autos haben (Issue #62) —
+                        // jeder Fahrer bekommt sein Auto-Symbol.
+                        isDriver: day.driverIds.contains(person.id),
                         // Bereits eingetragene Tage sind Geschichte, keine
                         // Planung mehr.
                         enabled: !day.confirmed,
@@ -424,32 +426,82 @@ class _DayRow extends ConsumerWidget {
 
   bool get _confirmable => canConfirmPlan(day.date, DateTime.now());
 
-  Future<void> _pickDriver(BuildContext context, WidgetRef ref) async {
-    final chosen = await showDialog<String>(
+  Future<void> _pickDrivers(BuildContext context, WidgetRef ref) async {
+    // 1-way-Personen stellen kein Auto — sie stehen gar nicht erst zur Wahl.
+    // (Bisher standen sie im Dialog und die Auswahl verfiel still in
+    // planWeek — eine Falle, die mit dem Mehrfach-Wählen verschwindet.)
+    final candidates = [
+      for (final id in day.availableIds)
+        if (!day.oneWayIds.contains(id)) id,
+    ];
+    final selected = {...day.driverIds};
+    final chosen = await showDialog<Set<String>>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Wer fährt?'),
-        children: [
-          for (final id in day.availableIds)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, id),
-              child: Text(byId[id]?.name ?? id),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          final seatSum = selected.fold(
+            0,
+            (sum, id) => sum + (byId[id]?.seats ?? defaultSeats),
+          );
+          final headcount = day.availableIds.length;
+          return AlertDialog(
+            title: const Text('Wer fährt?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final id in candidates)
+                  CheckboxListTile(
+                    value: selected.contains(id),
+                    onChanged: (checked) => setState(() {
+                      if (checked ?? false) {
+                        selected.add(id);
+                      } else {
+                        selected.remove(id);
+                      }
+                    }),
+                    title: Text(byId[id]?.name ?? id),
+                    subtitle: Text('${byId[id]?.seats ?? defaultSeats} Plätze'),
+                  ),
+                const SizedBox(height: AppSpacing.s),
+                // Live-Rechnung statt Sperre: Zu klein wählen bleibt
+                // erlaubt — eine Menschenentscheidung, wie bisher beim
+                // einzelnen Fahrer.
+                Text(
+                  selected.isEmpty
+                      ? 'Noch niemand gewählt.'
+                      : seatSum >= headcount
+                      ? 'Reicht für alle $headcount.'
+                      : 'Reicht für $seatSum von $headcount.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
-          if (day.isOverridden)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, ''),
-              child: const Text('Zurück zum Vorschlag'),
-            ),
-        ],
+            actions: [
+              if (day.isOverridden)
+                TextButton(
+                  onPressed: () => Navigator.pop(context, const <String>{}),
+                  child: const Text('Zurück zum Vorschlag'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: selected.isEmpty
+                    ? null
+                    : () => Navigator.pop(context, selected),
+                child: const Text('Übernehmen'),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (chosen == null || !context.mounted) return;
     // Optimistisch über den Notifier — die Zeile springt sofort um.
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref
-          .read(weekPlanProvider.notifier)
-          .setDriver(day.date, chosen.isEmpty ? null : chosen);
+      await ref.read(weekPlanProvider.notifier).setDrivers(day.date, chosen);
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Speichern fehlgeschlagen.')),
@@ -458,6 +510,9 @@ class _DayRow extends ConsumerWidget {
   }
 
   Future<void> _confirm(BuildContext context, WidgetRef ref) async {
+    // Nur der Ein-Auto-Tag hat den Ein-Tipp-Eintrag; Mehr-Auto-Tage
+    // bekommen den Eintragen-je-Auto-Ablauf (Issue #62, folgt).
+    if (day.cars.length != 1) return;
     final driverId = day.driverId;
     if (driverId == null) return;
     final names = [
@@ -505,62 +560,95 @@ class _DayRow extends ConsumerWidget {
       ..invalidate(weekPlanProvider);
   }
 
-  /// Zusatz am Tag, wenn das Auto des vorgeschlagenen Fahrers nicht für alle
-  /// reicht. Leer, solange es passt.
-  String _seatHint(Person? driver) {
-    if (driver == null || day.availableIds.length <= driver.seats) return '';
-    return ' · nur ${driver.seats} Plätze für ${day.availableIds.length}';
+  /// Zusatz am Tag, wenn die Autos der Fahrer zusammen nicht für alle
+  /// reichen. Leer, solange es passt — bei einem Auto wortgleich wie früher.
+  String _seatHint() {
+    if (day.cars.isEmpty) return '';
+    final sum = day.cars.fold(
+      0,
+      (total, car) => total + (byId[car.driverId]?.seats ?? defaultSeats),
+    );
+    if (day.availableIds.length <= sum) return '';
+    return ' · nur $sum Plätze für ${day.availableIds.length}';
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final label = DateFormat('EEEE, d.M.', 'de').format(day.date);
-    final driver = day.driverId == null ? null : byId[day.driverId];
+    final joined = [
+      for (final id in day.driverIds) byId[id]?.name ?? id,
+    ].join(' + ');
 
     return ListTile(
       title: Text(label),
-      subtitle: Text(switch ((day.confirmed, driver)) {
-        (true, final d?) => 'Eingetragen · ${d.name} ist gefahren',
-        (true, _) => 'Eingetragen',
+      subtitle: Text(switch ((day.confirmed, day.cars.length)) {
+        (true, 0) => 'Eingetragen',
+        (true, 1) => 'Eingetragen · $joined ist gefahren',
+        (true, _) => 'Eingetragen · $joined sind gefahren',
         // Zwei verschiedene Gründe für „kein Fahrer": Entweder hat noch
         // niemand angetippt, oder es können alle nur eine Richtung — dann
         // stellt niemand ein Auto. „Noch niemand verfügbar" wäre im zweiten
         // Fall schlicht falsch und die Nutzerin sucht den Fehler bei sich.
-        (false, null) when day.availableIds.isEmpty => 'Noch niemand verfügbar',
-        (false, null) => 'Kein Fahrer möglich — alle nur eine Richtung',
-        (false, final d?) =>
-          '${d.name} fährt · '
+        (false, 0) when day.availableIds.isEmpty => 'Noch niemand verfügbar',
+        (false, 0) => 'Kein Fahrer möglich — alle nur eine Richtung',
+        (false, 1) =>
+          '$joined fährt · '
               '${day.isOverridden ? 'von Hand gesetzt' : 'Vorschlag'}'
-              // Der Planer bevorzugt ein Auto mit genug Plätzen; passt an
-              // dem Tag keines, sagt er das, statt still zu wenige Sitze
-              // vorzuschlagen.
-              '${_seatHint(driver)}',
+              // Der Planer bevorzugt Autos mit genug Plätzen; reicht es an
+              // dem Tag trotzdem nicht, sagt er das, statt still zu wenige
+              // Sitze vorzuschlagen.
+              '${_seatHint()}',
+        (false, final k) =>
+          '$joined fahren · $k Autos · '
+              '${day.isOverridden ? 'von Hand gesetzt' : 'Vorschlag'}'
+              '${_seatHint()}',
       }),
       leading: Icon(
         day.confirmed ? Icons.check_circle : Icons.event_available_outlined,
         color: day.confirmed ? AppColors.driver : null,
       ),
-      trailing: switch ((day.confirmed, day.tripId, driver)) {
+      trailing: switch ((day.confirmed, day.cars)) {
+        (true, []) => null,
         // Eingetragen: kein „Eintragen" mehr, sondern der Weg zum Bearbeiten
         // — deutlich anders eingefärbt, damit man die beiden Zustände nicht
         // verwechselt und nicht aus Gewohnheit weiterklickt.
-        (true, final id?, _) => OutlinedButton.icon(
-          onPressed: () => unawaited(context.push('/trip/$id')),
+        (true, [final only]) => OutlinedButton.icon(
+          onPressed: () => unawaited(context.push('/trip/${only.tripId}')),
           icon: const Icon(Icons.edit_outlined, size: 18),
           label: const Text('Bearbeiten'),
         ),
-        (true, _, _) => null,
-        (false, _, null) => null,
-        (false, _, _) => Row(
+        // Mehrere Fahrten am Tag: erst wählen, welche — ein Knopf, der
+        // stillschweigend irgendeine öffnet, wäre eine Falle.
+        (true, final cars) => PopupMenuButton<String>(
+          tooltip: 'Fahrt zum Bearbeiten wählen',
+          icon: const Icon(Icons.edit_outlined),
+          onSelected: (tripId) => unawaited(context.push('/trip/$tripId')),
+          itemBuilder: (context) => [
+            for (final (i, car) in cars.indexed)
+              if (car.tripId case final tripId?)
+                PopupMenuItem(
+                  value: tripId,
+                  child: Text(
+                    'Auto ${i + 1} · ${byId[car.driverId]?.name ?? ''}',
+                  ),
+                ),
+          ],
+        ),
+        (false, []) => null,
+        (false, final cars) => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
               tooltip: 'Fahrer ändern',
               icon: const Icon(Icons.swap_horiz),
-              onPressed: () => _pickDriver(context, ref),
+              onPressed: () => _pickDrivers(context, ref),
             ),
             FilledButton(
-              onPressed: _confirmable ? () => _confirm(context, ref) : null,
+              // Mehr-Auto-Tage bekommen den Eintragen-je-Auto-Ablauf
+              // (Issue #62, folgt) — bis dahin bleibt der Knopf dort aus.
+              onPressed: _confirmable && cars.length == 1
+                  ? () => _confirm(context, ref)
+                  : null,
               child: const Text('Eintragen'),
             ),
           ],

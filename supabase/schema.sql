@@ -136,7 +136,10 @@ create table public.plan_overrides (
   plan_date date not null,
   driver_id uuid not null references public.persons(id) on delete cascade,
   created_at timestamptz not null default now(),
-  primary key (group_id, plan_date)
+  -- Eine Zeile je Fahrer: Das Übersteuern eines Tages ist die MENGE seiner
+  -- Zeilen (Issue #62, mehrere Autos pro Tag). `group_id` gehört in den
+  -- Schlüssel, sonst kämen sich zwei Gruppen am selben Tag ins Gehege.
+  primary key (group_id, plan_date, driver_id)
 );
 
 create index plan_availability_group_idx on public.plan_availability (group_id);
