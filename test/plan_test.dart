@@ -90,7 +90,9 @@ void main() {
       final plan = planWeek(
         dates: week,
         availability: allAvailable({'a', 'b'}),
-        overrides: {week.first: 'b'},
+        overrides: {
+          week.first: {'b'},
+        },
         trips: const [],
         settings: settings,
       );
@@ -107,7 +109,9 @@ void main() {
         availability: {
           week.first: ride({'a'}),
         },
-        overrides: {week.first: 'b'},
+        overrides: {
+          week.first: {'b'},
+        },
         trips: const [],
         settings: settings,
       );
@@ -265,7 +269,9 @@ void main() {
         availability: {
           week.first: ride({'b'}, oneWay: {'a'}),
         },
-        overrides: {week.first: 'a'},
+        overrides: {
+          week.first: {'a'},
+        },
         trips: const [],
         settings: settings,
       );
@@ -344,9 +350,12 @@ void main() {
       expect(plan.first.driverId, 'b');
     });
 
-    test('passt niemandes Auto, bleibt es trotzdem bei einem Fahrer', () {
+    test('mit maxCars 1 gilt die alte Ein-Auto-Regel samt Rückfalllinie', () {
+      // Bis die UI mehrere Autos anzeigen und eintragen kann (Issue #62,
+      // Teil 2), erzwingt der WeekPlanNotifier maxCars 1. Passt niemandes
+      // Auto, bleibt dann der beste Vorschlag aus allen Kandidaten stehen:
       // Ein Tag ganz ohne Vorschlag wäre schlechter als einer, an dem man
-      // zusammenrückt oder ein zweites Auto nimmt.
+      // zusammenrückt.
       final plan = planWeek(
         dates: [week.first],
         availability: {
@@ -356,9 +365,10 @@ void main() {
         trips: const [],
         settings: settings,
         seats: const {'a': 2, 'b': 2, 'c': 2, 'd': 2},
+        maxCars: 1,
       );
 
-      expect(plan.first.driverId, isNotNull);
+      expect(plan.first.cars, hasLength(1));
       expect(plan.first.driverId, 'a', reason: 'wieder die normale Regel');
     });
 
@@ -393,7 +403,9 @@ void main() {
         availability: {
           week.first: ride({'a', 'b', 'c'}),
         },
-        overrides: {week.first: 'a'},
+        overrides: {
+          week.first: {'a'},
+        },
         trips: const [],
         settings: settings,
         seats: const {'a': 2, 'b': 5},
@@ -405,8 +417,32 @@ void main() {
   });
 
   group('celebratedDrivers', () {
-    PlannedDay day(DateTime date, String? driver, List<String> available) =>
-        PlannedDay(date: date, availableIds: available, driverId: driver);
+    /// Plan-Tag mit genau einem Auto, das alle Verfügbaren außer dem Fahrer
+    /// mitnimmt — die Kurzform für die meisten Fälle.
+    PlannedDay day(
+      DateTime date,
+      String? driver,
+      List<String> available, {
+      Set<String> oneWay = const {},
+    }) => PlannedDay(
+      date: date,
+      availableIds: available,
+      oneWayIds: oneWay,
+      cars: [
+        if (driver != null)
+          PlannedCar(
+            driverId: driver,
+            fullIds: [
+              for (final id in available)
+                if (id != driver && !oneWay.contains(id)) id,
+            ],
+            oneWayIds: [
+              for (final id in available)
+                if (id != driver && oneWay.contains(id)) id,
+            ],
+          ),
+      ],
+    );
 
     // Vorgabe wie in AppSettings — die Tests unten pinnen zusätzlich,
     // dass der Faktor wirklich aus dem Parameter kommt.
@@ -462,11 +498,11 @@ void main() {
     test('eine 1-way-Mitfahrt zählt halb — wie in den Punkten (#59)', () {
       // a nimmt drei 1-way mit (3 × 0,5 = 1,5), d einen ganzen (1,0):
       // a gewinnt. Zwei ganze (2,0) schlagen wiederum die drei halben.
-      final oneWayDay = PlannedDay(
-        date: week[0],
-        availableIds: const ['a', 'b', 'c', 'f'],
-        oneWayIds: const {'b', 'c', 'f'},
-        driverId: 'a',
+      final oneWayDay = day(
+        week[0],
+        'a',
+        ['a', 'b', 'c', 'f'],
+        oneWay: {'b', 'c', 'f'},
       );
       expect(
         celebrated([
@@ -490,12 +526,7 @@ void main() {
       // 0,5 steht es 1,0 zu 1,0 — Gleichstand. Ein anderer Faktor kippt
       // den Sieger in beide Richtungen; der Parameter wirkt also wirklich.
       final plan = [
-        PlannedDay(
-          date: week[0],
-          availableIds: const ['a', 'b', 'c'],
-          oneWayIds: const {'b', 'c'},
-          driverId: 'a',
-        ),
+        day(week[0], 'a', ['a', 'b', 'c'], oneWay: {'b', 'c'}),
         day(week[1], 'd', ['d', 'e']),
       ];
       expect(celebrated(plan), {'a', 'd'});
@@ -507,12 +538,7 @@ void main() {
       // Halbe Punkte sind mehr als null — der einzige Fahrer der Woche
       // mit einer 1-way-Mitfahrt bekommt das Konfetti.
       final plan = [
-        PlannedDay(
-          date: week[0],
-          availableIds: const ['a', 'b'],
-          oneWayIds: const {'b'},
-          driverId: 'a',
-        ),
+        day(week[0], 'a', ['a', 'b'], oneWay: {'b'}),
       ];
       expect(celebrated(plan), {'a'});
     });
@@ -527,7 +553,9 @@ void main() {
           date: week[0],
           availableIds: const ['a', 'b', 'c'],
           oneWayIds: const {'c'},
-          driverId: 'a',
+          cars: const [
+            PlannedCar(driverId: 'a', fullIds: ['b'], oneWayIds: ['c']),
+          ],
         ),
       ];
       final stats = statsWithPlannedWeek(days, const [], settings);
@@ -551,9 +579,10 @@ void main() {
         PlannedDay(
           date: week[0],
           availableIds: const ['a', 'b'],
-          driverId: 'a',
           confirmed: true,
-          tripId: 'echt',
+          cars: const [
+            PlannedCar(driverId: 'a', fullIds: ['b'], tripId: 'echt'),
+          ],
         ),
       ];
       final stats = statsWithPlannedWeek(days, [confirmedTrip], settings);
@@ -568,7 +597,11 @@ void main() {
 
     test('ein geplanter Solo-Tag fällt über die Solo-Regel heraus', () {
       final days = [
-        PlannedDay(date: week[0], availableIds: const ['a'], driverId: 'a'),
+        PlannedDay(
+          date: week[0],
+          availableIds: const ['a'],
+          cars: const [PlannedCar(driverId: 'a')],
+        ),
       ];
       expect(
         statsWithPlannedWeek(days, const [], settings),
@@ -673,6 +706,264 @@ void main() {
 
       expect(plan[0].suggestedDriverId, 'b');
       expect(plan[1].suggestedDriverId, 'a');
+    });
+  });
+
+  // Issue #62: Reicht kein einzelnes Auto, teilt der Planer den Tag auf so
+  // wenige Autos wie möglich. Die Punkte bestimmen weiter, WER fährt.
+  group('Mehrere Autos (Issue #62)', () {
+    PlannedDay planDay({
+      required Map<String, PlanRide> rides,
+      Map<String, int> seats = const {},
+      Set<String> override = const {},
+      List<Trip> trips = const [],
+    }) => planWeek(
+      dates: [week.first],
+      availability: {week.first: rides},
+      overrides: override.isEmpty ? const {} : {week.first: override},
+      trips: trips,
+      settings: settings,
+      seats: seats,
+    ).first;
+
+    test('ein Auto genügt, solange eines reicht', () {
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd', 'e'}),
+        seats: const {'a': 5, 'b': 4, 'c': 4, 'd': 4, 'e': 4},
+      );
+
+      expect(day.cars, hasLength(1));
+      expect(day.driverId, 'a');
+    });
+
+    test('ein großes Auto schlägt zwei kleine — auch gegen die Fairness', () {
+      // g steht in der Fairness-Reihenfolge ganz hinten, hat aber als
+      // Einziger Platz für alle sieben: Es bleibt bei einem Auto.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd', 'e', 'f', 'g'}),
+        seats: const {'a': 4, 'b': 4, 'c': 4, 'd': 4, 'e': 4, 'f': 4, 'g': 7},
+      );
+
+      expect(
+        day.driverIds,
+        ['g'],
+        reason: 'Weniger Autos schlagen die Fairness-Reihenfolge (Regel 1+2).',
+      );
+    });
+
+    test('reicht kein einzelnes Auto, fahren so wenige wie möglich', () {
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd', 'e', 'f'}),
+        seats: const {'a': 4, 'b': 4, 'c': 4, 'd': 4, 'e': 4, 'f': 4},
+      );
+
+      expect(day.driverIds, hasLength(2), reason: '2 × 4 Plätze ≥ 6 Leute');
+      expect(day.driverIds, ['a', 'b']);
+    });
+
+    test('unter ausreichenden Kombinationen entscheiden die Punkte', () {
+      // a und b haben +2, c und d −2 — jede Zweier-Kombination hätte genug
+      // Plätze, also fahren die Punktärmsten.
+      final history = [
+        Trip(
+          id: 't1',
+          date: DateTime(2026, 2, 1),
+          participations: const {
+            'a': ParticipationStatus.driver,
+            'c': ParticipationStatus.passenger,
+            'd': ParticipationStatus.passenger,
+          },
+        ),
+        Trip(
+          id: 't2',
+          date: DateTime(2026, 2, 2),
+          participations: const {
+            'b': ParticipationStatus.driver,
+            'c': ParticipationStatus.passenger,
+            'd': ParticipationStatus.passenger,
+          },
+        ),
+      ];
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd', 'e', 'f'}),
+        seats: const {'a': 4, 'b': 4, 'c': 4, 'd': 4, 'e': 4, 'f': 4},
+        trips: history,
+      );
+
+      expect(day.driverIds, ['c', 'd']);
+    });
+
+    test('wer den Tag nicht mehr abdecken kann, wird übersprungen', () {
+      // a wäre laut Fairness zuerst dran, aber mit as Zweisitzer kommen
+      // selbst zwei Autos nicht auf acht Plätze — b und c müssen fahren.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c'}, oneWay: {'d', 'e', 'f', 'g', 'h'}),
+        seats: const {'a': 2, 'b': 4, 'c': 4},
+      );
+
+      expect(day.driverIds, ['b', 'c']);
+    });
+
+    test('die Mitfahrer verteilen sich ausgeglichen und deterministisch', () {
+      // Vier Mitfahrer auf zwei Vierersitzer: abwechselnd ins Auto mit den
+      // meisten freien Plätzen, Gleichstand geht ans erste. 1-way belegt
+      // dabei einen Sitz wie jeder andere.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}, oneWay: {'e', 'f'}),
+        seats: const {'a': 4, 'b': 4, 'c': 4, 'd': 4},
+      );
+
+      expect(day.driverIds, ['a', 'b']);
+      expect(day.cars[0].fullIds, ['c']);
+      expect(day.cars[0].oneWayIds, ['e']);
+      expect(day.cars[1].fullIds, ['d']);
+      expect(day.cars[1].oneWayIds, ['f']);
+    });
+
+    test('die Simulation bucht je Auto eine Pseudo-Fahrt', () {
+      final plan = planWeek(
+        dates: [week[0], week[1]],
+        availability: {
+          week[0]: ride({'a', 'b', 'c', 'd', 'e', 'f'}),
+          week[1]: ride({'a', 'b'}),
+        },
+        overrides: const {},
+        trips: const [],
+        settings: settings,
+        seats: const {'a': 4, 'b': 4, 'c': 4, 'd': 4, 'e': 4, 'f': 4},
+      );
+
+      expect(plan.first.driverIds, ['a', 'b']);
+      final preview = statsWithPlannedWeek([plan.first], const [], settings);
+      expect(preview['a']!.points, 2);
+      expect(
+        preview['b']!.points,
+        2,
+        reason: 'Das „Mitgenommen" des Tages teilt sich auf beide Fahrer.',
+      );
+      expect(
+        plan[1].driverId,
+        'a',
+        reason:
+            'Hätte nur einer die vier Montags-Punkte bekommen, wäre am '
+            'Dienstag zwingend der andere dran.',
+      );
+    });
+
+    test('ein Auto ohne Mitfahrer zählt als Solo-Fahrt nicht', () {
+      // Drei Leute auf zwei Zweisitzer: Das zweite Auto fährt leer hinterher
+      // und bringt seinem Fahrer nichts — genau wie der echte Eintrag später
+      // auch (Issue #61). Wer das „repariert", zählt Solo-Fahrten doppelt.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c'}),
+        seats: const {'a': 2, 'b': 2, 'c': 2},
+      );
+
+      expect(day.driverIds, ['a', 'b']);
+      final preview = statsWithPlannedWeek([day], const [], settings);
+      expect(preview['a']!.points, 1);
+      expect(preview['b'], isNull, reason: 'Solo-Auto ist unsichtbar (#61).');
+    });
+
+    test('reichen selbst alle Autos nicht, fahren alle Kandidaten', () {
+      // Zwei Zweisitzer für fünf Leute: Die Sitzprüfung fällt weg — lieber
+      // zu wenige Plätze als ein Tag ohne Fahrer (die alte Rückfalllinie,
+      // verallgemeinert).
+      final day = planDay(
+        rides: ride({'a', 'b'}, oneWay: {'c', 'd', 'e'}),
+        seats: const {'a': 2, 'b': 2},
+      );
+
+      expect(day.driverIds, ['a', 'b']);
+    });
+
+    test('ein Mehrfach-Übersteuern ersetzt den ganzen Vorschlag', () {
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        override: {'c', 'd'},
+      );
+
+      expect(day.suggestedDriverIds, ['a']);
+      expect(day.driverIds, ['c', 'd']);
+      expect(day.isOverridden, isTrue);
+    });
+
+    test('ein Übersteuern verfällt je Person, nicht als Ganzes', () {
+      // z hat keine Verfügbarkeit — nur dieser Teil des Übersteuerns
+      // verfällt, der Rest bleibt.
+      final partial = planDay(rides: ride({'a', 'b'}), override: {'b', 'z'});
+      expect(partial.driverIds, ['b']);
+      expect(partial.isOverridden, isTrue);
+
+      // Verfallen alle, gilt wieder der Vorschlag.
+      final lapsed = planDay(rides: ride({'a', 'b'}), override: {'z'});
+      expect(lapsed.driverIds, ['a']);
+      expect(lapsed.isOverridden, isFalse);
+
+      // Und wer von Hand genau den Vorschlag wählt, hat nichts übersteuert.
+      final same = planDay(rides: ride({'a', 'b'}), override: {'a'});
+      expect(same.isOverridden, isFalse);
+    });
+  });
+
+  group('Bestätigte Tage mit mehreren Fahrten', () {
+    final twoCars = [
+      Trip(
+        id: 't1',
+        date: week.first,
+        participations: const {
+          'a': ParticipationStatus.driver,
+          'b': ParticipationStatus.passenger,
+        },
+      ),
+      Trip(
+        id: 't2',
+        date: week.first,
+        participations: const {
+          'c': ParticipationStatus.driver,
+          'd': ParticipationStatus.oneWay,
+        },
+      ),
+    ];
+
+    test('zwei echte Fahrten am selben Tag erscheinen als zwei Autos', () {
+      // Bis Issue #62 kollabierte der Tag auf die zuletzt geladene Fahrt.
+      final day = planWeek(
+        dates: [week.first],
+        availability: {
+          week.first: ride({'a', 'b', 'c', 'd'}),
+        },
+        overrides: const {},
+        trips: twoCars,
+        settings: settings,
+      ).first;
+
+      expect(day.confirmed, isTrue);
+      expect(day.driverIds, ['a', 'c']);
+      expect(day.cars[0].tripId, 't1');
+      expect(day.cars[0].fullIds, ['b']);
+      expect(day.cars[1].tripId, 't2');
+      expect(day.cars[1].oneWayIds, ['d']);
+    });
+
+    test('das Hajo zählt je Auto und die echten Insassen', () {
+      // x steht zwar im Raster, saß aber in keinem Auto — zählte die
+      // Verfügbarkeit statt der Fahrt, bekäme der falsche Fahrer Konfetti.
+      final day = planWeek(
+        dates: [week.first],
+        availability: {
+          week.first: ride({'a', 'b', 'c', 'd', 'x'}),
+        },
+        overrides: const {},
+        trips: twoCars,
+        settings: settings,
+      ).first;
+
+      expect(
+        celebratedDrivers([day], oneWayFactor: 0.5),
+        {'a'},
+        reason: 'a nimmt 1,0 mit (b voll), c nur 0,5 (d 1-way).',
+      );
     });
   });
 }
