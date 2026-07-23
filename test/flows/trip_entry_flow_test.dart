@@ -101,6 +101,39 @@ void main() {
     );
   });
 
+  // Issue #61: 1-way braucht jemanden, der wirklich fährt. Ist nur eine
+  // Person dabei, springt der zweite Tap direkt auf „raus" — sonst stünde
+  // die Maske in einem Zustand, aus dem kein Fahrer mehr möglich ist.
+  testWidgets('die einzige Person kann nicht 1-way werden', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Anna')); // dabei (einzige) -> wird Fahrer
+    await tester.pumpAndSettle();
+    // „Anna" steht jetzt doppelt da (Kachel + Fahrer-Feld) — getippt wird
+    // die Teilnehmer-Kachel weiter unten.
+    await tester.tap(find.text('Anna').last); // -> direkt raus, kein 1-way
+    await tester.pumpAndSettle();
+
+    expect(find.text('1-way'), findsNothing);
+    expect(find.text('Mindestens 1 Person auswählen'), findsOneWidget);
+  });
+
   // Je länger eine Gruppe existiert, desto mehr Namen sammeln sich an, die
   // niemand mehr antippt. Rein alphabetisch stehen die mitten zwischen den
   // Stammgästen und man sucht sich jeden Abend neu zurecht.

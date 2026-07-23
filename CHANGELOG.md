@@ -4,6 +4,24 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.24.0] – 2026-07-23
+
+### Neu
+
+- **„Was diese Woche ändert" im Wochenplaner** (euer Wunsch): Unter dem
+  Raster rechnet RideBuddy vor, was die geplante Woche je Person
+  bewirken würde — als Punktediff oder, umgeschaltet, als Änderung der
+  Fahrrate in Promille. Reine Vorschau: An den echten Punkten ändert
+  die Planung weiterhin nichts.
+
+### Verbessert
+
+- **Allein fahren zählt nicht mehr** (euer Wunsch): Eine Fahrt, bei der
+  nur eine Person im Auto sitzt, geht in keine Kennzahl mehr ein —
+  weder Punkte noch Fahranteil. In der Historie steht sie blass mit dem
+  Hinweis „zählt nicht". Und wer beim Eintragen als Einziger dabei ist,
+  kann nicht mehr versehentlich auf „nur eine Richtung" springen.
+
 ## [0.23.2] – 2026-07-23
 
 ### Verbessert

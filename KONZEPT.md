@@ -61,6 +61,8 @@ Eine **Fahrt = eine Fahrgruppe an einem Tag** (in der Regel eine pro Tag; an man
 
 > **Korrektur 2026-07-21 (Issue #38): Der Standard steht auf „nur Punkte" (`points_weight = 1.0`).** Die Gruppe hat entschieden, dass allein die Punkte die Reihenfolge bestimmen; der Fahranteil ist reine Anzeige. Damit gilt der oben beschriebene Ausgleich **nicht mehr im Standard** — das Beispiel darunter beschreibt seitdem die Wirkung von `points_weight = 0.5`, nicht das Verhalten der App. Die bekannte Folge: Wer selten, aber mit vollem Auto fährt, baut ein Punktepolster auf und kommt an kleinen Tagen seltener an die Reihe. Der Mechanismus bleibt im Code, nur das Gewicht ist gesetzt — zurückdrehen heißt, `points_weight` zu ändern, nicht die Formel.
 
+> **Korrektur 2026-07-23 (Issue #61): Solo-Fahrten zählen nicht.** Eine Fahrt mit nur einer beteiligten Person ist keine Fahrgemeinschafts-Fahrt: Sie geht in **keine** Kennzahl ein — nicht in Punkte (dort war sie schon immer 0), nicht in Fahranteil, Quote oder Kilometer (`isSoloTrip` in `lib/core/fairness.dart`). Die Historie zeigt sie blass mit dem Hinweis „zählt nicht"; im Editor lässt sich 1-way nur wählen, solange mindestens eine weitere Person voll dabei bleibt — sonst gäbe es niemanden, der fährt.
+
 *Beispiel:* A hat +12 Punkte (nimmt immer 4 mit), fuhr aber nur 10 von 100 Teilnahmetagen (10 %). B hat −3 Punkte, fuhr 20 von 80 Tagen (25 %). Kleiner Tag, nur A und B: Nach reinen Punkten wäre immer B dran. Kombiniert: Punkte-Rang B=1/A=2, Fahranteil-Rang A=1/B=2 → Gleichstand → es fährt, wer länger nicht gefahren ist. A kommt an kleinen Tagen also wieder regulär an die Reihe.
 
 - **Quote** (Ø Mitfahrer pro Fahrt) bleibt als Anzeige-Statistik erhalten, steuert aber nicht mehr die Auswahl.

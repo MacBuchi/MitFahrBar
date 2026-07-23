@@ -385,6 +385,41 @@ void main() {
     handle.dispose();
   });
 
+  // Issue #60: Der Planer rechnet vor, was die geplante Woche ändern würde —
+  // je Person als Punktediff, umschaltbar auf die Fahrraten-Änderung in
+  // Promille. Reine Vorschau, die echten Punkte bleiben unberührt.
+  testWidgets('„Was diese Woche ändert" kann Punkte und Fahrrate', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Bert', monday));
+    await tester.pumpAndSettle();
+
+    // Frische Gruppe: Anna fährt und nimmt Bert mit.
+    expect(find.text('Was diese Woche ändert:'), findsOneWidget);
+    expect(find.text('Anna +1'), findsOneWidget);
+    expect(find.text('Bert −1'), findsOneWidget);
+
+    await tester.tap(find.text('Fahrrate'));
+    await tester.pumpAndSettle();
+    expect(find.text('Anna +1000 ‰'), findsOneWidget);
+    expect(
+      find.text('Bert ±0 ‰'),
+      findsOneWidget,
+      reason:
+          'Mitfahren ändert die eigene Fahrrate dieser Woche nicht — '
+          'die Null ist ehrlich.',
+    );
+    handle.dispose();
+  });
+
   // Der Trägheits-Fix vom 2026-07-22: Der Tap wird sofort eingerechnet,
   // der Netz-Schreib läuft hinterher. Der Fake schreibt erst, wenn der
   // Test es erlaubt — wäre der Planer noch synchron, bliebe die Zelle
