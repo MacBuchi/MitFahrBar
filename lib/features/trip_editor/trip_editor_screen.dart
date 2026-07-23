@@ -14,11 +14,15 @@ import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../models/plan_ride.dart';
 import '../../models/trip.dart';
+import 'trip_editor_seed.dart';
 
 class TripEditorScreen extends ConsumerStatefulWidget {
-  const TripEditorScreen({super.key, this.tripId});
+  const TripEditorScreen({super.key, this.tripId, this.seed});
 
   final String? tripId;
+
+  /// Vorbelegung aus dem Eintragen-je-Auto-Ablauf des Planers (Issue #62).
+  final TripEditorSeed? seed;
 
   @override
   ConsumerState<TripEditorScreen> createState() => _TripEditorScreenState();
@@ -46,6 +50,31 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
   }
 
   bool get _isEdit => widget.tripId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = widget.seed;
+    if (seed != null && !_isEdit) {
+      _date = seed.date;
+      _full.addAll(seed.fullIds);
+      _oneWay.addAll(seed.oneWayIds);
+      _manualDriverId = seed.driverId;
+      // Der Seed ist eine getroffene Entscheidung, keine Vorauswahl:
+      // `_dirty` sperrt den Plan-Prefill (Issue #65) von Anfang an, damit
+      // spät eintreffende Plan-Daten die Insassen dieses Autos nie räumen —
+      // die wären die des GANZEN Tages, nicht die dieses Autos.
+      _dirty = true;
+      _prefilledFor = seed.date;
+    }
+  }
+
+  String get _title {
+    if (_isEdit) return 'Fahrt bearbeiten';
+    final seed = widget.seed;
+    if (seed == null) return 'Fahrt eintragen';
+    return 'Fahrt eintragen · Auto ${seed.carNumber}/${seed.carCount}';
+  }
 
   void _initFromTrip(Trip trip) {
     _date = trip.date;
@@ -115,14 +144,21 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
     }
 
     // Mehrere Fahrten pro Tag sind erlaubt (z. B. zweites Auto), aber ein
-    // versehentlicher Doppel-Eintrag soll auffallen -> Rückfrage.
+    // versehentlicher Doppel-Eintrag soll auffallen -> Rückfrage. Der
+    // Je-Auto-Ablauf des Planers sagt vorher an, wie viele Fahrten es am
+    // Tag schon geben muss — bis zu dieser Zahl schweigt die Rückfrage,
+    // eine unerwartete Fremd-Fahrt liegt darüber und fragt weiter nach.
     if (!_isEdit) {
       final sameDay = ref
           .read(tripsProvider)
           .value!
           .where((t) => _sameDay(t.date, _date))
           .length;
-      if (sameDay > 0) {
+      final seed = widget.seed;
+      final expected = seed != null && _sameDay(seed.date, _date)
+          ? seed.expectedSameDayTrips
+          : 0;
+      if (sameDay > expected) {
         final proceed = await _confirmSecondTrip(sameDay);
         if (proceed != true) return;
       }
@@ -146,7 +182,9 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       ref.invalidate(tripsProvider);
       if (!mounted) return;
       if (context.canPop()) {
-        context.pop();
+        // `true` ist der Rückgabekanal des Je-Auto-Ablaufs im Planer: Erst
+        // ein erfolgreiches Speichern öffnet dort das nächste Auto.
+        context.pop(true);
       } else {
         context.go('/');
       }
@@ -233,9 +271,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
     final settings = settingsAsync.value;
     if (persons == null || trips == null || settings == null) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(_isEdit ? 'Fahrt bearbeiten' : 'Fahrt eintragen'),
-        ),
+        appBar: AppBar(title: Text(_title)),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -303,9 +339,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
     final split = regulars.isNotEmpty && occasional.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Fahrt bearbeiten' : 'Fahrt eintragen'),
-      ),
+      appBar: AppBar(title: Text(_title)),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.m),
         children: [
@@ -336,6 +370,14 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
               (_full.isNotEmpty || _oneWay.isNotEmpty))
             Text(
               'Vorauswahl aus dem Wochenplan übernommen.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          // Schließt sich mit der Zeile darüber aus: Der Seed setzt `_dirty`.
+          if (widget.seed case final seed?
+              when !_isEdit && _sameDay(_date, seed.date))
+            Text(
+              'Vorbelegt aus dem Wochenplan · '
+              'Auto ${seed.carNumber} von ${seed.carCount}.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           const SizedBox(height: AppSpacing.s),

@@ -17,6 +17,7 @@ import '../../data/providers.dart';
 import '../../models/app_settings.dart';
 import '../../models/person.dart';
 import '../../models/trip.dart';
+import '../trip_editor/trip_editor_seed.dart';
 
 class PlanScreen extends ConsumerWidget {
   const PlanScreen({super.key});
@@ -510,8 +511,8 @@ class _DayRow extends ConsumerWidget {
   }
 
   Future<void> _confirm(BuildContext context, WidgetRef ref) async {
-    // Nur der Ein-Auto-Tag hat den Ein-Tipp-Eintrag; Mehr-Auto-Tage
-    // bekommen den Eintragen-je-Auto-Ablauf (Issue #62, folgt).
+    // Ein-Auto-Tag: Ein-Tipp-Eintrag wie immer. Mehr-Auto-Tage laufen über
+    // [_confirmSplit].
     if (day.cars.length != 1) return;
     final driverId = day.driverId;
     if (driverId == null) return;
@@ -559,6 +560,76 @@ class _DayRow extends ConsumerWidget {
       ..invalidate(tripsProvider)
       ..invalidate(weekPlanProvider);
   }
+
+  /// Eintragen am Mehr-Auto-Tag (Issue #62): Der Fahrten-Editor öffnet sich
+  /// für jedes Auto nacheinander, fertig vorbelegt — gebucht wird erst mit
+  /// jedem Speichern, nie still im Hintergrund.
+  Future<void> _confirmSplit(BuildContext context, WidgetRef ref) async {
+    // Die Autos VOR dem ersten Editor einfrieren und nie neu ableiten:
+    // Sobald Auto 1 gespeichert ist, gilt der Tag als bestätigt, und
+    // `day.cars` beschreibt die echte Fahrt statt der noch offenen Autos.
+    final cars = List.of(day.cars);
+    final date = day.date;
+    final names = [
+      for (final car in cars) byId[car.driverId]?.name ?? car.driverId,
+    ].join(' + ');
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${cars.length} Fahrten eintragen?'),
+        content: Text(
+          '${DateFormat('EEEE, d. MMMM', 'de').format(date)}\n\n'
+          'An diesem Tag fahren ${cars.length} Autos ($names). RideBuddy '
+          'öffnet den Editor für jedes Auto nacheinander, fertig vorbelegt '
+          '— gebucht wird erst mit jedem Speichern, nichts ohne euch.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Los geht's"),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    // Kalibriert die „Weitere Fahrt?"-Rückfrage des Editors: So viele
+    // Fahrten gibt es am Tag schon, bevor das jeweilige Auto aufgeht.
+    var expected = (ref.read(tripsProvider).value ?? const <Trip>[])
+        .where((t) => _sameDay(t.date, date))
+        .length;
+
+    for (final (i, car) in cars.indexed) {
+      if (!context.mounted) return;
+      final saved = await context.push<bool>(
+        '/trip/new',
+        extra: TripEditorSeed(
+          date: date,
+          // `PlannedCar.fullIds` sind die Mitfahrer OHNE Fahrer — der Editor
+          // führt den Fahrer dagegen als vollen Teilnehmer.
+          fullIds: {car.driverId, ...car.fullIds},
+          oneWayIds: {...car.oneWayIds},
+          driverId: car.driverId,
+          carNumber: i + 1,
+          carCount: cars.length,
+          expectedSameDayTrips: expected,
+        ),
+      );
+      // Abbruch heißt: Der Rest bleibt bewusst ungebucht. Der Tag steht
+      // dann ehrlich mit den Fahrten da, die es gibt — das fehlende Auto
+      // wird von Hand nachgetragen (so erklärt es auch die Hilfe).
+      if (saved != true) return;
+      expected += 1;
+    }
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   /// Zusatz am Tag, wenn die Autos der Fahrer zusammen nicht für alle
   /// reichen. Leer, solange es passt — bei einem Auto wortgleich wie früher.
@@ -644,11 +715,11 @@ class _DayRow extends ConsumerWidget {
               onPressed: () => _pickDrivers(context, ref),
             ),
             FilledButton(
-              // Mehr-Auto-Tage bekommen den Eintragen-je-Auto-Ablauf
-              // (Issue #62, folgt) — bis dahin bleibt der Knopf dort aus.
-              onPressed: _confirmable && cars.length == 1
+              onPressed: !_confirmable
+                  ? null
+                  : cars.length == 1
                   ? () => _confirm(context, ref)
-                  : null,
+                  : () => _confirmSplit(context, ref),
               child: const Text('Eintragen'),
             ),
           ],

@@ -12,7 +12,7 @@
 -- constraint matching the ON CONFLICT specification"). Deshalb steigt IM
 -- SELBEN FILE die Mindestversion (die Regel aus CLAUDE.md, angelegt mit
 -- 20260721180000_min_supported_version.sql — dies ist ihre erste echte
--- Nutzung): Sobald das 0.27.0-Release existiert, führt der Sperr-Schirm
+-- Nutzung): Sobald das 0.28.0-Release existiert, führt der Sperr-Schirm
 -- ältere Clients zum Update, statt sie still scheitern zu lassen.
 
 alter table public.plan_overrides
@@ -21,5 +21,5 @@ alter table public.plan_overrides
   add primary key (group_id, plan_date, driver_id);
 
 update public.app_config
-   set value = '0.27.0', updated_at = now()
+   set value = '0.28.0', updated_at = now()
  where key = 'min_supported_version';
