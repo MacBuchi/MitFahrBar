@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.26.0] – 2026-07-24
+
+### Intern
+
+- **Für die Gruppen ändert sich nichts Sichtbares.** Unter der Haube lernt
+  der Wochenplaner, mit mehreren Autos an einem Tag zu rechnen (euer
+  Wunsch, Teil 1): Reicht kein einzelnes Auto für alle, kann er künftig
+  so wenige Autos wie möglich vorschlagen — sichtbar und bedienbar wird
+  das mit dem nächsten Release. Nebenbei behoben: Ein Tag mit zwei
+  bereits eingetragenen Fahrten zeigte im Planer nur eine davon, und das
+  Hajo zählte dort die Plan-Einträge statt der tatsächlichen Mitfahrer.
+
 ## [0.25.1] – 2026-07-24
 
 ### Verbessert

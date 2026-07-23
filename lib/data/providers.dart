@@ -262,10 +262,17 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
   List<PlannedDay> _plan() => planWeek(
     dates: _dates,
     availability: _availability,
-    overrides: _overrides,
+    // Gespeichert ist weiterhin genau EIN Fahrer je Tag; planWeek denkt seit
+    // Issue #62 in Mengen.
+    overrides: {
+      for (final e in _overrides.entries) e.key: {e.value},
+    },
     trips: _trips,
     settings: _settings,
     seats: _seats,
+    // Bis die UI mehrere Autos anzeigen und eintragen kann (Issue #62,
+    // Teil 2), bleibt das Laufzeitverhalten bei der alten Ein-Auto-Regel.
+    maxCars: 1,
   );
 
   /// Erst lokal zeigen, dann schreiben; bei Fehler Server-Wahrheit zurück
