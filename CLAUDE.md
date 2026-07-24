@@ -427,6 +427,17 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Choreografie. Tipp überspringt, `disableAnimations` unterbindet ihn,
   und in Tests ist er über `splashEnabledProvider` standardmäßig aus
   (`pumpApp(splash: …)`) — sonst wartete jeder Flow-Test 3 Sekunden.
+- **Config-Drift-Wache** (`.github/workflows/config-drift.yml` +
+  `tool/config_drift.sh`, Issue #70): prüft täglich die Prod-Auth-Config
+  über die Management-API gegen die Erwartungen des Codes (Bestätigungs-
+  pflicht, Brevo-SMTP, Signup offen). Grund: Dashboard-Klicks sind für
+  Repo und Teststack unsichtbar — genau so brach am 23.07.2026 die
+  Gruppen-Registrierung. Bewusst NUR lesend: nie `supabase config push`
+  einbauen, der könnte die Brevo-SMTP-Zugangsdaten im Dashboard
+  überschreiben. Braucht das Repo-Secret `SUPABASE_ACCESS_TOKEN`
+  (PAT, läuft jährlich ab — roter Lauf heißt auch: Token erneuern).
+  Ändert sich eine Einstellung ABSICHTLICH, gehören Skript-Erwartung
+  und Code-Abhängigkeiten im selben PR nachgezogen.
 - **Dependabot läuft monatlich und gebündelt** (`.github/dependabot.yml`).
   Die Bündelung über `groups:` ist kein Kosmetik-Detail: `pubspec.yaml` ist
   nicht vom Version Guard ausgenommen, jeder pub-PR verlangt also einen
