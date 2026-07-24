@@ -137,6 +137,20 @@ bewusst außerhalb des Umfangs.
   per Ping erreichbar. Deshalb: Ballooning für die Test-VM aus, 2 GB
   Swap als Puffer, und die VM läuft grundsätzlich nur auf Abruf.
 
+## Browser-E2E (Issue #71)
+
+`tool/browser_e2e.sh` schließt die letzte Naht: Playwright fährt die
+**echte Web-App im echten Browser** gegen den Stack — Verwalter-Konto
+registrieren, Bestätigungs-Link aus Mailpit öffnen (führt über die
+`site_url` aus config.toml zurück in die App und meldet an), Gruppe
+verknüpfen, Zustand serverseitig gegenprüfen. Flutter-Web zeichnet auf
+Canvas: Bedient wird über Koordinaten bei fixiertem Viewport (in
+`tool/browser_e2e/console.mjs` dokumentiert), geprüft über
+Semantics-Labels und Screenshots (`tool/browser_e2e/shots/`, in CI als
+Artifact). Ändert sich das Layout der Konsolen-Screens, gehören die
+Koordinaten nachgezogen — der CI-Job „Browser E2E (Konsole)" ist genau
+deshalb bewusst kein Required Check.
+
 ## Grenzen
 
 - Brevo/Prod-SMTP wird hier nicht geprüft — der Stack beweist den Weg

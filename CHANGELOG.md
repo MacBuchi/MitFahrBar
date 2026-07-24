@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.30.1] – 2026-07-24
+
+### Intern
+
+- **Für die Gruppen ändert sich nichts Sichtbares.** Das Testsystem fährt
+  die App jetzt zusätzlich als echte Web-App im echten Browser durch die
+  Verwalter-Abläufe — inklusive der Bestätigungs-Mail, die dabei wirklich
+  geöffnet wird. Noch ein Sicherheitsnetz mehr, bevor Updates zu euch
+  gehen.
+
 ## [0.30.0] – 2026-07-24
 
 ### Verbessert
