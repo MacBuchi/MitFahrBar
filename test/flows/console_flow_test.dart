@@ -6,8 +6,8 @@
 /// und dann restlos. Und: Kein Passwort landet je in `logRing`.
 library;
 
-import 'package:fahrgemeinschaft/core/log.dart';
-import 'package:fahrgemeinschaft/features/console/console_screen.dart';
+import 'package:mitfahrbar/core/log.dart';
+import 'package:mitfahrbar/features/console/console_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

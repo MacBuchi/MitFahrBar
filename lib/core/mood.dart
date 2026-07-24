@@ -1,4 +1,4 @@
-/// mood.dart – Die Stimmungs-Skala des Design-Sets „RideBuddy Smiley Set".
+/// mood.dart – Die Stimmungs-Skala des Design-Sets „MitFahrBar Smiley Set".
 ///
 /// Sieben Bewertungsstufen von [Mood.angry] bis [Mood.ecstatic], dazu
 /// [Mood.celebrating] — das steht bewusst **außerhalb** der Skala: Es ist

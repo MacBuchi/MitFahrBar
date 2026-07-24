@@ -1,7 +1,7 @@
 /// persons_flow_test.dart – Personen anlegen und stilllegen, echte App.
 library;
 
-import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:mitfahrbar/models/person.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

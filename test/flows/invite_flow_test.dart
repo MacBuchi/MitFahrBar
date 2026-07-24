@@ -5,9 +5,9 @@
 /// rausgeht — und dass es nirgends hängen bleibt, wo es später auftaucht.
 library;
 
-import 'package:fahrgemeinschaft/core/log.dart';
-import 'package:fahrgemeinschaft/core/share_outcome.dart';
-import 'package:fahrgemeinschaft/data/providers.dart';
+import 'package:mitfahrbar/core/log.dart';
+import 'package:mitfahrbar/core/share_outcome.dart';
+import 'package:mitfahrbar/data/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

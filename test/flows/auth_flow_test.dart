@@ -1,8 +1,8 @@
 /// auth_flow_test.dart – Anmeldung, Freigabe-Gate und Mandantentrennung.
 library;
 
-import 'package:fahrgemeinschaft/models/group.dart';
-import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:mitfahrbar/models/group.dart';
+import 'package:mitfahrbar/models/person.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

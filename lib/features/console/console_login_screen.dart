@@ -13,7 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/tokens.dart';
 import '../../core/widgets/password_field.dart';
-import '../../core/widgets/ride_buddy_mark.dart';
+import '../../core/widgets/mitfahrbar_mark.dart';
 import '../../data/auth_repository.dart';
 import '../../data/providers.dart';
 
@@ -176,11 +176,11 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: RideBuddyMark(size: 72)),
+                    const Center(child: MitFahrBarMark(size: 72)),
                     const SizedBox(height: AppSpacing.m),
                     Text(
                       forgot
-                          ? 'Passwort vergessen? Kein Problem: RideBuddy '
+                          ? 'Passwort vergessen? Kein Problem: MitFahrBar '
                                 'schickt dir einen Link zum Neu-Setzen an '
                                 'deine E-Mail-Adresse.'
                           : 'Für die Person, die die Gruppe verwaltet: Mit '

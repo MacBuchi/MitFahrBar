@@ -1,4 +1,4 @@
-# Statische Analyse. Das Warum steht im DocuHub; hier nur, was für RideBuddy
+# Statische Analyse. Das Warum steht im DocuHub; hier nur, was für MitFahrBar
 # zusätzlich gilt.
 #
 # NICHT eintragen: `require_trailing_commas` — die Regel gibt es seit Dart 3.7

@@ -1,7 +1,7 @@
 /// log_ring_test.dart – Der Mitschnitt für Fehlermeldungen.
 library;
 
-import 'package:fahrgemeinschaft/core/log.dart';
+import 'package:mitfahrbar/core/log.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

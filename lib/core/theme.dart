@@ -1,4 +1,4 @@
-/// theme.dart – Material-3-Theme der Marke RideBuddy, Light und Dark
+/// theme.dart – Material-3-Theme der Marke MitFahrBar, Light und Dark
 /// aus einer Basis.
 library;
 

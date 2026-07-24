@@ -18,7 +18,7 @@ class FahrgemeinschaftApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
-      title: 'RideBuddy',
+      title: 'MitFahrBar',
       routerConfig: router,
       // Der Sperr-Schirm liegt über allem, auch über dem Login: Wer zu alt
       // ist, soll sich gar nicht erst anmelden. Solange der Check lädt, läuft

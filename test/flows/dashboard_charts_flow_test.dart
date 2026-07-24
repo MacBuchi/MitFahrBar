@@ -1,8 +1,8 @@
 /// dashboard_charts_flow_test.dart – Die Auswertungen auf der Startseite.
 library;
 
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

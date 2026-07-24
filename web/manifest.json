@@ -1,6 +1,6 @@
 {
-    "name": "RideBuddy",
-    "short_name": "RideBuddy",
+    "name": "MitFahrBar",
+    "short_name": "MitFahrBar",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#06171C",

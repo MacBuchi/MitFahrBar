@@ -1,4 +1,4 @@
-/// help_screen.dart – „So funktioniert RideBuddy": die Bedienungsanleitung.
+/// help_screen.dart – „So funktioniert MitFahrBar": die Bedienungsanleitung.
 ///
 /// Bewusst als Screen in der App statt als externe Seite: Er erbt Theme,
 /// Schriften, Hell/Dunkel und Textskalierung, zeigt die **echten** Symbole
@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import '../../core/mood.dart';
 import '../../core/tokens.dart';
 import '../../core/widgets/mood_face.dart';
-import '../../core/widgets/ride_buddy_mark.dart';
+import '../../core/widgets/mitfahrbar_mark.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -22,19 +22,19 @@ class HelpScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('So funktioniert RideBuddy')),
+      appBar: AppBar(title: const Text('So funktioniert MitFahrBar')),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.m),
         children: [
           // Kopf: Marke + der eine Satz, wozu es die App gibt.
           Row(
             children: [
-              const RideBuddyMark(size: 56),
+              const MitFahrBarMark(size: 56),
               const SizedBox(width: AppSpacing.m),
               Expanded(
                 child: Text(
                   'Euer Fahrtenbuch mit eingebautem Fairness-Rechner: '
-                  'RideBuddy zählt mit und sagt, wer als Nächstes fährt.',
+                  'MitFahrBar zählt mit und sagt, wer als Nächstes fährt.',
                   style: theme.textTheme.bodyLarge,
                 ),
               ),
@@ -132,7 +132,7 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
                 text:
-                    'Den Fahrer setzt RideBuddy automatisch — wer laut '
+                    'Den Fahrer setzt MitFahrBar automatisch — wer laut '
                     'Punkten dran ist, rutscht nach oben. Passt es nicht, '
                     'zieht ihr eine andere Kachel aufs Fahrer-Feld.',
               ),
@@ -162,7 +162,7 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
-                    'RideBuddy schlägt für jeden Tag vor, wer fährt, und '
+                    'MitFahrBar schlägt für jeden Tag vor, wer fährt, und '
                     'denkt dabei die ganze Woche mit — deshalb wechseln '
                     'sich die Namen ab. Wer nur eine Richtung kann, wird '
                     'nicht vorgeschlagen. Steht es bei den Punkten fast '
@@ -173,7 +173,7 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
                 text:
-                    'Reicht kein einzelnes Auto für alle, teilt RideBuddy '
+                    'Reicht kein einzelnes Auto für alle, teilt MitFahrBar '
                     'den Tag auf mehrere Autos — so wenige wie möglich, '
                     'ein großes schlägt zwei kleine. Die Zeile sagt dann '
                     'zum Beispiel „Anna + Ben fahren · 2 Autos".',

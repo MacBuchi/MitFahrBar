@@ -5,7 +5,7 @@
 /// Formulierungsänderung.
 library;
 
-import 'package:fahrgemeinschaft/core/widgets/mood_face.dart';
+import 'package:mitfahrbar/core/widgets/mood_face.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,7 +32,7 @@ FakeBackend _backend() {
 Future<void> _openHelp(WidgetTester tester) async {
   await tester.tap(find.byIcon(Icons.account_circle_outlined));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('So funktioniert RideBuddy'));
+  await tester.tap(find.text('So funktioniert MitFahrBar'));
   await tester.pumpAndSettle();
 }
 
@@ -42,7 +42,7 @@ void main() {
     await _login(tester);
     await _openHelp(tester);
 
-    expect(find.text('So funktioniert RideBuddy'), findsOneWidget);
+    expect(find.text('So funktioniert MitFahrBar'), findsOneWidget);
     expect(find.text('Die eine Regel'), findsOneWidget);
 
     await tester.tap(find.byType(BackButton));

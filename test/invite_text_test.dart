@@ -1,7 +1,7 @@
 /// invite_text_test.dart – Einladungstext.
 library;
 
-import 'package:fahrgemeinschaft/core/invite_text.dart';
+import 'package:mitfahrbar/core/invite_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -52,9 +52,12 @@ void main() {
     expect(text, isNot(contains('bekommst du von mir')));
   });
 
-  test('die Pages-URL trägt das große F', () {
-    // GitHub Pages ist groß-/kleinschreibungsempfindlich; mit kleinem f
-    // landet die Eingeladene auf einer 404.
-    expect(inviteWebUrl, contains('/Fahrgemeinschaft/'));
+  test('die Pages-URL trägt die Groß-/Kleinschreibung des Repos', () {
+    // GitHub Pages ist groß-/kleinschreibungsempfindlich; mit anderer
+    // Schreibweise landet die Eingeladene auf einer 404. Beim Umzug von
+    // „Fahrgemeinschaft" auf „MitFahrBar" (Issue #87) hat genau dieser
+    // Test die Stelle gefunden — er muss deshalb wörtlich bleiben und
+    // darf nicht auf `toLowerCase()` weichgeklopft werden.
+    expect(inviteWebUrl, contains('/MitFahrBar/'));
   });
 }

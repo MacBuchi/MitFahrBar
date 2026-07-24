@@ -1,8 +1,8 @@
 /// chart_data_test.dart – Aggregation der Startseiten-Diagramme.
 library;
 
-import 'package:fahrgemeinschaft/core/chart_data.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/core/chart_data.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Trip tripOn(DateTime date) =>

@@ -1,9 +1,9 @@
 ---
 name: run-web
-description: RideBuddy als Web-App lokal starten und mit Playwright durchklicken, um eine Änderung in der echten App zu sehen. Nutzen, wenn die App gestartet, bedient oder per Screenshot geprüft werden soll — oder wenn zu prüfen ist, ob etwas wirklich funktioniert und nicht nur der Test grün ist.
+description: MitFahrBar als Web-App lokal starten und mit Playwright durchklicken, um eine Änderung in der echten App zu sehen. Nutzen, wenn die App gestartet, bedient oder per Screenshot geprüft werden soll — oder wenn zu prüfen ist, ob etwas wirklich funktioniert und nicht nur der Test grün ist.
 ---
 
-# RideBuddy im Browser bedienen
+# MitFahrBar im Browser bedienen
 
 Flutter-Web zeichnet auf **Canvas**. Es gibt keinen DOM-Text zum Auslesen —
 geprüft wird über **Screenshots, die man sich ansieht**. Ein leeres oder

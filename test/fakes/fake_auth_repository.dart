@@ -7,8 +7,8 @@ library;
 
 import 'dart:async';
 
-import 'package:fahrgemeinschaft/core/group_login.dart';
-import 'package:fahrgemeinschaft/data/auth_repository.dart';
+import 'package:mitfahrbar/core/group_login.dart';
+import 'package:mitfahrbar/data/auth_repository.dart';
 
 import 'fake_backend.dart';
 

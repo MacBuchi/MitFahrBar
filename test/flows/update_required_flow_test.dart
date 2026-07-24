@@ -5,7 +5,7 @@
 /// darf nur dann auftauchen, wenn er wirklich soll.
 library;
 
-import 'package:fahrgemeinschaft/core/update_check.dart';
+import 'package:mitfahrbar/core/update_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

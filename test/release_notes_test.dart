@@ -5,18 +5,18 @@
 /// CHANGELOG-Abschnitt, wie ihn der Release-Workflow seither liefert.
 library;
 
-import 'package:fahrgemeinschaft/core/release_notes.dart';
+import 'package:mitfahrbar/core/release_notes.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('auto-generierte GitHub-Notes verlieren Markdown und URLs', () {
     const body = '''
 ## What's Changed
-* chore(skills): capture the verified way to drive the web app by @MacBuchi in https://github.com/MacBuchi/Fahrgemeinschaft/pull/49
-* feat(help): the user guide lives inside the app by @MacBuchi in https://github.com/MacBuchi/Fahrgemeinschaft/pull/50
+* chore(skills): capture the verified way to drive the web app by @MacBuchi in https://github.com/MacBuchi/MitFahrBar/pull/49
+* feat(help): the user guide lives inside the app by @MacBuchi in https://github.com/MacBuchi/MitFahrBar/pull/50
 
 
-**Full Changelog**: https://github.com/MacBuchi/Fahrgemeinschaft/compare/v0.19.0...v0.20.0''';
+**Full Changelog**: https://github.com/MacBuchi/MitFahrBar/compare/v0.19.0...v0.20.0''';
 
     final text = plainReleaseNotes(body);
 
@@ -35,7 +35,7 @@ void main() {
 ### Neu
 
 - **Die Anleitung wohnt jetzt in der App.** Im Menü steht
-  „So funktioniert RideBuddy" — siehe [Doku](https://example.org/doku).
+  „So funktioniert MitFahrBar" — siehe [Doku](https://example.org/doku).
 - Kleinere Korrekturen.
 ''';
 
@@ -43,7 +43,7 @@ void main() {
 
     expect(text, startsWith('Neu'));
     expect(text, contains('• Die Anleitung wohnt jetzt in der App.'));
-    expect(text, contains('„So funktioniert RideBuddy" — siehe Doku.'));
+    expect(text, contains('„So funktioniert MitFahrBar" — siehe Doku.'));
     expect(text, contains('• Kleinere Korrekturen.'));
     expect(text, isNot(contains('**')));
     expect(text, isNot(contains('](')));

@@ -5,8 +5,8 @@
 /// höchste. Feste Prozentgrenzen würden die Gruppengröße messen.
 library;
 
-import 'package:fahrgemeinschaft/core/drive_mood.dart';
-import 'package:fahrgemeinschaft/core/mood.dart';
+import 'package:mitfahrbar/core/drive_mood.dart';
+import 'package:mitfahrbar/core/mood.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

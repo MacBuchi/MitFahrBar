@@ -1,4 +1,4 @@
-package de.macbuchi.fahrgemeinschaft
+package de.macbuchi.mitfahrbar
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -8,17 +8,17 @@ library;
 
 import 'dart:async';
 
-import 'package:fahrgemeinschaft/core/update_check.dart';
-import 'package:fahrgemeinschaft/data/app_config_repository.dart';
-import 'package:fahrgemeinschaft/data/carpool_repository.dart';
-import 'package:fahrgemeinschaft/data/fake_repository.dart';
-import 'package:fahrgemeinschaft/data/feedback_repository.dart';
-import 'package:fahrgemeinschaft/data/group_repository.dart';
-import 'package:fahrgemeinschaft/models/app_settings.dart';
-import 'package:fahrgemeinschaft/models/group.dart';
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/plan_ride.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/data/app_config_repository.dart';
+import 'package:mitfahrbar/data/carpool_repository.dart';
+import 'package:mitfahrbar/data/fake_repository.dart';
+import 'package:mitfahrbar/data/feedback_repository.dart';
+import 'package:mitfahrbar/data/group_repository.dart';
+import 'package:mitfahrbar/models/app_settings.dart';
+import 'package:mitfahrbar/models/group.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/trip.dart';
 
 class FakeAccount {
   FakeAccount({required this.password, required this.groupId});

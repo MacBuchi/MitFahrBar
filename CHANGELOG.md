@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.34.0] – 2026-07-24
+
+### Wichtig
+
+- **Die App heißt jetzt MitFahrBar.** Neuer Name, gleiche App — eure
+  Fahrten, Punkte und Einstellungen bleiben unverändert.
+- **Auf Android müsst ihr einmalig neu installieren.** Der Umzug ändert
+  die Kennung der App, und für Android ist sie damit eine neue: Die alte
+  RideBuddy-App bekommt kein Update mehr. Ladet euch MitFahrBar einmal
+  neu herunter — danach läuft alles wie gewohnt weiter, und die alte App
+  könnt ihr löschen. Am Zugang ändert sich nichts: gleicher Gruppenname,
+  gleiches Passwort.
+- **Die Web-Adresse ist neu:** `https://macbuchi.github.io/MitFahrBar/`.
+  Die alte Adresse leitet weiter, aber wer die App auf dem Startbildschirm
+  hat, legt sie am besten einmal neu an.
+- **Mails kommen künftig von einem neuen Absender** (`MitFahrBar`,
+  `noreply-mitfahrbar@mcbuchi.de`) — falls ihr irgendwann einen Link zum
+  Zurücksetzen des Passworts anfordert, sucht danach.
+
 ## [0.33.0] – 2026-07-24
 
 ### Neu

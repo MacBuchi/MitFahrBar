@@ -4,9 +4,9 @@
 /// Fehler — die Flow-Tests sollen dieselben Wege gehen wie die echte App.
 library;
 
-import 'package:fahrgemeinschaft/core/group_login.dart';
-import 'package:fahrgemeinschaft/data/admin_repository.dart';
-import 'package:fahrgemeinschaft/models/group.dart';
+import 'package:mitfahrbar/core/group_login.dart';
+import 'package:mitfahrbar/data/admin_repository.dart';
+import 'package:mitfahrbar/models/group.dart';
 
 import 'fake_backend.dart';
 

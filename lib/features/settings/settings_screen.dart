@@ -199,7 +199,7 @@ class _FormState extends ConsumerState<_Form> {
         ),
         const SizedBox(height: AppSpacing.l),
         Text(
-          'Die Preise pflegt ihr selbst — RideBuddy holt sie bewusst nicht '
+          'Die Preise pflegt ihr selbst — MitFahrBar holt sie bewusst nicht '
           'aus dem Netz. Für die Ersparnis reicht ein grober Wert, und ein '
           'Preisdienst wäre ein Fremdzugang mehr.',
           style: theme.textTheme.bodySmall,

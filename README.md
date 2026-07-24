@@ -1,10 +1,10 @@
-# RideBuddy
+# MitFahrBar
 
 Die faire App für eure Fahrgemeinschaft: Fahrten dokumentieren, Punkte zählen
 und auf einen Blick sehen, **wer als Nächstes fahren sollte**. Mehrere Gruppen
 können die App unabhängig voneinander nutzen.
 
-**➡️ App öffnen: <https://macbuchi.github.io/Fahrgemeinschaft/>**
+**➡️ App öffnen: <https://macbuchi.github.io/MitFahrBar/>**
 
 Auf dem Handy lässt sie sich über „Zum Home-Bildschirm hinzufügen" wie eine
 normale App installieren (PWA).
@@ -66,7 +66,7 @@ entschieden wird von Menschen**.
 ### Woche planen
 
 Im Reiter **Woche** tippt ihr an, wer an welchem Tag mitkann (1× = dabei,
-2× = nur eine Strecke). RideBuddy schlägt daraufhin für jeden Tag einen Fahrer
+2× = nur eine Strecke). MitFahrBar schlägt daraufhin für jeden Tag einen Fahrer
 vor und denkt dabei die ganze Woche voraus; reichen die Plätze eines Autos
 nicht, werden es mehrere. **„Eintragen"** öffnet den Fahrten-Editor fertig
 vorbelegt – für die Punkte zählt erst das Speichern.
@@ -128,9 +128,9 @@ liefert lokal aus, fährt die App mit Playwright durch). Sie sind Erzeugnisse �
 nicht von Hand bearbeiten; bei Änderungen an der Oberfläche zieht der Workflow
 „Screenshots" sie im PR selbst nach.
 
-Marke und Gestaltung folgen dem Design-Set „RideBuddy": Tokens in
+Marke und Gestaltung folgen dem Design-Set „MitFahrBar": Tokens in
 [lib/core/tokens.dart](lib/core/tokens.dart), die Bildmarke als Widget in
-[lib/core/widgets/ride_buddy_mark.dart](lib/core/widgets/ride_buddy_mark.dart).
+[lib/core/widgets/mitfahrbar_mark.dart](lib/core/widgets/mitfahrbar_mark.dart).
 App-Icons entstehen aus der Marke mit `tool/brand/build_icons.sh`.
 
 Datenbank-Schema und Migrationen liegen unter [supabase/](supabase/) und

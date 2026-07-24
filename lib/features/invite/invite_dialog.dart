@@ -71,7 +71,7 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
     try {
       final outcome = await ref.read(textSharerProvider)(
         _text,
-        subject: 'RideBuddy',
+        subject: 'MitFahrBar',
       );
       navigator.pop();
       messenger.showSnackBar(

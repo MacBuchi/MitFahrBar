@@ -1,8 +1,8 @@
-/// splash_overlay.dart – Die Anfahrt: RideBuddys Startbildschirm.
+/// splash_overlay.dart – Die Anfahrt: MitFahrBars Startbildschirm.
 ///
 /// Das Auto kommt von rechts, bremst (die Nase nickt ein und federt zurück),
 /// die hinteren Köpfe ploppen auf, dann fährt es links aus dem Bild — die
-/// Bildmarke, nur in Bewegung. Gezeichnet wird über `paintRideBuddyMark`
+/// Bildmarke, nur in Bewegung. Gezeichnet wird über `paintMitFahrBarMark`
 /// mit einer Pose: Geometrie und Farben bleiben die der Marke, hier lebt
 /// nur die Choreografie. Keine Animations-Library — dieselbe Linie wie
 /// Charts und Mood-Faces.
@@ -18,7 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/tokens.dart';
-import '../../core/widgets/ride_buddy_mark.dart';
+import '../../core/widgets/mitfahrbar_mark.dart';
 import '../../data/providers.dart';
 
 /// Legt den Splash einmalig über den App-Start. Liegt im `builder` der
@@ -144,7 +144,7 @@ class _Scene extends StatelessWidget {
         // „Nicht zu klein": die halbe Bildschirmbreite, mit Obergrenze
         // für Tablets und Desktop-Fenster.
         final carWidth = math.min(w * 0.5, 340.0);
-        final carHeight = carWidth / rideBuddyMarkAspect;
+        final carHeight = carWidth / mitFahrBarMarkAspect;
 
         // Fahrweg: von rechts außerhalb in die Mitte, am Ende nach links
         // hinaus. Die Kurven geben das Abbremsen/Beschleunigen her.
@@ -171,7 +171,7 @@ class _Scene extends StatelessWidget {
 
         // Die hinteren beiden ploppen nacheinander auf; easeOutBack
         // schwingt kurz über 1 hinaus — das „Plopp".
-        final pose = RideBuddyPose(
+        final pose = MitFahrBarPose(
           pitch: pitch,
           lift: lift,
           streakOpacity: rolling,
@@ -201,7 +201,7 @@ class _Scene extends StatelessWidget {
                 opacity: wordmark,
                 child: Column(
                   children: [
-                    const RideBuddyWordmark(fontSize: 30),
+                    const MitFahrBarWordmark(fontSize: 30),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       'Die faire App für eure Fahrgemeinschaft',
@@ -224,11 +224,11 @@ class _Scene extends StatelessWidget {
 class _SplashCarPainter extends CustomPainter {
   _SplashCarPainter(this.pose);
 
-  final RideBuddyPose pose;
+  final MitFahrBarPose pose;
 
   @override
   void paint(Canvas canvas, Size size) =>
-      paintRideBuddyMark(canvas, size, RideBuddyMarkVariant.gradient, pose);
+      paintMitFahrBarMark(canvas, size, MitFahrBarMarkVariant.gradient, pose);
 
   // Jedes Bild ist eine neue Pose — der AnimatedBuilder taktet ohnehin.
   @override

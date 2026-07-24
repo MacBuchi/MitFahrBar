@@ -4,9 +4,9 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:fahrgemeinschaft/core/fairness.dart';
-import 'package:fahrgemeinschaft/models/app_settings.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/core/fairness.dart';
+import 'package:mitfahrbar/models/app_settings.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const settings = AppSettings();
