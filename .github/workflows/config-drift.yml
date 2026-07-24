@@ -1,0 +1,35 @@
+# Config Drift (#70): Meldet, wenn die Supabase-Auth-Einstellungen in
+# Production von den Erwartungen des Codes abweichen. Dashboard-Änderungen
+# sind für das Repo sonst unsichtbar — genau so brach am 23.07.2026 die
+# Gruppen-Registrierung, ohne dass ein Test es sehen konnte.
+#
+# Läuft täglich (Drift entsteht durch Dashboard-Klicks, nicht durch Commits)
+# und zusätzlich bei Änderungen an den Erwartungen selbst. Bewusst KEIN
+# Required Check: Ein PR kann nichts an der Dashboard-Config ändern.
+#
+# Braucht das Repo-Secret SUPABASE_ACCESS_TOKEN (PAT, läuft jährlich ab —
+# ein roter Lauf mit „Token ungültig/abgelaufen" heißt: neues Token unter
+# https://supabase.com/dashboard/account/tokens erzeugen und Secret erneuern).
+name: Config Drift
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tool/config_drift.sh"
+      - ".github/workflows/config-drift.yml"
+
+jobs:
+  drift:
+    name: Supabase Config Drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prod-Auth-Config gegen Erwartungen prüfen
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: tool/config_drift.sh
