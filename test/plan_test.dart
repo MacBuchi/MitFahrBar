@@ -292,6 +292,29 @@ void main() {
     });
   });
 
+  group('isoWeekNumber', () {
+    // Der Planer-Kopf zeigt die KW (#84) — ISO 8601: Woche 1 ist die mit
+    // dem ersten Donnerstag des Jahres.
+    test('Woche 1 beginnt notfalls im alten Jahr', () {
+      // Montag, 29.12.2025 — der Donnerstag der Woche ist der 1.1.2026.
+      expect(isoWeekNumber(DateTime(2025, 12, 29)), 1);
+    });
+
+    test('der 4. Januar liegt immer in Woche 1', () {
+      expect(isoWeekNumber(DateTime(2026, 1, 4)), 1);
+    });
+
+    test('ein Jahr kann 53 Wochen haben', () {
+      // 2020 endete mit KW 53; Neujahr 2021 (Freitag) gehört noch dazu.
+      expect(isoWeekNumber(DateTime(2020, 12, 31)), 53);
+      expect(isoWeekNumber(DateTime(2021, 1, 1)), 53);
+    });
+
+    test('mitten im Jahr stimmt die Nummer', () {
+      expect(isoWeekNumber(DateTime(2026, 7, 24)), 30);
+    });
+  });
+
   group('1-way in der Planung', () {
     test(
       'wer nur eine Richtung fährt, wird nicht als Fahrer vorgeschlagen',

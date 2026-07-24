@@ -889,6 +889,20 @@ List<DateTime> planningWeek([DateTime? today]) {
   return [for (var i = 0; i < 5; i++) monday.add(Duration(days: i))];
 }
 
+/// Kalenderwoche nach ISO 8601 — Woche 1 ist die mit dem ersten Donnerstag
+/// des Jahres (#84, Orientierung im Planer-Kopf).
+///
+/// Gerechnet wird in UTC: `Duration`-Addition auf lokalen `DateTime`s
+/// verrutscht über die Sommerzeit-Umstellung um eine Stunde und damit
+/// womöglich um einen Tag.
+int isoWeekNumber(DateTime date) {
+  final day = DateTime.utc(date.year, date.month, date.day);
+  // Der Donnerstag derselben Woche bestimmt Jahr und Wochennummer.
+  final thursday = day.add(Duration(days: DateTime.thursday - day.weekday));
+  final firstDayOfYear = DateTime.utc(thursday.year);
+  return 1 + thursday.difference(firstDayOfYear).inDays ~/ 7;
+}
+
 /// Darf für [planDate] schon eine Fahrt eingetragen werden?
 ///
 /// Erst ab dem Fahrtag: Vorher steht nicht fest, wer wirklich mitfährt, und

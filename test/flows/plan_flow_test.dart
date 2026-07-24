@@ -115,6 +115,14 @@ void main() {
     expect(find.text('Wochenplan'), findsOneWidget);
     expect(find.text('Anna'), findsWidgets);
     expect(find.text('Bert'), findsWidgets);
+    final monday = planningWeek().first;
+    expect(
+      find.textContaining('KW ${isoWeekNumber(monday)}'),
+      findsOneWidget,
+      reason:
+          'Der Raster-Kopf nennt Kalenderwoche und Zeitraum zur '
+          'Orientierung (#84).',
+    );
     // Nicht auf exakt fünf prüfen: Die ListView baut nur die sichtbaren
     // Tageszeilen, auf einem kurzen Testbildschirm sind das weniger.
     expect(
