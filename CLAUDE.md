@@ -167,7 +167,14 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   So wirkt die Prüfung ohne Pflegeaufwand; Mitfahrer-Plätze zu speichern
   erzeugte Off-by-one-Fehler, die später niemand mehr erklären kann.
   Festgenagelt in `test/plan_test.dart` und
-  `test/flows/plan_flow_test.dart`.
+  `test/flows/plan_flow_test.dart`. Langzeitverhalten (2000-Tage-
+  Simulation, `test/plan_soak_test.dart`, Designentscheidung in
+  `doc/entscheidung-mitfahrer-verteilung.md`): Punkte konvergieren nur
+  **innerhalb** vergleichbarer Autogrößen; bei dauerhaftem Kapazitäts-
+  Gefälle driften sie ehrlich, aber unbegrenzt — dokumentierte Grenze,
+  keine zu „reparierende" Formel. Die Mitfahrer-Verteilung (meiste freie
+  Plätze, Gleichstand → bedürftigster Fahrer) bleibt bewusst: Ein
+  Anti-Solo-Tie-Break bewegte im A/B-Vergleich eine Fahrt in acht Jahren.
 - **1-way im Planer schließt das Fahren aus.** `plan_availability.one_way`
   (Boolean, kein Status-Enum — der Fahrer wird im Plan nie gespeichert) macht
   aus der Verfügbarkeit einen Dreizustand. `planWeek` nimmt 1-way-Personen aus
