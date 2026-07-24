@@ -10,6 +10,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -31,7 +32,17 @@ const String e2eGroupDomain = 'grp.fahrgemeinschaft.app';
 
 /// Eindeutiger Lauf-Stempel: Testdateien laufen parallel und Läufe gegen
 /// eine VM räumen nicht auf — Namen dürfen sich deshalb nie wiederholen.
-final String _runTag = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+///
+/// Die Zufallshälfte ist Pflicht, nicht Zierde: Jede Testdatei läuft in
+/// einem **eigenen Isolate** mit eigenem `_runTag` und eigenem `_seq` ab 0.
+/// Starten zwei Dateien in derselben Millisekunde, erzeugen beide
+/// `e2eadmin<stempel>x0` — und der zweite Signup prallt mit „User already
+/// registered" ab. Genau so fiel am 24.07.2026 in CI der Recovery-Test um,
+/// während dieselbe Datei einen Lauf vorher grün war. `Random()` ohne Seed
+/// zieht je Isolate aus der Systementropie und trennt die beiden sicher.
+final String _runTag =
+    DateTime.now().millisecondsSinceEpoch.toRadixString(36) +
+    Random().nextInt(1 << 32).toRadixString(36);
 int _seq = 0;
 
 String uniqueName(String label) => 'e2e$label$_runTag${'x'}${_seq++}';
