@@ -6,7 +6,7 @@
 /// App warten müssen.
 library;
 
-import 'package:fahrgemeinschaft/features/splash/splash_overlay.dart';
+import 'package:mitfahrbar/features/splash/splash_overlay.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_backend.dart';

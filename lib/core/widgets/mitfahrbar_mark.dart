@@ -1,7 +1,7 @@
-/// ride_buddy_mark.dart – Die Bildmarke von RideBuddy.
+/// mitfahrbar_mark.dart – Die Bildmarke von MitFahrBar.
 ///
 /// Seitenansicht mit drei Köpfen und Speed-Streaks, 1:1 nach dem Design-Set
-/// („RideBuddyMark"). Gezeichnet im Entwurfsraster 120 × 100 und auf die
+/// („MitFahrBarMark"). Gezeichnet im Entwurfsraster 120 × 100 und auf die
 /// verfügbare Fläche skaliert. Die Streaks laufen rechts bewusst aus dem
 /// Rahmen — das erzeugt den Bewegungseindruck.
 library;
@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 
 import '../tokens.dart';
 
-enum RideBuddyMarkVariant {
+enum MitFahrBarMarkVariant {
   /// Karosserie im Markenverlauf – Standard auf hellem Grund.
   gradient,
 
@@ -21,14 +21,14 @@ enum RideBuddyMarkVariant {
   white,
 }
 
-class RideBuddyMark extends StatelessWidget {
-  const RideBuddyMark({
+class MitFahrBarMark extends StatelessWidget {
+  const MitFahrBarMark({
     super.key,
-    this.variant = RideBuddyMarkVariant.gradient,
+    this.variant = MitFahrBarMarkVariant.gradient,
     this.size,
   });
 
-  final RideBuddyMarkVariant variant;
+  final MitFahrBarMarkVariant variant;
 
   /// Breite; die Höhe folgt dem Seitenverhältnis 120:100.
   final double? size;
@@ -36,15 +36,15 @@ class RideBuddyMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final painter = CustomPaint(
-      painter: _RideBuddyMarkPainter(variant),
+      painter: _MitFahrBarMarkPainter(variant),
       child: const SizedBox.expand(),
     );
     final content = AspectRatio(
-      aspectRatio: rideBuddyMarkAspect,
+      aspectRatio: mitFahrBarMarkAspect,
       child: painter,
     );
     return Semantics(
-      label: 'RideBuddy',
+      label: 'MitFahrBar',
       child: size == null ? content : SizedBox(width: size, child: content),
     );
   }
@@ -97,22 +97,22 @@ class _Palette {
     streak: Color(0x8CFFFFFF),
   );
 
-  static _Palette of(RideBuddyMarkVariant v) => switch (v) {
-    RideBuddyMarkVariant.gradient => _gradient,
-    RideBuddyMarkVariant.ink => _ink,
-    RideBuddyMarkVariant.white => _white,
+  static _Palette of(MitFahrBarMarkVariant v) => switch (v) {
+    MitFahrBarMarkVariant.gradient => _gradient,
+    MitFahrBarMarkVariant.ink => _ink,
+    MitFahrBarMarkVariant.white => _white,
   };
 }
 
 /// Seitenverhältnis der Marke (Breite : Höhe) — für alle, die sie selbst
-/// zeichnen (Splash-Animation) statt über [RideBuddyMark] einzubinden.
-const rideBuddyMarkAspect = 120 / 100;
+/// zeichnen (Splash-Animation) statt über [MitFahrBarMark] einzubinden.
+const mitFahrBarMarkAspect = 120 / 100;
 
 /// Momentaufnahme des Fahrzeugs für die Splash-Animation. Die Default-Pose
-/// ist exakt die statische Marke — [RideBuddyMark] zeichnet mit ihr, damit
+/// ist exakt die statische Marke — [MitFahrBarMark] zeichnet mit ihr, damit
 /// Animation und Logo nie zweierlei Geometrie haben.
-class RideBuddyPose {
-  const RideBuddyPose({
+class MitFahrBarPose {
+  const MitFahrBarPose({
     this.pitch = 0,
     this.lift = 0,
     this.streakOpacity = 1,
@@ -136,17 +136,17 @@ class RideBuddyPose {
   /// 0 = nicht da, kurz über 1 = das Aufploppen.
   final List<double> headScales;
 
-  static const resting = RideBuddyPose();
+  static const resting = MitFahrBarPose();
 }
 
 /// Zeichnet die Marke ins Entwurfsraster 120 × 100, skaliert auf
 /// [size]-Breite. Einzige Stelle mit der Fahrzeug-Geometrie (1:1 aus dem
 /// Design-Set) — Logo und Splash rufen beide hierher.
-void paintRideBuddyMark(
+void paintMitFahrBarMark(
   Canvas canvas,
   Size size,
-  RideBuddyMarkVariant variant, [
-  RideBuddyPose pose = RideBuddyPose.resting,
+  MitFahrBarMarkVariant variant, [
+  MitFahrBarPose pose = MitFahrBarPose.resting,
 ]) {
   const designWidth = 120.0;
   const designHeight = 100.0;
@@ -224,23 +224,23 @@ void paintRideBuddyMark(
   canvas.restore();
 }
 
-class _RideBuddyMarkPainter extends CustomPainter {
-  _RideBuddyMarkPainter(this.variant);
+class _MitFahrBarMarkPainter extends CustomPainter {
+  _MitFahrBarMarkPainter(this.variant);
 
-  final RideBuddyMarkVariant variant;
+  final MitFahrBarMarkVariant variant;
 
   @override
   void paint(Canvas canvas, Size size) =>
-      paintRideBuddyMark(canvas, size, variant);
+      paintMitFahrBarMark(canvas, size, variant);
 
   @override
-  bool shouldRepaint(_RideBuddyMarkPainter oldDelegate) =>
+  bool shouldRepaint(_MitFahrBarMarkPainter oldDelegate) =>
       oldDelegate.variant != variant;
 }
 
-/// Wortmarke „RideBuddy" – „Ride" in Textfarbe, „Buddy" im Markenton.
-class RideBuddyWordmark extends StatelessWidget {
-  const RideBuddyWordmark({super.key, this.fontSize = 28, this.color});
+/// Wortmarke „MitFahrBar" – „Ride" in Textfarbe, „Buddy" im Markenton.
+class MitFahrBarWordmark extends StatelessWidget {
+  const MitFahrBarWordmark({super.key, this.fontSize = 28, this.color});
 
   final double fontSize;
   final Color? color;
@@ -266,7 +266,7 @@ class RideBuddyWordmark extends StatelessWidget {
           ),
         ],
       ),
-      semanticsLabel: 'RideBuddy',
+      semanticsLabel: 'MitFahrBar',
     );
   }
 }

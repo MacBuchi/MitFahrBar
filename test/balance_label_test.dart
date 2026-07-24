@@ -1,7 +1,7 @@
 /// balance_label_test.dart – Punktestand und Fahrraten-Deltas in Worten.
 library;
 
-import 'package:fahrgemeinschaft/core/balance_label.dart';
+import 'package:mitfahrbar/core/balance_label.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 

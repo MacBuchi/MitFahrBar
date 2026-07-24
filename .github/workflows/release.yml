@@ -157,7 +157,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      - run: flutter build web --release --base-href /Fahrgemeinschaft/
+      - run: flutter build web --release --base-href /MitFahrBar/
       # SPA-Fallback: GitHub Pages liefert 404.html bei Deep-Links.
       - run: cp build/web/index.html build/web/404.html
       - uses: peaceiris/actions-gh-pages@v4

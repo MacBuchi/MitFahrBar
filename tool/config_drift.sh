@@ -55,8 +55,18 @@ expect disable_signup false \
   "Signup AUS bräche die Verwalter-Registrierung (Gruppen gehen über die Function, Admins über auth.signUp)."
 expect smtp_host smtp-relay.brevo.com \
   "Eigenes SMTP (Brevo) ist Pflicht: Supabases Standardversand liefert nur an Projekt-Teammitglieder."
-expect smtp_admin_email noreply-ridebuddy@mcbuchi.de \
+expect smtp_admin_email noreply-mitfahrbar@mcbuchi.de \
   "Absender gehört zur authentifizierten Domain — sonst leiden Zustellbarkeit und DMARC."
+expect smtp_sender_name MitFahrBar \
+  "Steht als Absender im Postfach der Nutzer — der sichtbarste Rest eines alten Namens."
+# site_url und uri_allow_list stehen fest verdrahtet in auth_repository.dart
+# als emailRedirectTo/redirectTo. Weicht das Dashboard davon ab, weist
+# Supabase die Weiterleitung ab und „Passwort vergessen" endet im Nichts —
+# genau die Sorte Ausfall, die man erst merkt, wenn jemand aussperrt ist.
+expect site_url https://macbuchi.github.io/MitFahrBar/ \
+  "Ziel der Auth-Links; muss der Pages-URL und auth_repository.dart entsprechen."
+expect uri_allow_list https://macbuchi.github.io/MitFahrBar/ \
+  "Ohne passende Allow-List weist Supabase das emailRedirectTo aus auth_repository.dart ab."
 
 if [ "$fail" -ne 0 ]; then
   echo ""

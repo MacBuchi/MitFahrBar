@@ -85,7 +85,7 @@ class _Content extends ConsumerWidget {
             // Punkte zuerst (Issue #38), dazu der begrenzte
             // Fahrraten-Ausgleich aus `suggestPlanDriver` — der Text soll
             // beides sagen, sonst wundert man sich über den Vorschlag.
-            'Tippt an, wann ihr könnt. RideBuddy schlägt daraufhin vor, wer '
+            'Tippt an, wann ihr könnt. MitFahrBar schlägt daraufhin vor, wer '
             'an welchem Tag fährt — nach den Punkten, die ganze Woche '
             'vorausgedacht. Steht es fast gleich, bekommt, wer selten '
             'fährt, eher die kleinen Tage und, wer oft fährt, die vollen.',
@@ -598,7 +598,7 @@ class _DayRow extends ConsumerWidget {
         title: Text('${cars.length} Fahrten eintragen?'),
         content: Text(
           '${DateFormat('EEEE, d. MMMM', 'de').format(date)}\n\n'
-          'An diesem Tag fahren ${cars.length} Autos ($names). RideBuddy '
+          'An diesem Tag fahren ${cars.length} Autos ($names). MitFahrBar '
           'öffnet den Editor für jedes Auto nacheinander, fertig vorbelegt '
           '— gebucht wird erst mit jedem Speichern, nichts ohne euch.',
         ),

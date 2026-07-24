@@ -1,4 +1,4 @@
-# RideBuddy (Repo: Fahrgemeinschaft) — Arbeitsregeln
+# MitFahrBar — Arbeitsregeln
 
 Flutter-Web-App (PWA) + Android-APK zur Verwaltung einer Fahrgemeinschaft:
 Fahrtenprotokoll, Punkte-/Fairness-System („wer ist dran"), Statistik,
@@ -6,19 +6,36 @@ Dashboard-Charts. Supabase-Backend (multi-tenant, RLS in
 `supabase/schema.sql`), Riverpod 2 ohne Codegen, go_router, deutsche
 UI-Strings direkt im Code. Fachkonzept: `KONZEPT.md`.
 
-Produktname ist **RideBuddy** (seit v0.6.0); Repo- und Package-Name bleiben
-`fahrgemeinschaft`.
+Produktname ist **MitFahrBar** (seit v0.34.0, davor RideBuddy ab v0.6.0).
+Repo, Dart-Package und Bundle-ID tragen den Namen mit — die Umbenennung war
+bewusst vollständig (Issue #87): Ein Neuinstall auf Android war der Gruppe
+lieber als ein zweiter Name im System.
+
+**Zwei Dinge blieben trotzdem stehen, und das ist kein Versehen:**
+
+- **`grp.fahrgemeinschaft.app`** (`core/group_login.dart` + Edge Function)
+  ist die Login-Adresse jeder bestehenden Gruppe — sie steht serverseitig
+  als E-Mail in `auth.users`. Umbenennen hieße Migration auf den
+  Zugangsdaten der aktiv genutzten Gruppe, für etwas, das nie jemand
+  sieht (der Login ist Handle + Passwort).
+- **Der Handle `fahrgemeinschaft`** in
+  `20260720140000_multi_tenant_groups.sql` ist der echte Login der
+  Admin-Gruppe, also Daten in einer bereits eingespielten Migration.
+  Migrationen werden nie nachträglich umgeschrieben.
+
+Ebenso unverändert: die `CHANGELOG.md`-Einträge vor v0.34.0 — sie
+beschreiben Releases, die wirklich RideBuddy hießen.
 
 Projektübergreifende Guidelines (Architektur, State, Testing, CI, Signing,
 In-App-Update/-Feedback) liegen im DocuHub unter
 `/Volumes/MacStore/Programming/ProgrammingGuidelineDocuHub/`. Diese Datei
-beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
+beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
 
 ## Bekannte Abweichungen Konzept ↔ Implementierung
 
 `KONZEPT.md` ist an diesen Stellen überholt — bei Widersprüchen gilt der Code:
 
-- Name „FairFahrt" (§9.1) → das Produkt heißt RideBuddy.
+- Name „FairFahrt" (§9.1) → das Produkt heißt MitFahrBar.
 - `tool/import_xlsx.dart` (Dart-CLI) → umgesetzt wurde `tool/import_seed.py`.
 - Postgres-View `person_stats` (§4) → nie gebaut; alle Kennzahlen entstehen
   clientseitig in `lib/core/fairness.dart`.
@@ -347,10 +364,10 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   neue Migration als `supabase/migrations/<YYYYMMDDHHMMSS>_<name>.sql` anlegen,
   sie wird bei Push auf `main` automatisch eingespielt (kein manuelles
   Patchen). `supabase/schema.sql` bleibt das gepflegte Gesamtbild (Doku).
-- Repo: `github.com/MacBuchi/Fahrgemeinschaft`, Default-Branch `main`.
-  Web-Builds für Pages brauchen `--base-href /Fahrgemeinschaft/`
+- Repo: `github.com/MacBuchi/MitFahrBar`, Default-Branch `main`.
+  Web-Builds für Pages brauchen `--base-href /MitFahrBar/`
   (Groß-F, case-sensitiv!) und eine `404.html` (Kopie von `index.html`)
-  als SPA-Fallback. Live-URL: `https://macbuchi.github.io/Fahrgemeinschaft/`
+  als SPA-Fallback. Live-URL: `https://macbuchi.github.io/MitFahrBar/`
 - Echte Namen/Daten der Gruppe liegen NUR in `.donotsync/` (gitignored):
   `Fahrgemeinschaft.xlsx` (Original) und `seed/seed.json` (extrahiert).
   Einmal-Import in eine leere DB: `tool/import_seed.py`. Der Excel-Backtest
@@ -358,7 +375,12 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   fehlt (z. B. in CI).
 - Status-Werte in der DB: `driver` / `passenger` / `one_way`
   (Dart-Enum `ParticipationStatus.driver/passenger/oneWay`).
-- **Android:** Bundle-ID `de.macbuchi.fahrgemeinschaft`. Release-Signing kommt
+- **Android:** Bundle-ID `de.macbuchi.mitfahrbar` — mit v0.34.0 von
+  `de.macbuchi.fahrgemeinschaft` umgezogen (Issue #87). Android sieht darin
+  eine **andere App**: Die alte bleibt installiert und bekommt nie wieder
+  ein Update, jeder installiert einmal neu. Das war die bewusste
+  Entscheidung; wer die ID künftig anfasst, löst dasselbe wieder aus.
+  Release-Signing kommt
   aus `android/key.properties` (gitignored, in CI aus Secrets erzeugt). Ohne
   hinterlegten Keystore erscheint das Release bewusst **ohne APK** — nie still
   debug-signieren, sonst bricht jedes Update an der Signatur. Nötige Secrets:
@@ -414,9 +436,9 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   nur eine file_picker-Version von 2021. `file_selector` kommt von der
   Flutter-Foundation und deckt Web und Android mit einem Aufruf ab.
 - **Die Bedienungsanleitung ist ein Screen** (`features/help/help_screen.dart`,
-  Route `/help`, Menüpunkt „So funktioniert RideBuddy"). Bewusst in Flutter
+  Route `/help`, Menüpunkt „So funktioniert MitFahrBar"). Bewusst in Flutter
   statt als externe Seite: Sie erbt Theme und Schriften und zeigt die echten
-  Widgets (`MoodFace`, `RideBuddyMark`) — sie kann nicht wegdriften. Dafür
+  Widgets (`MoodFace`, `MitFahrBarMark`) — sie kann nicht wegdriften. Dafür
   gilt die Paar-Regel: **Wer die Bedienung ändert, pflegt die Anleitung mit.**
   `test/flows/help_flow_test.dart` nagelt die Kernaussagen fest, nicht den
   Wortlaut.
@@ -425,7 +447,7 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Issues. Er ruht, solange `SUPABASE_SERVICE_ROLE_KEY` nicht gesetzt ist.
   Die Issue-Templates unter `.github/ISSUE_TEMPLATE/` und die Felder im
   Feedback-Dialog gehören zusammen — Änderungen immer paarweise.
-- **Stimmungs-Gesichter** kommen aus dem Design-Set „RideBuddy Smiley Set"
+- **Stimmungs-Gesichter** kommen aus dem Design-Set „MitFahrBar Smiley Set"
   (Claude-Design-Projekt `ae532219-705e-4cdb-becd-cf734e17215a`). Sie sind
   **gezeichnet, nicht eingebunden** (`core/widgets/mood_face.dart`,
   CustomPainter) — dieselbe Linie wie bei den Charts, ein SVG-Renderer nur
@@ -504,8 +526,8 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   (`test/release_notes_test.dart`). Keine zweite Notes-Quelle einführen.
 - **Der Start-Splash** (`features/splash/splash_overlay.dart`) liegt im
   `builder` der MaterialApp über allem und zeichnet die Bildmarke über
-  `paintRideBuddyMark` + `RideBuddyPose` — Geometrie nur in
-  `core/widgets/ride_buddy_mark.dart`, die Animation ist reine
+  `paintMitFahrBarMark` + `MitFahrBarPose` — Geometrie nur in
+  `core/widgets/mitfahrbar_mark.dart`, die Animation ist reine
   Choreografie. Tipp überspringt, `disableAnimations` unterbindet ihn,
   und in Tests ist er über `splashEnabledProvider` standardmäßig aus
   (`pumpApp(splash: …)`) — sonst wartete jeder Flow-Test 3 Sekunden.

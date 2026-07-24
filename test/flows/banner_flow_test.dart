@@ -1,8 +1,8 @@
 /// banner_flow_test.dart – Update-Hinweis und Feedback über die echte App.
 library;
 
-import 'package:fahrgemeinschaft/core/update_check.dart';
-import 'package:fahrgemeinschaft/models/person.dart';
+import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/models/person.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

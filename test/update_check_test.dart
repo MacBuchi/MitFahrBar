@@ -1,8 +1,8 @@
 /// update_check_test.dart – Versionsvergleich und Sperre für alte Clients.
 library;
 
-import 'package:fahrgemeinschaft/core/update_check.dart';
-import 'package:fahrgemeinschaft/data/providers.dart';
+import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

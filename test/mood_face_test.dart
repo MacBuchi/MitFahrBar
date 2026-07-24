@@ -7,8 +7,8 @@
 /// ankommt und dass ein Wechsel der Stimmung neu gezeichnet wird.
 library;
 
-import 'package:fahrgemeinschaft/core/mood.dart';
-import 'package:fahrgemeinschaft/core/widgets/mood_face.dart';
+import 'package:mitfahrbar/core/mood.dart';
+import 'package:mitfahrbar/core/widgets/mood_face.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

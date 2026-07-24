@@ -1,8 +1,8 @@
 /// repository_test.dart – Verhalten des Fake-Repositories.
 library;
 
-import 'package:fahrgemeinschaft/data/fake_repository.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/data/fake_repository.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

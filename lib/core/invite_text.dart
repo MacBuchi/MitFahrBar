@@ -16,11 +16,10 @@ library;
 
 /// Web-App der Gruppe. Groß-F ist Absicht: GitHub Pages ist
 /// groß-/kleinschreibungsempfindlich.
-const inviteWebUrl = 'https://macbuchi.github.io/Fahrgemeinschaft/';
+const inviteWebUrl = 'https://macbuchi.github.io/MitFahrBar/';
 
 /// Android-Installation läuft über das jeweils neueste Release.
-const inviteApkUrl =
-    'https://github.com/MacBuchi/Fahrgemeinschaft/releases/latest';
+const inviteApkUrl = 'https://github.com/MacBuchi/MitFahrBar/releases/latest';
 
 /// Baut die Einladung.
 ///
@@ -33,7 +32,7 @@ String buildInviteText({
 }) {
   final hasPassword = password != null && password.trim().isNotEmpty;
   return [
-    'Komm in unsere RideBuddy-Gruppe „$groupName"!',
+    'Komm in unsere MitFahrBar-Gruppe „$groupName"!',
     '',
     'Am Handy (Android): $inviteApkUrl',
     'Im Browser: $inviteWebUrl',

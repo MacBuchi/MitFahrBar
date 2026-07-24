@@ -8,9 +8,9 @@
 /// einen Screen, den jedes Mitglied öffnen kann.
 library;
 
-import 'package:fahrgemeinschaft/models/app_settings.dart';
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/models/app_settings.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

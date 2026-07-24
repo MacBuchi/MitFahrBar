@@ -3,11 +3,11 @@ library;
 
 import 'dart:async';
 
-import 'package:fahrgemeinschaft/core/fairness.dart';
-import 'package:fahrgemeinschaft/data/providers.dart';
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/plan_ride.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/core/fairness.dart';
+import 'package:mitfahrbar/data/providers.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';

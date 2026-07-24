@@ -4,9 +4,9 @@
 /// sonst erst auf dem Rechner der Nutzerin.
 library;
 
-import 'package:fahrgemeinschaft/core/csv_export.dart';
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/core/csv_export.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Person _person(String id, String name, {bool active = true}) =>

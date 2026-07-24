@@ -4,9 +4,9 @@
 /// Produktion; nur das Backend ist ersetzt.
 library;
 
-import 'package:fahrgemeinschaft/app.dart';
-import 'package:fahrgemeinschaft/core/update_check.dart';
-import 'package:fahrgemeinschaft/data/providers.dart';
+import 'package:mitfahrbar/app.dart';
+import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';

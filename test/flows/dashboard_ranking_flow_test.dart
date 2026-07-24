@@ -1,8 +1,8 @@
 /// dashboard_ranking_flow_test.dart – „Wer ist dran" in der echten App.
 library;
 
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

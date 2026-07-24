@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/tokens.dart';
 import '../../core/widgets/password_field.dart';
-import '../../core/widgets/ride_buddy_mark.dart';
+import '../../core/widgets/mitfahrbar_mark.dart';
 import '../../data/providers.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -67,9 +67,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: RideBuddyMark(size: 120)),
+                    const Center(child: MitFahrBarMark(size: 120)),
                     const SizedBox(height: AppSpacing.m),
-                    const Center(child: RideBuddyWordmark(fontSize: 34)),
+                    const Center(child: MitFahrBarWordmark(fontSize: 34)),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       'Die faire App für eure Fahrgemeinschaft',

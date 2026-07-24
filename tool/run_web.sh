@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_web.sh – RideBuddy als Web-App bauen und im Standardbrowser öffnen.
+# run_web.sh – MitFahrBar als Web-App bauen und im Standardbrowser öffnen.
 #
 # Für macOS UND Linux; der Unterschied ist nur der Öffnen-Befehl, den das
 # Skript selbst erkennt. Für Windows liegt daneben `run_web.ps1`.
@@ -46,7 +46,7 @@ is_up() {
   fi
 }
 
-echo "RideBuddy wird gebaut und auf ${URL} ausgeliefert …"
+echo "MitFahrBar wird gebaut und auf ${URL} ausgeliefert …"
 echo "(Der erste Build dauert etwa eine halbe Minute.)"
 
 # Eigene Prozessgruppe, damit am Ende auch die Kindprozesse enden.

@@ -1,6 +1,6 @@
-/// tokens.dart – Zentrale Design-Tokens der Marke RideBuddy.
+/// tokens.dart – Zentrale Design-Tokens der Marke MitFahrBar.
 ///
-/// Quelle: Design-Set „RideBuddy Design Set". Maßgeblich sind die dort
+/// Quelle: Design-Set „MitFahrBar Design Set". Maßgeblich sind die dort
 /// gezeigten Farbflächen (Cyan/Teal-Familie); die Bildunterschriften der
 /// Palette stammen noch aus einer früheren Lila-Variante und wurden
 /// bewusst nicht übernommen.
@@ -55,7 +55,7 @@ abstract final class AppColors {
   static const oneWay = Color(0xFFB45309);
 }
 
-/// Farben der Stimmungs-Gesichter aus dem Design-Set „RideBuddy Smiley Set".
+/// Farben der Stimmungs-Gesichter aus dem Design-Set „MitFahrBar Smiley Set".
 ///
 /// Die Vorlage ist in oklch notiert, was Flutter nicht kennt; die Werte hier
 /// sind die nach sRGB umgerechneten Entsprechungen. Deshalb gilt: **nicht von

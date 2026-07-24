@@ -245,7 +245,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 ],
               ),
               _UpdatePhase.installing => const Text(
-                'Download fertig – Android fragt jetzt, ob RideBuddy '
+                'Download fertig – Android fragt jetzt, ob MitFahrBar '
                 'aktualisiert werden soll. Einfach bestätigen.',
               ),
               _UpdatePhase.error => const Text(

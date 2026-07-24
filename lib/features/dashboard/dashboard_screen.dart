@@ -17,7 +17,7 @@ import '../../core/update_check.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../core/widgets/mood_face.dart';
-import '../../core/widgets/ride_buddy_mark.dart';
+import '../../core/widgets/mitfahrbar_mark.dart';
 import '../banners/app_banners.dart';
 import '../export/export_action.dart';
 import '../invite/invite_dialog.dart';
@@ -37,10 +37,10 @@ class DashboardScreen extends ConsumerWidget {
         titleSpacing: 0,
         leading: const Padding(
           padding: EdgeInsets.only(left: AppSpacing.m),
-          child: Center(child: RideBuddyMark(size: 34)),
+          child: Center(child: MitFahrBarMark(size: 34)),
         ),
         leadingWidth: 34 + AppSpacing.m * 2,
-        title: Text(group?.name ?? 'RideBuddy'),
+        title: Text(group?.name ?? 'MitFahrBar'),
         actions: [
           if (group?.isAdmin ?? false)
             IconButton(
@@ -75,7 +75,7 @@ class DashboardScreen extends ConsumerWidget {
               } else if (value == 'licenses') {
                 showLicensePage(
                   context: context,
-                  applicationName: 'RideBuddy',
+                  applicationName: 'MitFahrBar',
                   applicationVersion: ref.read(currentVersionProvider).value,
                   applicationLegalese: '© 2026 Marcus Bucher · MIT-Lizenz',
                 );
@@ -147,7 +147,7 @@ class DashboardScreen extends ConsumerWidget {
                 value: 'help',
                 child: ListTile(
                   leading: Icon(Icons.menu_book_outlined),
-                  title: Text('So funktioniert RideBuddy'),
+                  title: Text('So funktioniert MitFahrBar'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),

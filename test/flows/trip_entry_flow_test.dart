@@ -1,9 +1,9 @@
 /// trip_entry_flow_test.dart – Fahrt über die Kachel-Maske eintragen.
 library;
 
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/plan_ride.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

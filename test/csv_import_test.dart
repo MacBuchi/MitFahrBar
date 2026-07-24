@@ -5,10 +5,10 @@
 /// ist die Vorlage aus dem Export keine Vorlage mehr.
 library;
 
-import 'package:fahrgemeinschaft/core/csv_export.dart';
-import 'package:fahrgemeinschaft/core/csv_import.dart';
-import 'package:fahrgemeinschaft/models/person.dart';
-import 'package:fahrgemeinschaft/models/trip.dart';
+import 'package:mitfahrbar/core/csv_export.dart';
+import 'package:mitfahrbar/core/csv_import.dart';
+import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 String csv(List<String> lines) => '${lines.join('\r\n')}\r\n';

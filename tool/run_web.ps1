@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  RideBuddy als Web-App bauen und im Standardbrowser öffnen (Windows).
+  MitFahrBar als Web-App bauen und im Standardbrowser öffnen (Windows).
 
 .DESCRIPTION
   Baut die App als Release und liefert sie lokal aus. Für macOS und Linux
@@ -39,7 +39,7 @@ Flutter installieren (https://flutter.dev) oder das SDK in den PATH aufnehmen:
     exit 1
 }
 
-Write-Host "RideBuddy wird gebaut und auf $Url ausgeliefert ..."
+Write-Host "MitFahrBar wird gebaut und auf $Url ausgeliefert ..."
 Write-Host "(Der erste Build dauert etwa eine halbe Minute.)"
 
 $process = Start-Process -FilePath $flutter.Source -ArgumentList @(

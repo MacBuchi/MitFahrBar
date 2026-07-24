@@ -3,7 +3,7 @@ library;
 
 import 'dart:io';
 
-import 'package:fahrgemeinschaft/core/licenses.dart';
+import 'package:mitfahrbar/core/licenses.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Die SIL OFL verlangt, dass ihr Text mit den Schriften ausgeliefert wird.

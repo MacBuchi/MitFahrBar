@@ -164,7 +164,7 @@ class SupabaseAuthRepository implements AuthRepository {
     try {
       await _client.auth.updateUser(
         UserAttributes(email: newEmail),
-        emailRedirectTo: 'https://macbuchi.github.io/Fahrgemeinschaft/',
+        emailRedirectTo: 'https://macbuchi.github.io/MitFahrBar/',
       );
     } on AuthApiException catch (e) {
       if (e.code == 'email_exists') throw const EmailTakenException();
@@ -178,7 +178,7 @@ class SupabaseAuthRepository implements AuthRepository {
       // passwordRecovery-Auth-Event den Nutzer mit dem Neu-Setzen-Dialog ab.
       _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'https://macbuchi.github.io/Fahrgemeinschaft/',
+        redirectTo: 'https://macbuchi.github.io/MitFahrBar/',
       );
 
   @override
