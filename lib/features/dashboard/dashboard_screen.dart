@@ -245,9 +245,9 @@ class _Content extends ConsumerWidget {
                         range: shareRange,
                       ),
                       if (candidate.personId == extremes.fullestId)
-                        const _QuoteBadge(label: 'Volle Kischt'),
+                        const _QuoteBadge(label: 'Volle Kischd'),
                       if (candidate.personId == extremes.emptiestId)
-                        const _QuoteBadge(label: 'Fast alloi'),
+                        const _QuoteBadge(label: 'Faschd alloi'),
                     ],
                   ),
                   subtitle: Text(

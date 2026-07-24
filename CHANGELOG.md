@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.32.1] – 2026-07-24
+
+### Geändert
+
+- **Die beiden Auszeichnungen im Dashboard heißen jetzt richtig
+  geschrieben „Volle Kischd" und „Faschd alloi"** — wie es die Gruppe
+  ausspricht.
+
 ## [0.32.0] – 2026-07-24
 
 Euer Feedback vom 24. Juli — danke, weiter so!
