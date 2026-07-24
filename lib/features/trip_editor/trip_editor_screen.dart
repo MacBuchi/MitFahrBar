@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/fairness.dart';
 import '../../core/tokens.dart';
+import '../../core/widgets/marked_date_picker.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../models/plan_ride.dart';
@@ -343,7 +344,16 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.m),
         children: [
-          _DateRow(date: _date, onChanged: (d) => setState(() => _date = d)),
+          _DateRow(
+            date: _date,
+            // Tage mit Fahrt bekommen im Kalender einen Punkt (#83) — so
+            // sieht man beim Nachtragen sofort, welche Tage noch fehlen.
+            tripDates: {
+              for (final t in trips)
+                DateTime(t.date.year, t.date.month, t.date.day),
+            },
+            onChanged: (d) => setState(() => _date = d),
+          ),
           const SizedBox(height: AppSpacing.m),
           _DriverSlot(
             driver: driverId == null ? null : byId[driverId],
@@ -483,16 +493,26 @@ class _SeatWarning extends StatelessWidget {
 }
 
 class _DateRow extends StatelessWidget {
-  const _DateRow({required this.date, required this.onChanged});
+  const _DateRow({
+    required this.date,
+    required this.tripDates,
+    required this.onChanged,
+  });
 
   final DateTime date;
+
+  /// Tage mit bereits eingetragener Fahrt — der Kalender markiert sie (#83).
+  final Set<DateTime> tripDates;
+
   final ValueChanged<DateTime> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
+    // Kein `subtract(Duration(days: 1))`: Am Montag nach der Zeitumstellung
+    // im Oktober wäre das Sonntag 23 Uhr statt gestern Mitternacht.
+    final yesterday = DateTime(today.year, today.month, today.day - 1);
     final format = DateFormat('EE, dd.MM.yyyy', 'de');
 
     return Wrap(
@@ -518,17 +538,16 @@ class _DateRow extends StatelessWidget {
           avatar: const Icon(Icons.calendar_month, size: 18),
           label: Text(format.format(date)),
           onPressed: () async {
-            final picked = await showDatePicker(
+            final picked = await showMarkedDatePicker(
               context: context,
               initialDate: date.isAfter(today) ? today : date,
               firstDate: DateTime(2020),
               // Kein Tag in der Zukunft — dieselbe Regel wie im Planer.
               lastDate: today,
-              locale: const Locale('de'),
+              markedDates: tripDates,
+              markedLabel: 'Fahrt schon eingetragen',
             );
-            if (picked != null) {
-              onChanged(DateTime(picked.year, picked.month, picked.day));
-            }
+            if (picked != null) onChanged(picked);
           },
         ),
       ],
