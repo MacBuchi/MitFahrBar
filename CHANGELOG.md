@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.30.0] – 2026-07-24
+
+### Verbessert
+
+- **Schutz vor automatisiertem Missbrauch:** Neue Gruppen-Anfragen sind
+  jetzt serverseitig gedrosselt — mehr als eine Handvoll pro Stunde geht
+  nicht mehr durch. Echte Fahrgemeinschaften merken davon nichts; wer in
+  die (unwahrscheinliche) Drossel läuft, bekommt eine ehrliche Meldung
+  statt eines Fehlers und versucht es einfach später noch einmal.
+
 ## [0.29.0] – 2026-07-24
 
 ### Neu

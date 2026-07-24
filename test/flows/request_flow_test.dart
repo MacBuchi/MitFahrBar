@@ -47,6 +47,25 @@ void main() {
     );
   });
 
+  testWidgets('gedrosselte Anlage wird ehrlich erklärt', (tester) async {
+    final backend = FakeBackend()..signupThrottled = true;
+    await pumpApp(tester, backend, splash: false);
+    await _submitRequest(tester, 'Zu viele');
+
+    expect(
+      find.textContaining('ungewöhnlich viele Anfragen'),
+      findsOneWidget,
+      reason:
+          'Die Drossel (Missbrauchsschutz #69) darf nicht wie ein '
+          'technischer Fehler aussehen — sonst hagelt es Rückmeldungen.',
+    );
+    expect(
+      backend.accounts,
+      isEmpty,
+      reason: 'Gedrosselt heißt: nichts angelegt.',
+    );
+  });
+
   testWidgets('vergebener Anmeldename wird klar gemeldet', (tester) async {
     final backend = FakeBackend();
     backend.addGroup(handle: 'pendler', password: 'geheim123', name: 'Pendler');

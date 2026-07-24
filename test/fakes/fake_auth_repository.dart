@@ -42,6 +42,9 @@ class FakeAuthRepository implements AuthRepository {
     required String password,
     required String groupName,
   }) async {
+    if (backend.signupThrottled) {
+      throw const TooManyRequestsException();
+    }
     final email = handleToEmail(handle);
     if (backend.accounts.containsKey(email)) {
       throw const HandleTakenException();

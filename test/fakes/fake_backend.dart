@@ -54,6 +54,10 @@ class FakeBackend {
   /// der Wechsel erst nach beiden Bestätigungs-Links, der Fake wendet ihn
   /// deshalb bewusst nicht an.
   final List<String> emailChangeRequests = [];
+
+  /// Simuliert die gedrosselte Gruppen-Anlage (Missbrauchsschutz, #69):
+  /// Die Edge Function antwortet dann mit 429.
+  bool signupThrottled = false;
   final Map<String, Group> groups = {};
   final Map<String, FakeCarpoolRepository> _data = {};
   final List<Map<String, Object?>> feedback = [];

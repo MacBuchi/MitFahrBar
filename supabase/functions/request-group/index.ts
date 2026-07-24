@@ -62,6 +62,31 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
+
+  // Missbrauchsschutz (Issue #69): höchstens N neue pending-Gruppen je
+  // Stunde, GESAMT. Bewusst global statt je IP: braucht weder neue Tabelle
+  // noch IP-Speicherung (Privatsphäre), ist über Isolate-Neustarts hinweg
+  // durabel (zählt die DB-Wahrheit) und neutralisiert Skript-Massenanlagen
+  // vollständig — echte Fahrgemeinschaften entstehen ein paar Mal pro
+  // Woche, nicht pro Stunde. Kehrseite (dokumentiert): Während eines
+  // Angriffs warten auch echte Anfragen — bei pending-Freigabe ohnehin
+  // kein Beinbruch. Lokal hebt supabase/functions/.env die Grenze an,
+  // sonst liefe die E2E-Suite hinein.
+  const hourlyCap = Number(Deno.env.get('SIGNUP_HOURLY_CAP') ?? '5')
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { count, error: countError } = await admin
+    .from('groups')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
+    .gte('created_at', oneHourAgo)
+  if (countError) {
+    console.error('rate check failed:', countError.code)
+    return respond(500, { error: 'signup failed' })
+  }
+  if ((count ?? 0) >= hourlyCap) {
+    return respond(429, { error: 'too many requests' })
+  }
+
   const { error } = await admin.auth.admin.createUser({
     email: `${handle}@${GROUP_DOMAIN}`,
     password,
