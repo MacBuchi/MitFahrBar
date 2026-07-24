@@ -172,7 +172,12 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   `doc/entscheidung-mitfahrer-verteilung.md`): Punkte konvergieren nur
   **innerhalb** vergleichbarer Autogrößen; bei dauerhaftem Kapazitäts-
   Gefälle driften sie ehrlich, aber unbegrenzt — dokumentierte Grenze,
-  keine zu „reparierende" Formel. Die Mitfahrer-Verteilung (meiste freie
+  keine zu „reparierende" Formel. Auf der realen Zielflotte
+  (DaciaRacing-Empirie: 1×4/6×5/1×7 Sitze, große Tage die Ausnahme)
+  erfüllt die Automatik Punkte ±2 und Fahrraten im Mittel ±2 pp; der
+  Worst-Case ±3 pp ist der **Anwesenheits-Boden** (selten Anwesende sind
+  eher an großen Tagen dabei und fahren voller), den keine Fahrerwahl
+  unterschreiten kann — Zerlegung und Mechanismen-Vergleich im Report. Die Mitfahrer-Verteilung (meiste freie
   Plätze, Gleichstand → bedürftigster Fahrer) bleibt bewusst: Ein
   Anti-Solo-Tie-Break bewegte im A/B-Vergleich eine Fahrt in acht Jahren.
 - **1-way im Planer schließt das Fahren aus.** `plan_availability.one_way`
