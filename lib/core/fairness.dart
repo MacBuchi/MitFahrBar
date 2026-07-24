@@ -375,10 +375,10 @@ String? suggestPlanDriver(
 class QuoteExtremes {
   const QuoteExtremes({this.fullestId, this.emptiestId});
 
-  /// Höchste Quote — „Volle Kischt".
+  /// Höchste Quote — „Volle Kischd".
   final String? fullestId;
 
-  /// Niedrigste Quote — „Fast alloi".
+  /// Niedrigste Quote — „Faschd alloi".
   final String? emptiestId;
 }
 

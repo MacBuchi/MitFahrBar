@@ -91,8 +91,8 @@ void main() {
     await pumpApp(tester, backend);
     await _login(tester);
 
-    expect(find.text('Volle Kischt'), findsOneWidget);
-    expect(find.text('Fast alloi'), findsOneWidget);
+    expect(find.text('Volle Kischd'), findsOneWidget);
+    expect(find.text('Faschd alloi'), findsOneWidget);
     // Die Quote steht seit v0.15.0 nur noch in den Titeln; in der Zeile
     // selbst steht der Fahranteil in Prozent.
     expect(find.textContaining('Ø 3,0 mit'), findsNothing);
@@ -125,13 +125,13 @@ void main() {
     await _login(tester);
 
     expect(
-      find.text('Volle Kischt'),
+      find.text('Volle Kischd'),
       findsNothing,
       reason:
           'Nach einer einzigen Fahrt sagt die Quote nichts — ein Titel wäre '
           'reine Dekoration und würde bei jeder Fahrt wandern.',
     );
-    expect(find.text('Fast alloi'), findsNothing);
+    expect(find.text('Faschd alloi'), findsNothing);
   });
 
   // Seit Issue #38 steuert der Fahranteil die Reihenfolge nicht mehr. Er

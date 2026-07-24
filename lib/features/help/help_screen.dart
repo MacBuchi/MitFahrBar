@@ -94,8 +94,8 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
-                    '„Volle Kischt" trägt, wer im Schnitt die meisten '
-                    'mitnimmt, „Fast alloi", wer meist allein fährt.',
+                    '„Volle Kischd" trägt, wer im Schnitt die meisten '
+                    'mitnimmt, „Faschd alloi", wer meist allein fährt.',
               ),
               _Line(
                 text:
