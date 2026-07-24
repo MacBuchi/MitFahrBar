@@ -86,6 +86,74 @@ void main() {
       },
     );
 
+    // Issue #85: Die Gruppe trägt Fahrten meist direkt im Editor ein — dann
+    // gibt es keine angetippte Verfügbarkeit, und das Raster zeigte nur den
+    // Fahrer. Ein eingetragener Tag muss die Fahrt zeigen, nicht die Planung.
+    test('ein eingetragener Tag zeigt alle Teilnehmer der Fahrt (#85)', () {
+      final plan = planWeek(
+        dates: week,
+        // Niemand hat Verfügbarkeit angetippt — die Fahrt kam aus dem Editor.
+        availability: const {},
+        overrides: const {},
+        trips: [
+          Trip(
+            id: 'real',
+            date: week.first,
+            participations: const {
+              'a': ParticipationStatus.driver,
+              'b': ParticipationStatus.passenger,
+              'c': ParticipationStatus.oneWay,
+            },
+          ),
+        ],
+        settings: settings,
+      );
+
+      expect(
+        plan.first.availableIds,
+        ['a', 'b', 'c'],
+        reason:
+            'Die Teilnehmer der echten Fahrt gehören ins Raster, auch ohne '
+            'angetippte Verfügbarkeit — sonst zeigt der Planer nur den Fahrer.',
+      );
+      expect(
+        plan.first.oneWayIds,
+        {'c'},
+        reason: 'Der 1-way-Status kommt aus der Fahrt.',
+      );
+      expect(plan.first.driverId, 'a');
+    });
+
+    test('bei Widerspruch gewinnt die Fahrt gegen die Planung (#85)', () {
+      final plan = planWeek(
+        dates: week,
+        availability: {
+          // b hatte „nur eine Richtung" angetippt, fuhr aber voll mit.
+          week.first: ride({'a'}, oneWay: {'b'}),
+        },
+        overrides: const {},
+        trips: [
+          Trip(
+            id: 'real',
+            date: week.first,
+            participations: const {
+              'a': ParticipationStatus.driver,
+              'b': ParticipationStatus.passenger,
+            },
+          ),
+        ],
+        settings: settings,
+      );
+
+      expect(
+        plan.first.oneWayIds,
+        isEmpty,
+        reason:
+            'Wer laut Fahrt voll mitgefahren ist, steht nicht mehr als '
+            '„nur eine Richtung" im Raster — die Fahrt ist die Wahrheit.',
+      );
+    });
+
     test('ein übersteuerter Fahrer gewinnt gegen den Vorschlag', () {
       final plan = planWeek(
         dates: week,

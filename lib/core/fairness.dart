@@ -660,11 +660,33 @@ List<PlannedDay> planWeek({
 
     final existing = realTripsByDay[key];
     if (existing != null) {
+      // Ein eingetragener Tag zeigt die Fahrt, nicht die Planung (#85): Wer
+      // wirklich mitgefahren ist, steht in der Fahrt — die Verfügbarkeit
+      // wurde womöglich nie angetippt, wenn die Fahrt direkt im Editor
+      // entstand. Beides wird vereint, und bei Widerspruch gewinnt die Fahrt
+      // (wer voll mitfuhr, ist nicht mehr „nur eine Richtung").
+      final rodeFull = <String>{};
+      final rodeOneWay = <String>{};
+      for (final trip in existing) {
+        for (final e in trip.participations.entries) {
+          if (e.value == ParticipationStatus.oneWay) {
+            rodeOneWay.add(e.key);
+          } else {
+            rodeFull.add(e.key);
+          }
+        }
+      }
+      rodeOneWay.removeAll(rodeFull);
       plan.add(
         PlannedDay(
           date: date,
-          availableIds: available,
-          oneWayIds: oneWayIds,
+          availableIds: {...available, ...rodeFull, ...rodeOneWay}.toList()
+            ..sort(),
+          oneWayIds: {
+            for (final id in oneWayIds)
+              if (!rodeFull.contains(id)) id,
+            ...rodeOneWay,
+          },
           confirmed: true,
           cars: [
             // Eine (importierte) Fahrt ganz ohne Fahrer stellt kein Auto —
