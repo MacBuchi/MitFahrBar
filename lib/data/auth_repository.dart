@@ -21,6 +21,11 @@ class EmailTakenException implements Exception {
   const EmailTakenException();
 }
 
+/// Der Server drosselt gerade neue Gruppen-Anfragen (Missbrauchsschutz).
+class TooManyRequestsException implements Exception {
+  const TooManyRequestsException();
+}
+
 abstract class AuthRepository {
   bool get loggedIn;
 
@@ -117,6 +122,7 @@ class SupabaseAuthRepository implements AuthRepository {
       );
     } on FunctionException catch (e) {
       if (e.status == 409) throw const HandleTakenException();
+      if (e.status == 429) throw const TooManyRequestsException();
       rethrow;
     }
   }
