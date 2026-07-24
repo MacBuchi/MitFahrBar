@@ -439,11 +439,14 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   „Screenshots" (`.github/workflows/screenshots.yml`) macht das bei jedem
   PR, der `lib/`, `assets/` oder `web/` anfasst, selbst und committet das
   Ergebnis in den Branch. Zwei Dinge daran sind nicht verhandelbar: Der
-  Pfadfilter darf `doc/screenshots/**` **nicht** enthalten (der eigene
-  Commit triggerte den Workflow sonst endlos), und nach dem Push muss die
-  CI per `workflow_dispatch` angestoßen werden — ein Push mit dem
-  `GITHUB_TOKEN` erzeugt bewusst keine Ereignisse, der PR hinge sonst ohne
-  Required Checks fest. Weil die Bilder in `doc/` liegen, nimmt der Version
+  Job überspringt sich, wenn die Branch-Spitze schon sein eigener Commit
+  ist (`docs: refresh README screenshots`) — der Pfadfilter allein
+  genügt dafür **nicht**, weil bei `pull_request` der ganze PR-Diff zählt
+  und nicht der neue Commit; ohne den Riegel liefe es im Kreis, sobald
+  zwei Läufe verschiedene Bilder erzeugen (im Screenshot steht ein
+  Datum). Und nach dem Push muss die CI per `workflow_dispatch`
+  angestoßen werden — ein Push mit dem `GITHUB_TOKEN` erzeugt bewusst
+  keine Ereignisse, der PR hinge sonst ohne Required Checks fest. Weil die Bilder in `doc/` liegen, nimmt der Version
   Guard `doc/` ausdrücklich aus: Ein neuer Screenshot ist kein Release.
   Die Bildinhalte hängen an Koordinaten im 430×900-Viewport — verschiebt
   sich das Layout, zeigen die Bilder im PR sofort das Falsche.

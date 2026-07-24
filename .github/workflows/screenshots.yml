@@ -6,8 +6,13 @@ name: Screenshots
 # App wegdriften, ohne dass es jemandem auffällt.
 #
 # Zwei Dinge sind Absicht:
-#   · Der Pfadfilter nennt `doc/screenshots/**` NICHT — sonst löste der
-#     eigene Commit den Workflow endlos wieder aus.
+#   · Der Job überspringt sich, wenn die Spitze schon sein eigener Commit
+#     ist. Der Pfadfilter allein reicht dafür NICHT: Bei `pull_request`
+#     zählt der gesamte PR-Diff, nicht der neue Commit — ein PR, der
+#     `lib/` anfasst, triggert also auch nach dem Bot-Push wieder. Ohne
+#     diesen Riegel liefe das im Kreis, sobald zwei Läufe verschiedene
+#     Bilder erzeugen (etwa über Mitternacht: im Screenshot steht ein
+#     Datum).
 #   · Nach dem Push wird die CI von Hand angestoßen. Ein Push mit dem
 #     GITHUB_TOKEN erzeugt bewusst keine neuen Ereignisse; ohne den
 #     Dispatch hinge der PR ohne Required Checks fest (siehe github-flow).
@@ -45,18 +50,34 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.head_ref || github.ref_name }}
-      - uses: subosito/flutter-action@v2
+      # Der Riegel gegen die Schleife: Steht der eigene Commit schon oben,
+      # ist nichts mehr zu tun. Alles Weitere hängt an diesem Schritt.
+      - name: Läuft das im Kreis?
+        id: guard
+        run: |
+          if [ "$(git log -1 --pretty=%s)" = 'docs: refresh README screenshots' ]; then
+            echo "Spitze ist der eigene Commit — nichts zu tun."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.guard.outputs.skip != 'true'
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-      - uses: actions/setup-node@v4
+      - if: steps.guard.outputs.skip != 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: flutter pub get
+      - if: steps.guard.outputs.skip != 'true'
+        run: flutter pub get
       - name: Screenshots erzeugen
+        if: steps.guard.outputs.skip != 'true'
         run: ./tool/screenshots.sh
       - name: Nur bei echter Änderung committen
         id: commit
+        if: steps.guard.outputs.skip != 'true'
         run: |
           set -euo pipefail
           if git diff --quiet -- doc/screenshots; then
@@ -76,6 +97,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run CI --ref "${{ github.head_ref || github.ref_name }}"
       - name: Bilder auch als Artefakt
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
