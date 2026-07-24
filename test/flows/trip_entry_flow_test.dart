@@ -565,6 +565,48 @@ void main() {
     expect(find.text('Mindestens 1 Person auswählen'), findsOneWidget);
   });
 
+  // Die „Weitere Fahrt?"-Rückfrage bleibt außerhalb des Planer-Ablaufs
+  // scharf (Issue #62 hat sie nur für erwartete Fahrten zum Schweigen
+  // gebracht): Ohne Seed ist jede vorhandene Fahrt am Tag unerwartet.
+  testWidgets('eine zweite Fahrt am selben Tag fragt weiter nach', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    await data.createTrip(DateTime(now.year, now.month, now.day), {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Clara'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Speichern –'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Weitere Fahrt an diesem Tag?'), findsOneWidget);
+    await tester.tap(find.text('Zweite Fahrt anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(await data.loadTrips(), hasLength(2));
+  });
+
   // Beim Bearbeiten zeigt die Maske die Fahrt, wie sie war — der Plan des
   // Tages hat dort nichts mehr zu sagen.
   testWidgets('Bearbeiten wird nicht vorbelegt', (tester) async {

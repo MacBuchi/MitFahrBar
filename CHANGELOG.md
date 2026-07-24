@@ -4,6 +4,31 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.28.0] – 2026-07-24
+
+### Neu
+
+- **Mehrere Autos an einem Tag** (euer Wunsch, Teil 2): Reicht kein
+  einzelnes Auto für alle, schlägt der Wochenplaner jetzt mehrere Fahrer
+  vor — so wenige Autos wie möglich, ein großes schlägt zwei kleine, und
+  wer fährt, entscheiden wie immer die Punkte. Die Tageszeile sagt dann
+  z. B. „Anna + Ben fahren · 2 Autos".
+- **Fahrer selbst wählen, auch mehrere:** Das Tausch-Symbol öffnet eine
+  Mehrfach-Auswahl mit Live-Rechnung, ob die Plätze reichen. „Zurück zum
+  Vorschlag" räumt das Übersteuern wieder ab.
+- **Eintragen je Auto:** Bei einem geteilten Tag öffnet sich der
+  Fahrten-Editor für jedes Auto nacheinander, fertig vorbelegt — gebucht
+  wird erst mit jedem Speichern, nichts passiert still im Hintergrund.
+  Wer zwischendrin abbricht, trägt den Rest einfach von Hand nach.
+- **Historie:** Fahren an einem Tag mehrere Autos, trägt die zweite
+  Fahrt die Marke „2. Auto".
+
+### Wichtig
+
+- Ältere App-Versionen können das Übersteuern des Fahrers nicht mehr
+  speichern — die App bittet nach diesem Update einmalig um die neue
+  Version. Einfach aktualisieren, alles andere bleibt, wie es war.
+
 ## [0.27.0] – 2026-07-24
 
 ### Neu

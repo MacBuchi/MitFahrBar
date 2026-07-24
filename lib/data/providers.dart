@@ -216,7 +216,7 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
   /// Server-Rohzustand, an dem die optimistischen Änderungen ansetzen —
   /// Schlüssel auf Tagesbeginn normiert, damit Taps ihre Zeile finden.
   var _availability = <DateTime, Map<String, PlanRide>>{};
-  var _overrides = <DateTime, String>{};
+  var _overrides = <DateTime, Set<String>>{};
   var _dates = const <DateTime>[];
   var _trips = const <Trip>[];
   var _settings = const AppSettings();
@@ -255,24 +255,19 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
             if (active.contains(r.key)) r.key: r.value,
         },
     };
-    _overrides = {for (final e in raw.overrides.entries) _day(e.key): e.value};
+    _overrides = {
+      for (final e in raw.overrides.entries) _day(e.key): {...e.value},
+    };
     return _plan();
   }
 
   List<PlannedDay> _plan() => planWeek(
     dates: _dates,
     availability: _availability,
-    // Gespeichert ist weiterhin genau EIN Fahrer je Tag; planWeek denkt seit
-    // Issue #62 in Mengen.
-    overrides: {
-      for (final e in _overrides.entries) e.key: {e.value},
-    },
+    overrides: _overrides,
     trips: _trips,
     settings: _settings,
     seats: _seats,
-    // Bis die UI mehrere Autos anzeigen und eintragen kann (Issue #62,
-    // Teil 2), bleibt das Laufzeitverhalten bei der alten Ein-Auto-Regel.
-    maxCars: 1,
   );
 
   /// Erst lokal zeigen, dann schreiben; bei Fehler Server-Wahrheit zurück
@@ -310,16 +305,16 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
     );
   }
 
-  /// Fahrer übersteuern; `null` kehrt zum Vorschlag zurück.
-  Future<void> setDriver(DateTime date, String? driverId) {
+  /// Fahrer-Menge übersteuern (Issue #62); leer kehrt zum Vorschlag zurück.
+  Future<void> setDrivers(DateTime date, Set<String> driverIds) {
     final day = _day(date);
     return _apply(() {
-      if (driverId == null) {
+      if (driverIds.isEmpty) {
         _overrides.remove(day);
       } else {
-        _overrides[day] = driverId;
+        _overrides[day] = {...driverIds};
       }
-    }, ref.read(carpoolRepositoryProvider).setPlanDriver(date, driverId));
+    }, ref.read(carpoolRepositoryProvider).setPlanDrivers(date, driverIds));
   }
 }
 

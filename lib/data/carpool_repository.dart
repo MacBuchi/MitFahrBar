@@ -36,9 +36,10 @@ abstract class CarpoolRepository {
   /// [ride] `null` heißt „kann nicht" und löscht den Eintrag.
   Future<void> setAvailability(DateTime date, String personId, PlanRide? ride);
 
-  /// Übersteuert den Fahrer-Vorschlag; [driverId] `null` nimmt das
+  /// Übersteuert den Fahrer-Vorschlag mit einer MENGE von Fahrern (Issue
+  /// #62: ein Tag kann mehrere Autos haben). Eine leere Menge nimmt das
   /// Übersteuern zurück und lässt wieder den Vorschlag gelten.
-  Future<void> setPlanDriver(DateTime date, String? driverId);
+  Future<void> setPlanDrivers(DateTime date, Set<String> driverIds);
 }
 
 /// Rohdaten des Wochenplans, wie sie in der Datenbank stehen.
@@ -50,6 +51,7 @@ class WeekPlan {
   /// Tag → Person → wie sie mitfährt. Wer fehlt, kann an dem Tag nicht.
   final Map<DateTime, Map<String, PlanRide>> availability;
 
-  /// Tag → von Hand gesetzter Fahrer.
-  final Map<DateTime, String> overrides;
+  /// Tag → von Hand gesetzte Fahrer (eine Zeile je Fahrer in
+  /// `plan_overrides`).
+  final Map<DateTime, Set<String>> overrides;
 }

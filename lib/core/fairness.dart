@@ -596,11 +596,6 @@ int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
 /// „passendes Auto zuerst"-Filter). Reichen selbst alle Autos zusammen
 /// nicht, fällt die Sitzprüfung weg: lieber zu wenige Plätze als ein Tag
 /// ohne Fahrer — die alte Rückfalllinie, verallgemeinert.
-///
-/// [maxCars] begrenzt die Autozahl; `1` erzwingt die alte Ein-Auto-Regel
-/// samt Rückfalllinie. Das nutzt der `WeekPlanNotifier`, bis die UI mehrere
-/// Autos anzeigen und eintragen kann (Issue #62, Teil 2); `null` heißt: so
-/// viele wie nötig.
 List<PlannedDay> planWeek({
   required List<DateTime> dates,
   required Map<DateTime, Map<String, PlanRide>> availability,
@@ -608,7 +603,6 @@ List<PlannedDay> planWeek({
   required List<Trip> trips,
   required AppSettings settings,
   Map<String, int> seats = const {},
-  int? maxCars,
 }) {
   final availableByDay = {
     for (final entry in availability.entries) _dayKey(entry.key): entry.value,
@@ -722,7 +716,7 @@ List<PlannedDay> planWeek({
         final bySeat = seatOf(b).compareTo(seatOf(a));
         return bySeat != 0 ? bySeat : a.compareTo(b);
       });
-    final limit = math.min(maxCars ?? candidates.length, candidates.length);
+    final limit = candidates.length;
     var k = limit;
     var coverable = false;
     var seatSum = 0;

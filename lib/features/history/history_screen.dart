@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/fairness.dart';
+import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../models/trip.dart';
@@ -48,6 +49,9 @@ class _TripList extends ConsumerWidget {
   final List<Trip> trips;
   final List<Person> persons;
 
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final byId = {for (final p in persons) p.id: p};
@@ -63,6 +67,18 @@ class _TripList extends ConsumerWidget {
         // Solo-Fahrten zählen in keiner Kennzahl (Issue #61) — die Liste
         // zeigt sie blass und sagt dazu, warum.
         final solo = isSoloTrip(trip);
+        // Mehrere Fahrten am selben Tag (Issue #62): Die Liste ist nach
+        // Datum sortiert, gleiche Tage stehen also beieinander — ab der
+        // zweiten bekommt jede einen „2. Auto"-Chip. Die Nummer ist die
+        // Position in der Liste, keine Aussage über die Abfahrtsfolge.
+        var carNumber = 1;
+        for (
+          var i = index - 1;
+          i >= 0 && _sameDay(trips[i].date, trip.date);
+          i--
+        ) {
+          carNumber++;
+        }
         final passengers = [
           for (final e in trip.participations.entries)
             if (e.value == ParticipationStatus.passenger) nameOf(e.key),
@@ -74,7 +90,30 @@ class _TripList extends ConsumerWidget {
           // Blass, aber weiter antipp-/bearbeitbar — vielleicht fehlt ja
           // nur ein vergessener Mitfahrer.
           textColor: solo ? Theme.of(context).disabledColor : null,
-          title: Text(dateFormat.format(trip.date)),
+          title: Row(
+            children: [
+              Text(dateFormat.format(trip.date)),
+              if (carNumber > 1) ...[
+                const SizedBox(width: AppSpacing.s),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(AppRadius.s),
+                  ),
+                  child: Text(
+                    '$carNumber. Auto',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
           subtitle: Text(
             '${driver == null ? 'Kein Fahrer' : 'Fahrer: ${nameOf(driver)}'}'
             '${passengers.isEmpty ? '' : ' · Mit: ${passengers.join(', ')}'}'
