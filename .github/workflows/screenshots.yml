@@ -1,0 +1,82 @@
+name: Screenshots
+
+# Die README-Screenshots sind Erzeugnisse, keine gepflegten Bilder: Ändert
+# ein PR die Oberfläche (lib/, assets/, web/), erzeugt dieser Workflow sie
+# neu und schiebt sie in denselben Branch. So kann die README nicht von der
+# App wegdriften, ohne dass es jemandem auffällt.
+#
+# Zwei Dinge sind Absicht:
+#   · Der Pfadfilter nennt `doc/screenshots/**` NICHT — sonst löste der
+#     eigene Commit den Workflow endlos wieder aus.
+#   · Nach dem Push wird die CI von Hand angestoßen. Ein Push mit dem
+#     GITHUB_TOKEN erzeugt bewusst keine neuen Ereignisse; ohne den
+#     Dispatch hinge der PR ohne Required Checks fest (siehe github-flow).
+
+on:
+  pull_request:
+    paths:
+      - "lib/**"
+      - "assets/**"
+      - "web/**"
+      - "tool/screenshots.mjs"
+      - "tool/screenshots.sh"
+      - ".github/workflows/screenshots.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  FLUTTER_VERSION: "3.41.2"
+
+jobs:
+  shots:
+    name: Screenshots
+    # Forks bekommen kein Schreibrecht — dort wäre der Push nur ein Fehler.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: flutter pub get
+      - name: Screenshots erzeugen
+        run: ./tool/screenshots.sh
+      - name: Nur bei echter Änderung committen
+        id: commit
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- doc/screenshots; then
+            echo "Screenshots unverändert."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add doc/screenshots
+          git commit -m 'docs: refresh README screenshots'
+          git push
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+      - name: CI auf dem neuen Stand anstoßen
+        if: steps.commit.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run CI --ref "${{ github.head_ref || github.ref_name }}"
+      - name: Bilder auch als Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: doc/screenshots/*.png

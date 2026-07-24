@@ -432,6 +432,21 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps
   inklusive Adaptive-Icon-Vordergrund. Icons nie von Hand bearbeiten.
   Schrift: Space Grotesk (Display) + Manrope (Body) als Variable Fonts.
+- **Die README-Screenshots sind Erzeugnisse, keine Bilder.**
+  `tool/screenshots.sh` baut die App im Demo-Modus, fährt sie mit Playwright
+  durch und schreibt `doc/screenshots/*.png` — nie von Hand nachbauen oder
+  zuschneiden, dieselbe Linie wie bei den Icons. Der Workflow
+  „Screenshots" (`.github/workflows/screenshots.yml`) macht das bei jedem
+  PR, der `lib/`, `assets/` oder `web/` anfasst, selbst und committet das
+  Ergebnis in den Branch. Zwei Dinge daran sind nicht verhandelbar: Der
+  Pfadfilter darf `doc/screenshots/**` **nicht** enthalten (der eigene
+  Commit triggerte den Workflow sonst endlos), und nach dem Push muss die
+  CI per `workflow_dispatch` angestoßen werden — ein Push mit dem
+  `GITHUB_TOKEN` erzeugt bewusst keine Ereignisse, der PR hinge sonst ohne
+  Required Checks fest. Weil die Bilder in `doc/` liegen, nimmt der Version
+  Guard `doc/` ausdrücklich aus: Ein neuer Screenshot ist kein Release.
+  Die Bildinhalte hängen an Koordinaten im 430×900-Viewport — verschiebt
+  sich das Layout, zeigen die Bilder im PR sofort das Falsche.
 - **Lizenz:** `LICENSE` ist MIT. Die Bildmarke und die gebündelten Schriften
   hängen nicht daran — Space Grotesk und Manrope stehen unter der SIL OFL,
   die verlangt, dass ihr Lizenztext mitgeliefert wird. Neue Assets deshalb
