@@ -21,6 +21,7 @@ import '../features/history/history_screen.dart';
 import '../features/import/import_screen.dart';
 import '../features/persons/persons_screen.dart';
 import '../features/plan/plan_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/stats/stats_screen.dart';
 import '../features/trip_editor/trip_editor_screen.dart';
 import '../features/trip_editor/trip_editor_seed.dart';
@@ -91,6 +92,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/persons',
         builder: (context, state) => const PersonsScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
         path: '/trip/new',

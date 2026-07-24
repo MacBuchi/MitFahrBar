@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.33.0] – 2026-07-24
+
+### Neu
+
+- **Arbeitsweg und Spritpreise stellt ihr jetzt selbst ein** (euer
+  Wunsch): Menü oben rechts → **Parameter**. Dort stehen die einfache
+  Strecke in Kilometern und die Preise für Strom, Diesel und Benzin.
+  Bisher rechnete RideBuddy fest mit 30 km — jetzt mit eurer Zahl, und
+  Kilometer wie gesparte Kosten stimmen sofort für alle. An den Punkten
+  ändert sich dadurch nichts.
+- Die Preise pflegt ihr weiterhin von Hand. Automatisch aus dem Netz holt
+  RideBuddy sie bewusst nicht: Für die Ersparnis reicht ein grober Wert,
+  und dafür wäre ein weiterer Fremddienst nötig.
+
 ## [0.32.1] – 2026-07-24
 
 ### Geändert

@@ -56,6 +56,8 @@ class DashboardScreen extends ConsumerWidget {
             onSelected: (value) {
               if (value == 'persons') {
                 context.push('/persons');
+              } else if (value == 'settings') {
+                unawaited(context.push('/settings'));
               } else if (value == 'invite') {
                 final g = group;
                 if (g != null) unawaited(showInviteDialog(context, g));
@@ -87,6 +89,14 @@ class DashboardScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: Icon(Icons.group_outlined),
                   title: Text('Personen verwalten'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  leading: Icon(Icons.tune),
+                  title: Text('Parameter'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
