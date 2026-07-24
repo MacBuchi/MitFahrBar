@@ -105,6 +105,33 @@ Beide Läufe sind als Szenarien „Realflotte" und „Kontrolle" in
 `test/plan_soak_test.dart` gepinnt; das ±2-pp-Ziel ist dort als Assertion
 verankert, wo es erreichbar ist (Kontrolle).
 
+## Nachtrag 2026-07-24 (2): Finetuning-Sweep — kRateBalance ist wirkungslos
+
+Auf Marcus' Frage „können wir Finetuning an der Logik vornehmen?" wurde der
+einzige Tuning-Parameter der Fahrerwahl, der Raten-Trim `kRateBalance`
+(heute 2), auf dem Realflotten-Datensatz von 0 (Trim aus) bis 12
+(sechsfache Autorität) gesweept — jeweils als Wegwerf-Patch:
+
+| kRateBalance | 0 | 1 | 2 | 4 | 6 | 8 | 12 |
+|---|---|---|---|---|---|---|---|
+| max. Raten-Abw. Realflotte (pp) | 9,1 | 9,3 | 8,8 | 8,8 | 9,1 | 8,8 | 8,6 |
+| max. Raten-Abw. Kontrolle (pp) | 1,0 | 1,2 | 1,0 | 1,0 | 1,0 | 0,7 | 1,3 |
+| max. Endpunkte-Betrag Realflotte | 2,5 | 1,5 | 2,0 | 2,5 | 2,5 | 3,0 | 2,0 |
+
+**Beide Kurven sind flach.** Der Trim bewegt die Raten-Spreizung nicht —
+weder in der Realflotte (dort ist die Rate bei Punkten ≈ 0 durch
+Rate ≈ 1/(1 + Ø Belegung eigener Fahrten) festgelegt, und WER volle Tage
+fahren darf, entscheidet die Sitz-Abdeckung) noch in der Kontrolle (dort
+gleichen die Punkte die Raten schon allein an). **Konsequenz:**
+
+1. Es gibt an dieser Logik nichts zu tunen; `kRateBalance` bleibt bei 2.
+   Wer die Bus-Rate angleichen wollte, müsste Abdeckungsregel oder
+   Punkte-Vorrang ändern — Produktentscheidung, kein Parameter.
+2. Der Trim wird trotzdem NICHT entfernt: Er ist in CLAUDE.md bewusst
+   verankert, kostet nichts und könnte in nicht simulierten Regimen
+   wirken. Aber: Von einer Erhöhung ist nichts zu erwarten — dieser
+   Nachtrag existiert, damit das niemand mehr ausprobieren muss.
+
 ## Wiedervorlage-Kriterien
 
 - Die Flotte bekommt ein dauerhaftes Groß-/Kleinwagen-Gefälle **und** volle
