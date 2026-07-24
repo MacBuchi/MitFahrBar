@@ -107,7 +107,13 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   (keine IP-Speicherung, keine neue Tabelle, durabel über die DB) und
   bewusst ohne Captcha-Dienst (dieselbe Linie wie „kein Sentry"). Die
   eingecheckte `supabase/functions/.env` hebt die Grenze NUR lokal an,
-  sonst liefe die E2E-Suite ins 429; deployt wird sie nie.
+  sonst liefe die E2E-Suite ins 429; deployt wird sie nie. Vorgemerkt
+  statt gebaut (entschieden 2026-07-24, #69 damit geschlossen): Wird
+  Signup-Missbrauch real, ist **Cloudflare Turnstile** der vorgesehene
+  zweite Riegel — Widget im Request-Screen, Token-Prüfung in der
+  Function. Bis dahin kein Issue dafür anlegen; der Preis (Fremd-Dienst
+  samt Cloudflare-Account, HtmlElementView im Web, WebView auf Android)
+  lohnt erst bei echtem Befund.
 - **`group_id` gehört auch in fachliche Primärschlüssel.** Wo der Schlüssel
   keine generierte UUID ist, sondern aus Fachdaten besteht (`plan_date`,
   `person_id`, …), muss `group_id` darin stehen — sonst ist er über alle
