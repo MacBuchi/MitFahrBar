@@ -39,11 +39,23 @@ done
 
 echo "→ Screenshots …"
 mkdir -p doc/screenshots
-# Das Skript läuft im Arbeitsverzeichnis neben node_modules: ESM-Importe
+# Der alte Stand für den Vergleich hinterher — zwei Läufe sind nie
+# bitgleich (animierte Gesichter), siehe screenshot_changed.mjs.
+mkdir -p "$work/before"
+cp doc/screenshots/*.png "$work/before/" 2>/dev/null || true
+# Die Skripte laufen im Arbeitsverzeichnis neben node_modules: ESM-Importe
 # ignorieren NODE_PATH, „playwright" ist sonst nicht auflösbar.
-cp tool/screenshots.mjs "$work/"
+cp tool/screenshots.mjs tool/screenshot_changed.mjs "$work/"
 (cd "$work" && SCREENSHOT_URL="http://localhost:$port/" \
   SCREENSHOT_OUT="$root/doc/screenshots" \
   node screenshots.mjs)
+
+# Nur Rauschen? Dann den alten Stand zurückholen, damit weder ein Commit
+# noch ein Diff entsteht.
+verdict="$(cd "$work" && node screenshot_changed.mjs before "$root/doc/screenshots")"
+if [ "$verdict" = 'unchanged' ]; then
+  echo "→ nur Animations-Rauschen — alter Stand bleibt."
+  cp "$work"/before/*.png doc/screenshots/ 2>/dev/null || true
+fi
 
 echo "✓ fertig — doc/screenshots/"

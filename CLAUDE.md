@@ -446,8 +446,19 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   zwei Läufe verschiedene Bilder erzeugen (im Screenshot steht ein
   Datum). Und nach dem Push muss die CI per `workflow_dispatch`
   angestoßen werden — ein Push mit dem `GITHUB_TOKEN` erzeugt bewusst
-  keine Ereignisse, der PR hinge sonst ohne Required Checks fest. Weil die Bilder in `doc/` liegen, nimmt der Version
-  Guard `doc/` ausdrücklich aus: Ein neuer Screenshot ist kein Release.
+  keine Ereignisse, der PR hinge sonst ohne Required Checks fest. Weil die
+  Bilder in `doc/` liegen, nimmt der Version Guard `doc/` ausdrücklich aus:
+  Ein neuer Screenshot ist kein Release.
+  **Zwei Läufe sind nie bitgleich** — die Stimmungs-Gesichter animieren,
+  und jeder Lauf erwischt eine andere Phase (gemessen 5–281 abweichende
+  Pixel, die Bounding-Box jedes Mal exakt auf einem Smiley).
+  `reducedMotion` im Browser hilft nicht: Flutter-Web reicht
+  `prefers-reduced-motion` nicht bis `disableAnimations` durch — der
+  Hebel, den `pumpApp` in Tests benutzt, existiert dort nicht. Deshalb
+  entscheidet `tool/screenshot_changed.mjs` über einen Pixel-Schwellwert,
+  ob der neue Stand überhaupt übernommen wird; ohne ihn committete die CI
+  bei jedem Lauf. Wer den Schwellwert anfasst, misst nach (zweimal
+  `tool/screenshots.sh` laufen lassen), statt zu schätzen.
   Die Bildinhalte hängen an Koordinaten im 430×900-Viewport — verschiebt
   sich das Layout, zeigen die Bilder im PR sofort das Falsche.
 - **Lizenz:** `LICENSE` ist MIT. Die Bildmarke und die gebündelten Schriften

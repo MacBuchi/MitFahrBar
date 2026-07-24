@@ -18,7 +18,18 @@ const VIEWPORT = { width: 430, height: 900 };
 const browser = await chromium.launch();
 
 async function open() {
-  const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 2 });
+  // `reducedMotion` ist hier kein Komfort, sondern die Bedingung dafür,
+  // dass zwei Läufe dasselbe Bild ergeben: Flutter liest
+  // `prefers-reduced-motion` als `disableAnimations`, und damit ruhen die
+  // Stimmungs-Gesichter (und der Start-Splash). Ohne das erwischt jeder
+  // Lauf eine andere Phase der Animation — die CI committete dann bei
+  // jedem Durchlauf neue Bilder. Dieselbe Flagge setzt `pumpApp` in den
+  // Flow-Tests, aus demselben Grund.
+  const page = await browser.newPage({
+    viewport: VIEWPORT,
+    deviceScaleFactor: 2,
+    reducedMotion: 'reduce',
+  });
   page.on('pageerror', (e) => {
     console.error('JS-Fehler in der App:', e.message);
     process.exitCode = 1;
