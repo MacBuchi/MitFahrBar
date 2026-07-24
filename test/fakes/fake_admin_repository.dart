@@ -62,6 +62,14 @@ class FakeAdminRepository implements AdminRepository {
   }
 
   @override
+  Future<void> releaseGroup(String adminPassword) async {
+    final admin = _currentAdmin();
+    if (admin.groupId == null) throw Exception('not linked');
+    if (admin.password != adminPassword) throw WrongAdminPassword();
+    admin.groupId = null;
+  }
+
+  @override
   Future<void> deleteGroup({
     required String adminPassword,
     required String handleConfirmation,

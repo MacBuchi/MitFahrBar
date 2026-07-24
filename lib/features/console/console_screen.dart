@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
 import '../../core/widgets/password_field.dart';
 import '../../data/admin_repository.dart';
+import '../../data/auth_repository.dart';
 import '../../data/providers.dart';
 
 class ConsoleScreen extends ConsumerStatefulWidget {
@@ -78,9 +79,16 @@ class _Body extends ConsumerWidget {
           constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.m),
-            child: group == null
-                ? const _ClaimCard()
-                : _ManageCards(group: group!),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (group == null) ...[
+                  const _ClaimCard(),
+                  const _ChangeEmailTile(),
+                ] else
+                  _ManageCards(group: group!),
+              ],
+            ),
           ),
         ),
       ),
@@ -173,13 +181,9 @@ class _ClaimCardState extends ConsumerState<_ClaimCard> {
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: AppSpacing.m),
-            TextField(
+            PasswordField(
               controller: _groupPassword,
-              decoration: const InputDecoration(
-                labelText: 'Gruppenpasswort',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
+              labelText: 'Gruppenpasswort',
               onSubmitted: (_) => _busy ? null : _claim(),
             ),
             if (_error case final error?) ...[
@@ -257,6 +261,36 @@ class _ManageCards extends ConsumerWidget {
             onTap: () => showDialog<void>(
               context: context,
               builder: (context) => const _AdminPasswordDialog(),
+            ),
+          ),
+        ),
+        const _ChangeEmailTile(),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.m),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Verknüpfung lösen', style: theme.textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.s),
+                const Text(
+                  'Gibt die Gruppe für ein anderes Verwalter-Konto frei — '
+                  'die Übergabe. Fahrten und Einstellungen bleiben '
+                  'unberührt, dieses Konto bleibt bestehen. Wer übernimmt, '
+                  'verknüpft sich danach mit dem Gruppen-Login.',
+                ),
+                const SizedBox(height: AppSpacing.s),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.tonal(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (context) => const _ReleaseGroupDialog(),
+                    ),
+                    child: const Text('Verknüpfung lösen …'),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -596,6 +630,217 @@ class _DeleteGroupDialogState extends ConsumerState<_DeleteGroupDialog> {
           ),
           onPressed: _busy ? null : _submit,
           child: const Text('Endgültig löschen'),
+        ),
+      ],
+    );
+  }
+}
+
+/// „E-Mail-Adresse ändern" — in beiden Zuständen erreichbar: Die Adresse
+/// gehört zum Konto, nicht zur Verknüpfung.
+class _ChangeEmailTile extends StatelessWidget {
+  const _ChangeEmailTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.alternate_email),
+        title: const Text('E-Mail-Adresse ändern'),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (context) => const _ChangeEmailDialog(),
+        ),
+      ),
+    );
+  }
+}
+
+/// Neue E-Mail-Adresse — Supabase-Standard „secure email change":
+/// Bestätigungs-Links an die alte UND die neue Adresse, erst dann gilt sie.
+class _ChangeEmailDialog extends ConsumerStatefulWidget {
+  const _ChangeEmailDialog();
+
+  @override
+  ConsumerState<_ChangeEmailDialog> createState() => _ChangeEmailDialogState();
+}
+
+class _ChangeEmailDialogState extends ConsumerState<_ChangeEmailDialog> {
+  final _email = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final email = _email.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Bitte eine gültige E-Mail-Adresse angeben.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).changeAdminEmail(email);
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bestätigungs-Links sind an die alte und die neue Adresse '
+            'unterwegs. Erst wenn beide angetippt sind, gilt die neue.',
+          ),
+        ),
+      );
+    } on EmailTakenException {
+      if (mounted) {
+        setState(() => _error = 'Diese Adresse hat schon ein Konto.');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Ändern fehlgeschlagen.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('E-Mail-Adresse ändern'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Zur Sicherheit gehen Bestätigungs-Links an die alte UND die '
+            'neue Adresse — erst wenn beide angetippt sind, gilt die neue.',
+          ),
+          const SizedBox(height: AppSpacing.m),
+          TextField(
+            controller: _email,
+            decoration: const InputDecoration(
+              labelText: 'Neue E-Mail-Adresse',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.emailAddress,
+            autofocus: true,
+            onSubmitted: (_) => _busy ? null : _submit(),
+          ),
+          if (_error case final error?) ...[
+            const SizedBox(height: AppSpacing.s),
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _submit,
+          child: const Text('Ändern'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Die Übergabe: Verknüpfung lösen mit Sudo-Bestätigung. Absichtlich kein
+/// getippter Handle wie beim Löschen — der Schritt ist umkehrbar (neu
+/// verknüpfen), das eigene Admin-Passwort reicht als Beweis.
+class _ReleaseGroupDialog extends ConsumerStatefulWidget {
+  const _ReleaseGroupDialog();
+
+  @override
+  ConsumerState<_ReleaseGroupDialog> createState() =>
+      _ReleaseGroupDialogState();
+}
+
+class _ReleaseGroupDialogState extends ConsumerState<_ReleaseGroupDialog> {
+  final _adminPassword = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _adminPassword.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(adminRepositoryProvider).releaseGroup(_adminPassword.text);
+      if (!mounted) return;
+      Navigator.pop(context);
+      ref.invalidate(adminGroupProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Verknüpfung gelöst — das nächste Konto kann sich mit dem '
+            'Gruppen-Login verknüpfen.',
+          ),
+        ),
+      );
+    } on WrongAdminPassword {
+      setState(() => _error = 'Das Admin-Passwort stimmt nicht.');
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Lösen fehlgeschlagen.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Verknüpfung lösen?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Danach kann sich das nächste Verwalter-Konto mit Gruppenname '
+            'und Gruppenpasswort verknüpfen — wer zuerst verknüpft, '
+            'verwaltet. Zur Bestätigung dein Admin-Passwort:',
+          ),
+          const SizedBox(height: AppSpacing.m),
+          PasswordField(
+            controller: _adminPassword,
+            labelText: 'Dein Admin-Passwort',
+            autofocus: true,
+            onSubmitted: (_) => _busy ? null : _submit(),
+          ),
+          if (_error case final error?) ...[
+            const SizedBox(height: AppSpacing.s),
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton.tonal(
+          onPressed: _busy ? null : _submit,
+          child: const Text('Lösen'),
         ),
       ],
     );

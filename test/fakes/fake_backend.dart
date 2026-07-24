@@ -49,6 +49,11 @@ class FakeBackend {
 
   /// Adressen, für die die Bestätigungs-Mail erneut angefordert wurde.
   final List<String> confirmationResends = [];
+
+  /// Angeforderte E-Mail-Wechsel (neue Adresse) — wie in Produktion gilt
+  /// der Wechsel erst nach beiden Bestätigungs-Links, der Fake wendet ihn
+  /// deshalb bewusst nicht an.
+  final List<String> emailChangeRequests = [];
   final Map<String, Group> groups = {};
   final Map<String, FakeCarpoolRepository> _data = {};
   final List<Map<String, Object?>> feedback = [];

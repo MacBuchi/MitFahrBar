@@ -200,5 +200,36 @@ void main() {
         reason: 'Kein Einzel-Löschen von Datentabellen — die Kaskade trägt.',
       );
     });
+
+    test('admin_release_group löst NUR die Verknüpfung, mit Sudo', () {
+      final function = RegExp(
+        r'create or replace function public\.admin_release_group.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(
+        function,
+        isNotNull,
+        reason: 'Die Übergabe (#73) braucht den RPC.',
+      );
+      expect(
+        function,
+        contains("crypt(admin_password, own)"),
+        reason:
+            'Ohne Sudo-Abfrage könnte jede offene Sitzung die Konsole '
+            'freigeben — und ein Mitglied mit Gruppenpasswort übernähme sie.',
+      );
+      expect(
+        function,
+        contains('delete from public.group_admins'),
+        reason: 'Gelöst wird nur die Verknüpfungszeile …',
+      );
+      expect(
+        function,
+        isNot(contains('delete from auth.users')),
+        reason:
+            '… nie ein Auth-User: Lösen ist eine Übergabe, kein Löschen — '
+            'Gruppendaten und Verwalter-Konto bleiben bestehen.',
+      );
+    });
   });
 }

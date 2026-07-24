@@ -103,6 +103,14 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> changeAdminEmail(String newEmail) async {
+    if (backend.adminAccounts.containsKey(newEmail)) {
+      throw const EmailTakenException();
+    }
+    backend.emailChangeRequests.add(newEmail);
+  }
+
+  @override
   Future<void> sendAdminPasswordReset(String email) async {
     backend.passwordResets.add(email);
   }

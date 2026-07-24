@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.29.0] – 2026-07-24
+
+### Neu
+
+- **Die Verwalter-Konsole ist übergabefähig.** Wer die Gruppe verwaltet,
+  kann die Verknüpfung jetzt selbst lösen (mit Passwort-Bestätigung) —
+  danach kann sich die Nachfolgerin ganz normal mit dem Gruppen-Login
+  verknüpfen. Fahrten und Einstellungen bleiben dabei unberührt.
+- **E-Mail-Adresse des Verwalter-Kontos änderbar.** Zur Sicherheit gehen
+  Bestätigungs-Links an die alte und die neue Adresse; erst wenn beide
+  angetippt sind, gilt die neue.
+- Gut zu wissen: Nur wer Postfach **und** Passwort zugleich verliert,
+  kommt nicht mehr an sein Verwalter-Konto — darum beides gut aufheben.
+  Die Anleitung erklärt das jetzt auch.
+
 ## [0.28.0] – 2026-07-24
 
 ### Neu

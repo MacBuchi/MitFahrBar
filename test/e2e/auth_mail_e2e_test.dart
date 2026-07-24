@@ -105,6 +105,40 @@ void main() {
   });
 
   test(
+    'E-Mail-Wechsel verlangt beide Bestätigungen, dann gilt die neue',
+    () async {
+      final admin = await registerAdmin();
+      final newEmail = '${uniqueName('wechsel')}@e2e-postfach.test';
+      await admin.client.auth.updateUser(UserAttributes(email: newEmail));
+
+      // Secure email change: je ein Link an die alte UND die neue Adresse —
+      // beide mit dem Betreff „Confirm your new email address" (der
+      // unterscheidet sie von der Signup-Mail „Confirm your email address").
+      await openAuthLink(
+        firstLink(await waitForMail(admin.email, subject: 'new email')),
+      );
+      await openAuthLink(
+        firstLink(await waitForMail(newEmail, subject: 'new email')),
+      );
+
+      final probe = newAnonClient();
+      await expectLater(
+        probe.auth.signInWithPassword(
+          email: admin.email,
+          password: admin.password,
+        ),
+        throwsA(isA<AuthException>()),
+        reason: 'Die alte Adresse gilt nach dem Wechsel nicht mehr.',
+      );
+      final session = await probe.auth.signInWithPassword(
+        email: newEmail,
+        password: admin.password,
+      );
+      expect(session.user!.email, newEmail);
+    },
+  );
+
+  test(
     'Passwort vergessen: Recovery-Mail kommt an und trägt den Link',
     () async {
       final admin = await registerAdmin();
