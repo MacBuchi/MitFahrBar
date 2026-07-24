@@ -200,8 +200,8 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
   ) => _target.setAvailability(date, personId, ride);
 
   @override
-  Future<void> setPlanDriver(DateTime date, String? driverId) =>
-      _target.setPlanDriver(date, driverId);
+  Future<void> setPlanDrivers(DateTime date, Set<String> driverIds) =>
+      _target.setPlanDrivers(date, driverIds);
 }
 
 class FakeAppConfigRepository implements AppConfigRepository {

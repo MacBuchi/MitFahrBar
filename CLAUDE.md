@@ -141,15 +141,27 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   **eigenes SMTP** in Supabase (Brevo Free) — Supabases Standardversand
   liefert nur an Projekt-Teammitglieder. `test/schema_test.dart` nagelt
   alle vier Annahmen fest.
-- **Sitzplätze (`persons.seats`) filtern die Fahrerwahl, sie rechnen nicht
-  mit.** `planWeek` engt die Kandidaten vor der Fairness-Regel auf die ein,
-  deren Auto für die Anwesenden reicht — die Punkte bleiben unangetastet.
-  Passt niemandes Auto, gilt wieder das ganze Kandidatenfeld — ein Tag ohne
-  Fahrer wäre schlechter als einer mit zu wenig Plätzen; diese Rückfalllinie
-  darf nicht wegoptimiert werden. Gespeichert wird die Zahl **inklusive
-  Fahrer** (Fahrzeugschein), Vorgabe `defaultSeats` = 5 (`not null` in der
-  DB): So wirkt die Prüfung ohne Pflegeaufwand. Mitfahrer-Plätze zu speichern
+- **Mehrere Autos je Tag plant der Planer nur, wenn eines nicht reicht**
+  (Issue #62). Die Invarianten, in dieser Reihenfolge: `planWeek` bestimmt
+  zuerst die **minimale** Autozahl k (die k größten Autos müssen alle
+  fassen — ein 7-Sitzer schlägt zwei Kleine), dann entscheiden exakt die
+  Punkte, **wer** die k Autos stellt (slotweise die fairness-erste noch
+  machbare Teilmenge). Reicht selbst alles zusammen nicht, fahren alle
+  Kandidaten — ein Tag ohne Fahrer wäre schlechter als einer mit zu wenig
+  Plätzen; diese Rückfalllinie darf nicht wegoptimiert werden. Der
+  Fahrer-**Vorschlag** wird nie gespeichert; `plan_overrides` hält eine
+  Zeile je von Hand gesetztem Fahrer (PK `group_id, plan_date, driver_id`).
+  Die Simulation bucht eine Pseudo-Fahrt **je Auto** — ein Auto ohne
+  Mitfahrer ist eine Solo-Fahrt und zählt nichts (#61), genau wie beim
+  echten Eintrag. „Eintragen" öffnet den Fahrten-Editor je Auto, fertig
+  vorbelegt — gebucht wird erst mit jedem Speichern, nie still; ein
+  Abbruch lässt die restlichen Autos ehrlich ungebucht (von Hand
+  nachtragen). Sitzplätze speichert `persons.seats` **inklusive Fahrer**
+  (Fahrzeugschein), Vorgabe `defaultSeats` = 5 (`not null` in der DB):
+  So wirkt die Prüfung ohne Pflegeaufwand; Mitfahrer-Plätze zu speichern
   erzeugte Off-by-one-Fehler, die später niemand mehr erklären kann.
+  Festgenagelt in `test/plan_test.dart` und
+  `test/flows/plan_flow_test.dart`.
 - **1-way im Planer schließt das Fahren aus.** `plan_availability.one_way`
   (Boolean, kein Status-Enum — der Fahrer wird im Plan nie gespeichert) macht
   aus der Verfügbarkeit einen Dreizustand. `planWeek` nimmt 1-way-Personen aus

@@ -350,12 +350,10 @@ void main() {
       expect(plan.first.driverId, 'b');
     });
 
-    test('mit maxCars 1 gilt die alte Ein-Auto-Regel samt Rückfalllinie', () {
-      // Bis die UI mehrere Autos anzeigen und eintragen kann (Issue #62,
-      // Teil 2), erzwingt der WeekPlanNotifier maxCars 1. Passt niemandes
-      // Auto, bleibt dann der beste Vorschlag aus allen Kandidaten stehen:
-      // Ein Tag ganz ohne Vorschlag wäre schlechter als einer, an dem man
-      // zusammenrückt.
+    test('passt niemandes Auto allein, wird der Tag aufgeteilt', () {
+      // Vier Leute, lauter Zweisitzer: Statt der alten Rückfalllinie
+      // („bester Vorschlag trotz zu kleinem Auto") fahren jetzt zwei
+      // Autos — genau der Fall, für den Issue #62 gebaut wurde.
       final plan = planWeek(
         dates: [week.first],
         availability: {
@@ -365,11 +363,9 @@ void main() {
         trips: const [],
         settings: settings,
         seats: const {'a': 2, 'b': 2, 'c': 2, 'd': 2},
-        maxCars: 1,
       );
 
-      expect(plan.first.cars, hasLength(1));
-      expect(plan.first.driverId, 'a', reason: 'wieder die normale Regel');
+      expect(plan.first.driverIds, ['a', 'b']);
     });
 
     test('ohne gepflegte Sitzplätze ändert sich nichts', () {

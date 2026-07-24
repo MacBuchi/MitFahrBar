@@ -70,6 +70,25 @@ Future<FakeBackend> _backend(List<String> names) async {
   return backend;
 }
 
+/// Wie [_backend], nur mit Sitzplätzen je Person — die Zutat, aus der
+/// Mehr-Auto-Tage entstehen (Issue #62).
+Future<FakeBackend> _seatBackend(Map<String, int> seats) async {
+  final backend = FakeBackend();
+  final id = backend.addGroup(
+    handle: 'daciaracing',
+    password: 'geheim123',
+    name: 'Dacia Racing',
+  );
+  for (final e in seats.entries) {
+    await backend
+        .dataFor(id)
+        .createPerson(
+          Person(id: '', name: e.key, active: true, seats: e.value),
+        );
+  }
+  return backend;
+}
+
 Future<void> _openPlan(WidgetTester tester) async {
   await tester.tap(find.text('Woche'));
   await tester.pumpAndSettle();
@@ -534,6 +553,257 @@ void main() {
           'Eine inaktive Person darf beim Bestätigen nicht in die Fahrt '
           'gebucht werden — das verschöbe rückwirkend die Punkte aller.',
     );
+  });
+
+  // ---------- Mehrere Autos je Tag (Issue #62) ----------
+
+  // Alle Autos zu klein für den Tag → der Planer teilt auf, statt wie
+  // früher stillschweigend EIN zu kleines Auto vorzuschlagen.
+  testWidgets('reicht kein Auto allein, schlägt der Planer zwei vor', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(
+      tester,
+      await _seatBackend({'Anna': 2, 'Bert': 2, 'Clara': 2, 'Dora': 2}),
+    );
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+
+    expect(
+      find.textContaining('fahren · 2 Autos · Vorschlag'),
+      findsOneWidget,
+      reason: 'Vier Leute, lauter Zweisitzer — zwei Autos sind das Minimum.',
+    );
+    // Beide Fahrer tragen im Raster das Auto-Symbol.
+    final weekday = DateFormat('E', 'de').format(monday);
+    expect(
+      find.bySemanticsLabel(
+        RegExp('^[^,]+, ${RegExp.escape(weekday)}, fährt\$'),
+      ),
+      findsNWidgets(2),
+    );
+    handle.dispose();
+  });
+
+  testWidgets('der Fahrer-Dialog rechnet Sitze live und kennt kein 1-way', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(
+      tester,
+      await _seatBackend({'Anna': 2, 'Bert': 2, 'Clara': 2, 'Dora': 2}),
+    );
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+    // Dora zweimal: nur eine Richtung — sie zählt als Kopf, stellt aber
+    // kein Auto.
+    await tester.tap(_cell('Dora', monday));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Dora', monday));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Fahrer ändern'));
+    await tester.pumpAndSettle();
+
+    Finder tile(String name) => find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(CheckboxListTile, name),
+    );
+    expect(
+      tile('Dora'),
+      findsNothing,
+      reason:
+          '1-way stand früher zur Wahl und die Auswahl verfiel still — '
+          'jetzt steht gar nicht erst da, was kein Auto stellt.',
+    );
+    // Vorschlag: zwei Zweisitzer für vier Köpfe (Dora sitzt ja mit drin).
+    expect(find.text('Reicht für alle 4.'), findsOneWidget);
+
+    // Einen Fahrer abwählen → die Rechnung sagt ehrlich, dass es knapp wird
+    // — wählen darf man es trotzdem (Menschenentscheidung).
+    final checked = [
+      for (final name in ['Anna', 'Bert', 'Clara'])
+        if (tester.widget<CheckboxListTile>(tile(name)).value ?? false) name,
+    ];
+    await tester.tap(tile(checked.first));
+    await tester.pumpAndSettle();
+    expect(find.text('Reicht für 2 von 4.'), findsOneWidget);
+
+    // Alle drei wählen und übernehmen → von Hand gesetzt.
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      if (!(tester.widget<CheckboxListTile>(tile(name)).value ?? false)) {
+        await tester.tap(tile(name));
+        await tester.pumpAndSettle();
+      }
+    }
+    await tester.tap(find.text('Übernehmen'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('fahren · 3 Autos · von Hand gesetzt'),
+      findsOneWidget,
+    );
+
+    // „Zurück zum Vorschlag" räumt das Übersteuern wieder ab.
+    await tester.tap(find.byTooltip('Fahrer ändern'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Zurück zum Vorschlag'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('fahren · 2 Autos · Vorschlag'), findsOneWidget);
+    handle.dispose();
+  });
+
+  // Der Kern von Issue #62: Eintragen öffnet den Editor je Auto — vorbelegt
+  // mit den Insassen DIESES Autos, ohne Rückfrage-Lärm, und gebucht wird
+  // erst mit jedem Speichern.
+  testWidgets('Eintragen am 2-Auto-Tag: Editor je Auto, nichts still', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final backend = await _seatBackend({
+      'Anna': 2,
+      'Bert': 2,
+      'Clara': 2,
+      'Dora': 2,
+    });
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Eintragen'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 Fahrten eintragen?'), findsOneWidget);
+    await tester.tap(find.text("Los geht's"));
+    await tester.pumpAndSettle();
+
+    // Auto 1: der Seed belegt die Insassen dieses Autos vor — nicht den
+    // ganzen Tag, wie es der Plan-Prefill (#65) täte.
+    expect(find.text('Fahrt eintragen · Auto 1/2'), findsOneWidget);
+    expect(
+      find.text('Vorbelegt aus dem Wochenplan · Auto 1 von 2.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Vorauswahl aus dem Wochenplan übernommen.'),
+      findsNothing,
+    );
+    expect(find.text('fährt'), findsOneWidget);
+    expect(find.text('dabei'), findsOneWidget);
+    expect(
+      find.text('–'),
+      findsNWidgets(2),
+      reason: 'Die zwei Insassen von Auto 2 gehören nicht in Auto 1.',
+    );
+
+    await tester.tap(find.textContaining('Speichern –'));
+    await tester.pumpAndSettle();
+
+    // Auto 2 folgt automatisch — die „Weitere Fahrt?"-Rückfrage schweigt,
+    // denn die erste Fahrt ist hier erwartet, kein Versehen.
+    expect(find.text('Fahrt eintragen · Auto 2/2'), findsOneWidget);
+    expect(find.text('Weitere Fahrt an diesem Tag?'), findsNothing);
+    await tester.tap(find.textContaining('Speichern –'));
+    await tester.pumpAndSettle();
+    expect(find.text('Weitere Fahrt an diesem Tag?'), findsNothing);
+
+    // Zurück im Planer: der Tag ist durch.
+    expect(find.textContaining('sind gefahren'), findsOneWidget);
+
+    final data = backend.dataFor(backend.currentGroupId ?? 'group-1');
+    final trips = await data.loadTrips();
+    expect(trips, hasLength(2));
+    for (final trip in trips) {
+      expect(trip.participations, hasLength(2));
+      expect(trip.driverId, isNotNull);
+    }
+    expect(
+      trips.expand((t) => t.participations.keys).toSet(),
+      hasLength(4),
+      reason: 'Jede Person genau einmal gebucht, nichts doppelt.',
+    );
+    handle.dispose();
+  });
+
+  // Abbruch ist eine ehrliche Antwort: Was gespeichert ist, bleibt; der
+  // Rest wird NICHT still nachgebucht.
+  testWidgets('Abbruch nach Auto 1 lässt den Rest ungebucht', (tester) async {
+    final handle = tester.ensureSemantics();
+    final backend = await _seatBackend({'Anna': 2, 'Bert': 2, 'Clara': 2});
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Eintragen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Los geht's"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Speichern –'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fahrt eintragen · Auto 2/2'), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    // Der Tag steht mit der einen echten Fahrt da — kein zweiter Trip.
+    expect(find.textContaining('ist gefahren'), findsOneWidget);
+    final data = backend.dataFor(backend.currentGroupId ?? 'group-1');
+    expect(await data.loadTrips(), hasLength(1));
+    handle.dispose();
+  });
+
+  // Regression: Der Ein-Auto-Tag behält seinen Ein-Tipp-Eintrag mit
+  // Bestätigungsdialog — kein Editor-Umweg.
+  testWidgets('ein Tag mit einem Auto bleibt der Ein-Tipp-Eintrag', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final backend = await _backend(['Anna', 'Bert', 'Clara']);
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek().first;
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Eintragen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fahrt eintragen?'), findsOneWidget);
+    expect(find.textContaining('Dabei:'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Eintragen').last);
+    await tester.pumpAndSettle();
+
+    final data = backend.dataFor(backend.currentGroupId ?? 'group-1');
+    final trips = await data.loadTrips();
+    expect(trips, hasLength(1));
+    expect(trips.single.participations, hasLength(3));
+    handle.dispose();
   });
 
   // Zugesagt in Issue #38: Der Punktestand steht im Raster vor dem Namen,

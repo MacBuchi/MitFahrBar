@@ -23,6 +23,7 @@ import '../features/persons/persons_screen.dart';
 import '../features/plan/plan_screen.dart';
 import '../features/stats/stats_screen.dart';
 import '../features/trip_editor/trip_editor_screen.dart';
+import '../features/trip_editor/trip_editor_seed.dart';
 
 /// Stößt den Router-Redirect an, sobald sich der Auth-Zustand ändert.
 class _AuthRefresh extends ChangeNotifier {
@@ -93,7 +94,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/trip/new',
-        builder: (context, state) => const TripEditorScreen(),
+        // `extra` trägt die Vorbelegung aus dem Eintragen-je-Auto-Ablauf
+        // des Planers (Issue #62) — bewusst kein URL-Parameter: Die Menge
+        // an IDs gehört nicht in eine teilbare Adresse, und ein Reload
+        // ohne extra landet schlicht im leeren Editor.
+        builder: (context, state) =>
+            TripEditorScreen(seed: state.extra as TripEditorSeed?),
       ),
       GoRoute(
         path: '/trip/:id',

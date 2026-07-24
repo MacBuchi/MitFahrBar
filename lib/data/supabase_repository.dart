@@ -180,14 +180,12 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
           : PlanRide.full;
     }
 
-    return WeekPlan(
-      availability: availability,
-      overrides: {
-        for (final row in overrideRows)
-          DateTime.parse(row['plan_date'] as String):
-              row['driver_id'] as String,
-      },
-    );
+    final overrides = <DateTime, Set<String>>{};
+    for (final row in overrideRows) {
+      final date = DateTime.parse(row['plan_date'] as String);
+      (overrides[date] ??= <String>{}).add(row['driver_id'] as String);
+    }
+    return WeekPlan(availability: availability, overrides: overrides);
   }
 
   @override
@@ -216,18 +214,22 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
-  Future<void> setPlanDriver(DateTime date, String? driverId) async {
-    if (driverId == null) {
-      await _client
-          .from('plan_overrides')
-          .delete()
-          .eq('plan_date', _isoDay(date));
-      return;
-    }
-    await _client.from('plan_overrides').upsert({
-      'plan_date': _isoDay(date),
-      'driver_id': driverId,
-    }, onConflict: 'group_id,plan_date');
+  Future<void> setPlanDrivers(DateTime date, Set<String> driverIds) async {
+    // Erst den Tag räumen, dann die Menge schreiben — PostgREST kennt keine
+    // Transaktion. Scheitert der zweite Schritt, bleibt „kein Übersteuern"
+    // zurück: Der Planer zeigt dann sichtbar wieder den Vorschlag, und der
+    // Notifier holt per invalidateSelf die Server-Wahrheit.
+    await _client
+        .from('plan_overrides')
+        .delete()
+        .eq('plan_date', _isoDay(date));
+    if (driverIds.isEmpty) return;
+    // Upsert auf dem vollen Schlüssel statt Insert: macht Doppel-Taps
+    // idempotent und hält das Konfliktziel deckungsgleich mit dem PK
+    // (test/schema_test.dart prüft genau diese Kopplung).
+    await _client.from('plan_overrides').upsert([
+      for (final id in driverIds) {'plan_date': _isoDay(date), 'driver_id': id},
+    ], onConflict: 'group_id,plan_date,driver_id');
   }
 
   /// `date`-Spalten wollen reines yyyy-MM-dd; ein voller Zeitstempel würde

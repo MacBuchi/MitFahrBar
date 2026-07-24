@@ -111,12 +111,14 @@ void main() {
       final newEmail = '${uniqueName('wechsel')}@e2e-postfach.test';
       await admin.client.auth.updateUser(UserAttributes(email: newEmail));
 
-      // Secure email change: je ein Link an die alte UND die neue Adresse.
+      // Secure email change: je ein Link an die alte UND die neue Adresse —
+      // beide mit dem Betreff „Confirm your new email address" (der
+      // unterscheidet sie von der Signup-Mail „Confirm your email address").
       await openAuthLink(
-        firstLink(await waitForMail(admin.email, subject: 'Change')),
+        firstLink(await waitForMail(admin.email, subject: 'new email')),
       );
       await openAuthLink(
-        firstLink(await waitForMail(newEmail, subject: 'Change')),
+        firstLink(await waitForMail(newEmail, subject: 'new email')),
       );
 
       final probe = newAnonClient();

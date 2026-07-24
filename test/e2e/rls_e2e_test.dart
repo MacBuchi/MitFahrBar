@@ -168,4 +168,26 @@ void main() {
       expect(overridesA, hasLength(1));
     },
   );
+
+  // Issue #62: Seit dem Schlüssel (group_id, plan_date, driver_id) darf
+  // ein Tag mehrere Fahrer-Zeilen tragen — vorher wäre dieser zweite
+  // Insert an derselben Unique-Verletzung gescheitert wie einst die
+  // zweite Gruppe.
+  test('ein Tag trägt mehrere Fahrer-Zeilen derselben Gruppe', () async {
+    final second = await a.client
+        .from('persons')
+        .insert({'name': 'Arno E2E'})
+        .select()
+        .single();
+    await a.client.from('plan_overrides').insert({
+      'plan_date': '2026-07-27',
+      'driver_id': second['id'],
+    });
+
+    final rows = await a.client
+        .from('plan_overrides')
+        .select()
+        .eq('plan_date', '2026-07-27');
+    expect(rows, hasLength(2));
+  });
 }

@@ -87,6 +87,42 @@ void main() {
     );
   });
 
+  // Mehrere Fahrer je Tag (Issue #62): Das Datenmodell ist „eine Zeile je
+  // Fahrer" — und der Umbau dorthin war der erste echte Einsatz des
+  // Mindestversions-Musters.
+  group('Mehrere Fahrer je Tag (Issue #62)', () {
+    test('plan_overrides-Schlüssel ist exakt eine Zeile je Fahrer', () {
+      expect(
+        primaryKeyOf('plan_overrides').replaceAll(' ', ''),
+        'group_id,plan_date,driver_id',
+        reason:
+            'Fällt driver_id aus dem Schlüssel, passt wieder nur ein '
+            'Fahrer je Tag und das Speichern der Menge bricht; jede '
+            'weitere Spalte erlaubte Duplikate desselben Fahrers.',
+      );
+    });
+
+    test('die Schlüssel-Migration hebt die Mindestversion im selben File', () {
+      final migration = File(
+        'supabase/migrations/20260724090000_plan_overrides_multi_driver.sql',
+      ).readAsStringSync();
+      expect(
+        migration,
+        contains('add primary key (group_id, plan_date, driver_id)'),
+      );
+      expect(
+        migration,
+        contains("key = 'min_supported_version'"),
+        reason:
+            'Der Schlüsselwechsel bricht den Upsert veröffentlichter '
+            'Clients („no unique or exclusion constraint …"). Die Regel '
+            'aus CLAUDE.md: Wer entfernt, was ein Client nutzt, hebt IM '
+            'SELBEN FILE die Mindestversion — sonst scheitern alte '
+            'Clients still, statt zum Update geführt zu werden.',
+      );
+    });
+  });
+
   // Verwalter-Konsole (Issue #55): Die Sicherheit hängt an drei Annahmen,
   // die alle nur in der echten Datenbank auffallen würden.
   group('Verwalter-Konsole', () {

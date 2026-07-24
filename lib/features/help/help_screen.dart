@@ -159,26 +159,38 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
-                    'RideBuddy schlägt für jeden Tag einen Fahrer vor und '
+                    'RideBuddy schlägt für jeden Tag vor, wer fährt, und '
                     'denkt dabei die ganze Woche mit — deshalb wechseln '
-                    'sich die Namen ab. Wer nur eine Richtung kann oder '
-                    'zu wenig Sitze hat, wird nicht vorgeschlagen. Steht '
-                    'es bei den Punkten fast gleich, bekommt, wer selten '
-                    'fährt, eher die kleinen Tage — so gleicht sich auch '
-                    'aus, wie oft jede und jeder fährt.',
+                    'sich die Namen ab. Wer nur eine Richtung kann, wird '
+                    'nicht vorgeschlagen. Steht es bei den Punkten fast '
+                    'gleich, bekommt, wer selten fährt, eher die kleinen '
+                    'Tage — so gleicht sich auch aus, wie oft jede und '
+                    'jeder fährt.',
+              ),
+              _Line(
+                leading: Icon(Icons.directions_car, color: AppColors.driver),
+                text:
+                    'Reicht kein einzelnes Auto für alle, teilt RideBuddy '
+                    'den Tag auf mehrere Autos — so wenige wie möglich, '
+                    'ein großes schlägt zwei kleine. Die Zeile sagt dann '
+                    'zum Beispiel „Anna + Ben fahren · 2 Autos".',
               ),
               _Line(
                 leading: Icon(Icons.swap_horiz),
                 text:
-                    'Über das Tausch-Symbol setzt ihr jemand anderen — die '
-                    'Zeile sagt dann „von Hand gesetzt".',
+                    'Über das Tausch-Symbol wählt ihr selbst, wer fährt — '
+                    'auch mehrere. Die Zeile sagt dann „von Hand gesetzt", '
+                    'und der Dialog rechnet mit, ob die Plätze reichen.',
               ),
               _Line(
                 leading: Icon(Icons.check_circle, color: AppColors.driver),
                 text:
-                    '„Eintragen" geht frühestens am Fahrtag. Danach ist der '
-                    'Tag blass und gesperrt; über „Bearbeiten" kommt ihr '
-                    'zur Fahrt.',
+                    '„Eintragen" geht frühestens am Fahrtag. Fahren mehrere '
+                    'Autos, öffnet sich der Editor für jedes nacheinander, '
+                    'fertig vorbelegt — gebucht wird erst mit jedem '
+                    'Speichern. Wer zwischendrin abbricht, trägt den Rest '
+                    'einfach von Hand nach. Danach ist der Tag blass und '
+                    'gesperrt; über „Bearbeiten" kommt ihr zur Fahrt.',
               ),
               _Line(
                 leading: MoodFace(mood: Mood.celebrating, size: 22),
@@ -206,6 +218,11 @@ class HelpScreen extends StatelessWidget {
                     'Die Historie listet alle Fahrten. Antippen zum Ändern '
                     '— die App fragt vorher nach, weil sich dabei die '
                     'Punkte aller Beteiligten rückwirkend verschieben.',
+              ),
+              _Line(
+                text:
+                    'Fahren an einem Tag mehrere Autos, hat jede Fahrt ihre '
+                    'eigene Zeile — ab der zweiten mit der Marke „2. Auto".',
               ),
               _Line(
                 text:
