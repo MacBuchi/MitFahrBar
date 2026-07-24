@@ -27,4 +27,34 @@ void main() {
     );
     expect(richText.text.toPlainText(), 'MitFahrBar');
   });
+
+  testWidgets('der Farbakzent liegt auf „Fahr", nicht auf den Enden', (
+    tester,
+  ) async {
+    // Entschieden am 25.07.2026: „Fahr" ist der Kern des Namens und trägt
+    // das Markenblau. Der Test hält die Zuordnung fest, damit ein
+    // Umsortieren der Spans nicht still den Akzent verschiebt.
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: MitFahrBarWordmark())),
+    );
+
+    final context = tester.element(find.byType(MitFahrBarWordmark));
+    final scheme = Theme.of(context).colorScheme;
+    final richText = tester.widget<RichText>(
+      find.descendant(
+        of: find.byType(MitFahrBarWordmark),
+        matching: find.byType(RichText),
+      ),
+    );
+    final spans = <TextSpan>[];
+    (richText.text as TextSpan).visitChildren((span) {
+      if (span is TextSpan && span.text != null) spans.add(span);
+      return true;
+    });
+
+    expect(spans.map((s) => s.text), ['Mit', 'Fahr', 'Bar']);
+    expect(spans[1].style?.color, scheme.primary);
+    expect(spans[0].style?.color, isNot(scheme.primary));
+    expect(spans[2].style?.color, isNot(scheme.primary));
+  });
 }

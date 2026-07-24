@@ -116,6 +116,7 @@ class MitFahrBarPose {
     this.pitch = 0,
     this.lift = 0,
     this.streakOpacity = 1,
+    this.streakBend = 0,
     this.headScales = const [1, 1, 1],
   });
 
@@ -131,6 +132,13 @@ class MitFahrBarPose {
 
   /// Speed-Streaks: 1 in voller Fahrt, 0 im Stand.
   final double streakOpacity;
+
+  /// Biegung der Streaks (0..1): 0 = gerade wie in `mark.svg`, 1 = volle
+  /// Verwirbelung (oben auf, unten ab). Nur die Splash-Animation setzt
+  /// das — statische Marke und Icons bleiben deckungsgleich mit der
+  /// Vorlage, sonst hätte die Bildmarke zwei Wahrheiten (Marcus'
+  /// Design-Entscheidung vom 25.07.2026).
+  final double streakBend;
 
   /// Größe der drei Köpfe in Fahrtrichtung: [Fahrer, Mitte, hinten].
   /// 0 = nicht da, kurz über 1 = das Aufploppen.
@@ -164,13 +172,33 @@ void paintMitFahrBarMark(
         paint,
       );
 
-  // Speed-Streaks (nicht mitverschoben, leicht transparent).
+  // Speed-Streaks (nicht mitverschoben, leicht transparent). Als Striche
+  // mit runden Kappen gezeichnet: Bei `streakBend = 0` ergibt das exakt
+  // die geraden Rundrechtecke der Vorlage (ein Strich der Breite 5 mit
+  // runden Enden IST das 5er-Rundrechteck) — in Fahrt biegt die
+  // Verwirbelung sie auseinander: oben auf, Mitte ruhig, unten ab.
   if (pose.streakOpacity > 0.01) {
     final streak = Paint()
-      ..color = palette.streak.withValues(alpha: 0.9 * pose.streakOpacity);
-    rrect(106, 38, 20, 5, 2.5, streak);
-    rrect(108, 54, 18, 5, 2.5, streak);
-    rrect(106, 70, 19, 5, 2.5, streak);
+      ..color = palette.streak.withValues(alpha: 0.9 * pose.streakOpacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    final bend = pose.streakBend;
+    void swoosh(double x0, double y0, double x1, double drift) {
+      final path = Path()
+        ..moveTo(x0, y0)
+        ..quadraticBezierTo(
+          (x0 + x1) / 2,
+          y0 + drift * bend * 0.35,
+          x1,
+          y0 + drift * bend,
+        );
+      canvas.drawPath(path, streak);
+    }
+
+    swoosh(108.5, 40.5, 123.5, -4.5);
+    swoosh(110.5, 56.5, 123.5, 1.0);
+    swoosh(108.5, 72.5, 122.5, 4.5);
   }
 
   // Fahrzeug – im Entwurf um 10 nach links versetzt.
@@ -238,7 +266,32 @@ class _MitFahrBarMarkPainter extends CustomPainter {
       oldDelegate.variant != variant;
 }
 
-/// Wortmarke „MitFahrBar" – „Ride" in Textfarbe, „Buddy" im Markenton.
+/// Durchgezogene Straßenlinie unter der Bildmarke — das Auto steht darauf,
+/// der Schriftzug hängt darunter. Entwurf vom 25.07.2026 (Variante B mit
+/// durchgezogener Linie statt der Strichel-Varianten); ersetzt die gelbe
+/// Doppellinie, die nie Design war, sondern Flutters Notfall-Textstil
+/// ohne Material-Kontext.
+class RoadLine extends StatelessWidget {
+  const RoadLine({super.key, required this.width});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: 3.5,
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+/// Wortmarke „MitFahrBar" – „Fahr" im Markenton, Rest in Textfarbe.
 class MitFahrBarWordmark extends StatelessWidget {
   const MitFahrBarWordmark({super.key, this.fontSize = 28, this.color});
 
@@ -259,15 +312,16 @@ class MitFahrBarWordmark extends StatelessWidget {
         children: [
           // Zweifarbig wie beim Vorgänger RideBuddy: Der Schriftzug ist
           // bewusst KEIN einzelner String — genau deshalb hat die
-          // Umbenennung v0.34.0 ihn übersehen (#87). Betont wird „Bar",
-          // das Wortspiel-Ende, wie vorher „Buddy".
-          TextSpan(text: 'MitFahr', style: base),
+          // Umbenennung v0.34.0 ihn übersehen (#87). Betont wird „Fahr",
+          // der Kern des Namens (Marcus' Entscheidung vom 25.07.2026).
+          TextSpan(text: 'Mit', style: base),
           TextSpan(
-            text: 'Bar',
+            text: 'Fahr',
             style: base.copyWith(
               color: color ?? Theme.of(context).colorScheme.primary,
             ),
           ),
+          TextSpan(text: 'Bar', style: base),
         ],
       ),
       semanticsLabel: 'MitFahrBar',

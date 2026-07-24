@@ -175,6 +175,10 @@ class _Scene extends StatelessWidget {
           pitch: pitch,
           lift: lift,
           streakOpacity: rolling,
+          // In Fahrt verwirbelt der Fahrtwind die Streaks (Entwurf
+          // 25.07.2026); im Stand — und damit in Logo und Icons — sind
+          // sie gerade. Biegung und Sichtbarkeit teilen sich die Kurve.
+          streakBend: rolling,
           headScales: [
             1,
             _seg(0.58, 0.70, Curves.easeOutBack),
@@ -183,38 +187,60 @@ class _Scene extends StatelessWidget {
         );
 
         final wordmark = _seg(0.58, 0.74, Curves.easeOut);
+        // Die Straße liegt unter den Rädern: Im 120×100-Raster der Marke
+        // enden die Räder bei y = 92, das Bild hat also 8 % Luft nach
+        // unten. Sie blendet mit dem Schriftzug ein — vorher führe das
+        // Auto über eine Straße, die noch gar nicht da ist.
+        final roadTop = h / 2 - carHeight / 2 + carHeight * 0.92;
 
-        return Stack(
-          children: [
-            Positioned(
-              left: centerX - carWidth / 2,
-              top: h / 2 - carHeight / 2,
-              width: carWidth,
-              height: carHeight,
-              child: CustomPaint(painter: _SplashCarPainter(pose)),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: h / 2 + carHeight / 2 + AppSpacing.l,
-              child: Opacity(
-                opacity: wordmark,
-                child: Column(
-                  children: [
-                    const MitFahrBarWordmark(fontSize: 30),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Die faire App für eure Fahrgemeinschaft',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+        // Material(transparency): Der Splash liegt im MaterialApp-builder
+        // ÜBER dem Navigator und hat damit keinen Material-Vorfahren.
+        // Ohne diesen Wrapper zeichnet Flutter jeden Text mit dem
+        // Notfall-Stil — der gelben Doppellinie, die bis v0.34.0 unter
+        // dem Schriftzug stand und wie ein Design-Element aussah.
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: roadTop,
+                child: Opacity(
+                  opacity: wordmark,
+                  child: Center(child: RoadLine(width: carWidth * 1.22)),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                left: centerX - carWidth / 2,
+                top: h / 2 - carHeight / 2,
+                width: carWidth,
+                height: carHeight,
+                child: CustomPaint(painter: _SplashCarPainter(pose)),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: h / 2 + carHeight / 2 + AppSpacing.l,
+                child: Opacity(
+                  opacity: wordmark,
+                  child: Column(
+                    children: [
+                      const MitFahrBarWordmark(fontSize: 30),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Die faire App für eure Fahrgemeinschaft',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

@@ -172,6 +172,16 @@ final tripsProvider = FutureProvider<List<Trip>>((ref) {
   return ref.watch(carpoolRepositoryProvider).loadTrips();
 });
 
+/// Die Uhr der App — überall dort, wo Fachlogik vom „Heute" abhängt.
+///
+/// In Tests überschreibbar; `pumpApp` stellt sie auf einen festen Mittwoch.
+/// Der Grund ist ein realer Ausfall (25.07.2026, ein Samstag): Der Planer
+/// plant am Wochenende richtigerweise die kommende Woche, deren Tage noch
+/// nicht bestätigbar sind — die Plan-Flow-Tests hingen aber an der echten
+/// Wanduhr und kippten deshalb an genau zwei Wochentagen. Eine Suite, die
+/// samstags anderes prüft als montags, ist keine.
+final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
 final settingsProvider = FutureProvider<AppSettings>((ref) {
   ref.watch(currentUserIdProvider);
   return ref.watch(carpoolRepositoryProvider).loadSettings();
@@ -227,7 +237,7 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
   @override
   Future<List<PlannedDay>> build() async {
     ref.watch(currentUserIdProvider);
-    _dates = planningWeek();
+    _dates = planningWeek(ref.read(nowProvider)());
     final raw = await ref
         .watch(carpoolRepositoryProvider)
         .loadPlan(_dates.first, days: 7);

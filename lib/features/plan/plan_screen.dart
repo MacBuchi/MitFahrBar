@@ -443,7 +443,11 @@ class _DayRow extends ConsumerWidget {
   final PlannedDay day;
   final Map<String, Person> byId;
 
-  bool get _confirmable => canConfirmPlan(day.date, DateTime.now());
+  // Über nowProvider statt DateTime.now(): Am Wochenende zeigt der Planer
+  // die kommende Woche, deren Tage (noch) nicht bestätigbar sind — Tests
+  // stellen die Uhr fest, sonst prüfen sie samstags etwas anderes.
+  bool _confirmable(WidgetRef ref) =>
+      canConfirmPlan(day.date, ref.read(nowProvider)());
 
   Future<void> _pickDrivers(BuildContext context, WidgetRef ref) async {
     // 1-way-Personen stellen kein Auto — sie stehen gar nicht erst zur Wahl.
@@ -733,7 +737,7 @@ class _DayRow extends ConsumerWidget {
               onPressed: () => _pickDrivers(context, ref),
             ),
             FilledButton(
-              onPressed: !_confirmable
+              onPressed: !_confirmable(ref)
                   ? null
                   : cars.length == 1
                   ? () => _confirm(context, ref)

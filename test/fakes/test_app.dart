@@ -24,6 +24,12 @@ import 'fake_backend.dart';
 /// [splash] ist standardmäßig aus: Sonst müsste jeder Flow-Test erst die
 /// Anfahr-Animation abwarten, bevor er ans Login kommt. Nur der
 /// Splash-Flow-Test schaltet sie ein.
+/// Das „Heute" aller Flow-Tests: ein Mittwoch mitten in der Woche, damit
+/// die geplante Woche den Testtag enthält und Eintragen möglich ist.
+/// Wer in einem Test `planningWeek()` braucht, ruft `planningWeek(testToday)`
+/// auf — sonst rechnet der Test mit einer anderen Woche als die App.
+final DateTime testToday = DateTime(2026, 7, 22);
+
 Future<void> pumpApp(
   WidgetTester tester,
   FakeBackend backend, {
@@ -63,6 +69,11 @@ Future<void> pumpApp(
         // Kein Netzzugriff im Test: standardmäßig kein Update.
         updateInfoProvider.overrideWith((ref) => Future.value(backend.update)),
         currentVersionProvider.overrideWith((ref) => Future.value('1.0.0')),
+        // Feste Uhr: Tests laufen immer an [testToday], egal an welchem
+        // Wochentag die CI läuft. Ohne das kippten die Plan-Flow-Tests
+        // samstags — der Planer zeigt am Wochenende die kommende Woche,
+        // und deren Tage sind noch nicht bestätigbar (25.07.2026).
+        nowProvider.overrideWithValue(() => testToday),
         ...overrides,
       ],
       child: const FahrgemeinschaftApp(),
