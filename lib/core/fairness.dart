@@ -260,10 +260,15 @@ String? suggestDriver(
 /// Verstärkung des Fahrraten-Trims im Wochenvorschlag — und zugleich seine
 /// **Autoritätsgrenze**: Zwei Kandidaten können höchstens
 /// `kRateBalance · Δ-Fahrrate · |dayFactor|` Punkte überbrücken, also nie
-/// mehr als 2 (Raten liegen in 0..1). Jenseits dieses Bandes entscheiden
+/// mehr als 6 (Raten liegen in 0..1). Jenseits dieses Bandes entscheiden
 /// exakt die Punkte — die Grenze steckt in der Verstärkung selbst, nicht in
-/// einer Sonderklausel (entschieden 2026-07-22, „bis ±2 Punkte").
-const kRateBalance = 2.0;
+/// einer Sonderklausel (Muster entschieden 2026-07-22 mit Deckel 2; auf 6
+/// gehoben 2026-07-24, weil das im Zielflotten-Soak den Raten-Worst-Case
+/// von ±2,7 auf ±2,2 pp senkt — den strukturellen Boden. Die PRAKTISCHE
+/// Autorität bleibt winzig: Reale Δ-Raten liegen um 0,03, der Trim bewegt
+/// also ~0,2 Punkte. Details in
+/// `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 3).
+const kRateBalance = 6.0;
 
 /// Volle Fairness-Reihenfolge für einen **Plan-Tag**: Punkte zuerst, dazu ein
 /// begrenzter Fahrraten-Trim (nur hier — Dashboard und Fahrten-Editor bleiben

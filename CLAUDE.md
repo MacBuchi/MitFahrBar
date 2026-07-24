@@ -172,7 +172,12 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   `doc/entscheidung-mitfahrer-verteilung.md`): Punkte konvergieren nur
   **innerhalb** vergleichbarer Autogrößen; bei dauerhaftem Kapazitäts-
   Gefälle driften sie ehrlich, aber unbegrenzt — dokumentierte Grenze,
-  keine zu „reparierende" Formel. Die Mitfahrer-Verteilung (meiste freie
+  keine zu „reparierende" Formel. Auf der realen Zielflotte
+  (DaciaRacing-Empirie: 1×4/6×5/1×7 Sitze, große Tage die Ausnahme)
+  erfüllt die Automatik Punkte ±2 und Fahrraten im Mittel ±2 pp; der
+  Worst-Case ±2,2 pp ist der **Anwesenheits-Boden** (selten Anwesende
+  sind eher an großen Tagen dabei und fahren voller), den keine Fahrerwahl
+  unterschreiten kann — Zerlegung und Mechanismen-Vergleich im Report. Die Mitfahrer-Verteilung (meiste freie
   Plätze, Gleichstand → bedürftigster Fahrer) bleibt bewusst: Ein
   Anti-Solo-Tie-Break bewegte im A/B-Vergleich eine Fahrt in acht Jahren.
 - **1-way im Planer schließt das Fahren aus.** `plan_availability.one_way`
@@ -207,14 +212,16 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   eine Fahrt eingetragen ist — und alle fünf Tage schlagen dieselbe Person
   vor. Tage mit echter Fahrt werden nicht zusätzlich simuliert, sonst zählen
   sie doppelt. Beides ist in `test/plan_test.dart` festgenagelt.
-- **Der Planer trimmt die Fahrrate — begrenzt auf ±2 Punkte** (entschieden
-  2026-07-22, `suggestPlanDriver`): Wer selten fährt, bekommt bei fast
-  gleichem Punktestand eher die kleinen Tage, Vielfahrer die vollen — so
-  gleichen sich die Fahranteile an. Das ist eine Kaskadenregelung mit
+- **Der Planer trimmt die Fahrrate — begrenzt auf ±6 Punkte** (Muster
+  entschieden 2026-07-22 mit Deckel 2; auf 6 gehoben 2026-07-24 nach dem
+  Zielflotten-Soak, `suggestPlanDriver`): Wer selten fährt, bekommt bei
+  fast gleichem Punktestand eher die kleinen Tage, Vielfahrer die vollen —
+  so gleichen sich die Fahranteile an. Das ist eine Kaskadenregelung mit
   begrenzter Autorität: reiner P-Regler auf der Raten-Abweichung
   (bewusst **kein** I-Anteil — die Rate ist selbst ein integrierender
-  Zustand, ein Integrator darauf schwänge), Verstärkung `kRateBalance = 2`
-  ist zugleich der harte Deckel. Jenseits des Bandes entscheiden exakt die
+  Zustand, ein Integrator darauf schwänge), Verstärkung `kRateBalance = 6`
+  ist zugleich der harte Deckel; praktisch bewegt der Trim ~0,2 Punkte,
+  weil reale Δ-Raten klein sind. Jenseits des Bandes entscheiden exakt die
   Punkte; Dashboard/„Wer ist dran?" (`rankPresent`) bleiben unberührt.
   Wer den Trim „vereinfacht" (Deckel raus, I-Anteil rein, auch fürs
   Dashboard), bricht den Punkte-Vorrang oder baut Schwingen ein —

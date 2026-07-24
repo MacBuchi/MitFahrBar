@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.31.0] – 2026-07-24
+
+### Verbessert
+
+- **Der Wochenplaner gleicht die Fahrhäufigkeit besser aus.** Wie oft
+  jemand fährt, hängt jetzt noch enger am Durchschnitt der Gruppe: Wer
+  zuletzt seltener dran war, bekommt eher die kleinen Tage, Vielfahrer
+  die vollen. Am Grundprinzip ändert sich nichts — wer die wenigsten
+  Punkte hat, ist dran; der Feinausgleich wirkt nur bei praktisch
+  gleichem Punktestand. Grundlage ist eine Langzeit-Simulation über
+  acht Jahre mit den echten Fahrmustern der Gruppe: Punkte und
+  Fahranteile pendeln damit dauerhaft eng um den Mittelwert — enger,
+  als es die von Hand geplante Vergangenheit je war.
+
 ## [0.30.1] – 2026-07-24
 
 ### Intern

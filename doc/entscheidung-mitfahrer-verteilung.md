@@ -132,6 +132,82 @@ gleichen die Punkte die Raten schon allein an). **Konsequenz:**
    wirken. Aber: Von einer Erhöhung ist nichts zu erwarten — dieser
    Nachtrag existiert, damit das niemand mehr ausprobieren muss.
 
+*(Aufgehoben für die reale Verteilung: Auf der Zielflotte in Nachtrag 3
+bewegt der Trim den Worst-Case messbar; seit v0.31.0 gilt
+`kRateBalance = 6`. Der Befund oben bleibt für Groß-Tage-lastige
+Verteilungen korrekt.)*
+
+## Nachtrag 2026-07-24 (3): Zielflotte — das Akzeptanz-Szenario
+
+Marcus hat das Soll-Set neu gesetzt: Flotte **1×4 / 6×5 / 1×7** Sitze, und
+die Tagesgrößen nicht mehr geschätzt, sondern **aus dem echten
+DaciaRacing-Protokoll gemessen** (401 Fahrt-Tage 2023–2026): 2er 40 %,
+3er 33 %, 4er 20 %, 5er 5,5 %, 6er 1,0 % — **nie 7 oder 8**. Ein 7er-Tag
+liegt mit 0,4 % (≈ 1×/Jahr, Marcus' Obergrenze) trotzdem im Würfel, ein
+8er nicht. Anwesenheits-Gewichte = die gemessenen Quoten der acht
+Aktivsten (64…7,5 %); der 7-Sitzer gehört wie real dem viert-präsentesten
+Stammfahrer, der 4-Sitzer als härtester Fall dem präsentesten (Annahme —
+wenn er real woanders steht, ist das eine Konstante). One-Way 5 %
+(real 4,8 %). Szenario „Zielflotte" in `test/plan_soak_test.dart`,
+je Variante 10 Seeds à 2000 Tage.
+
+**Ergebnis mit der heutigen Logik (kRateBalance = 2):**
+
+| Kennzahl (10 Seeds) | Wert |
+|---|---|
+| Endpunkte | Haupt-Seed ±2, über alle Seeds ≤ 5,5 |
+| Raten-Abweichung Ø der Seed-Maxima | 16,8 ‰ |
+| Raten-Abweichung Worst-Case | 27 ‰ (Bus) |
+| echte Gruppe, von Menschen geplant (Referenz) | bis −51 ‰ |
+
+Das Punkte-Ziel ist klar erfüllt, das Raten-Ziel (±20 ‰) im Mittel auch;
+der Worst-Case liegt bei ±2,7 pp — und die Automatik schlägt die
+menschliche Planung der echten Gruppe (±5,1 pp) etwa um Faktor zwei.
+
+**Woher der Rest kommt — der strukturelle Boden:** Die Kontrolle
+„gleicher Würfel, aber lauter 5-Sitzer" reißt das ±2-pp-Ziel genauso
+(Worst 22 ‰, Ø 11,7 ‰). Ursache ist die **Anwesenheits-Struktur**, nicht
+die Flotte: Selten Anwesende sind eher an großen Tagen dabei — im echten
+Protokoll genauso (Ø-Tagesgröße 3,1 beim Präsentesten vs. 3,8 bei
+Rang 7) — und wer an großen Tagen fährt, fährt voller, verdient mehr je
+Fahrt und fährt bei Punkten ≈ 0 zwangsläufig seltener
+(Rate ≈ 1/(1 + Ø Mitgenommene)). Kein Fahrerwahl-Mechanismus kann
+darunter, denn er entscheidet nur, WER an einem Tag fährt, nicht, wer
+anwesend ist. Die Flotte selbst (Bus + 4-Sitzer) legt nur noch ~0,5 pp
+obendrauf, konzentriert auf den Bus (−) und den 4-Sitzer (+).
+
+**Mechanismen-Vergleich (je 10 Seeds, Wegwerf-Patches):**
+
+| Mechanismus | Ø Seed-Maxima | Worst |
+|---|---|---|
+| heutiger Trim, k = 2 | 16,8 ‰ | 27 ‰ |
+| stärkerer Trim, k = 6 | 15,6 ‰ | 22 ‰ |
+| kombinierter Rang (`points_weight` 0,95/0,9/0,8) | — | 32 ‰, verworfen |
+
+Der kombinierte Rang ist auf allen drei Gewichten byte-identisch und
+schlechter als beide Trim-Varianten — er schaltet den tagesgrößen-
+bewussten Trim ab, der die eigentliche Angleich-Arbeit macht. Der
+stärkere Trim k = 6 erreicht praktisch den Boden der Kontrolle; seine
+theoretische Autorität wächst auf ±6 Punkte, die praktische bleibt bei
+`6 · Δ-Rate · |dayFactor|` ≈ 0,2 Punkten — der Punkte-Vorrang bliebe de
+facto intakt. **Einordnung zu Nachtrag 2:** „kRateBalance ist
+wirkungslos" gilt für die alte Kalibrierung mit ~12 % großen Tagen; auf
+der Zielflotte bewegt k = 6 den Worst-Case messbar (−0,5 pp), wenn auch
+nicht kategorial.
+
+**Entscheidung (Marcus, 2026-07-24): kRateBalance 2 → 6, umgesetzt in
+v0.31.0.** Der Worst-Case sinkt damit von ±2,7 auf ±2,2 pp ≈ Boden; die
+praktische Trim-Autorität bleibt bei ~0,2 Punkten (reale Δ-Raten ≈ 0,03),
+der Punkte-Vorrang de facto unberührt. `test/plan_test.dart` pinnt den
+neuen Deckel von beiden Seiten (>6 Punkte Abstand: unantastbar; 4 Punkte
+bei maximaler Raten-Spreizung: der volle Tag wandert), der Zielflotten-
+Soak die Boden-Schranke ±25 ‰ über 10 Seeds. Tiefer ginge nur ein
+Eingriff in die Punkte-Formel selbst (Belegungs-Normierung) — der stünde
+im Konflikt mit KONZEPT 3.2 und dem Grundsatz „Punkte = gegebene
+Mitfahrten" und bleibt nicht empfohlen. KONZEPT 3.2 selbst ist vom Hub
+unberührt (die Punkteformel ändert sich nicht, nur die Fahrerwahl des
+Planers).
+
 ## Wiedervorlage-Kriterien
 
 - Die Flotte bekommt ein dauerhaftes Groß-/Kleinwagen-Gefälle **und** volle
