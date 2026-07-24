@@ -267,7 +267,25 @@ class _AvailabilityGrid extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Expanded(flex: 3, child: SizedBox.shrink()),
+                Expanded(
+                  flex: 3,
+                  // Kalenderwoche und Zeitraum zur Orientierung (#84) — die
+                  // Spaltenköpfe sagen nur „Mo–Fr", nicht welche Woche.
+                  child: days.isEmpty
+                      ? const SizedBox.shrink()
+                      : Text(
+                          'KW ${isoWeekNumber(days.first.date)}\n'
+                          '${DateFormat('d.M.', 'de').format(days.first.date)}'
+                          ' – '
+                          '${DateFormat('d.M.', 'de').format(days.last.date)}',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                ),
                 for (final day in days)
                   Expanded(
                     child: Center(

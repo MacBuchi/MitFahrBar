@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.32.0] – 2026-07-24
+
+Euer Feedback vom 24. Juli — danke, weiter so!
+
+### Behoben
+
+- **Der Wochenplaner zeigt zu eingetragenen Fahrten wieder alle
+  Mitfahrenden.** Bisher war im Raster nur der Fahrer zu sehen, wenn die
+  Fahrt direkt über „Fahrt eintragen" entstanden war; Mitfahrer standen
+  fälschlich auf „kann nicht". Jetzt zeigt ein eingetragener Tag die
+  komplette Besetzung der Fahrt — inklusive 1-way.
+
+### Neu
+
+- **Der Wochenplaner nennt oben links die Kalenderwoche** samt Zeitraum
+  (z. B. „KW 30, 20.7.–24.7.") — zur Orientierung, welche Woche gerade
+  geplant wird.
+- **Der Kalender beim Eintragen markiert Tage, an denen schon eine Fahrt
+  steht**, mit einem Punkt. So seht ihr beim Nachtragen sofort, welche
+  Tage noch fehlen.
+
 ## [0.31.0] – 2026-07-24
 
 ### Verbessert
