@@ -43,6 +43,12 @@ email_sent = 100
 [auth.email]
 enable_confirmations = true
 
+# Browser-E2E (tool/browser_e2e.sh, Issue #71): Auth-Links aus Mailpit
+# führen zurück in die lokal ausgelieferte Web-App. Wirkt nur lokal; die
+# Dart-E2E-Suite folgt Redirects nie und bleibt davon unberührt.
+[auth]
+site_url = "http://localhost:8731"
+
 # Deklariert für den lokalen Stack UND fürs Deployment über die
 # GitHub-Integration (sie deployt die in config.toml deklarierten
 # Functions). Nach einem Merge, der supabase/functions/ ändert, prüfen,

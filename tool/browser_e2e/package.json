@@ -1,0 +1,9 @@
+{
+  "name": "ridebuddy-browser-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser-E2E der Verwalter-Konsole (Issue #71): Playwright fährt die echte Web-App gegen den lokalen Supabase-Stack, inklusive Mail-Link aus Mailpit.",
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

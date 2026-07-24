@@ -289,7 +289,9 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   man sich ansieht. Hat mehrfach Fehler gefunden, die alle Tests durchgelassen
   hatten: den globalen Schlüssel in `plan_overrides`, „Noch niemand verfügbar"
   trotz eingetragener 1-way-Person und einen Datei-Dialog, der an einem alten
-  Plugin-Registrant scheiterte.
+  Plugin-Registrant scheiterte. Automatisiert existiert derselbe Ansatz als
+  Browser-E2E der Konsole (`tool/browser_e2e.sh`, CI-Job „Browser E2E
+  (Konsole)", Details in `doc/testbackend.md`).
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.

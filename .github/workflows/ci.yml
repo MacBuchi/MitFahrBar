@@ -103,6 +103,38 @@ jobs:
       - name: E2E-Tests gegen lokalen Stack
         run: tool/e2e.sh
 
+  # Browser-E2E (Issue #71): Playwright fährt die ECHTE Web-App im echten
+  # Browser gegen den lokalen Stack — Registrieren, Bestätigungs-Mail aus
+  # Mailpit, zurück in die App, Gruppe verknüpfen. Die letzte Naht, die
+  # Widget-Tests (Fakes) und Dart-E2E (Backend) nicht abdecken. Bewusst
+  # KEIN Required Check (koordinatenbasiert auf dem Canvas, siehe
+  # console.mjs) — rot heißt: Screenshots im Artifact ansehen.
+  browser-e2e:
+    name: Browser E2E (Konsole)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.109.1"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Browser-E2E gegen lokalen Stack
+        run: tool/browser_e2e.sh
+      - name: Screenshots hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-shots
+          path: tool/browser_e2e/shots/
+          retention-days: 14
+          if-no-files-found: ignore
+
   housekeeping:
     name: Version Guard
     runs-on: ubuntu-latest
