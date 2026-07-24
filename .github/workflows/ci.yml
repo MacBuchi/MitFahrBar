@@ -155,8 +155,10 @@ jobs:
           fi
           if [ "$(printf '%s\n' "${latest#v}" "$version" | sort -V | tail -1)" != "$version" ] \
              || [ "${latest#v}" = "$version" ]; then
-            # Doku, CI-Konfiguration, Tests und Tooling lösen keinen Release aus.
-            excludes=(':!*.md' ':!.github' ':!test' ':!tool' ':!LICENSE')
+            # Doku, CI-Konfiguration, Tests und Tooling lösen keinen Release
+            # aus. `doc/` steht mit drin, weil dort auch Nicht-Markdown liegt
+            # (README-Screenshots) — Doku bleibt Doku, auch als PNG.
+            excludes=(':!*.md' ':!.github' ':!doc' ':!test' ':!tool' ':!LICENSE')
             if [ "${{ github.event_name }}" = "pull_request" ]; then
               changed=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- . "${excludes[@]}" || true)
             else
