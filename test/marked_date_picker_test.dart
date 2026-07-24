@@ -15,7 +15,9 @@ void main() {
 
   Future<void> pumpCalendar(WidgetTester tester, Widget child) =>
       tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: Center(child: child))),
+        MaterialApp(
+          home: Scaffold(body: Center(child: child)),
+        ),
       );
 
   MarkedCalendar calendar({
@@ -101,7 +103,10 @@ void main() {
   ) async {
     await pumpCalendar(
       tester,
-      calendar(firstDate: DateTime(2026, 6, 10), lastDate: DateTime(2026, 7, 20)),
+      calendar(
+        firstDate: DateTime(2026, 6, 10),
+        lastDate: DateTime(2026, 7, 20),
+      ),
     );
 
     final next = find.widgetWithIcon(IconButton, Icons.chevron_right);

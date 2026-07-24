@@ -116,11 +116,9 @@ void main() {
             'Die Teilnehmer der echten Fahrt gehören ins Raster, auch ohne '
             'angetippte Verfügbarkeit — sonst zeigt der Planer nur den Fahrer.',
       );
-      expect(
-        plan.first.oneWayIds,
-        {'c'},
-        reason: 'Der 1-way-Status kommt aus der Fahrt.',
-      );
+      expect(plan.first.oneWayIds, {
+        'c',
+      }, reason: 'Der 1-way-Status kommt aus der Fahrt.');
       expect(plan.first.driverId, 'a');
     });
 

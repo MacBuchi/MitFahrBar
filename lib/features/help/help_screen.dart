@@ -113,7 +113,9 @@ class HelpScreen extends StatelessWidget {
                 text:
                     'Der Knopf unten rechts auf der Übersicht. Datum: heute, '
                     'gestern oder über den Kalender — nur nichts in der '
-                    'Zukunft, dafür ist die Woche da.',
+                    'Zukunft, dafür ist die Woche da. Tage mit Fahrt tragen '
+                    'im Kalender einen Punkt, so seht ihr beim Nachtragen '
+                    'sofort, was noch fehlt.',
               ),
               _Line(
                 leading: Icon(Icons.touch_app_outlined),
@@ -155,7 +157,8 @@ class HelpScreen extends StatelessWidget {
                 text:
                     'Tippt an, wer wann kann — gleiche Tipp-Folge wie beim '
                     'Eintragen, zweimal heißt nur eine Richtung. Jeder darf '
-                    'für jeden eintragen.',
+                    'für jeden eintragen. Oben links steht zur Orientierung '
+                    'die Kalenderwoche mit ihrem Zeitraum.',
               ),
               _Line(
                 text:
@@ -190,7 +193,9 @@ class HelpScreen extends StatelessWidget {
                     'fertig vorbelegt — gebucht wird erst mit jedem '
                     'Speichern. Wer zwischendrin abbricht, trägt den Rest '
                     'einfach von Hand nach. Danach ist der Tag blass und '
-                    'gesperrt; über „Bearbeiten" kommt ihr zur Fahrt.',
+                    'gesperrt und das Raster zeigt, wer laut Fahrt dabei '
+                    'war — auch wenn vorher niemand angetippt hatte; über '
+                    '„Bearbeiten" kommt ihr zur Fahrt.',
               ),
               _Line(
                 leading: MoodFace(mood: Mood.celebrating, size: 22),
