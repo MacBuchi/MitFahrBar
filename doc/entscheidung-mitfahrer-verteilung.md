@@ -79,6 +79,32 @@ korrekt; die Divergenz ist eine strukturelle Eigenschaft von Sitzfilter +
    Entlastung wäre eine Produktentscheidung mit der Gruppe, kein
    Formel-Feintuning.
 
+## Nachtrag 2026-07-24: Realflotte — der maßgebliche Lauf
+
+Auf Marcus' Review hin wurde die Simulation mit dem realen Setup der Gruppe
+wiederholt (Ø ~3,3 Anwesende bei Tagen mit ≥ 2, 5er-Tage ~9 %, ≥ 6 nur
+~3 %; Autos 4/4/4/4/5/5/5/7) und gegen sein explizites Ziel geprüft:
+Punktedifferenzen um 0, Fahrraten ±2 Prozentpunkte.
+
+- **Punkte-Ziel: klar erfüllt.** Alle acht Endstände nach 2000 Tagen
+  innerhalb ±2 Punkten, Spreizung stationär (max. 18,5 im letzten
+  Viertel). Zum Vergleich: Das synthetische Setup lag bei ±831.
+- **Raten-Ziel: strukturell unvereinbar mit gemischter Flotte.** Der
+  7-Sitzer weicht −8,8 pp ab — punkte-fair fährt er seltener, aber
+  voller: Rate ≈ 1/(1 + Ø Mitgenommene je eigener Fahrt), und die hängt
+  an der Autogröße. Die **Kontrolle** (identische Anwesenheit, alle Autos
+  5 Sitze) erfüllt BEIDE Ziele (±1,0 pp) und isoliert damit die
+  Autogröße als einzige Ursache. Wer Raten-Gleichheit über
+  Punkte-Gleichheit stellt, trifft eine Produktentscheidung (z. B.
+  stärkerer Raten-Trim) — es ist kein Planer-Fehler.
+- **A/B auf der Realflotte:** weiterhin bedeutungslos (gleiche Fahrten-
+  und Solo-Zahlen, Endstände verschieben sich ≤ 3 Punkte). Die
+  Entscheidung oben bleibt unverändert.
+
+Beide Läufe sind als Szenarien „Realflotte" und „Kontrolle" in
+`test/plan_soak_test.dart` gepinnt; das ±2-pp-Ziel ist dort als Assertion
+verankert, wo es erreichbar ist (Kontrolle).
+
 ## Wiedervorlage-Kriterien
 
 - Die Flotte bekommt ein dauerhaftes Groß-/Kleinwagen-Gefälle **und** volle
