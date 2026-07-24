@@ -30,6 +30,27 @@ class AppSettings {
   /// bleibt bestehen — er ist der Weg zurück, ohne die Formel anzufassen.
   final double pointsWeight;
 
+  /// Kopie mit geänderten Kosten-Parametern.
+  ///
+  /// Bewusst **ohne** `oneWayFactor` und `pointsWeight`: Die beiden ändern
+  /// rückwirkend die Punkte aller — sie gehören nicht in einen Screen, den
+  /// jedes Gruppenmitglied öffnen kann, sondern in eine Migration
+  /// (siehe CLAUDE.md). Der Parameter-Screen reicht sie unverändert durch.
+  AppSettings copyWith({
+    double? commuteKm,
+    double? electricityPricePerKwh,
+    double? dieselPricePerLiter,
+    double? petrolPricePerLiter,
+  }) => AppSettings(
+    commuteKm: commuteKm ?? this.commuteKm,
+    oneWayFactor: oneWayFactor,
+    electricityPricePerKwh:
+        electricityPricePerKwh ?? this.electricityPricePerKwh,
+    dieselPricePerLiter: dieselPricePerLiter ?? this.dieselPricePerLiter,
+    petrolPricePerLiter: petrolPricePerLiter ?? this.petrolPricePerLiter,
+    pointsWeight: pointsWeight,
+  );
+
   factory AppSettings.fromMap(Map<String, double> map) => AppSettings(
     commuteKm: map['commute_km'] ?? 30,
     oneWayFactor: map['one_way_factor'] ?? 0.5,

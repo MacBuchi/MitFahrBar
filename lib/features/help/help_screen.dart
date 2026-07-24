@@ -257,6 +257,14 @@ class HelpScreen extends StatelessWidget {
                     'inaktiv gestellt, damit alte Fahrten zählen bleiben.',
               ),
               _Line(
+                leading: Icon(Icons.tune),
+                text:
+                    'Parameter: euer Arbeitsweg in Kilometern und die Preise '
+                    'für Strom, Diesel und Benzin. Daraus entstehen die '
+                    'Kilometer und die gesparten Kosten in der Statistik — '
+                    'an den Punkten ändert sich dadurch nichts.',
+              ),
+              _Line(
                 leading: Icon(Icons.person_add_alt),
                 text:
                     'Jemanden einladen baut eine fertige Nachricht mit Link '

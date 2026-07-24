@@ -24,11 +24,10 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   clientseitig in `lib/core/fairness.dart`.
 - Preis-Historisierung mit „Gültig-ab" (§3.4) → `settings` ist nur
   `(group_id, key) → value`, ohne `valid_from`.
-- Offen aus §5.5: Personen und Fahrzeuge pflegt seit v0.10.0
-  `features/persons/persons_screen.dart` (`/persons`), ein Screen für die
-  **Parameter** (`settings`) fehlt weiterhin — `saveSettings` hat bis heute
-  keinen Aufrufer in `lib/`. `admin_screen.dart` ist nur die
-  Gruppen-Freigabe, nicht die Datenpflege.
+- §5.5 ist abgearbeitet: Personen und Fahrzeuge pflegt seit v0.10.0
+  `features/persons/persons_screen.dart` (`/persons`), die **Parameter**
+  seit v0.33.0 `features/settings/settings_screen.dart` (`/settings`).
+  `admin_screen.dart` ist nur die Gruppen-Freigabe, nicht die Datenpflege.
 
 ## Architektur-Leitplanken (nicht verhandelbar)
 
@@ -48,6 +47,24 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Migration (siehe `20260721090000_points_only_ranking.sql`).
 - Kennzahlen (Punkte, Quote, km, Ersparnis) werden immer berechnet, nie
   gespeichert.
+- **Der Parameter-Screen zeigt nur die Kosten-Werte** (`features/settings/`,
+  seit v0.33.0, Issue #91): Arbeitsweg und die drei Kraftstoffpreise. Sie
+  gehen ausschließlich in Kilometer und Ersparnis ein. `one_way_factor` und
+  `points_weight` liegen in derselben Tabelle, gehören aber **nicht** in
+  dieses Formular: Sie verschieben rückwirkend die Punkte *aller* — und
+  `points_weight` ist die dokumentierte Rückfahrkarte der Fairness-Regel,
+  die über eine Migration gesetzt wird, nicht von einem beliebigen
+  Mitglied. Weil `saveSettings` immer die ganze Tabelle schreibt, reicht
+  der Screen beide Werte über `AppSettings.copyWith` unverändert durch —
+  `test/flows/settings_flow_test.dart` nagelt genau das fest. Wer dort ein
+  Feld ergänzt, prüft zuerst, ob es die Punkte berührt.
+- **Spritpreise holt die App bewusst nicht aus dem Netz** (entschieden
+  2026-07-24, Teil 3 von #91). Ein Preisdienst (Tankerkönig) braucht einen
+  API-Schlüssel, der nicht in einen offenen Client darf — also eine
+  weitere Edge Function samt Secret und Cache, für eine Kennzahl, die
+  ausdrücklich „ganz grob" sein soll. Dieselbe Linie wie „kein Sentry"
+  und „kein Captcha-Dienst". Der Screen sagt das dem Nutzer auch. Wird es
+  je gebaut, ist die Function der Ort — nie der Client.
 - **Personen werden nie gelöscht, nur inaktiv gesetzt.** `person_id` in
   `trip_participations` hängt an `ON DELETE CASCADE` — ein Löschen entfernt
   also stillschweigend alle Teilnahmen dieser Person und verändert damit
