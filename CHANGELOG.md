@@ -13,6 +13,9 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   durchgerutscht und begrüßte euch noch als RideBuddy.
 - **Die gelbe Doppellinie unter dem Namen ist weg.** Sie war nie
   Absicht, sondern ein Darstellungsfehler des Startbildschirms.
+- **Im dunklen Design sind die Reifen wieder zu sehen.** Ihr
+  Fast-Schwarz versank bisher im dunklen Hintergrund — übrig blieben
+  nur die hellen Radnaben.
 
 ### Geändert
 

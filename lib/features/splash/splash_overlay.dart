@@ -216,7 +216,12 @@ class _Scene extends StatelessWidget {
                 top: h / 2 - carHeight / 2,
                 width: carWidth,
                 height: carHeight,
-                child: CustomPaint(painter: _SplashCarPainter(pose)),
+                child: CustomPaint(
+                  painter: _SplashCarPainter(
+                    pose,
+                    dark: theme.brightness == Brightness.dark,
+                  ),
+                ),
               ),
               Positioned(
                 left: 0,
@@ -248,13 +253,19 @@ class _Scene extends StatelessWidget {
 }
 
 class _SplashCarPainter extends CustomPainter {
-  _SplashCarPainter(this.pose);
+  _SplashCarPainter(this.pose, {required this.dark});
 
   final MitFahrBarPose pose;
+  final bool dark;
 
   @override
-  void paint(Canvas canvas, Size size) =>
-      paintMitFahrBarMark(canvas, size, MitFahrBarMarkVariant.gradient, pose);
+  void paint(Canvas canvas, Size size) => paintMitFahrBarMark(
+    canvas,
+    size,
+    MitFahrBarMarkVariant.gradient,
+    pose: pose,
+    dark: dark,
+  );
 
   // Jedes Bild ist eine neue Pose — der AnimatedBuilder taktet ohnehin.
   @override

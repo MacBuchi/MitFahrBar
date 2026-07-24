@@ -36,7 +36,10 @@ class MitFahrBarMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final painter = CustomPaint(
-      painter: _MitFahrBarMarkPainter(variant),
+      painter: _MitFahrBarMarkPainter(
+        variant,
+        dark: Theme.of(context).brightness == Brightness.dark,
+      ),
       child: const SizedBox.expand(),
     );
     final content = AspectRatio(
@@ -79,6 +82,22 @@ class _Palette {
     streak: AppColors.brandBright,
   );
 
+  /// [_gradient] mit einem einzigen Unterschied: dem Reifenton. Das
+  /// Fast-Schwarz der Vorlage (#1A1030) versinkt im dunklen Theme in
+  /// `darkBackground` (#06171C) — übrig blieb nur die helle Nabe
+  /// (gemeldet 25.07.2026). Gleiche flache Kreise, gleiche Geometrie;
+  /// `mark.svg` und die Icons bleiben unverändert, die liegen auf
+  /// festen Kachel-Hintergründen ohne Theme.
+  static const _gradientOnDark = _Palette(
+    body: AppColors.brand,
+    bodyGradient: true,
+    window: Colors.white,
+    head: AppColors.brand,
+    wheel: Color(0xFF24505E),
+    hub: AppColors.accent,
+    streak: AppColors.brandBright,
+  );
+
   static const _ink = _Palette(
     body: Color(0xFF0C3038),
     window: AppColors.paper,
@@ -97,11 +116,14 @@ class _Palette {
     streak: Color(0x8CFFFFFF),
   );
 
-  static _Palette of(MitFahrBarMarkVariant v) => switch (v) {
-    MitFahrBarMarkVariant.gradient => _gradient,
-    MitFahrBarMarkVariant.ink => _ink,
-    MitFahrBarMarkVariant.white => _white,
-  };
+  /// [dark] betrifft nur die Gradient-Variante — `ink` ist für helle
+  /// Flächen gedacht, `white` liegt ohnehin auf farbigem Grund.
+  static _Palette of(MitFahrBarMarkVariant v, {bool dark = false}) =>
+      switch (v) {
+        MitFahrBarMarkVariant.gradient => dark ? _gradientOnDark : _gradient,
+        MitFahrBarMarkVariant.ink => _ink,
+        MitFahrBarMarkVariant.white => _white,
+      };
 }
 
 /// Seitenverhältnis der Marke (Breite : Höhe) — für alle, die sie selbst
@@ -153,12 +175,13 @@ class MitFahrBarPose {
 void paintMitFahrBarMark(
   Canvas canvas,
   Size size,
-  MitFahrBarMarkVariant variant, [
+  MitFahrBarMarkVariant variant, {
   MitFahrBarPose pose = MitFahrBarPose.resting,
-]) {
+  bool dark = false,
+}) {
   const designWidth = 120.0;
   const designHeight = 100.0;
-  final palette = _Palette.of(variant);
+  final palette = _Palette.of(variant, dark: dark);
   final scale = size.width / designWidth;
 
   canvas.save();
@@ -253,17 +276,18 @@ void paintMitFahrBarMark(
 }
 
 class _MitFahrBarMarkPainter extends CustomPainter {
-  _MitFahrBarMarkPainter(this.variant);
+  _MitFahrBarMarkPainter(this.variant, {required this.dark});
 
   final MitFahrBarMarkVariant variant;
+  final bool dark;
 
   @override
   void paint(Canvas canvas, Size size) =>
-      paintMitFahrBarMark(canvas, size, variant);
+      paintMitFahrBarMark(canvas, size, variant, dark: dark);
 
   @override
   bool shouldRepaint(_MitFahrBarMarkPainter oldDelegate) =>
-      oldDelegate.variant != variant;
+      oldDelegate.variant != variant || oldDelegate.dark != dark;
 }
 
 /// Durchgezogene Straßenlinie unter der Bildmarke — das Auto steht darauf,
