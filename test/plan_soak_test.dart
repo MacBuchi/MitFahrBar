@@ -7,21 +7,30 @@
 /// Fahrt, Fahrer → driver, Rest → passenger/oneWay). Kein Übersteuern:
 /// Validiert wird die reine Automatik.
 ///
-/// Zwei Szenarien, weil der erste Kalibrierungslauf einen echten Befund
-/// lieferte:
+/// Vier Szenarien, vom Zielbild bis zur Grenze:
 ///
-/// * **Alltag** (Kapazität bindet selten): Punkte bleiben nullsummig und
-///   beschränkt, die Fahranteile gleichen sich an — die Basislogik
-///   (Punkte-Vorrang + gedeckelter Raten-Trim) konvergiert. Ein I-Anteil
-///   oder Vorzeichenfehler schaukelte sich hier sichtbar auf.
+/// * **Realflotte** (das Leit-Szenario, kalibriert auf Marcus' Empirie
+///   2026-07-24: Ø ~3,3 Anwesende bei Tagen mit ≥ 2, P(5) ≈ 9 %,
+///   P(≥6) ≈ 3 %; Autos 4/4/4/4/5/5/5/7): Das Punkte-Ziel wird KLAR
+///   erfüllt — alle Endstände nach 2000 Tagen innerhalb ±2 Punkten. Das
+///   Raten-Ziel (±2 Prozentpunkte) reißt der 7-Sitzer strukturell
+///   (−8,8 pp): punkte-fair heißt, er fährt seltener, aber voller —
+///   Rate ≈ 1/(1 + Ø Mitgenommene je eigener Fahrt), und die hängt an
+///   der Autogröße. Gleiche Punkte UND gleiche Raten sind bei gemischter
+///   Flotte mathematisch nicht gleichzeitig zu haben.
+/// * **Kontrolle** (identische Anwesenheit, alle Autos 5 Sitze): erfüllt
+///   BEIDE Ziele — Raten innerhalb ±1 pp. Das isoliert die Autogröße als
+///   einzige Ursache der Raten-Spreizung und verankert Marcus'
+///   Akzeptanzziel dort, wo es erreichbar ist.
+/// * **Alltag** (synthetisch, mit 2-/3-Sitzern): Punkte konvergieren nur
+///   innerhalb vergleichbarer Autogrößen; zwischen den Kohorten driftet
+///   es unbegrenzt.
 /// * **Dauervoll** (Ø ~6 von 8 anwesend, nur EIN 7-Sitzer): Der Sitzfilter
-///   qualifiziert fast täglich nur den Bus-Besitzer, „ein Auto, wann immer
-///   eines reicht" zementiert ihn als Dauerfahrer — die Punkte-Spreizung
-///   wächst OHNE SCHRANKE (struktureller Bus-Bias). Das ist kein Zielbild,
-///   sondern eine dokumentierte Systemgrenze: Der Punkte-Vorrang kann nur
-///   zwischen QUALIFIZIERTEN Kandidaten wählen. Wer Sitzfilter, Rückfall-
-///   linie oder Ein-Auto-Regel anfasst, sieht diese Zahlen wandern und
-///   weiß, was er tut (Kontext: Issue #62).
+///   qualifiziert fast täglich nur den Bus-Besitzer — die Spreizung
+///   wächst OHNE SCHRANKE. Dokumentierte Systemgrenze, kein Zielbild:
+///   Der Punkte-Vorrang kann nur zwischen QUALIFIZIERTEN wählen. Wer
+///   Sitzfilter, Rückfalllinie oder Ein-Auto-Regel anfasst, sieht diese
+///   Zahlen wandern und weiß, was er tut (Kontext: Issue #62).
 ///
 /// Der Datensatz kommt aus einem eigenen, winzigen PRNG mit festem Seed —
 /// bewusst nicht `dart:math` `Random(seed)`, dessen Folge über VM-Versionen
@@ -40,7 +49,46 @@ import 'package:flutter_test/flutter_test.dart';
 const _settings = AppSettings();
 const _weeks = 400;
 
-/// Sitze inkl. Fahrer (wie `persons.seats`): vom 2-Sitzer bis zum Bus.
+/// Realflotte (Marcus, 2026-07-24): jeder mindestens 4 Sitze, teils 5,
+/// einer 7 — Sitze inkl. Fahrer, wie `persons.seats`.
+const _realSeats = {
+  'p1': 4,
+  'p2': 4,
+  'p3': 4,
+  'p4': 4,
+  'p5': 5,
+  'p6': 5,
+  'p7': 5,
+  'p8': 7,
+};
+
+/// Anwesenheit der Realflotte, kalibriert auf die Empirie der Gruppe:
+/// Ø ~3,3 bei Tagen mit ≥ 2 Anwesenden, 5er-Tage ~9 %, ≥6 nur ~3 %.
+const _realAvailability = {
+  'p1': 0.50,
+  'p2': 0.45,
+  'p3': 0.45,
+  'p4': 0.40,
+  'p5': 0.35,
+  'p6': 0.30,
+  'p7': 0.25,
+  'p8': 0.20,
+};
+
+/// Kontrolle: gleiche Anwesenheit, alle Autos gleich groß — isoliert die
+/// Autogröße als Ursache der Raten-Spreizung.
+const _uniformSeats = {
+  'p1': 5,
+  'p2': 5,
+  'p3': 5,
+  'p4': 5,
+  'p5': 5,
+  'p6': 5,
+  'p7': 5,
+  'p8': 5,
+};
+
+/// Synthetische Stress-Flotte (vom 2-Sitzer bis zum Bus).
 const _seats = {
   'p1': 2,
   'p2': 3,
@@ -99,12 +147,13 @@ class _Rng {
 Map<DateTime, Map<String, PlanRide>> _rollWeek(
   _Rng rng,
   List<DateTime> days,
+  Iterable<String> persons,
   Map<String, double> availabilityP,
 ) {
   return {
     for (final day in days)
       day: {
-        for (final person in _seats.keys)
+        for (final person in persons)
           if (rng.next() < availabilityP[person]!)
             person: rng.next() < _oneWayP ? PlanRide.oneWay : PlanRide.full,
       },
@@ -128,8 +177,8 @@ List<Trip> _bookWeek(int week, List<PlannedDay> plan) {
   ];
 }
 
-double _spread(Map<String, PersonStats> stats) {
-  final points = [for (final p in _seats.keys) stats[p]?.points ?? 0.0];
+double _spread(Map<String, PersonStats> stats, Iterable<String> persons) {
+  final points = [for (final p in persons) stats[p]?.points ?? 0.0];
   points.sort();
   return points.last - points.first;
 }
@@ -166,7 +215,12 @@ class _SoakResult {
       'Fahranteil-Abweichung (‰): $sharePermille';
 }
 
-_SoakResult _simulate(int seed, Map<String, double> availabilityP) {
+_SoakResult _simulate(
+  int seed,
+  Map<String, int> seats,
+  Map<String, double> availabilityP,
+) {
+  final persons = seats.keys.toList();
   final rng = _Rng(seed);
   final trips = <Trip>[];
   final weeklySpread = <double>[];
@@ -183,24 +237,21 @@ _SoakResult _simulate(int seed, Map<String, double> availabilityP) {
 
     final plan = planWeek(
       dates: days,
-      availability: _rollWeek(rng, days, availabilityP),
+      availability: _rollWeek(rng, days, persons, availabilityP),
       overrides: const {},
       trips: trips,
       settings: _settings,
-      seats: _seats,
+      seats: seats,
     );
     trips.addAll(_bookWeek(week, plan));
 
     stats = computeStats(trips, _settings);
-    weeklySpread.add(_spread(stats));
+    weeklySpread.add(_spread(stats, persons));
   }
 
   final lateSpread = weeklySpread.sublist(_weeks * 3 ~/ 4);
-  final totalDriven = _seats.keys.fold(0, (a, p) => a + stats[p]!.driven);
-  final totalDays = _seats.keys.fold(
-    0,
-    (a, p) => a + stats[p]!.participationDays,
-  );
+  final totalDriven = persons.fold(0, (a, p) => a + stats[p]!.driven);
+  final totalDays = persons.fold(0, (a, p) => a + stats[p]!.participationDays);
   final meanShare = totalDriven / totalDays;
 
   return _SoakResult(
@@ -209,10 +260,10 @@ _SoakResult _simulate(int seed, Map<String, double> availabilityP) {
     spreadAt100: weeklySpread[99],
     spreadAtEnd: weeklySpread.last,
     maxLateSpread: lateSpread.fold(0.0, (a, b) => a > b ? a : b),
-    pointsSum: _seats.keys.fold(0.0, (a, p) => a + stats[p]!.points),
-    points: {for (final p in _seats.keys) p: stats[p]!.points},
+    pointsSum: persons.fold(0.0, (a, p) => a + stats[p]!.points),
+    points: {for (final p in persons) p: stats[p]!.points},
     sharePermille: {
-      for (final p in _seats.keys)
+      for (final p in persons)
         p: ((stats[p]!.driveShare - meanShare) * 1000).round(),
     },
   );
@@ -228,9 +279,94 @@ void main() {
   });
 
   test(
+    'Realflotte: Punkte-Ziel erfüllt, Raten-Ziel reißt der Bus',
+    () {
+      final r = _simulate(0xFAB42, _realSeats, _realAvailability);
+      printOnFailure('$r');
+
+      expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
+
+      // Marcus' erstes Ziel (2026-07-24): Punktedifferenzen konvergieren
+      // um 0. Deutlich erfüllt — nach 2000 Tagen liegt JEDER Endstand
+      // innerhalb ±5 Punkten (beobachtet: ±2), die Spreizung ist stationär.
+      for (final p in _realSeats.keys) {
+        expect(
+          r.points[p]!.abs(),
+          lessThan(5),
+          reason: 'Endstand $p muss um 0 pendeln (Punkte-Ziel).',
+        );
+      }
+      expect(
+        r.maxLateSpread,
+        lessThan(25),
+        reason: 'Auch zwischendrin bleibt die Spreizung klein.',
+      );
+
+      // Marcus' zweites Ziel — Fahrraten ±2 Prozentpunkte — wird bei
+      // GEMISCHTER Flotte strukturell verfehlt, am stärksten vom 7-Sitzer:
+      // Rate ≈ 1/(1 + Ø Mitgenommene je eigener Fahrt); punkte-fair fährt
+      // der Bus seltener, aber voller. Kein Planer-Fehler, sondern
+      // Arithmetik — die Kontrolle darunter beweist es. Dokumentiert, damit
+      // niemand versucht, beide Ziele gleichzeitig „hinzutunen".
+      expect(
+        r.sharePermille['p8'],
+        lessThan(-50),
+        reason: 'Der 7-Sitzer fährt punkte-fair deutlich seltener je Tag.',
+      );
+
+      // Exakte Regressions-Pins (Datensatz ist deterministisch).
+      expect(r.totalTrips, 1945);
+      expect(r.soloTrips, 205);
+      expect(r.spreadAt100, closeTo(9.5, 1e-9));
+      expect(r.spreadAtEnd, closeTo(4.0, 1e-9));
+      expect(r.maxLateSpread, closeTo(18.5, 1e-9));
+      expect(r.sharePermille['p8'], -88);
+      expect(r.points['p8'], closeTo(0.5, 1e-9));
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  test(
+    'Kontrolle: gleiche Autos — BEIDE Ziele erfüllt',
+    () {
+      final r = _simulate(0xFAB42, _uniformSeats, _realAvailability);
+      printOnFailure('$r');
+
+      expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
+
+      // Identische Anwesenheits-Würfel wie die Realflotte, nur die Autos
+      // sind gleich groß: Jetzt hält der Planer auch das Raten-Ziel
+      // (±2 Prozentpunkte = ±20 ‰). Die Raten-Spreizung der Realflotte
+      // kommt also vollständig aus der Autogrößen-Mischung.
+      for (final p in _uniformSeats.keys) {
+        expect(
+          r.sharePermille[p]!.abs(),
+          lessThanOrEqualTo(20),
+          reason:
+              'Fahrrate $p muss im ±2-Prozentpunkte-Ziel liegen '
+              '(Akzeptanzziel Marcus, 2026-07-24).',
+        );
+        expect(
+          r.points[p]!.abs(),
+          lessThan(5),
+          reason: 'Und die Punkte pendeln weiter um 0.',
+        );
+      }
+
+      // Exakte Regressions-Pins.
+      expect(r.totalTrips, 1968);
+      expect(r.soloTrips, 205);
+      expect(r.spreadAt100, closeTo(3.5, 1e-9));
+      expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
+      expect(r.maxLateSpread, closeTo(6.0, 1e-9));
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  test(
     'Alltag: Kohorten konvergieren, Kapazitäts-Gefälle dokumentiert',
     () {
-      final r = _simulate(0xC0FFEE, _relaxedAvailability);
+      final r = _simulate(0xC0FFEE, _seats, _relaxedAvailability);
       printOnFailure('$r');
 
       expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
@@ -282,7 +418,7 @@ void main() {
   test(
     'Dauervoll: der strukturelle Bus-Bias, beziffert',
     () {
-      final r = _simulate(0x5EED5, _crowdedAvailability);
+      final r = _simulate(0x5EED5, _seats, _crowdedAvailability);
       printOnFailure('$r');
 
       expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
