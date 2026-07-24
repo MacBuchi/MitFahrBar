@@ -661,12 +661,16 @@ void main() {
       expect(plan[1].suggestedDriverId, 'b', reason: 'voller Tag → b');
     });
 
-    test('mehr als 2 Punkte Abstand überstimmt der Trim nie', () {
-      // a liegt weit vorn (+4), b weit hinten (−2) — egal wie die Raten
-      // stehen und wie groß der Tag ist: Es fährt der Punktärmere.
+    test('mehr als 6 Punkte Abstand überstimmt der Trim nie', () {
+      // a liegt uneinholbar vorn (+9), b weit hinten (−3): zwölf Punkte
+      // Abstand bei maximaler Raten-Spreizung (a fuhr immer, b nie). Die
+      // Trim-Autorität endet bei kRateBalance · 1 · 1 = 6 Punkten — egal
+      // wie groß der Tag ist, es fährt der Punktärmere. Wer den Deckel
+      // weiter anhebt, sieht diesen Test kippen.
       final trips = [
         trip(1, driver: 'a', passengers: ['b', 'c', 'd']),
-        trip(2, driver: 'a', passengers: ['b']),
+        trip(2, driver: 'a', passengers: ['b', 'c', 'd']),
+        trip(3, driver: 'a', passengers: ['b', 'c', 'd']),
       ];
       final plan = planWeek(
         dates: [week[2], week[3]],
@@ -680,9 +684,47 @@ void main() {
       );
 
       expect(plan[0].suggestedDriverId, 'b');
-      // Auch nach dem simulierten Mittwoch trennen a und b noch 4 Punkte —
-      // der volle Tag geht wieder an b, der Trim (Deckel 2) ändert nichts.
+      // Auch nach dem simulierten Mittwoch trennen a und b noch zehn
+      // Punkte — der volle Tag geht wieder an b, der Deckel (6) reicht
+      // nicht heran.
       expect(plan[1].suggestedDriverId, 'b');
+    });
+
+    test('bis 6 Punkte Abstand darf der Trim den vollen Tag umverteilen', () {
+      // Der Unterschied zwischen Deckel 2 (bis v0.30.x) und Deckel 6
+      // (Zielflotten-Entscheidung 2026-07-24): a führt mit 4 Punkten
+      // Abstand (+2 vs. −2) bei maximaler Raten-Spreizung (a fuhr 2 von
+      // 2, b 0 von 2). Am vollen Montag gilt
+      //   wirksam(a) = 2 − 6 · (1,0 − 0,5) · 1 = −1
+      //   wirksam(b) = −2 − 6 · (0,0 − 0,5) · 1 = +1
+      // — der Vielfahrer nimmt den vollen Tag, denn seine Rate steigt
+      // dort pro gewonnenem Punkt kaum. Mit Deckel 2 (Brücke max. 2 < 4
+      // Punkte Abstand) führe hier noch b.
+      final trips = [
+        trip(1, driver: 'a', passengers: ['b']),
+        trip(2, driver: 'a', passengers: ['b']),
+      ];
+      final plan = planWeek(
+        dates: [week[0], week[1]],
+        availability: {
+          week[0]: ride({'a', 'b'}, oneWay: {'c', 'd'}),
+          week[1]: ride({'a', 'b'}),
+        },
+        overrides: const {},
+        trips: trips,
+        settings: settings,
+      );
+
+      expect(
+        plan[0].suggestedDriverId,
+        'a',
+        reason: 'Voller Tag: 6 · Δ-Rate 1,0 überbrückt die 4 Punkte.',
+      );
+      expect(
+        plan[1].suggestedDriverId,
+        'b',
+        reason: 'Kleiner Tag danach: der Wenigfahrer ist ohnehin dran.',
+      );
     });
 
     test('gleich große Tage lassen alles beim Alten', () {

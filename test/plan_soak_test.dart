@@ -13,17 +13,18 @@
 ///   Akzeptanz-Maßstab gesetzt): Flotte 1×4 / 6×5 / 1×7 Sitze, Tagesgrößen
 ///   und Anwesenheits-Gewichte exakt aus dem echten DaciaRacing-Protokoll
 ///   gemessen (401 Fahrt-Tage: 2er 40 %, 3er 33 %, 4er 20 %, 5er 5,5 %,
-///   6er 1 %, nie 7/8). Ergebnis: Punkte-Ziel klar erfüllt (±2), Raten im
-///   Mittel im ±2-pp-Ziel, Worst-Case ±2,7 pp — der strukturelle Boden:
-///   Selten Anwesende sind (real wie simuliert) eher an GROSSEN Tagen
-///   dabei, fahren also voller und bei gleichen Punkten seltener. Die
-///   Kontrolle „gleicher Würfel, lauter 5-Sitzer" reißt ±2 pp genauso;
-///   die echte, von Menschen geplante Gruppe liegt bei ±5 pp.
+///   6er 1 %, nie 7/8). Ergebnis mit dem Trim-Hub auf kRateBalance = 6
+///   (2026-07-24): Punkte-Ziel klar erfüllt (±2), Raten im Mittel im
+///   ±2-pp-Ziel, Worst-Case ±2,2 pp — der strukturelle Boden: Selten
+///   Anwesende sind (real wie simuliert) eher an GROSSEN Tagen dabei,
+///   fahren also voller und bei gleichen Punkten seltener. Die
+///   Wegwerf-Kontrolle „gleicher Würfel, lauter 5-Sitzer" riss ±2 pp
+///   genauso; die echte, von Menschen geplante Gruppe liegt bei ±5 pp.
 /// * **Realflotte** (ältere Kalibrierung mit deutlich mehr großen Tagen:
 ///   Ø ~3,3 Anwesende bei Tagen mit ≥ 2, P(5) ≈ 9 %, P(≥6) ≈ 3 %; Autos
 ///   4/4/4/4/5/5/5/7): Das Punkte-Ziel wird KLAR erfüllt — alle Endstände
-///   nach 2000 Tagen innerhalb ±2 Punkten. Das Raten-Ziel
-///   (±2 Prozentpunkte) reißt der 7-Sitzer strukturell (−8,8 pp):
+///   nach 2000 Tagen innerhalb ±2,5 Punkten. Das Raten-Ziel
+///   (±2 Prozentpunkte) reißt der 7-Sitzer strukturell (−9,1 pp):
 ///   punkte-fair heißt, er fährt seltener, aber voller —
 ///   Rate ≈ 1/(1 + Ø Mitgenommene je eigener Fahrt), und die hängt an
 ///   der Autogröße. Gleiche Punkte UND gleiche Raten sind bei DIESER
@@ -414,18 +415,19 @@ void main() {
           lessThan(5),
           reason: 'Endstand $p muss um 0 pendeln (Punkte-Ziel).',
         );
-        // Marcus' zweites Ziel: Fahrraten ±2 pp. Ø-Abweichung liegt im
-        // Ziel; die Schranke hier ist der gemessene strukturelle BODEN
-        // (±3 pp, Worst-Case über 10 Seeds): Wer an kleinen Tagen dabei
-        // ist, fährt bei gleichen Punkten zwangsläufig öfter — die
-        // Kontrolle mit lauter 5-Sitzern reißt ±2 pp genauso (22 ‰).
-        // Kein Fahrerwahl-Mechanismus kann darunter; Details im Report
+        // Marcus' zweites Ziel: Fahrraten ±2 pp. Mit dem Trim-Hub auf
+        // kRateBalance = 6 (2026-07-24) liegt die Schranke am gemessenen
+        // strukturellen BODEN (±2,5 pp, Worst-Case über 10 Seeds): Wer an
+        // kleinen Tagen dabei ist, fährt bei gleichen Punkten zwangsläufig
+        // öfter — die Wegwerf-Kontrolle „gleicher Würfel, lauter
+        // 5-Sitzer" riss ±2 pp genauso (22 ‰). Kein Fahrerwahl-
+        // Mechanismus kann darunter; Details im Report
         // `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 3.
         expect(
           r.sharePermille[p]!.abs(),
-          lessThanOrEqualTo(30),
+          lessThanOrEqualTo(25),
           reason:
-              'Fahrrate $p muss am strukturellen Boden (±3 pp) bleiben '
+              'Fahrrate $p muss am strukturellen Boden (±2,5 pp) bleiben '
               '(Akzeptanz Marcus, 2026-07-24).',
         );
       }
@@ -438,14 +440,14 @@ void main() {
       // Exakte Regressions-Pins (Datensatz ist deterministisch).
       expect(r.totalTrips, 2003);
       expect(r.soloTrips, 0);
-      expect(r.spreadAt100, closeTo(3.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(3.0, 1e-9));
-      expect(r.maxLateSpread, closeTo(7.5, 1e-9));
-      expect(r.sharePermille['p4'], -27, reason: 'Bus: seltener, aber voller.');
-      expect(r.points['p4'], closeTo(2.0, 1e-9));
+      expect(r.spreadAt100, closeTo(4.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
+      expect(r.maxLateSpread, closeTo(8.0, 1e-9));
+      expect(r.sharePermille['p4'], -16, reason: 'Bus: seltener, aber voller.');
+      expect(r.points['p4'], closeTo(0.0, 1e-9));
 
       // Robustheit: neun weitere Seeds nur gegen die Ziele (beobachtet:
-      // Punkte ≤ 5,5 · Raten ≤ 27 ‰ — Haupt-Seed ist der Worst-Case).
+      // Punkte ≤ 5,5 · Raten ≤ 22 ‰).
       for (final seed in [
         0xBEEF01,
         0x5EED02,
@@ -466,8 +468,8 @@ void main() {
           );
           expect(
             rr.sharePermille[p]!.abs(),
-            lessThanOrEqualTo(30),
-            reason: 'Seed $seed: Fahrrate $p muss am Boden (±3 pp) bleiben.',
+            lessThanOrEqualTo(25),
+            reason: 'Seed $seed: Fahrrate $p muss am Boden (±2,5 pp) bleiben.',
           );
         }
       }
@@ -514,11 +516,11 @@ void main() {
       // Exakte Regressions-Pins (Datensatz ist deterministisch).
       expect(r.totalTrips, 1945);
       expect(r.soloTrips, 205);
-      expect(r.spreadAt100, closeTo(9.5, 1e-9));
-      expect(r.spreadAtEnd, closeTo(4.0, 1e-9));
-      expect(r.maxLateSpread, closeTo(18.5, 1e-9));
-      expect(r.sharePermille['p8'], -88);
-      expect(r.points['p8'], closeTo(0.5, 1e-9));
+      expect(r.spreadAt100, closeTo(6.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
+      expect(r.maxLateSpread, closeTo(16.5, 1e-9));
+      expect(r.sharePermille['p8'], -91);
+      expect(r.points['p8'], closeTo(-1.0, 1e-9));
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
@@ -553,7 +555,7 @@ void main() {
       // Exakte Regressions-Pins.
       expect(r.totalTrips, 1968);
       expect(r.soloTrips, 205);
-      expect(r.spreadAt100, closeTo(3.5, 1e-9));
+      expect(r.spreadAt100, closeTo(4.5, 1e-9));
       expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
       expect(r.maxLateSpread, closeTo(6.0, 1e-9));
     },
@@ -579,7 +581,7 @@ void main() {
         lessThan(40),
         reason:
             'p4–p8 können fast jeden Tag fahren — zwischen ihnen muss die '
-            'Fairness ausgleichen (beobachtet: ~28 Punkte auf 2000 Tage).',
+            'Fairness ausgleichen (beobachtet: ~30 Punkte auf 2000 Tage).',
       );
       final threeSeaters = [r.points['p2']!, r.points['p3']!]..sort();
       expect(
@@ -603,8 +605,8 @@ void main() {
       // Exakte Regressions-Pins (Datensatz ist deterministisch).
       expect(r.totalTrips, 2070);
       expect(r.soloTrips, 85);
-      expect(r.spreadAt100, closeTo(289.5, 1e-9));
-      expect(r.spreadAtEnd, closeTo(1140.0, 1e-9));
+      expect(r.spreadAt100, closeTo(289.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(1141.5, 1e-9));
       expect(r.points['p1'], closeTo(-831.0, 1e-9));
       expect(r.sharePermille['p1'], -115);
       expect(r.sharePermille['p8'], 51);
@@ -639,10 +641,10 @@ void main() {
       // Exakte Regressions-Pins.
       expect(r.totalTrips, 2679);
       expect(r.soloTrips, 0);
-      expect(r.spreadAt100, closeTo(1270.5, 1e-9));
-      expect(r.spreadAtEnd, closeTo(5131.5, 1e-9));
-      expect(r.points['p8'], closeTo(4187.0, 1e-9));
-      expect(r.sharePermille['p8'], 448);
+      expect(r.spreadAt100, closeTo(1269.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(5148.5, 1e-9));
+      expect(r.points['p8'], closeTo(4205.0, 1e-9));
+      expect(r.sharePermille['p8'], 450);
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );

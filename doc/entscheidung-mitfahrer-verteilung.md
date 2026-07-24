@@ -132,6 +132,11 @@ gleichen die Punkte die Raten schon allein an). **Konsequenz:**
    wirken. Aber: Von einer Erhöhung ist nichts zu erwarten — dieser
    Nachtrag existiert, damit das niemand mehr ausprobieren muss.
 
+*(Aufgehoben für die reale Verteilung: Auf der Zielflotte in Nachtrag 3
+bewegt der Trim den Worst-Case messbar; seit v0.31.0 gilt
+`kRateBalance = 6`. Der Befund oben bleibt für Groß-Tage-lastige
+Verteilungen korrekt.)*
+
 ## Nachtrag 2026-07-24 (3): Zielflotte — das Akzeptanz-Szenario
 
 Marcus hat das Soll-Set neu gesetzt: Flotte **1×4 / 6×5 / 1×7** Sitze, und
@@ -190,13 +195,18 @@ wirkungslos" gilt für die alte Kalibrierung mit ~12 % großen Tagen; auf
 der Zielflotte bewegt k = 6 den Worst-Case messbar (−0,5 pp), wenn auch
 nicht kategorial.
 
-**Stand:** Der Test pinnt die heutige Logik mit der Boden-Schranke
-±30 ‰. **Offen ist eine einzige Produktentscheidung:** kRateBalance
-2 → 6 (eine Konstante in `fairness.dart`, Versions-Bump, Marcus' Merge)
-senkt den Worst-Case von ±2,7 auf ±2,2 pp ≈ Boden. Tiefer ginge nur ein
+**Entscheidung (Marcus, 2026-07-24): kRateBalance 2 → 6, umgesetzt in
+v0.31.0.** Der Worst-Case sinkt damit von ±2,7 auf ±2,2 pp ≈ Boden; die
+praktische Trim-Autorität bleibt bei ~0,2 Punkten (reale Δ-Raten ≈ 0,03),
+der Punkte-Vorrang de facto unberührt. `test/plan_test.dart` pinnt den
+neuen Deckel von beiden Seiten (>6 Punkte Abstand: unantastbar; 4 Punkte
+bei maximaler Raten-Spreizung: der volle Tag wandert), der Zielflotten-
+Soak die Boden-Schranke ±25 ‰ über 10 Seeds. Tiefer ginge nur ein
 Eingriff in die Punkte-Formel selbst (Belegungs-Normierung) — der stünde
 im Konflikt mit KONZEPT 3.2 und dem Grundsatz „Punkte = gegebene
-Mitfahrten" und ist nicht empfohlen.
+Mitfahrten" und bleibt nicht empfohlen. KONZEPT 3.2 selbst ist vom Hub
+unberührt (die Punkteformel ändert sich nicht, nur die Fahrerwahl des
+Planers).
 
 ## Wiedervorlage-Kriterien
 
