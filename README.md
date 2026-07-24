@@ -9,6 +9,16 @@ können die App unabhängig voneinander nutzen.
 Auf dem Handy lässt sie sich über „Zum Home-Bildschirm hinzufügen" wie eine
 normale App installieren (PWA).
 
+| | |
+| --- | --- |
+| <img src="doc/screenshots/uebersicht.png" width="260" alt="Übersicht: Wer ist dran?"> | <img src="doc/screenshots/wochenplan.png" width="260" alt="Wochenplan mit Fahrer-Vorschlag"> |
+| **Übersicht** – wer als Nächstes fahren sollte, dazu Kilometer, gesparte Kosten und Fahrten pro Monat. | **Woche** – antippen, wer wann kann; die App schlägt die Fahrer für die ganze Woche vor. |
+| <img src="doc/screenshots/fahrt-eintragen.png" width="260" alt="Fahrt eintragen"> | <img src="doc/screenshots/statistik.png" width="260" alt="Statistik je Person"> |
+| **Fahrt eintragen** – Kacheln antippen, Fahrer steht automatisch, speichern. | **Statistik** – Punkte, Fahranteil, Kilometer und gesparte Kraftstoffkosten je Person. |
+
+<sub>Screenshots aus dem Demo-Modus der App – Anna, Ben, Clara und David sind
+Beispieldaten.</sub>
+
 ## Was die App macht
 
 - **Fahrten dokumentieren** – pro Fahrtag: wer ist gefahren, wer mitgefahren,
@@ -29,8 +39,9 @@ ganze Gruppe – jeder kann für jeden eintragen.
 
 ### Fahrt eintragen (der 10-Sekunden-Weg)
 
-1. Auf **„Fahrt eintragen"** tippen. Datum steht auf *heute*, **morgen** ist
-   ein Tap entfernt (für die Planung am Vorabend).
+1. Auf **„Fahrt eintragen"** tippen. Datum steht auf *heute*, **gestern** ist
+   ein Tap entfernt (zum Nachtragen). In der Zukunft wird nichts eingetragen —
+   dafür gibt es den Wochenplan.
 2. **Teilnehmer-Kacheln antippen**: 1× = dabei, 2× = nur eine Strecke
    (1-way), 3× = wieder abgewählt.
 3. Die App setzt **automatisch den Fahrer** (wer laut Fairness-Rang dran ist)
@@ -40,22 +51,31 @@ ganze Gruppe – jeder kann für jeden eintragen.
 
 ### Wer ist dran?
 
-Die Startseite sortiert die aktiven Fahrer nach einem **kombinierten
-Fairness-Rang** aus zwei Kennzahlen:
+Die Startseite sortiert die aktiven Fahrer allein nach den **Punkten**:
 
 - **Punkte** = mitgenommene Personen − eigene Mitfahrten − 0,5 × eigene
-  1-way-Fahrten. Wenig Punkte = viel „Schuld".
-- **Fahranteil** = eigene Fahrten ÷ eigene Teilnahmetage. Wer selten fährt,
-  rückt nach vorn.
+  1-way-Fahrten. Wenig Punkte = viel „Schuld", also als Nächstes dran.
+- Bei Gleichstand fährt, wessen letzte Fahrt am längsten her ist.
 
-Beides zusammen verhindert, dass jemand, der immer viele Leute mitnimmt, an
-kleinen Tagen nie drankommt. Bei Gleichstand fährt, wessen letzte Fahrt am
-längsten her ist. Die App **schlägt vor – entschieden wird von Menschen**.
+Der **Fahranteil** (eigene Fahrten ÷ eigene Teilnahmetage) bleibt als Kennzahl
+sichtbar, entscheidet aber nicht mehr mit – so hatte es die Gruppe gewünscht.
+Nur im Wochenplan gibt er bei praktisch gleichem Punktestand den Ausschlag,
+wer die kleinen und wer die vollen Tage bekommt. Die App **schlägt vor –
+entschieden wird von Menschen**.
 
-### Passwort ändern
+### Woche planen
 
-Startseite → Konto-Symbol oben rechts → **Passwort ändern**. Achtung: Es gilt
-für den ganzen Gruppen-Zugang, danach brauchen es alle neu.
+Im Reiter **Woche** tippt ihr an, wer an welchem Tag mitkann (1× = dabei,
+2× = nur eine Strecke). RideBuddy schlägt daraufhin für jeden Tag einen Fahrer
+vor und denkt dabei die ganze Woche voraus; reichen die Plätze eines Autos
+nicht, werden es mehrere. **„Eintragen"** öffnet den Fahrten-Editor fertig
+vorbelegt – für die Punkte zählt erst das Speichern.
+
+### Passwort
+
+Das gemeinsame Gruppenpasswort setzt nur das **Verwalter-Konto** neu
+(Anmelde-Bildschirm → „Verwalter-Konsole"). Absicht: So sperrt niemand
+versehentlich die ganze Gruppe aus.
 
 ## Eigene Gruppe anlegen
 
@@ -102,6 +122,11 @@ anzufassen.
 **Testbackend:** E2E-Tests laufen gegen einen echten lokalen Supabase-Stack
 (echte RLS, echte Auth-Mails via Mailpit) — ein Befehl: `tool/e2e.sh`.
 Details, CI-Anbindung und die dauerhafte Test-VM: [doc/testbackend.md](doc/testbackend.md).
+
+Die Screenshots oben erzeugt `./tool/screenshots.sh` aus dem Demo-Build (baut,
+liefert lokal aus, fährt die App mit Playwright durch). Sie sind Erzeugnisse —
+nicht von Hand bearbeiten; bei Änderungen an der Oberfläche zieht der Workflow
+„Screenshots" sie im PR selbst nach.
 
 Marke und Gestaltung folgen dem Design-Set „RideBuddy": Tokens in
 [lib/core/tokens.dart](lib/core/tokens.dart), die Bildmarke als Widget in

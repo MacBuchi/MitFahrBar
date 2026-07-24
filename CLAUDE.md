@@ -432,6 +432,43 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps
   inklusive Adaptive-Icon-Vordergrund. Icons nie von Hand bearbeiten.
   Schrift: Space Grotesk (Display) + Manrope (Body) als Variable Fonts.
+- **Die README-Screenshots sind Erzeugnisse, keine Bilder.**
+  `tool/screenshots.sh` baut die App im Demo-Modus, fährt sie mit Playwright
+  durch und schreibt `doc/screenshots/*.png` — nie von Hand nachbauen oder
+  zuschneiden, dieselbe Linie wie bei den Icons. Der Workflow
+  „Screenshots" (`.github/workflows/screenshots.yml`) macht das bei jedem
+  PR, der `lib/`, `assets/` oder `web/` anfasst, selbst und committet das
+  Ergebnis in den Branch. Zwei Dinge daran sind nicht verhandelbar: Der
+  Job überspringt sich, wenn die Branch-Spitze schon sein eigener Commit
+  ist (`docs: refresh README screenshots`) — der Pfadfilter allein
+  genügt dafür **nicht**, weil bei `pull_request` der ganze PR-Diff zählt
+  und nicht der neue Commit; ohne den Riegel liefe es im Kreis, sobald
+  zwei Läufe verschiedene Bilder erzeugen (im Screenshot steht ein
+  Datum). Und nach dem Push muss die CI per `workflow_dispatch`
+  angestoßen werden — ein Push mit dem `GITHUB_TOKEN` erzeugt bewusst
+  keine Ereignisse, der PR hinge sonst ohne Required Checks fest. Weil die
+  Bilder in `doc/` liegen, nimmt der Version Guard `doc/` ausdrücklich aus:
+  Ein neuer Screenshot ist kein Release.
+  **Zwei Läufe sind nie bitgleich** — die Stimmungs-Gesichter animieren,
+  und jeder Lauf erwischt eine andere Phase (gemessen 5–281 abweichende
+  Pixel, die Bounding-Box jedes Mal exakt auf einem Smiley).
+  `reducedMotion` im Browser hilft nicht: Flutter-Web reicht
+  `prefers-reduced-motion` nicht bis `disableAnimations` durch — der
+  Hebel, den `pumpApp` in Tests benutzt, existiert dort nicht. Deshalb
+  entscheidet `tool/screenshot_changed.mjs` über einen Pixel-Schwellwert,
+  ob der neue Stand überhaupt übernommen wird; ohne ihn committete die CI
+  bei jedem Lauf. Wer den Schwellwert anfasst, misst nach (zweimal
+  `tool/screenshots.sh` laufen lassen), statt zu schätzen.
+  **Der Workflow committet über die Contents-API, nicht mit `git commit`.**
+  `main` verlangt signierte Commits (`required_signatures`), und ein
+  Commit aus dem Runner trägt keine Signatur — er blockiert den PR mit
+  „base branch policy prohibits the merge", obwohl jeder Check grün ist.
+  Über die API committet GitHub selbst und signiert dabei. Das kostet
+  einen Commit je Datei; beim Squash-Merge bleibt ohnehin einer übrig.
+  Dieselbe Falle trifft jeden künftigen Workflow, der etwas ins Repo
+  zurückschreibt.
+  Die Bildinhalte hängen an Koordinaten im 430×900-Viewport — verschiebt
+  sich das Layout, zeigen die Bilder im PR sofort das Falsche.
 - **Lizenz:** `LICENSE` ist MIT. Die Bildmarke und die gebündelten Schriften
   hängen nicht daran — Space Grotesk und Manrope stehen unter der SIL OFL,
   die verlangt, dass ihr Lizenztext mitgeliefert wird. Neue Assets deshalb
