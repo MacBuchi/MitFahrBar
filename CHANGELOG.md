@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.34.1] – 2026-07-24
+
+### Behoben
+
+- **Der Startbildschirm und die Anmeldeseite sagen jetzt auch
+  MitFahrBar.** Der zweifarbige Schriftzug war bei der Umbenennung
+  durchgerutscht und begrüßte euch noch als RideBuddy.
+
 ## [0.34.0] – 2026-07-24
 
 ### Wichtig

@@ -257,9 +257,13 @@ class MitFahrBarWordmark extends StatelessWidget {
     return Text.rich(
       TextSpan(
         children: [
-          TextSpan(text: 'Ride', style: base),
+          // Zweifarbig wie beim Vorgänger RideBuddy: Der Schriftzug ist
+          // bewusst KEIN einzelner String — genau deshalb hat die
+          // Umbenennung v0.34.0 ihn übersehen (#87). Betont wird „Bar",
+          // das Wortspiel-Ende, wie vorher „Buddy".
+          TextSpan(text: 'MitFahr', style: base),
           TextSpan(
-            text: 'Buddy',
+            text: 'Bar',
             style: base.copyWith(
               color: color ?? Theme.of(context).colorScheme.primary,
             ),
