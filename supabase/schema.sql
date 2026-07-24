@@ -270,6 +270,34 @@ begin
    where id = target;
 end $$;
 
+-- Löst die Verknüpfung (Issue #73) — die Übergabe. Sudo-Muster: eigenes
+-- Admin-Passwort erneut. Danach kann ein anderes Konto über claim_admin_group
+-- neu einrasten; Gruppendaten und Verwalter-Konto bleiben unberührt.
+-- Bewusste Grenze: Wer Postfach UND Passwort verliert, braucht den
+-- Betreiber — Selbstbedienung daran vorbei wäre die Übernahme-Lücke,
+-- die das Einrasten gerade verhindert.
+create or replace function public.admin_release_group(
+  admin_password text
+) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  target uuid;
+  own text;
+begin
+  select ga.group_id into target from public.group_admins ga
+   where ga.user_id = auth.uid();
+  if target is null then
+    raise exception 'not linked';
+  end if;
+
+  select encrypted_password into own from auth.users where id = auth.uid();
+  if own is null or own <> crypt(admin_password, own) then
+    raise exception 'wrong admin password';
+  end if;
+
+  delete from public.group_admins where user_id = auth.uid();
+end $$;
+
 -- Löscht Gruppe UND Admin-Konto. Sudo-Muster: eigenes Admin-Passwort erneut
 -- plus getippter Handle. Der Gruppen-Auth-User zieht über die Kaskade
 -- (groups.id -> auth.users, Datentabellen -> groups) alles mit.

@@ -281,7 +281,12 @@ class HelpScreen extends StatelessWidget {
                     'eine Verwalter-Konsole einrichten (eigenes E-Mail-Konto): '
                     'Dort wird das Gruppenpasswort neu gesetzt, wenn es '
                     'verloren geht — und nur dort lässt sich die Gruppe '
-                    'löschen. Eure E-Mail sieht dabei niemand aus der Gruppe.',
+                    'löschen. Eure E-Mail sieht dabei niemand aus der Gruppe. '
+                    'Soll jemand anderes übernehmen, löst die Verwalterin '
+                    'die Verknüpfung in der Konsole; auch die E-Mail-Adresse '
+                    'lässt sich dort ändern. Nur wer Postfach UND Passwort '
+                    'zugleich verliert, kommt nicht mehr an das '
+                    'Verwalter-Konto — darum beides gut aufheben.',
               ),
               _Line(
                 text:

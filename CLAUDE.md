@@ -126,8 +126,15 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   hat bewusst **null Policies**; der Signup-Trigger überspringt
   Admin-Konten, sonst entstehen Geister-„pending"-Gruppen; die
   Erst-Verknüpfung beweist sich mit dem Gruppen-Login und **rastet ein**
-  (dokumentierte Grenze: bis dahin gewinnt das erste Postfach — der
-  Verwalter verknüpft direkt nach dem Release). „Passwort ändern" gibt es
+  (bis dahin gewinnt das erste Postfach — der Verwalter verknüpft direkt
+  nach dem Release). Das Einrasten hat seit v0.29.0 genau EINEN gewollten
+  Ausgang: Der aktuelle Verwalter löst die Verknüpfung selbst
+  (`admin_release_group`, Sudo-Muster) — danach rastet das nächste Konto
+  über den normalen claim-Weg ein; die E-Mail-Adresse wechselt über
+  Supabase-Standard (Links an alte UND neue Adresse). Bewusste Grenze:
+  Postfach UND Passwort zugleich verloren heißt Betreiber-SQL — jeder
+  Selbstbedienungs-Weg daran vorbei wäre die Übernahme-Lücke, die das
+  Einrasten verhindert (jedes Mitglied kennt das Gruppenpasswort!). „Passwort ändern" gibt es
   im Gruppen-Menü nicht mehr — nur die Konsole setzt es neu, damit kein
   Mitglied alle aussperrt und der Verwalter jeden Schaden selbst heilt
   (kein Betreiber-Eingriff). Auth-Mails (Reset, Bestätigung) brauchen

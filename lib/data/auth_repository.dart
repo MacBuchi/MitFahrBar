@@ -16,6 +16,11 @@ class EmailNotConfirmedException implements Exception {
   const EmailNotConfirmedException();
 }
 
+/// Die gewünschte neue E-Mail-Adresse gehört schon einem Konto.
+class EmailTakenException implements Exception {
+  const EmailTakenException();
+}
+
 abstract class AuthRepository {
   bool get loggedIn;
 
@@ -58,6 +63,12 @@ abstract class AuthRepository {
   /// Bestätigungs-Mail der Registrierung erneut anstoßen (z. B. Mail weg
   /// oder im Spam) — GoTrue drosselt Wiederholungen selbst.
   Future<void> resendAdminConfirmation(String email);
+
+  /// E-Mail-Adresse des Verwalter-Kontos ändern — Supabase-Standard
+  /// „secure email change": Bestätigungs-Links an die alte UND die neue
+  /// Adresse, erst danach gilt die neue. Wirft [EmailTakenException],
+  /// wenn die Adresse schon ein Konto hat.
+  Future<void> changeAdminEmail(String newEmail);
 
   /// Passwort-vergessen-Mail für ein Verwalter-Konto — Supabase-Standard,
   /// der Betreiber ist nicht beteiligt.
@@ -143,6 +154,19 @@ class SupabaseAuthRepository implements AuthRepository {
       _client.auth.resend(type: OtpType.signup, email: email);
 
   @override
+  Future<void> changeAdminEmail(String newEmail) async {
+    try {
+      await _client.auth.updateUser(
+        UserAttributes(email: newEmail),
+        emailRedirectTo: 'https://macbuchi.github.io/Fahrgemeinschaft/',
+      );
+    } on AuthApiException catch (e) {
+      if (e.code == 'email_exists') throw const EmailTakenException();
+      rethrow;
+    }
+  }
+
+  @override
   Future<void> sendAdminPasswordReset(String email) =>
       // Der Link führt auf die Web-App (Groß-F!); dort fängt der
       // passwordRecovery-Auth-Event den Nutzer mit dem Neu-Setzen-Dialog ab.
@@ -190,6 +214,9 @@ class AlwaysLoggedInAuthRepository implements AuthRepository {
 
   @override
   Future<void> resendAdminConfirmation(String email) async {}
+
+  @override
+  Future<void> changeAdminEmail(String newEmail) async {}
 
   @override
   Future<void> sendAdminPasswordReset(String email) async {}

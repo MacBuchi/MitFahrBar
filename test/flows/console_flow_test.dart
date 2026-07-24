@@ -166,6 +166,73 @@ void main() {
     );
   });
 
+  testWidgets('Übergabe: Verknüpfung lösen gibt die Gruppe frei', (
+    tester,
+  ) async {
+    final backend = _backend();
+    backend.adminAccounts[_adminEmail]!.groupId = backend.groups.keys.first;
+
+    await pumpApp(tester, backend, splash: false);
+    await _signInToConsole(tester);
+
+    await _tap(
+      tester,
+      find.widgetWithText(FilledButton, 'Verknüpfung lösen …'),
+    );
+    await tester.enterText(find.byType(TextField).last, 'falsches-passwort');
+    await _tap(tester, find.widgetWithText(FilledButton, 'Lösen'));
+    expect(
+      find.text('Das Admin-Passwort stimmt nicht.'),
+      findsOneWidget,
+      reason: 'Ohne Sudo-Beweis bleibt die Verknüpfung bestehen.',
+    );
+
+    await tester.enterText(find.byType(TextField).last, _adminPassword);
+    await _tap(tester, find.widgetWithText(FilledButton, 'Lösen'));
+
+    expect(
+      find.text('Gruppe verknüpfen'),
+      findsOneWidget,
+      reason: 'Nach dem Lösen zeigt die Konsole wieder das Verknüpfen an.',
+    );
+    expect(backend.adminAccounts[_adminEmail]!.groupId, isNull);
+    expect(
+      backend.groups,
+      hasLength(1),
+      reason: 'Lösen ist eine Übergabe — die Gruppendaten bleiben unberührt.',
+    );
+    expect(
+      logRing.lines.join('\n'),
+      isNot(contains(_adminPassword)),
+      reason: 'Ein Passwort darf nie im Protokoll landen.',
+    );
+  });
+
+  testWidgets('E-Mail ändern geht den Doppelbestätigungs-Weg', (tester) async {
+    final backend = _backend();
+    backend.adminAccounts[_adminEmail]!.groupId = backend.groups.keys.first;
+
+    await pumpApp(tester, backend, splash: false);
+    await _signInToConsole(tester);
+
+    await _tap(tester, find.text('E-Mail-Adresse ändern'));
+    await tester.enterText(find.byType(TextField).last, 'neu@example.org');
+    await _tap(tester, find.widgetWithText(FilledButton, 'Ändern'));
+
+    expect(
+      backend.emailChangeRequests,
+      ['neu@example.org'],
+      reason: 'Der Wechsel wurde wirklich angefordert.',
+    );
+    expect(
+      find.textContaining('alte und die neue Adresse'),
+      findsOneWidget,
+      reason:
+          'Die Meldung erklärt, dass erst beide Links den Wechsel gelten '
+          'lassen — sonst wundert man sich, warum nichts passiert.',
+    );
+  });
+
   testWidgets('Löschen scheitert folgenlos an falscher Sudo-Eingabe', (
     tester,
   ) async {

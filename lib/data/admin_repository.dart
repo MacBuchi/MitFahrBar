@@ -40,6 +40,11 @@ abstract class AdminRepository {
   /// Setzt das Passwort des Gruppen-Kontos neu (die Rettungsleine).
   Future<void> resetGroupPassword(String newPassword);
 
+  /// Löst die Verknüpfung — die Übergabe (Issue #73). Verlangt das eigene
+  /// Admin-Passwort erneut; danach kann ein anderes Konto neu einrasten.
+  /// Gruppendaten und dieses Konto bleiben unberührt.
+  Future<void> releaseGroup(String adminPassword);
+
   /// Löscht Gruppe und Verwalter-Konto endgültig. Verlangt das eigene
   /// Admin-Passwort erneut und den getippten Handle.
   Future<void> deleteGroup({
@@ -105,6 +110,18 @@ class SupabaseAdminRepository implements AdminRepository {
   }
 
   @override
+  Future<void> releaseGroup(String adminPassword) async {
+    try {
+      await _client.rpc<void>(
+        'admin_release_group',
+        params: {'admin_password': adminPassword},
+      );
+    } catch (error) {
+      _mapError(error);
+    }
+  }
+
+  @override
   Future<void> deleteGroup({
     required String adminPassword,
     required String handleConfirmation,
@@ -133,6 +150,9 @@ class NoopAdminRepository implements AdminRepository {
 
   @override
   Future<void> resetGroupPassword(String newPassword) async {}
+
+  @override
+  Future<void> releaseGroup(String adminPassword) async {}
 
   @override
   Future<void> deleteGroup({

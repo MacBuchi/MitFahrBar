@@ -133,6 +133,54 @@ void main() {
     );
   });
 
+  test('Übergabe: lösen mit Sudo, dann rastet das nächste Konto ein', () async {
+    final g2 = await registerGroup('uebergabe');
+    await activateGroup(service, g2.id);
+    final first = await registerAdmin();
+    await first.client.rpc<void>(
+      'claim_admin_group',
+      params: {'claim_handle': g2.handle, 'group_password': g2.password},
+    );
+
+    await expectRpcError(
+      first.client.rpc<void>(
+        'admin_release_group',
+        params: {'admin_password': 'voellig-falsch'},
+      ),
+      'wrong admin password',
+    );
+
+    await first.client.rpc<void>(
+      'admin_release_group',
+      params: {'admin_password': first.password},
+    );
+    expect(
+      await service.from('group_admins').select().eq('group_id', g2.id),
+      isEmpty,
+      reason: 'Nur die Verknüpfungszeile fällt — Gruppe und Konto bleiben.',
+    );
+
+    final successor = await registerAdmin();
+    await successor.client.rpc<void>(
+      'claim_admin_group',
+      params: {'claim_handle': g2.handle, 'group_password': g2.password},
+    );
+    final linked = await successor.client.rpc<List<dynamic>>('my_admin_group');
+    expect(
+      (linked.single as Map<String, dynamic>)['handle'],
+      g2.handle,
+      reason: 'Die Nachfolgerin rastet über den normalen claim-Weg ein.',
+    );
+
+    await expectRpcError(
+      first.client.rpc<void>(
+        'claim_admin_group',
+        params: {'claim_handle': g2.handle, 'group_password': g2.password},
+      ),
+      'group already claimed',
+    );
+  });
+
   test('eine pending-Gruppe lässt sich nicht verknüpfen', () async {
     // Erst die Freigabe macht die Gruppe verknüpfbar — vorher lehnt der
     // Server ab, selbst mit korrektem Gruppen-Login.
