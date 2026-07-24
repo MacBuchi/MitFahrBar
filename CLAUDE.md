@@ -101,7 +101,13 @@ beschreibt, was für RideBuddy davon abweicht oder zusätzlich gilt.
   Nach jedem Merge, der `supabase/functions/` ändert: prüfen, ob die
   GitHub-Integration die Function deployt hat (sie deployt die in
   config.toml deklarierten), sonst manuell
-  `supabase functions deploy request-group`.
+  `supabase functions deploy request-group`. Missbrauchsschutz (#69):
+  Die Function deckelt neue pending-Gruppen **global** auf
+  `SIGNUP_HOURLY_CAP` je Stunde (Default 5) — bewusst global statt je IP
+  (keine IP-Speicherung, keine neue Tabelle, durabel über die DB) und
+  bewusst ohne Captcha-Dienst (dieselbe Linie wie „kein Sentry"). Die
+  eingecheckte `supabase/functions/.env` hebt die Grenze NUR lokal an,
+  sonst liefe die E2E-Suite ins 429; deployt wird sie nie.
 - **`group_id` gehört auch in fachliche Primärschlüssel.** Wo der Schlüssel
   keine generierte UUID ist, sondern aus Fachdaten besteht (`plan_date`,
   `person_id`, …), muss `group_id` darin stehen — sonst ist er über alle

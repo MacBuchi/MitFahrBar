@@ -73,6 +73,16 @@ class _RequestGroupScreenState extends ConsumerState<RequestGroupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Der Anmeldename ist schon vergeben.')),
       );
+    } on TooManyRequestsException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Gerade kommen ungewöhnlich viele Anfragen — bitte versuche '
+            'es in einer Stunde noch einmal.',
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
