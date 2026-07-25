@@ -512,7 +512,12 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Über die API committet GitHub selbst und signiert dabei. Das kostet
   einen Commit je Datei; beim Squash-Merge bleibt ohnehin einer übrig.
   Dieselbe Falle trifft jeden künftigen Workflow, der etwas ins Repo
-  zurückschreibt.
+  zurückschreibt. Und der Payload geht per `--input` über stdin, **nie
+  als Argument**: Linux deckelt ein einzelnes Argument bei 128 KB —
+  das Base64 einer PNG über ~96 KB riss den Lauf mitten in der Schleife
+  ab (25.07.2026), zurück blieben ein halb committeter Bildersatz und
+  ein PR ohne Checks auf dem neuen Head, weil auch der CI-Dispatch
+  danach nie lief.
   Die Bildinhalte hängen an Koordinaten im 430×900-Viewport — verschiebt
   sich das Layout, zeigen die Bilder im PR sofort das Falsche.
 - **Lizenz:** `LICENSE` ist MIT. Die Bildmarke und die gebündelten Schriften
