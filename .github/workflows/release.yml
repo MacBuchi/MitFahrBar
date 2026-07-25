@@ -140,7 +140,13 @@ jobs:
         if: steps.keystore.outputs.present == 'true'
         with:
           name: android-apk
-          path: fahrgemeinschaft-${{ needs.version.outputs.tag }}.apk
+          # Muss zum cp-Ziel oben passen. Genau hier riss v0.34.1 ab: Beim
+          # Umbenennen auf mitfahrbar-*.apk wurde nur der cp-Schritt
+          # angepasst — Upload und Release-Dateiliste suchten weiter den
+          # alten Namen, der Lauf starb NACH dem Taggen und hinterließ
+          # einen Tag ohne Release (den die Tag-Entscheidung dann für
+          # immer als „schon veröffentlicht" wertete).
+          path: mitfahrbar-${{ needs.version.outputs.tag }}.apk
           if-no-files-found: error
 
   deploy-web:
@@ -203,5 +209,5 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           body_path: release-body.md
-          files: fahrgemeinschaft-*.apk
+          files: mitfahrbar-*.apk
           fail_on_unmatched_files: false
