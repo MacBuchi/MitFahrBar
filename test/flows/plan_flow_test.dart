@@ -115,7 +115,7 @@ void main() {
     expect(find.text('Wochenplan'), findsOneWidget);
     expect(find.text('Anna'), findsWidgets);
     expect(find.text('Bert'), findsWidgets);
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     expect(
       find.textContaining('KW ${isoWeekNumber(monday)}'),
       findsOneWidget,
@@ -145,7 +145,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     await tester.tap(_cell('Anna', monday));
     await tester.pumpAndSettle();
     await tester.tap(_cell('Bert', monday));
@@ -168,7 +168,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final week = planningWeek();
+    final week = planningWeek(testToday);
     for (final day in [week[0], week[1]]) {
       for (final name in ['Anna', 'Bert']) {
         await tester.tap(_cell(name, day));
@@ -205,7 +205,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     expect(_cell('Anna', monday, state: 'kann nicht'), findsOneWidget);
 
     await tester.tap(_cell('Anna', monday));
@@ -230,7 +230,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     // Anna zweimal antippen: dabei → nur eine Richtung. Bert einmal.
     await tester.tap(_cell('Anna', monday));
     await tester.pumpAndSettle();
@@ -259,7 +259,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     await tester.tap(_cell('Anna', monday));
     await tester.pumpAndSettle();
     await tester.tap(_cell('Anna', monday));
@@ -287,7 +287,7 @@ void main() {
     final backend = await _backend(['Anna', 'Bert']);
     final data = backend.dataFor(backend.currentGroupId ?? 'group-1');
     final ids = {for (final p in await data.loadPersons()) p.name: p.id};
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     await data.createTrip(monday, {
       ids['Anna']!: ParticipationStatus.driver,
       ids['Bert']!: ParticipationStatus.passenger,
@@ -325,7 +325,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     for (final name in ['Anna', 'Bert', 'Clara']) {
       await tester.tap(_cell(name, monday));
       await tester.pumpAndSettle();
@@ -345,7 +345,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final week = planningWeek();
+    final week = planningWeek(testToday);
     // Montag fährt Anna (2 Mitfahrer), Dienstag Bert (2 Mitfahrer) — die
     // Vorwärts-Simulation setzt die Fahrer genau so, weil Anna nach Montag
     // im Plus steht.
@@ -369,7 +369,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     // Nur Anna kann — sie fährt allein, das ist kein Mitnehmen.
     await tester.tap(_cell('Anna', monday));
     await tester.pumpAndSettle();
@@ -388,7 +388,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final week = planningWeek();
+    final week = planningWeek(testToday);
     // Montag: Anna fährt, Bert nur eine Richtung (zweiter Tap) → 0,5.
     await tester.tap(_cell('Anna', week[0]));
     await tester.pumpAndSettle();
@@ -423,7 +423,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     await tester.tap(_cell('Anna', monday));
     await tester.pumpAndSettle();
     await tester.tap(_cell('Bert', monday));
@@ -465,7 +465,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     await tester.tap(_cell('Anna', monday));
     await tester.pump();
 
@@ -498,7 +498,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     await tester.tap(_cell('Anna', monday));
     await tester.pumpAndSettle();
 
@@ -536,7 +536,7 @@ void main() {
     final ghost = await data.createPerson(
       const Person(id: '', name: 'Carla', active: true),
     );
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     for (final p in [anna, bert, ghost]) {
       await data.setAvailability(monday, p.id, PlanRide.full);
     }
@@ -578,7 +578,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
       await tester.tap(_cell(name, monday));
       await tester.pumpAndSettle();
@@ -611,7 +611,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     for (final name in ['Anna', 'Bert', 'Clara']) {
       await tester.tap(_cell(name, monday));
       await tester.pumpAndSettle();
@@ -690,7 +690,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
       await tester.tap(_cell(name, monday));
       await tester.pumpAndSettle();
@@ -759,7 +759,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     for (final name in ['Anna', 'Bert', 'Clara']) {
       await tester.tap(_cell(name, monday));
       await tester.pumpAndSettle();
@@ -794,7 +794,7 @@ void main() {
     await _login(tester);
     await _openPlan(tester);
 
-    final monday = planningWeek().first;
+    final monday = planningWeek(testToday).first;
     for (final name in ['Anna', 'Bert', 'Clara']) {
       await tester.tap(_cell(name, monday));
       await tester.pumpAndSettle();

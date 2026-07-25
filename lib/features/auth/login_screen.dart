@@ -68,6 +68,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Center(child: MitFahrBarMark(size: 120)),
+                    // Die Straße unter den Rädern: Die Marke hat im
+                    // 120×100-Raster 8 % Luft unter den Rädern (~8 px bei
+                    // Größe 120) — der negative Versatz stellt das Auto
+                    // auf die Linie statt darüber schweben zu lassen.
+                    Center(
+                      child: Transform.translate(
+                        offset: const Offset(0, -6),
+                        child: const RoadLine(width: 146),
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.m),
                     const Center(child: MitFahrBarWordmark(fontSize: 34)),
                     const SizedBox(height: AppSpacing.xs),

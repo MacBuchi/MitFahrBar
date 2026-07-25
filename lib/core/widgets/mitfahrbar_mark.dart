@@ -36,7 +36,10 @@ class MitFahrBarMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final painter = CustomPaint(
-      painter: _MitFahrBarMarkPainter(variant),
+      painter: _MitFahrBarMarkPainter(
+        variant,
+        dark: Theme.of(context).brightness == Brightness.dark,
+      ),
       child: const SizedBox.expand(),
     );
     final content = AspectRatio(
@@ -79,6 +82,22 @@ class _Palette {
     streak: AppColors.brandBright,
   );
 
+  /// [_gradient] mit einem einzigen Unterschied: dem Reifenton. Das
+  /// Fast-Schwarz der Vorlage (#1A1030) versinkt im dunklen Theme in
+  /// `darkBackground` (#06171C) — übrig blieb nur die helle Nabe
+  /// (gemeldet 25.07.2026). Gleiche flache Kreise, gleiche Geometrie;
+  /// `mark.svg` und die Icons bleiben unverändert, die liegen auf
+  /// festen Kachel-Hintergründen ohne Theme.
+  static const _gradientOnDark = _Palette(
+    body: AppColors.brand,
+    bodyGradient: true,
+    window: Colors.white,
+    head: AppColors.brand,
+    wheel: Color(0xFF24505E),
+    hub: AppColors.accent,
+    streak: AppColors.brandBright,
+  );
+
   static const _ink = _Palette(
     body: Color(0xFF0C3038),
     window: AppColors.paper,
@@ -97,11 +116,14 @@ class _Palette {
     streak: Color(0x8CFFFFFF),
   );
 
-  static _Palette of(MitFahrBarMarkVariant v) => switch (v) {
-    MitFahrBarMarkVariant.gradient => _gradient,
-    MitFahrBarMarkVariant.ink => _ink,
-    MitFahrBarMarkVariant.white => _white,
-  };
+  /// [dark] betrifft nur die Gradient-Variante — `ink` ist für helle
+  /// Flächen gedacht, `white` liegt ohnehin auf farbigem Grund.
+  static _Palette of(MitFahrBarMarkVariant v, {bool dark = false}) =>
+      switch (v) {
+        MitFahrBarMarkVariant.gradient => dark ? _gradientOnDark : _gradient,
+        MitFahrBarMarkVariant.ink => _ink,
+        MitFahrBarMarkVariant.white => _white,
+      };
 }
 
 /// Seitenverhältnis der Marke (Breite : Höhe) — für alle, die sie selbst
@@ -116,6 +138,7 @@ class MitFahrBarPose {
     this.pitch = 0,
     this.lift = 0,
     this.streakOpacity = 1,
+    this.streakBend = 0,
     this.headScales = const [1, 1, 1],
   });
 
@@ -132,6 +155,13 @@ class MitFahrBarPose {
   /// Speed-Streaks: 1 in voller Fahrt, 0 im Stand.
   final double streakOpacity;
 
+  /// Biegung der Streaks (0..1): 0 = gerade wie in `mark.svg`, 1 = volle
+  /// Verwirbelung (oben auf, unten ab). Nur die Splash-Animation setzt
+  /// das — statische Marke und Icons bleiben deckungsgleich mit der
+  /// Vorlage, sonst hätte die Bildmarke zwei Wahrheiten (Marcus'
+  /// Design-Entscheidung vom 25.07.2026).
+  final double streakBend;
+
   /// Größe der drei Köpfe in Fahrtrichtung: [Fahrer, Mitte, hinten].
   /// 0 = nicht da, kurz über 1 = das Aufploppen.
   final List<double> headScales;
@@ -145,12 +175,13 @@ class MitFahrBarPose {
 void paintMitFahrBarMark(
   Canvas canvas,
   Size size,
-  MitFahrBarMarkVariant variant, [
+  MitFahrBarMarkVariant variant, {
   MitFahrBarPose pose = MitFahrBarPose.resting,
-]) {
+  bool dark = false,
+}) {
   const designWidth = 120.0;
   const designHeight = 100.0;
-  final palette = _Palette.of(variant);
+  final palette = _Palette.of(variant, dark: dark);
   final scale = size.width / designWidth;
 
   canvas.save();
@@ -164,13 +195,33 @@ void paintMitFahrBarMark(
         paint,
       );
 
-  // Speed-Streaks (nicht mitverschoben, leicht transparent).
+  // Speed-Streaks (nicht mitverschoben, leicht transparent). Als Striche
+  // mit runden Kappen gezeichnet: Bei `streakBend = 0` ergibt das exakt
+  // die geraden Rundrechtecke der Vorlage (ein Strich der Breite 5 mit
+  // runden Enden IST das 5er-Rundrechteck) — in Fahrt biegt die
+  // Verwirbelung sie auseinander: oben auf, Mitte ruhig, unten ab.
   if (pose.streakOpacity > 0.01) {
     final streak = Paint()
-      ..color = palette.streak.withValues(alpha: 0.9 * pose.streakOpacity);
-    rrect(106, 38, 20, 5, 2.5, streak);
-    rrect(108, 54, 18, 5, 2.5, streak);
-    rrect(106, 70, 19, 5, 2.5, streak);
+      ..color = palette.streak.withValues(alpha: 0.9 * pose.streakOpacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    final bend = pose.streakBend;
+    void swoosh(double x0, double y0, double x1, double drift) {
+      final path = Path()
+        ..moveTo(x0, y0)
+        ..quadraticBezierTo(
+          (x0 + x1) / 2,
+          y0 + drift * bend * 0.35,
+          x1,
+          y0 + drift * bend,
+        );
+      canvas.drawPath(path, streak);
+    }
+
+    swoosh(108.5, 40.5, 123.5, -4.5);
+    swoosh(110.5, 56.5, 123.5, 1.0);
+    swoosh(108.5, 72.5, 122.5, 4.5);
   }
 
   // Fahrzeug – im Entwurf um 10 nach links versetzt.
@@ -225,20 +276,46 @@ void paintMitFahrBarMark(
 }
 
 class _MitFahrBarMarkPainter extends CustomPainter {
-  _MitFahrBarMarkPainter(this.variant);
+  _MitFahrBarMarkPainter(this.variant, {required this.dark});
 
   final MitFahrBarMarkVariant variant;
+  final bool dark;
 
   @override
   void paint(Canvas canvas, Size size) =>
-      paintMitFahrBarMark(canvas, size, variant);
+      paintMitFahrBarMark(canvas, size, variant, dark: dark);
 
   @override
   bool shouldRepaint(_MitFahrBarMarkPainter oldDelegate) =>
-      oldDelegate.variant != variant;
+      oldDelegate.variant != variant || oldDelegate.dark != dark;
 }
 
-/// Wortmarke „MitFahrBar" – „Ride" in Textfarbe, „Buddy" im Markenton.
+/// Durchgezogene Straßenlinie unter der Bildmarke — das Auto steht darauf,
+/// der Schriftzug hängt darunter. Entwurf vom 25.07.2026 (Variante B mit
+/// durchgezogener Linie statt der Strichel-Varianten); ersetzt die gelbe
+/// Doppellinie, die nie Design war, sondern Flutters Notfall-Textstil
+/// ohne Material-Kontext.
+class RoadLine extends StatelessWidget {
+  const RoadLine({super.key, required this.width});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: 3.5,
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+/// Wortmarke „MitFahrBar" – „Fahr" im Markenton, Rest in Textfarbe.
 class MitFahrBarWordmark extends StatelessWidget {
   const MitFahrBarWordmark({super.key, this.fontSize = 28, this.color});
 
@@ -257,13 +334,18 @@ class MitFahrBarWordmark extends StatelessWidget {
     return Text.rich(
       TextSpan(
         children: [
-          TextSpan(text: 'Ride', style: base),
+          // Zweifarbig wie beim Vorgänger RideBuddy: Der Schriftzug ist
+          // bewusst KEIN einzelner String — genau deshalb hat die
+          // Umbenennung v0.34.0 ihn übersehen (#87). Betont wird „Fahr",
+          // der Kern des Namens (Marcus' Entscheidung vom 25.07.2026).
+          TextSpan(text: 'Mit', style: base),
           TextSpan(
-            text: 'Buddy',
+            text: 'Fahr',
             style: base.copyWith(
               color: color ?? Theme.of(context).colorScheme.primary,
             ),
           ),
+          TextSpan(text: 'Bar', style: base),
         ],
       ),
       semanticsLabel: 'MitFahrBar',

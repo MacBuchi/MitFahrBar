@@ -135,7 +135,7 @@ jobs:
         run: |
           flutter build apk --release
           cp build/app/outputs/flutter-apk/app-release.apk \
-             "fahrgemeinschaft-${{ needs.version.outputs.tag }}.apk"
+             "mitfahrbar-${{ needs.version.outputs.tag }}.apk"
       - uses: actions/upload-artifact@v7
         if: steps.keystore.outputs.present == 'true'
         with:

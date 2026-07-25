@@ -4,6 +4,28 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.34.1] – 2026-07-25
+
+### Behoben
+
+- **Der Startbildschirm und die Anmeldeseite sagen jetzt auch
+  MitFahrBar.** Der zweifarbige Schriftzug war bei der Umbenennung
+  durchgerutscht und begrüßte euch noch als RideBuddy.
+- **Die gelbe Doppellinie unter dem Namen ist weg.** Sie war nie
+  Absicht, sondern ein Darstellungsfehler des Startbildschirms.
+- **Im dunklen Design sind die Reifen wieder zu sehen.** Ihr
+  Fast-Schwarz versank bisher im dunklen Hintergrund — übrig blieben
+  nur die hellen Radnaben.
+
+### Geändert
+
+- **Der Schriftzug betont jetzt „Fahr"** — Mit**Fahr**Bar, die Mitte in
+  Markenblau.
+- **Das Auto steht auf einer Straße:** eine dezente Linie unter den
+  Rädern, auf dem Startbildschirm und der Anmeldeseite. Und während der
+  Anfahrt biegen sich die drei Fahrtwind-Streifen hinter dem Auto leicht
+  — wie echte Verwirbelung.
+
 ## [0.34.0] – 2026-07-24
 
 ### Wichtig
