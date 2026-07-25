@@ -308,6 +308,13 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Fehler kompilieren sauber und fallen sonst erst auf dem Gerät des Nutzers
   auf. Jede neue Manifest-/Gradle-Voraussetzung kommt dort mit einer
   `reason:` dazu, die den echten Ausfall beschreibt.
+  `test/release_workflow_test.dart` gehört zur selben Klasse: Er hält die
+  APK-Namen in `release.yml` zusammen (cp-Ziel, upload-Pfad,
+  Release-Dateiliste). Genau daran riss der v0.34.1-Lauf NACH dem Taggen
+  ab — übrig blieb ein Tag ohne Release, den die Tag-Entscheidung fortan
+  als „schon veröffentlicht" wertete; heilbar nur von Hand (Tag löschen,
+  Fix mergen, der Push released neu). Grün in jeder PR-CI heißt bei
+  release.yml nichts: Der APK-Pfad läuft nur im echten Release.
 - Charts sind **bewusst selbst gebaut** (`core/chart_data.dart` = reine
   Aggregationsfunktionen, `core/widgets/charts.dart` = CustomPainter) —
   keine Chart-Library als Dependency. Aggregation bleibt testbar getrennt
