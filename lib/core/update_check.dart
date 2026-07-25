@@ -100,6 +100,32 @@ final updateInfoProvider = FutureProvider<UpdateInfo?>((ref) async {
   }
 });
 
+/// Release-Notes der LAUFENDEN Version — für „Über MitFahrBar".
+///
+/// Dieselbe einzige Quelle wie der Update-Dialog (GitHub-Release, dessen
+/// Body der CHANGELOG-Auszug der Version ist) — nur das Release zum
+/// eigenen Tag statt des neuesten. Und derselbe Grundsatz: Jeder
+/// Fehlerpfad endet in `null`, der Abschnitt fehlt dann einfach (offline,
+/// Demo-Modus, Release noch nicht angelegt).
+final currentReleaseNotesProvider = FutureProvider<String?>((ref) async {
+  try {
+    final current = await ref.watch(currentVersionProvider.future);
+    final response = await http
+        .get(
+          Uri.parse(
+            'https://api.github.com/repos/$githubRepo/releases/tags/v$current',
+          ),
+          headers: {'Accept': 'application/vnd.github+json'},
+        )
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) return null;
+    final release = jsonDecode(response.body) as Map<String, dynamic>;
+    return release['body'] as String?;
+  } catch (_) {
+    return null; // Wie der Update-Check: darf die App nie stören.
+  }
+});
+
 /// Auf Android gibt es eine APK zum Laden, im Web genügt ein Neuladen.
 bool get updateIsDownload =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.android;

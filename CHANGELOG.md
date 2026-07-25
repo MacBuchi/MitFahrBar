@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.34.2] – 2026-07-25
+
+### Neu
+
+- **„Über MitFahrBar" im Menü:** zeigt, welche Version bei euch läuft
+  und was sich mit ihr geändert hat („Was ist neu") — und führt direkt
+  zum Update, wenn eines bereitsteht. Bisher war die Versionsnummer nur
+  tief im Lizenz-Dialog zu finden.
+
 ## [0.34.1] – 2026-07-25
 
 ### Behoben

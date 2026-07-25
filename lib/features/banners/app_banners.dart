@@ -162,7 +162,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       _subscription = OtaUpdate()
           .execute(
             widget.info.apkUrl!,
-            destinationFilename: 'ridebuddy-update.apk',
+            destinationFilename: 'mitfahrbar-update.apk',
           )
           .listen(
             (event) {

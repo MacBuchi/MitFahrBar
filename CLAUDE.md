@@ -308,6 +308,13 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Fehler kompilieren sauber und fallen sonst erst auf dem Gerät des Nutzers
   auf. Jede neue Manifest-/Gradle-Voraussetzung kommt dort mit einer
   `reason:` dazu, die den echten Ausfall beschreibt.
+  `test/release_workflow_test.dart` gehört zur selben Klasse: Er hält die
+  APK-Namen in `release.yml` zusammen (cp-Ziel, upload-Pfad,
+  Release-Dateiliste). Genau daran riss der v0.34.1-Lauf NACH dem Taggen
+  ab — übrig blieb ein Tag ohne Release, den die Tag-Entscheidung fortan
+  als „schon veröffentlicht" wertete; heilbar nur von Hand (Tag löschen,
+  Fix mergen, der Push released neu). Grün in jeder PR-CI heißt bei
+  release.yml nichts: Der APK-Pfad läuft nur im echten Release.
 - Charts sind **bewusst selbst gebaut** (`core/chart_data.dart` = reine
   Aggregationsfunktionen, `core/widgets/charts.dart` = CustomPainter) —
   keine Chart-Library als Dependency. Aggregation bleibt testbar getrennt
@@ -505,7 +512,12 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Über die API committet GitHub selbst und signiert dabei. Das kostet
   einen Commit je Datei; beim Squash-Merge bleibt ohnehin einer übrig.
   Dieselbe Falle trifft jeden künftigen Workflow, der etwas ins Repo
-  zurückschreibt.
+  zurückschreibt. Und der Payload geht per `--input` über stdin, **nie
+  als Argument**: Linux deckelt ein einzelnes Argument bei 128 KB —
+  das Base64 einer PNG über ~96 KB riss den Lauf mitten in der Schleife
+  ab (25.07.2026), zurück blieben ein halb committeter Bildersatz und
+  ein PR ohne Checks auf dem neuen Head, weil auch der CI-Dispatch
+  danach nie lief.
   Die Bildinhalte hängen an Koordinaten im 430×900-Viewport — verschiebt
   sich das Layout, zeigen die Bilder im PR sofort das Falsche.
 - **Lizenz:** `LICENSE` ist MIT. Die Bildmarke und die gebündelten Schriften

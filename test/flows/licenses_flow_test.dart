@@ -51,6 +51,10 @@ void main() {
           'nicht erreichbar.',
     );
 
+    // Das Menü ist auf der kleinen Test-Fläche höher als der Schirm und
+    // scrollt — seit „Über MitFahrBar" (v0.34.2) liegt dieser Eintrag
+    // sonst außerhalb und der Tipp ginge ins Leere.
+    await tester.ensureVisible(find.text('Open-Source-Lizenzen'));
     await tester.tap(find.text('Open-Source-Lizenzen'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));

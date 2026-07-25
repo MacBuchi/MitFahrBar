@@ -18,6 +18,7 @@ import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../core/widgets/mood_face.dart';
 import '../../core/widgets/mitfahrbar_mark.dart';
+import '../about/about_dialog.dart';
 import '../banners/app_banners.dart';
 import '../export/export_action.dart';
 import '../invite/invite_dialog.dart';
@@ -72,6 +73,8 @@ class DashboardScreen extends ConsumerWidget {
                 showFeedbackDialog(context);
               } else if (value == 'help') {
                 unawaited(context.push('/help'));
+              } else if (value == 'about') {
+                showAboutMitFahrBarDialog(context);
               } else if (value == 'licenses') {
                 showLicensePage(
                   context: context,
@@ -148,6 +151,14 @@ class DashboardScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: Icon(Icons.menu_book_outlined),
                   title: Text('So funktioniert MitFahrBar'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'about',
+                child: ListTile(
+                  leading: Icon(Icons.info_outline),
+                  title: Text('Über MitFahrBar'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),

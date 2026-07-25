@@ -1,0 +1,93 @@
+/// about_dialog.dart – „Über MitFahrBar": Version, „Was ist neu", Update.
+///
+/// Beantwortet die zwei Fragen, die sonst nirgends zu finden waren
+/// (gemeldet 25.07.2026): Welche Version läuft hier — und was hat sich
+/// mit ihr geändert? Bisher steckte die Version nur im Lizenz-Dialog,
+/// und „Was ist neu" erschien nur, WENN gerade ein Update anstand.
+///
+/// Die Notes kommen vom GitHub-Release der laufenden Version — dieselbe
+/// einzige Quelle wie im Update-Dialog (der Body ist der
+/// CHANGELOG-Auszug). Offline oder im Demo-Modus fehlt der Abschnitt
+/// einfach; ein Fehlerbalken wäre hier lauter als die Information wert ist.
+library;
+
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/release_notes.dart';
+import '../../core/tokens.dart';
+import '../../core/update_check.dart';
+import '../../core/widgets/mitfahrbar_mark.dart';
+import '../banners/app_banners.dart';
+
+Future<void> showAboutMitFahrBarDialog(BuildContext context) =>
+    showDialog<void>(context: context, builder: (_) => const _AboutDialog());
+
+class _AboutDialog extends ConsumerWidget {
+  const _AboutDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final version = ref.watch(currentVersionProvider).value;
+    final update = ref.watch(updateInfoProvider).value;
+    final notes = plainReleaseNotes(
+      ref.watch(currentReleaseNotesProvider).value ?? '',
+    );
+
+    return AlertDialog(
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Center(child: MitFahrBarMark(size: 96)),
+            const SizedBox(height: AppSpacing.s),
+            const Center(child: MitFahrBarWordmark(fontSize: 24)),
+            const SizedBox(height: AppSpacing.xs),
+            Center(
+              child: Text(
+                version == null ? 'Version wird gelesen …' : 'Version $version',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (update != null) ...[
+              const SizedBox(height: AppSpacing.m),
+              FilledButton.tonalIcon(
+                onPressed: () {
+                  // Erst schließen, dann den Update-Dialog öffnen — über den
+                  // Navigator-Kontext, der das Schließen überlebt; der
+                  // eigene Kontext ist danach tot.
+                  final navigator = Navigator.of(context);
+                  navigator.pop();
+                  unawaited(showUpdateDialog(navigator.context, update));
+                },
+                icon: const Icon(Icons.system_update, size: 18),
+                label: Text('Version ${update.latestVersion} ist verfügbar'),
+              ),
+            ],
+            if (notes.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.m),
+              Text(
+                'Was ist neu in dieser Version:',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(notes, style: theme.textTheme.bodySmall),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Schließen'),
+        ),
+      ],
+    );
+  }
+}

@@ -95,13 +95,23 @@ jobs:
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Payload über stdin, NIE als Argument: Linux deckelt ein einzelnes
+          # Argument bei 128 KB (MAX_ARG_STRLEN) — das Base64 einer PNG über
+          # ~96 KB sprengt das, und der Lauf starb mitten in der Schleife
+          # („Argument list too long", 25.07.2026). Halb committete
+          # Screenshot-Sätze UND ein PR ohne Checks auf dem neuen Head
+          # waren die Folge, weil auch der CI-Dispatch danach nie lief.
           for file in $changed; do
             sha=$(gh api "repos/$GITHUB_REPOSITORY/contents/$file?ref=$BRANCH" --jq .sha)
-            gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/$file" \
-              -f message='docs: refresh README screenshots' \
-              -f branch="$BRANCH" \
-              -f sha="$sha" \
-              -f content="$(base64 -w0 "$file")" >/dev/null
+            base64 -w0 "$file" \
+              | jq -R --slurp \
+                  --arg msg 'docs: refresh README screenshots' \
+                  --arg branch "$BRANCH" \
+                  --arg sha "$sha" \
+                  '{message: $msg, branch: $branch, sha: $sha,
+                    content: (. | gsub("\\s"; ""))}' \
+              | gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/$file" \
+                  --input - >/dev/null
             echo "committed $file"
           done
           echo "pushed=true" >> "$GITHUB_OUTPUT"

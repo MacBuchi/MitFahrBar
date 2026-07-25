@@ -66,9 +66,11 @@ Future<void> pumpApp(
         appConfigRepositoryProvider.overrideWithValue(
           FakeAppConfigRepository(backend),
         ),
-        // Kein Netzzugriff im Test: standardmäßig kein Update.
+        // Kein Netzzugriff im Test: standardmäßig kein Update und keine
+        // Release-Notes (der Über-Dialog blendet den Abschnitt dann aus).
         updateInfoProvider.overrideWith((ref) => Future.value(backend.update)),
         currentVersionProvider.overrideWith((ref) => Future.value('1.0.0')),
+        currentReleaseNotesProvider.overrideWith((ref) => Future.value(null)),
         // Feste Uhr: Tests laufen immer an [testToday], egal an welchem
         // Wochentag die CI läuft. Ohne das kippten die Plan-Flow-Tests
         // samstags — der Planer zeigt am Wochenende die kommende Woche,

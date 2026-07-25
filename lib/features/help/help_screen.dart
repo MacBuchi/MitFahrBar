@@ -292,6 +292,13 @@ class HelpScreen extends StatelessWidget {
                     'Entwicklung — genau so sind die meisten Funktionen '
                     'hier entstanden.',
               ),
+              _Line(
+                leading: Icon(Icons.info_outline),
+                text:
+                    'Über MitFahrBar zeigt, welche Version läuft und was '
+                    'sich mit ihr geändert hat — und führt zum Update, '
+                    'wenn eines bereitsteht.',
+              ),
             ],
           ),
 
