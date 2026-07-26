@@ -535,6 +535,17 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   keine Ereignisse, der PR hinge sonst ohne Required Checks fest. Weil die
   Bilder in `doc/` liegen, nimmt der Version Guard `doc/` ausdrücklich aus:
   Ein neuer Screenshot ist kein Release.
+  **Der Dispatch-Lauf allein macht den PR aber nicht mergebar** (beobachtet
+  am 26.07.2026, PR #103): Der Bot-Push erzeugt zusätzlich `pull_request`-
+  Läufe, die auf `action_required` stehen bleiben und nie starten. Deren
+  Namen sind die Required Checks, also bleibt der PR `BLOCKED` — obwohl
+  `.../commits/<sha>/check-runs` alle sechs grün zeigt, denn das sind die
+  des Dispatch-Laufs, und die zählt die Branch Protection nicht.
+  Auflösung: die hängenden Läufe freigeben
+  (`gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`,
+  Kandidaten über `gh run list --branch <branch>` an
+  `action_required` erkennbar) — danach laufen sie normal durch und der PR
+  wird grün. Ein eigener Push (nicht vom Bot) hat das Problem nicht.
   **Zwei Läufe sind nie bitgleich** — die Stimmungs-Gesichter animieren,
   und jeder Lauf erwischt eine andere Phase (gemessen 5–281 abweichende
   Pixel, die Bounding-Box jedes Mal exakt auf einem Smiley).
