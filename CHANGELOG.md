@@ -22,13 +22,6 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   direkt in der Konsole. Die „Bestätigungs-Mail erneut senden"-Hilfe gibt es
   weiterhin.
 
-> **Für den Betrieb:** Damit das wirkt, müssen im Supabase-Dashboard unter
-> Authentication → Emails → Templates **beide** Vorlagen („Reset Password"
-> und „Confirm sign up") den Code (`{{ .Token }}`) zeigen und den Link
-> (`{{ .ConfirmationURL }}`) **nicht** mehr enthalten. Kopien liegen in
-> `supabase/templates/`. Bis dahin meldet die tägliche Config-Drift-Wache
-> genau das.
-
 ## [0.34.2] – 2026-07-25
 
 ### Neu
