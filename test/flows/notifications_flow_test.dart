@@ -9,10 +9,19 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mitfahrbar/data/providers.dart';
+import 'package:mitfahrbar/data/push_repository.dart';
 import 'package:mitfahrbar/models/person.dart';
 
 import '../fakes/fake_backend.dart';
 import '../fakes/test_app.dart';
+
+/// Steht für alles, was beim Laden schiefgehen kann: fehlende Tabelle,
+/// abgelehnte RLS, kein Netz.
+class _BrokenPushRepository extends NoopPushRepository {
+  @override
+  Future<PushState> stateFor(String token) async =>
+      throw StateError('keine Tabelle');
+}
 
 Future<FakeBackend> _backend() async {
   final backend = FakeBackend();
@@ -194,6 +203,33 @@ void main() {
           'ein Screen, der ohne Berechtigung gar nichts zeigt, führt in die '
           'Sackgasse.',
     );
+  });
+
+  testWidgets('ein Fehler beim Laden endet nicht im ewigen Ladekreis', (
+    tester,
+  ) async {
+    final backend = await _backend();
+    await pumpApp(
+      tester,
+      backend,
+      overrides: [
+        pushRepositoryProvider.overrideWithValue(_BrokenPushRepository()),
+      ],
+    );
+    await _login(tester);
+    await _open(tester);
+
+    expect(
+      find.byType(CircularProgressIndicator),
+      findsNothing,
+      reason:
+          'Ohne catch in _load verschwindet die Ausnahme still in der '
+          'async-Funktion, _loading bleibt true — und der Screen sieht aus '
+          'wie ein Hänger. Genau so aufgefallen, als die Tabellen in '
+          'Produktion noch fehlten.',
+    );
+    expect(find.textContaining('nicht geladen werden'), findsOneWidget);
+    expect(find.text('Erneut versuchen'), findsOneWidget);
   });
 
   testWidgets('ein Gerät der einen Gruppe zeigt in der anderen nichts', (

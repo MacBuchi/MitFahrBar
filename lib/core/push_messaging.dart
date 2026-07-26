@@ -76,9 +76,13 @@ Future<String?> pushToken({required bool ask}) async {
     // google-services.json alles Nötige. Ohne erteilte Berechtigung wirft
     // der Aufruf im Web — genau dann liefert der catch unten `null`, und der
     // Screen zeigt sich schlicht als ausgeschaltet.
-    return await messaging.getToken(
-      vapidKey: kIsWeb ? PushConfig.vapidKey : null,
-    );
+    // Mit Frist: `getToken` scheitert nicht immer, es bleibt auch mal
+    // stehen — etwa wenn die Registrierung bei FCM nicht durchkommt. Ohne
+    // die Frist hinge der Screen an einem Ladekreis, der nie endet.
+    // TimeoutException landet unten im catch und wird zu „kein Token".
+    return await messaging
+        .getToken(vapidKey: kIsWeb ? PushConfig.vapidKey : null)
+        .timeout(const Duration(seconds: 15));
   } catch (error) {
     // Absichtlich ohne das Token im Text: Was ins Log kommt, kann über eine
     // Rückmeldung in einem öffentlichen Issue landen.

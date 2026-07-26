@@ -34,6 +34,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   NotificationPrefs? _prefs;
   bool _loading = true;
   bool _busy = false;
+  bool _failed = false;
 
   @override
   void initState() {
@@ -45,20 +46,40 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   /// nachgesehen: Ein ungefragter Dialog wird weggetippt, und Android fragt
   /// danach nie wieder.
   Future<void> _load() async {
-    final token = await ref.read(pushTokenProvider)(ask: false);
-    if (!mounted) return;
-    if (token == null) {
-      setState(() => _loading = false);
-      return;
+    try {
+      final token = await ref.read(pushTokenProvider)(ask: false);
+      if (!mounted) return;
+      if (token == null) {
+        setState(() => _loading = false);
+        return;
+      }
+      final state = await ref.read(pushRepositoryProvider).stateFor(token);
+      if (!mounted) return;
+      setState(() {
+        _token = token;
+        _personId = state.personId;
+        _prefs = state.prefs;
+        _loading = false;
+      });
+    } catch (_) {
+      // Ohne diesen Zweig bliebe der Ladekreis für immer stehen: Die
+      // Ausnahme verschwände still in der async-Funktion, und der Screen
+      // sähe aus wie ein Hänger. Bewusst ohne den Fehlertext — er trüge
+      // sonst Details aus der Datenbank in die Oberfläche.
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
     }
-    final state = await ref.read(pushRepositoryProvider).stateFor(token);
-    if (!mounted) return;
+  }
+
+  void _retry() {
     setState(() {
-      _token = token;
-      _personId = state.personId;
-      _prefs = state.prefs;
-      _loading = false;
+      _failed = false;
+      _loading = true;
     });
+    unawaited(_load());
   }
 
   void _report(String message) {
@@ -150,9 +171,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             )
           : _loading
           ? const Center(child: CircularProgressIndicator())
+          : _failed
+          ? _Hint(
+              'Die Einstellungen konnten nicht geladen werden. Prüfe die '
+              'Verbindung und versuche es noch einmal.',
+              onRetry: _retry,
+            )
           : persons.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) => const _Hint('Personen nicht geladen.'),
+              error: (_, _) =>
+                  _Hint('Personen nicht geladen.', onRetry: _retry),
               data: _body,
             ),
     );
@@ -255,13 +283,31 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 }
 
 class _Hint extends StatelessWidget {
-  const _Hint(this.text);
+  const _Hint(this.text, {this.onRetry});
 
   final String text;
+
+  /// Ohne Knopf bliebe dem Nutzer nur, den Screen zu verlassen und neu zu
+  /// öffnen — die App weiß nicht, wann das Netz wiederkommt.
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(24),
-    child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(text, style: Theme.of(context).textTheme.bodyMedium),
+        if (onRetry != null) ...[
+          const SizedBox(height: 16),
+          FilledButton.tonalIcon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Erneut versuchen'),
+          ),
+        ],
+      ],
+    ),
   );
 }
