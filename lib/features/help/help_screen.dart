@@ -272,7 +272,9 @@ class HelpScreen extends StatelessWidget {
                     'wenn jemand den Plan bis zur Abfahrt noch umstellt. '
                     'Beide Uhrzeiten stellst du selbst ein, sie gelten nur für '
                     'dich. Nachricht kommt nur an Tagen, an denen du '
-                    'eingetragen bist.',
+                    'eingetragen bist. Hast du MitFahrBar gerade offen, '
+                    'erscheint sie als Hinweis in der App statt als '
+                    'Benachrichtigung.',
               ),
               _Line(
                 leading: Icon(Icons.person_add_alt),

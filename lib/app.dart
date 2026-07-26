@@ -23,6 +23,15 @@ class FahrgemeinschaftApp extends ConsumerStatefulWidget {
 }
 
 class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
+  /// Damit eine eintreffende Nachricht über **jedem** Screen erscheint.
+  ///
+  /// Ohne diesen globalen Anker hinge die Anzeige daran, wo die Nutzerin
+  /// gerade ist: Ein Handler in einem einzelnen Screen zeigte nichts, wenn
+  /// sie im Planer, in der Historie oder in der Statistik steht — also fast
+  /// immer. `ScaffoldMessenger` gehört deshalb hier hoch, wo es genau einen
+  /// gibt.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +43,37 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
         () => ref.read(routerProvider).go(pushTapRoute),
       ),
     );
+    // Und was eintrifft, während die App vorne ist, zeigt sonst niemand an
+    // (siehe listenForPushMessages) — bis 0.39.0 verschwanden diese
+    // Nachrichten spurlos, echte Abend-Meldungen eingeschlossen.
+    unawaited(
+      ref.read(pushMessageListenerProvider)((title, body) {
+        _messengerKey.currentState
+          // Zwei Meldungen kurz nacheinander sollen einander nicht
+          // wegdrücken, aber auch nicht stapeln.
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 8),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  if (body.isNotEmpty) Text(body),
+                ],
+              ),
+              action: SnackBarAction(
+                label: 'Woche',
+                onPressed: () => ref.read(routerProvider).go(pushTapRoute),
+              ),
+            ),
+          );
+      }),
+    );
   }
 
   @override
@@ -42,6 +82,7 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
     return MaterialApp.router(
       title: 'MitFahrBar',
       routerConfig: router,
+      scaffoldMessengerKey: _messengerKey,
       // Der Sperr-Schirm liegt über allem, auch über dem Login: Wer zu alt
       // ist, soll sich gar nicht erst anmelden. Solange der Check lädt, läuft
       // die App normal weiter — ein Ladezustand darf nicht wie eine Sperre

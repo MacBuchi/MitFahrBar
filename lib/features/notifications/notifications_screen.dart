@@ -270,8 +270,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             onPressed: _busy || _token == null
                 ? null
                 : () => _guard(() async {
-                    await ref.read(pushRepositoryProvider).sendTest(_token!);
-                    _report('Test-Benachrichtigung unterwegs.');
+                    final sent = await ref
+                        .read(pushRepositoryProvider)
+                        .sendTest(_token!);
+                    // Der Hinweis auf den Startbildschirm ist kein Beiwerk:
+                    // Solange die App vorne ist, zeigt weder Android noch
+                    // der Browser eine Benachrichtigung an — sie erscheint
+                    // dann nur als Leiste in der App.
+                    _report(
+                      sent
+                          ? 'Unterwegs — wechsle kurz zum Startbildschirm, '
+                                'dann kommt sie als Benachrichtigung.'
+                          : 'Konnte nicht zugestellt werden. Ordne dieses '
+                                'Gerät noch einmal zu.',
+                    );
                   }),
             icon: const Icon(Icons.notifications_active_outlined),
             label: const Text('Test-Benachrichtigung senden'),
