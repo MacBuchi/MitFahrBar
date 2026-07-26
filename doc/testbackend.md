@@ -27,9 +27,14 @@ Abgedeckt ist, was die In-Memory-Fakes nur nachbilden können:
   zweier Gruppen, nur-lesbare `app_config`, `group_id` in den
   Planer-Schlüsseln (v0.15.0-Fix) — alles gegen echte Policies.
 - **Verwalter-Konsole** (`admin_console_e2e_test.dart`): kein
-  Geister-pending beim Admin-Signup, Verknüpfung nur mit Gruppen-Login,
-  Einrasten, Gruppenpasswort-Reset wirkt, Löschen reißt über die
-  Auth-Kaskade alles mit.
+  Geister-pending beim Admin-Signup; Anlegen nur als bestätigtes
+  Verwalter-Konto (anonym → 401, Gruppen-Login → 403) und dann **aktiv und
+  verknüpft in einem Zug**; der Deckel von fünf Gruppen (die sechste → 429,
+  ohne den Handle zu verbrennen); Übernehmen nur mit Gruppen-Login und
+  Einrasten; eine fremde `target_group` prallt mit `not linked` ab;
+  Gruppenpasswort-Reset wirkt; `released_at` wird beim Lösen gesetzt und beim
+  Übernehmen geleert; Löschen reißt die Gruppe über die Auth-Kaskade mit —
+  aber nie das Verwalter-Konto.
 - **Push-Registrierung** (`push_e2e_test.dart`): `register_push_device`
   ordnet nur eigene Personen zu, ein Gerät gehört immer genau **einer**
   Gruppe (die alte Zeile weicht — im Fake per Konstruktion unsichtbar),
@@ -39,10 +44,9 @@ Abgedeckt ist, was die In-Memory-Fakes nur nachbilden können:
 - **Auth-Workflows mit echten Mails** (`auth_mail_e2e_test.dart`): Der
   Stack läuft wie Production mit **Bestätigungspflicht**
   (`enable_confirmations = true` in config.toml). Festgenagelt sind:
-  Gruppen-Anlage über die Edge Function `request-group` (keine Mail,
-  sofort anmeldbar, Trigger legt die pending-Gruppe an), Admin-Signup
-  verlangt den Mail-Link wirklich, Recovery-Mail kommt an und der Link
-  ist einlösbar. Der lokale Stack serviert die Functions aus
+  Gruppen-Anlage über die Edge Function `request-group` (keine Mail an die
+  Fake-Adresse, sofort anmeldbar, Gruppe aktiv), Admin-Signup verlangt den
+  Mail-Code wirklich, Recovery-Mail kommt an und der Code ist einlösbar. Der lokale Stack serviert die Functions aus
   `supabase/functions/` automatisch mit.
 
 Der Service-Role-Key dient in der Suite nur zum Arrangieren/Prüfen

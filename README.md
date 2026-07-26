@@ -86,12 +86,19 @@ angefordert wurde. Der Code gilt eine Stunde.
 
 ## Eigene Gruppe anlegen
 
-1. Auf dem Anmelde-Bildschirm **„Neue Gruppe anfragen"** wählen.
-2. Gruppenname, kurzen Anmeldenamen und ein gemeinsames Passwort festlegen.
-   Eine E-Mail-Adresse wird nicht gebraucht.
-3. Die Anfrage wird geprüft. Nach der **Freigabe** meldet ihr euch mit
-   Anmeldename + Passwort an und legt eure eigenen Personen und Fahrten an –
-   vollständig getrennt von anderen Gruppen.
+1. Auf dem Anmelde-Bildschirm **„Verwalter-Konsole"** wählen und dort ein
+   eigenes Konto **registrieren** — mit echter E-Mail-Adresse, die einmal per
+   Code bestätigt wird. Dieses Konto gehört einer Person, nicht der Gruppe.
+2. In der Konsole **„Neue Gruppe anlegen"**: Gruppenname, kurzer Anmeldename
+   und ein gemeinsames Gruppenpasswort (zweimal eingetippt — ein Tippfehler
+   wäre später nicht mehr zu heilen).
+3. Die Gruppe ist **sofort nutzbar**. Anmeldename und Gruppenpasswort gebt ihr
+   allen Mitgliedern; sie melden sich damit auf dem normalen Anmelde-Bildschirm
+   an – vollständig getrennt von anderen Gruppen.
+
+Ein Verwalter-Konto kann bis zu **fünf** Gruppen betreuen. Es sieht dabei
+niemals Fahrten oder Personen einer Gruppe, sondern setzt nur das
+Gruppenpasswort neu, gibt eine Gruppe ab oder löscht sie.
 
 ## Entwicklung
 

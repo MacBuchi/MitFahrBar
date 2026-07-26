@@ -317,10 +317,10 @@ class _ConsoleLoginScreenState extends ConsumerState<ConsoleLoginScreen> {
       'Nur noch der Code aus der Mail — danach ist deine Adresse bestätigt '
           'und du bist drin.',
     _ =>
-      'Für die Person, die die Gruppe verwaltet: Mit einem eigenen '
-          'E-Mail-Konto lässt sich das Gruppenpasswort neu setzen oder die '
-          'Gruppe löschen. Die Mitglieder brauchen davon nichts — und sehen '
-          'deine E-Mail nie.',
+      'Hier entstehen neue Fahrgemeinschaften: Mit einem eigenen Konto und '
+          'echter E-Mail-Adresse legst du deine Gruppe an, setzt ihr '
+          'Passwort neu oder löschst sie wieder. Die Mitglieder brauchen '
+          'davon nichts — und sehen deine E-Mail nie.',
   };
 
   @override

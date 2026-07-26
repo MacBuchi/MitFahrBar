@@ -87,6 +87,7 @@ class GroupAccount {
     required this.password,
     required this.id,
     required this.client,
+    required this.owner,
   });
 
   final String handle;
@@ -94,20 +95,45 @@ class GroupAccount {
   final String password;
   final String id;
   final SupabaseClient client;
+
+  /// Das Verwalter-Konto, das diese Gruppe angelegt hat und sie verwaltet.
+  final AdminAccount owner;
+}
+
+/// Das Verwalter-Konto, über das die Tests ihre Gruppen anlegen.
+///
+/// Wird wiederverwendet, bis es seinen Deckel erreicht hat — danach entsteht
+/// ein neues. Ohne die Rotation liefe jede Suite mit mehr als fünf Gruppen in
+/// „group limit reached", und jedes neue Konto kostet einen Mail-Rundlauf.
+AdminAccount? _creator;
+int _creatorGroups = 0;
+
+/// Muss zum Deckel im Trigger `group_admins_cap` passen.
+const int e2eGroupCap = 5;
+
+Future<AdminAccount> groupCreator() async {
+  if (_creator == null || _creatorGroups >= e2eGroupCap) {
+    _creator = await registerAdmin();
+    _creatorGroups = 0;
+  }
+  return _creator!;
 }
 
 /// Registriert eine neue Gruppe wie die App: über die Edge Function
-/// `request-group` (serverseitig, ohne Mail) und meldet sich danach an.
-/// Der Signup-Trigger legt dazu die pending-`groups`-Zeile an.
+/// `request-group`, **authentifiziert als Verwalter-Konto** (seit #106). Die
+/// Gruppe ist danach aktiv und mit diesem Konto verknüpft — es gibt keine
+/// Freigabe mehr und keine Gruppe ohne Zuordnung.
 Future<GroupAccount> registerGroup(String label) async {
+  final creator = await groupCreator();
   final handle = uniqueName(label);
   final email = '$handle@$e2eGroupDomain';
   const password = 'gruppen-passwort-1';
-  final client = newAnonClient();
-  await client.functions.invoke(
+  await creator.client.functions.invoke(
     'request-group',
     body: {'handle': handle, 'password': password, 'groupName': 'E2E $label'},
   );
+  _creatorGroups++;
+  final client = newAnonClient();
   final res = await client.auth.signInWithPassword(
     email: email,
     password: password,
@@ -118,12 +144,27 @@ Future<GroupAccount> registerGroup(String label) async {
     password: password,
     id: res.user!.id,
     client: client,
+    owner: creator,
   );
 }
 
-/// Freigabe, die in der App die Admin-Gruppe erteilt — hier per Service-Role.
-Future<void> activateGroup(SupabaseClient service, String groupId) async {
-  await service.from('groups').update({'status': 'active'}).eq('id', groupId);
+/// Nimmt der Gruppe ihren Verwalter, ohne sie anzufassen.
+///
+/// Der Zustand, den `admin_release_group` erzeugt — und der einzige Weg, für
+/// einen Test eine übernehmbare Gruppe herzustellen: Seit #106 entsteht keine
+/// Gruppe mehr unverknüpft.
+Future<void> unlinkGroup(SupabaseClient service, String groupId) async {
+  await service.from('group_admins').delete().eq('group_id', groupId);
+}
+
+/// Setzt eine Gruppe zurück auf 'pending'.
+///
+/// Seit #106 entsteht keine pending-Gruppe mehr über die App; den Zustand gibt
+/// es nur noch für Fremd-Signups gegen die Gruppen-Domain. Die Tests, die
+/// beweisen, dass eine pending-Gruppe **nichts** darf (RLS, Push,
+/// Verknüpfung), brauchen ihn trotzdem.
+Future<void> makePending(SupabaseClient service, String groupId) async {
+  await service.from('groups').update({'status': 'pending'}).eq('id', groupId);
 }
 
 class AdminAccount {

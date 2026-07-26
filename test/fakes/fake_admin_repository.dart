@@ -2,6 +2,8 @@
 ///
 /// Bildet die SECURITY-DEFINER-Funktionen nach, inklusive der getypten
 /// Fehler — die Flow-Tests sollen dieselben Wege gehen wie die echte App.
+/// Dazu gehört die Eigentumsprüfung: Eine fremde `groupId` wird abgewiesen,
+/// genau wie der Server es tut.
 library;
 
 import 'package:mitfahrbar/core/group_login.dart';
@@ -21,6 +23,32 @@ class FakeAdminRepository implements AdminRepository {
     return admin;
   }
 
+  /// Die eigene Gruppe oder ein Fehler — das Gegenstück zur Prüfung
+  /// `user_id = auth.uid() and group_id = target_group` im Server.
+  Group _ownGroup(String groupId) {
+    final admin = _currentAdmin();
+    final group = backend.groups[groupId];
+    if (!admin.groupIds.contains(groupId) || group == null) {
+      throw Exception('not linked');
+    }
+    return group;
+  }
+
+  @override
+  Future<void> createGroup({
+    required String handle,
+    required String password,
+    required String groupName,
+  }) async {
+    _currentAdmin();
+    backend.createGroupForAdmin(
+      adminEmail: backend.currentEmail!,
+      handle: normalizeHandle(handle),
+      password: password,
+      groupName: groupName,
+    );
+  }
+
   @override
   Future<void> claimGroup(String handle, String groupPassword) async {
     final admin = _currentAdmin();
@@ -33,27 +61,32 @@ class FakeAdminRepository implements AdminRepository {
         group.status != GroupStatus.active) {
       throw WrongGroupCredentials();
     }
-    final taken = backend.adminAccounts.values.any((a) => a.groupId == groupId);
-    if (taken || admin.groupId != null) throw GroupAlreadyClaimed();
-    admin.groupId = groupId;
+    final taken = backend.adminAccounts.values.any(
+      (a) => a.groupIds.contains(groupId),
+    );
+    if (taken) throw GroupAlreadyClaimed();
+    // Der Deckel gilt für jeden Weg — auch für das Übernehmen.
+    if (admin.groupIds.length >= groupCap) throw const GroupLimitReached();
+    admin.groupIds.add(groupId!);
   }
 
   @override
-  Future<AdminGroup?> myAdminGroup() async {
+  Future<List<AdminGroup>> myAdminGroups() async {
     final admin = backend.adminAccounts[backend.currentEmail];
-    final group = admin?.groupId == null
-        ? null
-        : backend.groups[admin!.groupId];
-    return group == null
-        ? null
-        : AdminGroup(handle: group.handle, name: group.name);
+    if (admin == null) return const [];
+    return [
+      for (final id in admin.groupIds)
+        if (backend.groups[id] case final group?)
+          AdminGroup(id: id, handle: group.handle, name: group.name),
+    ];
   }
 
   @override
-  Future<void> resetGroupPassword(String newPassword) async {
-    final admin = _currentAdmin();
-    final groupId = admin.groupId;
-    if (groupId == null) throw Exception('not linked');
+  Future<void> resetGroupPassword({
+    required String groupId,
+    required String newPassword,
+  }) async {
+    _ownGroup(groupId);
     if (newPassword.length < 8) throw Exception('password too short');
     backend.accounts.values
             .firstWhere((account) => account.groupId == groupId)
@@ -62,24 +95,26 @@ class FakeAdminRepository implements AdminRepository {
   }
 
   @override
-  Future<void> releaseGroup(String adminPassword) async {
+  Future<void> releaseGroup({
+    required String groupId,
+    required String adminPassword,
+  }) async {
     final admin = _currentAdmin();
-    if (admin.groupId == null) throw Exception('not linked');
+    _ownGroup(groupId);
     if (admin.password != adminPassword) throw WrongAdminPassword();
-    admin.groupId = null;
+    admin.groupIds.remove(groupId);
   }
 
   @override
   Future<void> deleteGroup({
+    required String groupId,
     required String adminPassword,
     required String handleConfirmation,
   }) async {
     final admin = _currentAdmin();
-    final groupId = admin.groupId;
-    final group = groupId == null ? null : backend.groups[groupId];
-    if (group == null) throw Exception('not linked');
+    final group = _ownGroup(groupId);
     if (admin.password != adminPassword) throw WrongAdminPassword();
     if (handleConfirmation != group.handle) throw HandleMismatch();
-    backend.deleteGroupCompletely(groupId!);
+    backend.deleteGroupCompletely(groupId);
   }
 }

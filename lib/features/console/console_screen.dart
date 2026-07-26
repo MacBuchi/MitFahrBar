@@ -1,9 +1,20 @@
-/// console_screen.dart – Die Verwalter-Konsole selbst (Issue #55).
+/// console_screen.dart – Die Verwalter-Konsole selbst (Issue #55, #106).
 ///
-/// Bewusst karg: verknüpfen, Gruppenpasswort neu setzen, eigenes
-/// Admin-Passwort ändern, Gruppe löschen. Mehr kann und soll das
-/// Verwalter-Konto nicht — Gruppendaten sieht es nie (anderer uid,
-/// RLS blockt).
+/// Bewusst karg: Gruppen anlegen, übernehmen, Gruppenpasswort neu setzen,
+/// Verknüpfung lösen, Gruppe löschen — dazu das eigene Konto (Passwort,
+/// E-Mail). Mehr kann und soll das Verwalter-Konto nicht: Gruppendaten sieht
+/// es nie (anderer uid, RLS blockt).
+///
+/// Ein Konto trägt bis zu [groupCap] Gruppen, deshalb ist der Screen eine
+/// **Liste**. Jede Karte nennt ihre Gruppe, und jede Aktion bekommt die
+/// `groupId` mit — der Server prüft zusätzlich, dass sie diesem Konto gehört.
+///
+/// Die Aktionen stehen absichtlich **offen** in der Karte und nicht in einem
+/// Aufklapp-Element: Die Labels „Verknüpfung lösen …" und „Gruppe löschen …"
+/// sind der Anker für die Flow-Tests — in einem `ExpansionTile` wären sie
+/// erst nach einem Tipp im Widget-Baum. (Der Browser-E2E greift dagegen das
+/// ListTile „Verwaltet: …": Flutter-Web exponiert diese Knöpfe nicht im
+/// Semantics-Baum.)
 ///
 /// „Passwort vergessen" endet NICHT hier: Das läuft seit dem Code-Weg
 /// vollständig auf dem Konsolen-Login ab (Issue #102). Der Dialog unten ist
@@ -11,8 +22,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/group_login.dart';
 import '../../core/tokens.dart';
 import '../../core/widgets/password_field.dart';
 import '../../data/admin_repository.dart';
@@ -24,7 +37,7 @@ class ConsoleScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final group = ref.watch(adminGroupProvider);
+    final groups = ref.watch(adminGroupsProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Verwalter-Konsole'),
@@ -36,10 +49,10 @@ class ConsoleScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: switch (group) {
-        AsyncData(value: final g) => _Body(group: g),
+      body: switch (groups) {
+        AsyncData(value: final list) => _Body(groups: list),
         AsyncError() => const Center(
-          child: Text('Fehler beim Laden der Verknüpfung.'),
+          child: Text('Fehler beim Laden der Gruppen.'),
         ),
         _ => const Center(child: CircularProgressIndicator()),
       },
@@ -47,13 +60,15 @@ class ConsoleScreen extends ConsumerWidget {
   }
 }
 
-class _Body extends ConsumerWidget {
-  const _Body({required this.group});
+class _Body extends StatelessWidget {
+  const _Body({required this.groups});
 
-  final AdminGroup? group;
+  final List<AdminGroup> groups;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final full = groups.length >= groupCap;
     return Center(
       child: SingleChildScrollView(
         child: ConstrainedBox(
@@ -63,11 +78,47 @@ class _Body extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (group == null) ...[
+                Text('Deine Gruppen', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  groups.isEmpty
+                      ? 'Noch keine — lege deine erste an.'
+                      : '${groups.length} von $groupCap verwaltet.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.m),
+                for (final group in groups) _GroupCard(group: group),
+                const SizedBox(height: AppSpacing.s),
+                if (full)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.m),
+                      child: Text(
+                        'Dieses Konto verwaltet die höchstmöglichen '
+                        '$groupCap Gruppen. Löse eine Verknüpfung, um eine '
+                        'weitere anzulegen.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  )
+                else ...[
+                  const _CreateGroupCard(),
                   const _ClaimCard(),
-                  const _ChangeEmailTile(),
-                ] else
-                  _ManageCards(group: group!),
+                ],
+                const SizedBox(height: AppSpacing.m),
+                Text('Dein Konto', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.s),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.key_outlined),
+                    title: const Text('Eigenes Admin-Passwort ändern'),
+                    onTap: () => showDialog<void>(
+                      context: context,
+                      builder: (context) => const _AdminPasswordDialog(),
+                    ),
+                  ),
+                ),
+                const _ChangeEmailTile(),
               ],
             ),
           ),
@@ -77,8 +128,242 @@ class _Body extends ConsumerWidget {
   }
 }
 
-/// Noch keine Gruppe verknüpft: Beweis ist das Gruppen-Login. Nur möglich,
-/// solange die Gruppe keinen Verwalter hat — danach rastet es ein.
+/// Eine verwaltete Gruppe mit ihren drei Aktionen.
+class _GroupCard extends StatelessWidget {
+  const _GroupCard({required this.group});
+
+  final AdminGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.verified_user_outlined),
+            title: Text(group.name),
+            subtitle: Text('Verwaltet: ${group.handle}'),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.s),
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: AppSpacing.s,
+              runSpacing: AppSpacing.s,
+              children: [
+                FilledButton.tonal(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => _GroupPasswordDialog(group: group),
+                  ),
+                  child: const Text('Gruppenpasswort neu setzen'),
+                ),
+                FilledButton.tonal(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => _ReleaseGroupDialog(group: group),
+                  ),
+                  child: const Text('Verknüpfung lösen …'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
+                  ),
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => _DeleteGroupDialog(group: group),
+                  ),
+                  child: const Text('Gruppe löschen …'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Neue Gruppe anlegen — sofort nutzbar, ohne Freigabe.
+///
+/// Das Gruppenpasswort wird **zweimal** eingetippt (Issue #107): Es ist ein
+/// geteiltes Passwort ohne „vergessen"-Weg. Ein Tippfehler erzeugte sonst
+/// eine Gruppe, in die niemand hineinkommt — auch die Person nicht, die sie
+/// angelegt hat, denn sie weiß nicht, was sie wirklich getippt hat. Verglichen
+/// wird beim Absenden, nicht bei jedem Tastendruck: Eine Warnung, während man
+/// das zweite Feld noch füllt, ist nur Lärm.
+class _CreateGroupCard extends ConsumerStatefulWidget {
+  const _CreateGroupCard();
+
+  @override
+  ConsumerState<_CreateGroupCard> createState() => _CreateGroupCardState();
+}
+
+class _CreateGroupCardState extends ConsumerState<_CreateGroupCard> {
+  final _name = TextEditingController();
+  final _handle = TextEditingController();
+  final _password = TextEditingController();
+  final _repeat = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _handle.dispose();
+    _password.dispose();
+    _repeat.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _name.text.trim();
+    final handle = normalizeHandle(_handle.text);
+    if (name.isEmpty) {
+      setState(() => _error = 'Bitte einen Namen für die Gruppe angeben.');
+      return;
+    }
+    if (handle.length < 3) {
+      setState(() => _error = 'Der Anmeldename braucht mindestens 3 Zeichen.');
+      return;
+    }
+    if (_password.text.length < 8) {
+      setState(
+        () => _error =
+            'Das Gruppenpasswort braucht mindestens 8 '
+            'Zeichen.',
+      );
+      return;
+    }
+    if (_password.text != _repeat.text) {
+      setState(() => _error = 'Die Eingaben stimmen nicht überein.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(adminRepositoryProvider)
+          .createGroup(
+            handle: handle,
+            password: _password.text,
+            groupName: name,
+          );
+      // Dem Passwortmanager sagen, dass die Eingabe fertig ist — sonst bietet
+      // er das Speichern nicht an.
+      TextInput.finishAutofillContext();
+      if (!mounted) return;
+      _name.clear();
+      _handle.clear();
+      _password.clear();
+      _repeat.clear();
+      ref.invalidate(adminGroupsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Gruppe angelegt. Gib Anmeldename und Gruppenpasswort allen '
+            'Mitgliedern.',
+          ),
+        ),
+      );
+    } on HandleTakenException {
+      setState(() => _error = 'Dieser Anmeldename ist schon vergeben.');
+    } on GroupLimitReached {
+      setState(
+        () => _error = 'Dieses Konto verwaltet bereits $groupCap Gruppen.',
+      );
+    } catch (_) {
+      // Bewusst ohne den Fehlertext: Er könnte das Passwort tragen, und was
+      // in der Oberfläche steht, landet über eine Rückmeldung im Log.
+      setState(() => _error = 'Anlegen fehlgeschlagen.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.m),
+        child: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Neue Gruppe anlegen',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: AppSpacing.s),
+              const Text(
+                'Die Gruppe ist sofort nutzbar. Alle Mitglieder teilen sich '
+                'einen Zugang: Anmeldename und Gruppenpasswort gibst du '
+                'weiter — dieses Verwalter-Konto bleibt bei dir.',
+              ),
+              const SizedBox(height: AppSpacing.m),
+              TextField(
+                controller: _name,
+                decoration: const InputDecoration(
+                  labelText: 'Name der Gruppe',
+                  helperText: 'Zum Beispiel: Fahrgemeinschaft Nordstadt',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: AppSpacing.m),
+              TextField(
+                controller: _handle,
+                decoration: const InputDecoration(
+                  labelText: 'Anmeldename',
+                  helperText:
+                      'Damit melden sich alle an — kurz und klein '
+                      'geschrieben.',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: AppSpacing.m),
+              PasswordField(
+                controller: _password,
+                labelText: 'Gruppenpasswort',
+                autofillHints: const [AutofillHints.newPassword],
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: AppSpacing.m),
+              PasswordField(
+                controller: _repeat,
+                labelText: 'Gruppenpasswort wiederholen',
+                autofillHints: const [AutofillHints.newPassword],
+                onSubmitted: (_) => _busy ? null : _submit(),
+              ),
+              if (_error case final error?) ...[
+                const SizedBox(height: AppSpacing.s),
+                Text(
+                  error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.m),
+              FilledButton(
+                onPressed: _busy ? null : _submit,
+                child: const Text('Gruppe anlegen'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Eine **bestehende** Gruppe übernehmen: Beweis ist das Gruppen-Login. Nur
+/// möglich, solange die Gruppe keinen Verwalter hat — danach rastet es ein.
 class _ClaimCard extends ConsumerStatefulWidget {
   const _ClaimCard();
 
@@ -105,7 +390,7 @@ class _ClaimCardState extends ConsumerState<_ClaimCard> {
     // zeigte sonst eine Verknüpfung mit leerem Namen im (Demo-)Fake.
     if (handle.isEmpty || _groupPassword.text.isEmpty) {
       setState(
-        () => _error = 'Bitte Gruppenname und Gruppenpasswort eintragen.',
+        () => _error = 'Bitte Anmeldename und Gruppenpasswort eintragen.',
       );
       return;
     }
@@ -117,14 +402,17 @@ class _ClaimCardState extends ConsumerState<_ClaimCard> {
       await ref
           .read(adminRepositoryProvider)
           .claimGroup(handle, _groupPassword.text);
-      ref.invalidate(adminGroupProvider);
+      if (!mounted) return;
+      _handle.clear();
+      _groupPassword.clear();
+      ref.invalidate(adminGroupsProvider);
     } on WrongGroupCredentials {
-      setState(() => _error = 'Gruppenname oder Gruppenpasswort falsch.');
+      setState(() => _error = 'Anmeldename oder Gruppenpasswort falsch.');
     } on GroupAlreadyClaimed {
+      setState(() => _error = 'Diese Gruppe hat schon ein Verwalter-Konto.');
+    } on GroupLimitReached {
       setState(
-        () => _error =
-            'Diese Gruppe hat schon ein Verwalter-Konto — oder dieses '
-            'Konto verwaltet bereits eine Gruppe.',
+        () => _error = 'Dieses Konto verwaltet bereits $groupCap Gruppen.',
       );
     } catch (_) {
       setState(() => _error = 'Verknüpfen fehlgeschlagen.');
@@ -147,24 +435,27 @@ class _ClaimCardState extends ConsumerState<_ClaimCard> {
             ),
             const SizedBox(height: AppSpacing.s),
             const Text(
-              'Melde dieses Konto als Verwalter deiner Gruppe an. Als '
-              'Nachweis dienen einmalig Gruppenname und Gruppenpasswort. '
-              'Je Gruppe gibt es genau ein Verwalter-Konto — wer zuerst '
-              'verknüpft, verwaltet.',
+              'Gibt es die Gruppe schon und hat sie noch keinen Verwalter? '
+              'Dann übernimm sie hier. Als Nachweis dienen einmalig '
+              'Anmeldename und Gruppenpasswort — wer zuerst verknüpft, '
+              'verwaltet.',
             ),
             const SizedBox(height: AppSpacing.m),
             TextField(
               controller: _handle,
               decoration: const InputDecoration(
-                labelText: 'Gruppenname',
+                labelText: 'Anmeldename der Gruppe',
                 border: OutlineInputBorder(),
               ),
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: AppSpacing.m),
+            // Absichtlich nicht „Gruppenpasswort": Dieses Formular steht neben
+            // dem Anlegen, und zwei gleich benannte Felder auf einem Screen
+            // sind für Bedienung und Tests gleichermaßen mehrdeutig.
             PasswordField(
               controller: _groupPassword,
-              labelText: 'Gruppenpasswort',
+              labelText: 'Passwort der Gruppe',
               onSubmitted: (_) => _busy ? null : _claim(),
             ),
             if (_error case final error?) ...[
@@ -186,144 +477,11 @@ class _ClaimCardState extends ConsumerState<_ClaimCard> {
   }
 }
 
-class _ManageCards extends ConsumerWidget {
-  const _ManageCards({required this.group});
-
-  final AdminGroup group;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.verified_user_outlined),
-            title: Text(group.name),
-            subtitle: Text('Verwaltet: ${group.handle}'),
-          ),
-        ),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.m),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Gruppenpasswort neu setzen',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppSpacing.s),
-                const Text(
-                  'Setzt das geteilte Passwort der Gruppe neu — z. B. wenn '
-                  'es verloren ging. Danach musst du es allen Mitgliedern '
-                  'neu geben.',
-                ),
-                const SizedBox(height: AppSpacing.s),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.tonal(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (context) => const _GroupPasswordDialog(),
-                    ),
-                    child: const Text('Neu setzen'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.key_outlined),
-            title: const Text('Eigenes Admin-Passwort ändern'),
-            onTap: () => showDialog<void>(
-              context: context,
-              builder: (context) => const _AdminPasswordDialog(),
-            ),
-          ),
-        ),
-        const _ChangeEmailTile(),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.m),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Verknüpfung lösen', style: theme.textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.s),
-                const Text(
-                  'Gibt die Gruppe für ein anderes Verwalter-Konto frei — '
-                  'die Übergabe. Fahrten und Einstellungen bleiben '
-                  'unberührt, dieses Konto bleibt bestehen. Wer übernimmt, '
-                  'verknüpft sich danach mit dem Gruppen-Login.',
-                ),
-                const SizedBox(height: AppSpacing.s),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.tonal(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (context) => const _ReleaseGroupDialog(),
-                    ),
-                    child: const Text('Verknüpfung lösen …'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Card(
-          color: theme.colorScheme.errorContainer,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.m),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Gruppe löschen',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onErrorContainer,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s),
-                Text(
-                  'Löscht Gruppe, alle Fahrten und dieses Verwalter-Konto '
-                  'endgültig — das lässt sich nicht rückgängig machen. '
-                  'Die einzige Kopie danach ist ein vorher gemachter '
-                  'CSV-Export aus der App.',
-                  style: TextStyle(color: theme.colorScheme.onErrorContainer),
-                ),
-                const SizedBox(height: AppSpacing.s),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: theme.colorScheme.error,
-                      foregroundColor: theme.colorScheme.onError,
-                    ),
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (context) =>
-                          _DeleteGroupDialog(handle: group.handle),
-                    ),
-                    child: const Text('Gruppe löschen …'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// Neues geteiltes Gruppenpasswort (die Rettungsleine).
 class _GroupPasswordDialog extends ConsumerStatefulWidget {
-  const _GroupPasswordDialog();
+  const _GroupPasswordDialog({required this.group});
+
+  final AdminGroup group;
 
   @override
   ConsumerState<_GroupPasswordDialog> createState() =>
@@ -356,7 +514,10 @@ class _GroupPasswordDialogState extends ConsumerState<_GroupPasswordDialog> {
     try {
       await ref
           .read(adminRepositoryProvider)
-          .resetGroupPassword(_password.text);
+          .resetGroupPassword(
+            groupId: widget.group.id,
+            newPassword: _password.text,
+          );
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -381,7 +542,10 @@ class _GroupPasswordDialogState extends ConsumerState<_GroupPasswordDialog> {
       title: const Text('Gruppenpasswort neu setzen'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Für „${widget.group.handle}".'),
+          const SizedBox(height: AppSpacing.m),
           PasswordField(
             controller: _password,
             labelText: 'Neues Gruppenpasswort',
@@ -508,11 +672,11 @@ class _AdminPasswordDialogState extends ConsumerState<_AdminPasswordDialog> {
 }
 
 /// Das Löschen: Sudo-Muster (eigenes Admin-Passwort erneut) plus getippter
-/// Gruppenname. Beides prüft der **Server**, nicht dieser Dialog.
+/// Anmeldename. Beides prüft der **Server**, nicht dieser Dialog.
 class _DeleteGroupDialog extends ConsumerStatefulWidget {
-  const _DeleteGroupDialog({required this.handle});
+  const _DeleteGroupDialog({required this.group});
 
-  final String handle;
+  final AdminGroup group;
 
   @override
   ConsumerState<_DeleteGroupDialog> createState() => _DeleteGroupDialogState();
@@ -540,22 +704,25 @@ class _DeleteGroupDialogState extends ConsumerState<_DeleteGroupDialog> {
       await ref
           .read(adminRepositoryProvider)
           .deleteGroup(
+            groupId: widget.group.id,
             adminPassword: _adminPassword.text,
             handleConfirmation: _handleConfirmation.text.trim(),
           );
-      // Konto und Gruppe existieren nicht mehr: Dialog schließen, dann die
-      // tote Sitzung beenden — der Router führt zurück zum Login. Die
-      // Reihenfolge zählt: Ein Routenwechsel schließt schwebende Dialoge
-      // nicht von allein.
+      // Die Gruppe ist weg, dieses Konto lebt weiter (es trägt womöglich
+      // andere Gruppen). Also nur den Dialog schließen und die Liste neu
+      // laden — früher endete der Weg hier im Abmelden.
       if (!mounted) return;
       Navigator.of(context).pop();
-      await ref.read(authRepositoryProvider).signOut();
+      ref.invalidate(adminGroupsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('„${widget.group.handle}" ist gelöscht.')),
+      );
     } on WrongAdminPassword {
       setState(() => _error = 'Das Admin-Passwort stimmt nicht.');
     } on HandleMismatch {
       setState(
         () => _error =
-            'Der Gruppenname stimmt nicht mit „${widget.handle}" '
+            'Der Anmeldename stimmt nicht mit „${widget.group.handle}" '
             'überein.',
       );
     } catch (_) {
@@ -576,8 +743,9 @@ class _DeleteGroupDialogState extends ConsumerState<_DeleteGroupDialog> {
         children: [
           Text(
             'Alle Fahrten, Personen und Einstellungen von '
-            '„${widget.handle}" werden gelöscht — und dieses '
-            'Verwalter-Konto gleich mit. Es gibt kein Zurück.',
+            '„${widget.group.handle}" werden gelöscht. Es gibt kein Zurück — '
+            'die einzige Kopie ist ein vorher gemachter CSV-Export aus der '
+            'App. Dein Verwalter-Konto bleibt bestehen.',
           ),
           const SizedBox(height: AppSpacing.m),
           PasswordField(
@@ -590,7 +758,7 @@ class _DeleteGroupDialogState extends ConsumerState<_DeleteGroupDialog> {
           TextField(
             controller: _handleConfirmation,
             decoration: InputDecoration(
-              labelText: 'Zur Bestätigung: ${widget.handle}',
+              labelText: 'Zur Bestätigung: ${widget.group.handle}',
               border: const OutlineInputBorder(),
             ),
             onSubmitted: (_) => _busy ? null : _submit(),
@@ -619,8 +787,8 @@ class _DeleteGroupDialogState extends ConsumerState<_DeleteGroupDialog> {
   }
 }
 
-/// „E-Mail-Adresse ändern" — in beiden Zuständen erreichbar: Die Adresse
-/// gehört zum Konto, nicht zur Verknüpfung.
+/// „E-Mail-Adresse ändern" — die Adresse gehört zum Konto, nicht zu einer
+/// Gruppe.
 class _ChangeEmailTile extends StatelessWidget {
   const _ChangeEmailTile();
 
@@ -742,7 +910,9 @@ class _ChangeEmailDialogState extends ConsumerState<_ChangeEmailDialog> {
 /// getippter Handle wie beim Löschen — der Schritt ist umkehrbar (neu
 /// verknüpfen), das eigene Admin-Passwort reicht als Beweis.
 class _ReleaseGroupDialog extends ConsumerStatefulWidget {
-  const _ReleaseGroupDialog();
+  const _ReleaseGroupDialog({required this.group});
+
+  final AdminGroup group;
 
   @override
   ConsumerState<_ReleaseGroupDialog> createState() =>
@@ -766,15 +936,20 @@ class _ReleaseGroupDialogState extends ConsumerState<_ReleaseGroupDialog> {
       _error = null;
     });
     try {
-      await ref.read(adminRepositoryProvider).releaseGroup(_adminPassword.text);
+      await ref
+          .read(adminRepositoryProvider)
+          .releaseGroup(
+            groupId: widget.group.id,
+            adminPassword: _adminPassword.text,
+          );
       if (!mounted) return;
       Navigator.pop(context);
-      ref.invalidate(adminGroupProvider);
+      ref.invalidate(adminGroupsProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Verknüpfung gelöst — das nächste Konto kann sich mit dem '
-            'Gruppen-Login verknüpfen.',
+            'Verknüpfung gelöst — bis jemand übernimmt, hat die Gruppe '
+            'keinen Verwalter.',
           ),
         ),
       );
@@ -795,10 +970,12 @@ class _ReleaseGroupDialogState extends ConsumerState<_ReleaseGroupDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Danach kann sich das nächste Verwalter-Konto mit Gruppenname '
-            'und Gruppenpasswort verknüpfen — wer zuerst verknüpft, '
-            'verwaltet. Zur Bestätigung dein Admin-Passwort:',
+          Text(
+            'Danach kann sich das nächste Verwalter-Konto mit Anmeldename '
+            'und Gruppenpasswort von „${widget.group.handle}" verknüpfen — '
+            'wer zuerst verknüpft, verwaltet. Bis dahin hat die Gruppe '
+            'keinen Verwalter; die Fahrgemeinschaft selbst läuft weiter. '
+            'Zur Bestätigung dein Admin-Passwort:',
           ),
           const SizedBox(height: AppSpacing.m),
           PasswordField(

@@ -13,7 +13,6 @@ import '../data/providers.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/pending_screen.dart';
-import '../features/auth/request_group_screen.dart';
 import '../features/console/console_login_screen.dart';
 import '../features/console/console_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
@@ -64,8 +63,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loggedIn = authRepository.loggedIn;
       final loc = state.matchedLocation;
-      final onAuthPage =
-          loc == '/login' || loc == '/request' || loc == '/console/login';
+      final onAuthPage = loc == '/login' || loc == '/console/login';
       if (!loggedIn) {
         if (onAuthPage) return null;
         // Wer die Konsole ansteuert, landet auf deren Anmeldung, nicht auf
@@ -90,10 +88,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/console',
         builder: (context, state) => const ConsoleScreen(),
-      ),
-      GoRoute(
-        path: '/request',
-        builder: (context, state) => const RequestGroupScreen(),
       ),
       GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
       GoRoute(path: '/help', builder: (context, state) => const HelpScreen()),

@@ -5,11 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/group_login.dart';
 
-/// Der gewünschte Anmeldename ist schon vergeben.
-class HandleTakenException implements Exception {
-  const HandleTakenException();
-}
-
 /// Das Verwalter-Konto existiert, hat den Code aus der Registrierungs-Mail
 /// aber noch nicht eingegeben — die Anmeldung ist bis dahin gesperrt.
 class EmailNotConfirmedException implements Exception {
@@ -19,11 +14,6 @@ class EmailNotConfirmedException implements Exception {
 /// Die gewünschte neue E-Mail-Adresse gehört schon einem Konto.
 class EmailTakenException implements Exception {
   const EmailTakenException();
-}
-
-/// Der Server drosselt gerade neue Gruppen-Anfragen (Missbrauchsschutz).
-class TooManyRequestsException implements Exception {
-  const TooManyRequestsException();
 }
 
 /// Der Code aus der Mail ist falsch oder abgelaufen.
@@ -68,16 +58,6 @@ abstract class AuthRepository {
 
   Stream<dynamic> get onAuthStateChange;
   Future<void> signIn(String handle, String password);
-
-  /// Neue Gruppe anfragen: legt den Login an; die zugehörige Gruppe entsteht
-  /// per DB-Trigger im Status 'pending' und muss freigegeben werden.
-  /// Meldet NICHT an — die Anfrage bleibt eine Anfrage.
-  /// Wirft [HandleTakenException], wenn der Anmeldename vergeben ist.
-  Future<void> requestGroup({
-    required String handle,
-    required String password,
-    required String groupName,
-  });
 
   /// Passwort des aktuell eingeloggten Gruppen-Accounts ändern.
   Future<void> changePassword(String newPassword);
@@ -148,33 +128,6 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> signIn(String handle, String password) => _client.auth
       .signInWithPassword(email: resolveLoginEmail(handle), password: password);
-
-  @override
-  Future<void> requestGroup({
-    required String handle,
-    required String password,
-    required String groupName,
-  }) async {
-    // Serverseitig statt auth.signUp: Seit Verwalter-Konten ihre E-Mail
-    // bestätigen müssen (mailer_autoconfirm aus), würde ein Client-Signup
-    // eine Bestätigungsmail an die unzustellbare Gruppen-Fake-Adresse
-    // schicken — und das Konto bliebe für immer gesperrt. Die Edge Function
-    // legt es per Admin-API als bestätigt an, ganz ohne Mail.
-    try {
-      await _client.functions.invoke(
-        'request-group',
-        body: {
-          'handle': normalizeHandle(handle),
-          'password': password,
-          'groupName': groupName,
-        },
-      );
-    } on FunctionException catch (e) {
-      if (e.status == 409) throw const HandleTakenException();
-      if (e.status == 429) throw const TooManyRequestsException();
-      rethrow;
-    }
-  }
 
   @override
   Future<void> changePassword(String newPassword) =>
@@ -306,13 +259,6 @@ class AlwaysLoggedInAuthRepository implements AuthRepository {
 
   @override
   Future<void> signIn(String handle, String password) async {}
-
-  @override
-  Future<void> requestGroup({
-    required String handle,
-    required String password,
-    required String groupName,
-  }) async {}
 
   @override
   Future<void> changePassword(String newPassword) async {}

@@ -70,6 +70,12 @@ site_url = "http://localhost:8731"
 # Functions). Nach einem Merge, der supabase/functions/ ändert, prüfen,
 # ob die Function in Production angekommen ist — sonst manuell:
 # `supabase functions deploy request-group --project-ref <ref>`.
+#
+# `verify_jwt` sortiert nur Aufrufe ohne jedes Token aus — es genügt NICHT
+# als Zugangsschutz, weil der anon-Key selbst ein gültiges JWT ist. Seit #106
+# prüft der Rumpf deshalb mit `getUser`, dass ein Verwalter-Konto mit
+# bestätigtem Postfach ruft (401/403). Ohne diese Prüfung wäre der Endpunkt
+# eine offene Gruppenfabrik.
 [functions.request-group]
 verify_jwt = true
 

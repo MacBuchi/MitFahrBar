@@ -25,8 +25,6 @@ void main() {
     service = newServiceClient();
     a = await registerGroup('rlsa');
     b = await registerGroup('rlsb');
-    await activateGroup(service, a.id);
-    await activateGroup(service, b.id);
     personA = await a.client
         .from('persons')
         .insert({'name': 'Anna E2E'})
@@ -37,12 +35,18 @@ void main() {
 
   tearDownAll(disposeClients);
 
-  test('Signup-Trigger: pending-Gruppe mit Default-Settings', () async {
+  test('Signup-Trigger: Gruppe mit Default-Settings', () async {
     final c = await registerGroup('rlsc');
 
     final group = await c.client.from('groups').select().single();
     expect(group['handle'], c.handle);
-    expect(group['status'], 'pending');
+    expect(
+      group['status'],
+      'active',
+      reason:
+          'Der Trigger legt sie als pending an, die Function schaltet sie im '
+          'selben Zug frei — beides gehört zur Anlage.',
+    );
 
     // Settings entstehen im Trigger — inklusive points_weight = 1.0
     // (Punkte-only-Ranking, Issue #38).
@@ -58,9 +62,14 @@ void main() {
   });
 
   test('pending-Gruppe darf nichts lesen und nichts schreiben', () async {
+    // Der Zustand entsteht nicht mehr über die App, sondern nur noch durch
+    // einen Fremd-Signup gegen die Gruppen-Domain — der ist client-seitig
+    // nicht abstellbar, solange die Verwalter-Registrierung offen ist. Genau
+    // deshalb bleibt `status` der Riegel: Eine solche Zeile ist inert.
     final c = await registerGroup('rlsp');
+    await makePending(service, c.id);
     // Eigene Settings existieren (Trigger), sind aber unsichtbar,
-    // solange die Gruppe nicht freigegeben ist.
+    // solange die Gruppe nicht aktiv ist.
     final settings = await c.client.from('settings').select();
     expect(settings, isEmpty);
     await expectLater(

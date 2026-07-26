@@ -9,6 +9,7 @@ library;
 import 'dart:async';
 
 import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/data/admin_repository.dart';
 import 'package:mitfahrbar/data/app_config_repository.dart';
 import 'package:mitfahrbar/data/carpool_repository.dart';
 import 'package:mitfahrbar/data/fake_repository.dart';
@@ -29,16 +30,20 @@ class FakeAccount {
   final String groupId;
 }
 
-/// Verwalter-Konto (Konsole): echte E-Mail, eigenes Passwort, optional mit
-/// einer Gruppe verknüpft. `confirmed` bildet die Bestätigungspflicht ab:
-/// Frisch registrierte Konten sind unbestätigt und können sich nicht
-/// anmelden, bis der Code aus der Mail (im Fake: das Flag) eingelöst ist.
+/// Verwalter-Konto (Konsole): echte E-Mail, eigenes Passwort, bis zu
+/// [groupCap] verknüpfte Gruppen. `confirmed` bildet die
+/// Bestätigungspflicht ab: Frisch registrierte Konten sind unbestätigt und
+/// können sich nicht anmelden, bis der Code aus der Mail (im Fake: das Flag)
+/// eingelöst ist.
 class FakeAdminAccount {
   FakeAdminAccount({required this.password, this.confirmed = true});
 
   String password;
   bool confirmed;
-  String? groupId;
+
+  /// Reihenfolge zählt: Die Konsole zeigt die Gruppen nach Alter sortiert,
+  /// und die Tests greifen Karten über ihren Namen.
+  final List<String> groupIds = [];
 }
 
 class FakeBackend {
@@ -63,9 +68,6 @@ class FakeBackend {
   /// deshalb bewusst nicht an.
   final List<String> emailChangeRequests = [];
 
-  /// Simuliert die gedrosselte Gruppen-Anlage (Missbrauchsschutz, #69):
-  /// Die Edge Function antwortet dann mit 429.
-  bool signupThrottled = false;
   final Map<String, Group> groups = {};
   final Map<String, FakeCarpoolRepository> _data = {};
   final List<Map<String, Object?>> feedback = [];
@@ -138,31 +140,43 @@ class FakeBackend {
     return id;
   }
 
-  void createPendingAccount({
-    required String email,
+  /// Die Anlage aus der Konsole (Edge Function `request-group`): Gruppe
+  /// **sofort aktiv** und **sofort verknüpft** — in einem Zug, damit keine
+  /// Gruppe ohne Zuordnung entstehen kann.
+  ///
+  /// Wirft wie der Server, wenn der Handle vergeben ist oder das Konto seinen
+  /// Deckel erreicht hat. Den Deckel bildet der Fake bewusst nach: Sonst
+  /// prüfte der Test nur, ob die Oberfläche das Formular versteckt — nicht,
+  /// ob die Grenze wirklich hält.
+  String createGroupForAdmin({
+    required String adminEmail,
+    required String handle,
     required String password,
     required String groupName,
-    required String handle,
   }) {
-    final id = 'group-${_nextId++}';
-    groups[id] = Group(
-      id: id,
-      name: groupName,
-      handle: handle,
-      status: GroupStatus.pending,
-      isAdmin: false,
-      createdAt: DateTime(2026, 1, _nextId),
-    );
-    accounts[email] = FakeAccount(password: password, groupId: id);
+    final admin = adminAccounts[adminEmail];
+    if (admin == null) throw Exception('not an admin account');
+    if (admin.groupIds.length >= groupCap) {
+      throw const GroupLimitReached();
+    }
+    final email = '$handle@grp.fahrgemeinschaft.app';
+    if (accounts.containsKey(email)) throw const HandleTakenException();
+    final id = addGroup(handle: handle, password: password, name: groupName);
+    admin.groupIds.add(id);
+    return id;
   }
 
-  /// Löscht wie die Kaskade der echten Datenbank: Gruppe, Daten, Zugang
-  /// und die Verwalter-Verknüpfung in einem Schlag.
+  /// Löscht wie die Kaskade der echten Datenbank: Gruppe, Daten und Zugang.
+  ///
+  /// Das Verwalter-Konto überlebt und verliert nur die Verknüpfung — es trägt
+  /// womöglich weitere Gruppen.
   void deleteGroupCompletely(String groupId) {
     groups.remove(groupId);
     _data.remove(groupId);
     accounts.removeWhere((_, account) => account.groupId == groupId);
-    adminAccounts.removeWhere((_, admin) => admin.groupId == groupId);
+    for (final admin in adminAccounts.values) {
+      admin.groupIds.remove(groupId);
+    }
   }
 
   void dispose() => _authController.close();

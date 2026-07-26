@@ -32,37 +32,36 @@ void main() {
 
   tearDownAll(disposeClients);
 
-  test(
-    'Gruppen-Anlage: keine Mail, sofort anmeldbar, Gruppe pending',
-    () async {
-      final service = newServiceClient();
-      final g = await registerGroup('fn');
+  test('Gruppen-Anlage: keine Mail, sofort anmeldbar, Gruppe aktiv', () async {
+    final service = newServiceClient();
+    final g = await registerGroup('fn');
 
-      // registerGroup hat sich bereits angemeldet — das beweist: Das Konto
-      // ist ohne jeden Mail-Klick nutzbar (email_confirm der Admin-API).
-      expect(
-        await noMailFor(g.email),
-        isTrue,
-        reason:
-            'An die Fake-Adresse darf nie eine Mail gehen — in Production '
-            'wäre das ein Bounce bei Brevo.',
-      );
+    // registerGroup hat sich bereits angemeldet — das beweist: Das Konto
+    // ist ohne jeden Mail-Klick nutzbar (email_confirm der Admin-API).
+    expect(
+      await noMailFor(g.email),
+      isTrue,
+      reason:
+          'An die Fake-Adresse darf nie eine Mail gehen — in Production '
+          'wäre das ein Bounce bei Brevo. Das ist der Grund, warum die '
+          'Anlage überhaupt serverseitig läuft.',
+    );
 
-      final rows = await service.from('groups').select().eq('id', g.id);
-      expect(
-        rows.single['status'],
-        'pending',
-        reason: 'Der Signup-Trigger greift auch beim Admin-API-Weg.',
-      );
-      expect(rows.single['name'], 'E2E fn');
-    },
-  );
+    final rows = await service.from('groups').select().eq('id', g.id);
+    expect(
+      rows.single['status'],
+      'active',
+      reason:
+          'Seit #106 legt ein Verwalter-Konto die Gruppe an — sie ist '
+          'sofort nutzbar, es gibt keine Freigabe mehr.',
+    );
+    expect(rows.single['name'], 'E2E fn');
+  });
 
   test('doppelter Handle prallt an der Function mit 409 ab', () async {
     final g = await registerGroup('dup');
-    final probe = newAnonClient();
     await expectLater(
-      probe.functions.invoke(
+      g.owner.client.functions.invoke(
         'request-group',
         body: {
           'handle': g.handle,
@@ -75,9 +74,9 @@ void main() {
   });
 
   test('die Function weist zu kurze Passwörter ab', () async {
-    final probe = newAnonClient();
+    final creator = await groupCreator();
     await expectLater(
-      probe.functions.invoke(
+      creator.client.functions.invoke(
         'request-group',
         body: {
           'handle': uniqueName('kurz'),

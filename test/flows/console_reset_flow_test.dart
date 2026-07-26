@@ -181,7 +181,7 @@ void main() {
     tester,
   ) async {
     final backend = _backend();
-    backend.adminAccounts[_adminEmail]!.groupId = backend.groups.keys.first;
+    backend.adminAccounts[_adminEmail]!.groupIds.add(backend.groups.keys.first);
     await pumpApp(tester, backend, splash: false);
     await _requestCode(tester, _adminEmail);
 

@@ -37,28 +37,6 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> requestGroup({
-    required String handle,
-    required String password,
-    required String groupName,
-  }) async {
-    if (backend.signupThrottled) {
-      throw const TooManyRequestsException();
-    }
-    final email = handleToEmail(handle);
-    if (backend.accounts.containsKey(email)) {
-      throw const HandleTakenException();
-    }
-    // Wie die Edge Function in Produktion: legt nur an, meldet nicht an.
-    backend.createPendingAccount(
-      email: email,
-      password: password,
-      groupName: groupName,
-      handle: normalizeHandle(handle),
-    );
-  }
-
-  @override
   Future<void> changePassword(String newPassword) async {
     final email = backend.currentEmail;
     if (email == null) throw Exception('not signed in');
