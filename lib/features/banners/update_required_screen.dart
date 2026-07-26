@@ -5,8 +5,19 @@
 /// arbeiten kann (Issue #19).
 ///
 /// Ob überhaupt gesperrt wird, entscheidet `updateRequiredProvider` in
-/// `data/providers.dart` — dort stehen auch die Sicherungen, die verhindern,
-/// dass dieser Schirm jemanden dauerhaft aussperrt.
+/// `data/providers.dart` — dort stehen die drei Sicherungen, die verhindern,
+/// dass dieser Schirm jemanden dauerhaft aussperrt. Die vierte steht hier:
+/// **Von diesem Schirm muss ein Weg wegführen, der nichts voraussetzt.**
+/// Deshalb gibt es zwei Knöpfe. Der obere öffnet den gewohnten Dialog (ein
+/// Ablauf für Banner und Sperre, zwei wären zwei Fehlerquellen); der untere
+/// geht direkt in den Browser — ohne Dialog, ohne Navigator, ohne Overlay.
+///
+/// Der Grund ist ein realer Ausfall (26.07.2026, Pixel 7): Der Schirm ersetzt
+/// im `builder` der MaterialApp den Router-Navigator, es gab also keinen —
+/// `showDialog` warf, Flutter schluckte es, der Knopf tat nichts, und es half
+/// nur Deinstallieren und Neuinstallieren von Hand. Die Ursache ist in
+/// `app.dart` behoben; dieser zweite Weg ist die Zusage, dass ein Fehler
+/// derselben Art nicht wieder alles blockiert.
 library;
 
 import 'package:flutter/material.dart';
@@ -15,14 +26,30 @@ import '../../core/tokens.dart';
 import '../../core/update_check.dart';
 import 'app_banners.dart';
 
-class UpdateRequiredScreen extends StatelessWidget {
+class UpdateRequiredScreen extends StatefulWidget {
   const UpdateRequiredScreen({super.key, required this.info});
 
   final UpdateInfo info;
 
   @override
+  State<UpdateRequiredScreen> createState() => _UpdateRequiredScreenState();
+}
+
+class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
+  /// Kein Browser hat reagiert. Dann bleibt nur die Adresse zum Abtippen —
+  /// eine SnackBar käme hier nicht in Frage, die bräuchte wieder einen
+  /// ScaffoldMessenger über dem Schirm.
+  bool _browserFailed = false;
+
+  Future<void> _openInBrowser() async {
+    final launched = await openUpdateInBrowser(widget.info);
+    if (!launched && mounted) setState(() => _browserFailed = true);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final info = widget.info;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -73,6 +100,29 @@ class UpdateRequiredScreen extends StatelessWidget {
                       updateIsDownload ? 'Update installieren' : 'Neu laden',
                     ),
                   ),
+                  if (updateIsDownload) ...[
+                    const SizedBox(height: AppSpacing.s),
+                    TextButton.icon(
+                      onPressed: _openInBrowser,
+                      icon: const Icon(Icons.open_in_browser, size: 18),
+                      label: const Text('Stattdessen im Browser laden'),
+                    ),
+                  ],
+                  if (_browserFailed) ...[
+                    const SizedBox(height: AppSpacing.s),
+                    Text(
+                      'Es hat sich kein Browser gemeldet. Die neue Version '
+                      'liegt hier:',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    SelectableText(
+                      info.apkUrl ?? info.releaseUrl,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

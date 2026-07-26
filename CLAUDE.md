@@ -111,6 +111,30 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   „aufräumt", baut eine Aussperrung, die nur ein neues Release behebt —
   `test/update_check_test.dart` und `test/flows/update_required_flow_test.dart`
   halten alle drei fest.
+  **Vierte Bedingung, seit v0.38.0 und teuer gelernt: Vom Schirm muss ein Weg
+  wegführen, und der muss geprüft sein — nicht nur seine Sichtbarkeit.** Der
+  Schirm ERSETZT im `builder` der MaterialApp den Router-Navigator; er
+  braucht deshalb einen **eigenen** `Navigator` (`app.dart`), sonst findet
+  `showDialog` keinen, wirft, Flutter schluckt die Exception und der Knopf tut
+  sichtbar nichts. Genau das lief bis 0.37.0 (Pixel 7, 26.07.2026): Es half
+  nur Deinstallieren und Neuinstallieren. Im Normalbetrieb fällt es nie auf,
+  weil das Update-**Banner** innerhalb des Router-Navigators sitzt — kaputt
+  ist nur der Weg, den man ausschließlich im gesperrten Zustand sieht.
+  Deshalb steht daneben `openUpdateInBrowser` als zweiter Weg **ohne
+  BuildContext**: kein Dialog, kein Navigator, kein Overlay. Wer ihn an eine
+  SnackBar, einen Router-Aufruf oder einen Dialog hängt, nimmt ihm den Zweck.
+  Der Regressionstest **tippt** beide Knöpfe an; ein Test, der nur `find`
+  benutzt, hätte den Ausfall wieder nicht gesehen.
+- **Eine Mindestversion ist erst dann berechtigt, wenn der alte Client
+  wirklich bricht.** Sie zu heben ist nicht der Normalfall einer Migration,
+  sondern der Ausnahmefall: Sie wirft jeden veralteten Client auf den
+  Sperr-Schirm, und ein Fix an diesem Schirm erreicht genau die nicht, die
+  schon davorstehen — aus diesem Loch kann man sich nicht heraus-releasen.
+  Vor dem Heben also prüfen, was der veröffentlichte Client mit dem neuen
+  Schema tatsächlich tut. Bei #108 etwa fing `json['is_admin'] as bool? ??
+  false` die entfernte Spalte sauber ab, die Selects liefen ins Leere statt in
+  Fehler — dort wurde bewusst **nicht** gehoben. Gehoben wird, wenn der Client
+  ohne Update falsche Daten zeigt oder in eine Exception läuft.
 - **Multi-Tenant:** Eine Gruppe = ein Login (`group_id = auth.uid()`). Alle
   Datentabellen tragen `group_id` (Default `auth.uid()`), RLS erzwingt
   `group_id = auth.uid() AND my_group_active()`. Neue Gruppen entstehen seit

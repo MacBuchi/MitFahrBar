@@ -124,6 +124,21 @@ Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) =>
       builder: (_) => _UpdateDialog(info: info),
     );
 
+/// Das Update im Browser öffnen — bevorzugt direkt die APK.
+///
+/// Bewusst frei von jedem `BuildContext`: Das ist der einzige Update-Weg, der
+/// **keinen Navigator und kein Overlay** braucht, und damit die Rettungsleine
+/// auf dem Sperr-Schirm. Wer hier wieder einen Dialog, eine SnackBar oder
+/// einen Router-Aufruf einbaut, hängt sie an genau das, was im gesperrten
+/// Zustand fehlen kann.
+///
+/// Liefert `false`, wenn kein Browser reagiert hat — der Aufrufer muss das
+/// sichtbar machen, sonst wirkt der Knopf tot.
+Future<bool> openUpdateInBrowser(UpdateInfo info) => launchUrl(
+  Uri.parse(info.apkUrl ?? info.releaseUrl),
+  mode: LaunchMode.externalApplication,
+);
+
 /// Ablauf des In-App-Updates. Sichtbar getrennt, weil jede Phase etwas
 /// anderes von der Nutzerin verlangt: warten, bestätigen, ausweichen.
 enum _UpdatePhase { idle, downloading, installing, error }
@@ -200,11 +215,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   }
 
   Future<void> _openInBrowser() async {
-    final target = widget.info.apkUrl ?? widget.info.releaseUrl;
-    final launched = await launchUrl(
-      Uri.parse(target),
-      mode: LaunchMode.externalApplication,
-    );
+    final launched = await openUpdateInBrowser(widget.info);
     // launchUrl scheitert still, wenn kein Browser sichtbar ist – dann
     // wenigstens sagen, was los ist, statt so zu tun als sei nichts.
     if (!launched && mounted) {
