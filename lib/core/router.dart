@@ -20,6 +20,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/import/import_screen.dart';
+import '../features/notifications/notifications_screen.dart';
 import '../features/persons/persons_screen.dart';
 import '../features/plan/plan_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -103,6 +104,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/persons',
         builder: (context, state) => const PersonsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
       GoRoute(
         path: '/settings',

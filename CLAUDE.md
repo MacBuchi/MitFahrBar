@@ -313,6 +313,48 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Wer hier wieder „erst speichern, dann neu laden" einbaut, macht aus
   jedem Tap zwei serielle Roundtrips — genau die Trägheit, die 2026-07-22
   behoben wurde.
+- **Push-Benachrichtigungen (Issue #101, seit v0.36.0) — vier Dinge, die
+  zusammengehören.** Der Versand entscheidet `tool/notify.dart` auf GitHub
+  Actions, nicht eine Edge Function: Der Text nennt, **wer morgen fährt**,
+  und das ist eine berechnete Kennzahl. `fairness.dart` und `models/` sind
+  reines Dart ohne Flutter-Import, der Job importiert also den echten
+  `planWeek`. Wer den Entscheider nach TypeScript verschiebt, baut die
+  zweite Wahrheit über die Fairness-Regel — und merkt es nicht, solange
+  beide zufällig gleich rechnen. Verschickt wird über
+  `supabase/functions/send-push/`, damit das FCM-Dienstkonto bei den
+  übrigen Server-Geheimnissen bleibt.
+  - **`push_log` speichert einen Hash, keinen Plan.** Es ist ein
+    Versand-Gedächtnis, keine zweite Wahrheit über den Tag; der
+    vorgeschlagene Fahrer bleibt ungespeichert wie bisher. Der feste Wert
+    `removedDigest` ist der Trick am Austrag: Wer raus ist, bekommt genau
+    **eine** Nachricht, egal wie oft die anderen den Tag noch umbauen.
+    Der Digest hängt bewusst **nicht** an den Punkten — sonst löste jede
+    eingetragene Fahrt eines Vortages eine Meldung aus.
+  - **Die Personen-Zuordnung eines Geräts ist kein Login.** Jeder kann
+    jeden wählen, wie im Planer jeder für jeden einträgt. Sie ist eine
+    Zustelladresse; `group_id = auth.uid()` bleibt unangetastet. Das Token
+    kommt bei jedem Start frisch von FCM und wird serverseitig
+    nachgeschlagen — deshalb schreibt `lib/` weiterhin **nichts** in
+    SharedPreferences, und die Begründung der Backup-Regeln bleibt gültig.
+  - **`push_devices` hat den Token als Primärschlüssel**, nicht
+    `(group_id, token)`. Bewusste Ausnahme von der group_id-Regel: FCM-Token
+    sind global eindeutig, und ein Gerät gehört zu genau einer Gruppe —
+    beim Wechsel muss die alte Zeile weichen, nicht danebenstehen. Deshalb
+    läuft die Registrierung über `register_push_device` (SECURITY DEFINER):
+    Die alte Zeile liegt unter fremder `group_id`, die RLS zeigt sie nicht,
+    ein blanker Upsert liefe in eine Unique-Verletzung auf einer
+    unsichtbaren Zeile. `push_log` hat wie `group_admins` **null Policies**.
+  - **Gepollt, nicht getriggert** (entschieden 2026-07-26). Ein Database
+    Webhook auf `plan_availability` wäre schneller, feuerte aber mitten in
+    der Bearbeitung — fünf Taps sind fünf Aufrufe, und Entprellen heißt
+    warten und später nachsehen, also genau das, was der 10-Minuten-Takt
+    ohnehin tut. Zudem müsste die Function `planWeek` rechnen. Trigger →
+    `pg_net` → GitHub `repository_dispatch` legte ein Repo-Token in die
+    Datenbank: **nicht bauen.**
+  Push-Texte gehören nie ins Log (sie enthalten Personennamen), und der Job
+  loggt nur Zahlen. Festgenagelt in `test/push_digest_test.dart`,
+  `test/notify_workflow_test.dart`, `test/schema_test.dart` und
+  `test/flows/notifications_flow_test.dart`.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
 - **Der Einladungstext darf nie ins Log.** „Jemanden einladen"
   (`features/invite/`) kann auf Wunsch das **Gruppenpasswort** enthalten —

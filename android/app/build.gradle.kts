@@ -5,6 +5,10 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Push-Benachrichtigungen (#101): wertet android/app/google-services.json
+    // aus. Die Datei enthält kein Geheimnis — nur Projektnummer, App-Id und
+    // den öffentlichen API-Key, wie der Supabase-Publishable-Key im Client.
+    id("com.google.gms.google-services")
 }
 
 // Release-Signing aus android/key.properties (lokal bzw. in CI aus Secrets

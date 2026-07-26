@@ -4,6 +4,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.36.0] – 2026-07-26
+
+### Neu
+
+- **Benachrichtigungen zum Wochenplan.** Am Abend vorher zeigt euch die App,
+  wie der nächste Tag aussieht: wer fährt, wer dabei ist und was ihr selbst
+  eingetragen habt. Ändert danach noch jemand den Plan, kommt bis zur
+  Abfahrt eine kurze Meldung hinterher — und wer ausgetragen wird, erfährt
+  es auch.
+
+  Einzurichten unter **Menü → Benachrichtigungen**: einmal sagen, wer ihr
+  seid, dann die beiden Uhrzeiten wählen (abends 21 Uhr und Abfahrt 7:30 Uhr
+  sind vorgeschlagen). Beide gelten nur für euch selbst — jeder stellt sich
+  ein, was ihm passt. Es kommt nur an Tagen etwas, an denen ihr auch
+  eingetragen seid, und nach der Abfahrtszeit nie.
+
+  Wer nichts einstellt, bekommt nichts. Zum Ausprobieren gibt es im selben
+  Bildschirm einen Knopf für eine Test-Benachrichtigung.
+
+  Auf Android braucht es dafür einmal die Erlaubnis für Benachrichtigungen;
+  im Browser funktioniert es, wenn ihr MitFahrBar zum Startbildschirm
+  hinzugefügt habt.
+
 ## [0.35.0] – 2026-07-26
 
 ### Behoben

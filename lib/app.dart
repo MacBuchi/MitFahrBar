@@ -1,21 +1,43 @@
 /// app.dart – MaterialApp.router, Theme und Locale.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/push_messaging.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'data/providers.dart';
 import 'features/banners/update_required_screen.dart';
 import 'features/splash/splash_overlay.dart';
 
-class FahrgemeinschaftApp extends ConsumerWidget {
+class FahrgemeinschaftApp extends ConsumerStatefulWidget {
   const FahrgemeinschaftApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FahrgemeinschaftApp> createState() =>
+      _FahrgemeinschaftAppState();
+}
+
+class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Ein Tipp auf eine Benachrichtigung führt immer in den Planer — jede
+    // Nachricht dieses Features handelt von einem Tag darin (Issue #101).
+    // Auch aus dem kalten Start heraus, deshalb hier und nicht im Router.
+    unawaited(
+      ref.read(pushTapListenerProvider)(
+        () => ref.read(routerProvider).go(pushTapRoute),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'MitFahrBar',

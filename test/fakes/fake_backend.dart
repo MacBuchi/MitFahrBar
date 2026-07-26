@@ -14,7 +14,9 @@ import 'package:mitfahrbar/data/carpool_repository.dart';
 import 'package:mitfahrbar/data/fake_repository.dart';
 import 'package:mitfahrbar/data/feedback_repository.dart';
 import 'package:mitfahrbar/data/group_repository.dart';
+import 'package:mitfahrbar/data/push_repository.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
+import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/group.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
@@ -255,6 +257,63 @@ class FakeFeedbackRepository implements FeedbackRepository {
       'platform': platform,
     });
   }
+}
+
+/// Push-Registrierung und -Einstellungen, mandantengetrennt wie die echte
+/// Tabelle: Die Zuordnung hängt an der Gruppe, die gerade angemeldet ist.
+class FakePushRepository implements PushRepository {
+  FakePushRepository(this.backend);
+
+  final FakeBackend backend;
+
+  /// Token → (group_id, person_id), wie `push_devices`.
+  final Map<String, (String?, String?)> devices = {};
+
+  /// (group_id, person_id) → Einstellungen, wie `notification_prefs`.
+  final Map<String, NotificationPrefs> prefs = {};
+
+  /// Was `sendTest` verschickt hätte.
+  final List<String> tests = [];
+
+  String _key(String personId) => '${backend.currentGroupId}|$personId';
+
+  @override
+  Future<PushState> stateFor(String token) async {
+    final device = devices[token];
+    if (device == null || device.$1 != backend.currentGroupId) {
+      return const PushState();
+    }
+    final personId = device.$2;
+    if (personId == null) return const PushState();
+    return PushState(personId: personId, prefs: prefs[_key(personId)]);
+  }
+
+  @override
+  Future<void> register({
+    required String token,
+    required String? personId,
+    required String platform,
+  }) async {
+    // Wie register_push_device: Die alte Zeile weicht, egal welcher Gruppe
+    // sie gehörte.
+    devices[token] = (backend.currentGroupId, personId);
+  }
+
+  @override
+  Future<void> unregister(String token) async => devices.remove(token);
+
+  @override
+  Future<void> savePrefs(NotificationPrefs value) async {
+    prefs[_key(value.personId)] = value;
+  }
+
+  @override
+  Future<void> deletePrefs(String personId) async {
+    prefs.remove(_key(personId));
+  }
+
+  @override
+  Future<void> sendTest(String token) async => tests.add(token);
 }
 
 class FakeGroupRepository implements GroupRepository {

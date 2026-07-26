@@ -1,0 +1,61 @@
+name: Push-Benachrichtigungen
+
+# Verschickt den Abend-Blick auf den nächsten Tag und meldet Änderungen am
+# Wochenplan (Issue #101). Ruht, solange die Secrets nicht gesetzt sind.
+on:
+  schedule:
+    # Der Minuten-Offset ist Absicht: GitHub verzögert Läufe zur vollen
+    # Stunde regelmäßig um 5 bis 30 Minuten, nahe der halben Stunde deutlich
+    # weniger. Der Job sendet ohnehin „sobald fällig" statt „um genau", ein
+    # verspäteter Lauf holt also nach — bis zur eingestellten Abfahrtszeit,
+    # danach nie.
+    #
+    # Fenster in UTC ≈ 16:00–11:00 Berlin und damit weit genug für jede
+    # sinnvolle Abend- und Abfahrtszeit. Ganztägig zu laufen wäre doppelt so
+    # viel Lärm in der Actions-Liste ohne Gewinn.
+    - cron: "3,13,23,33,43,53 14-23,0-9 * * *"
+  workflow_dispatch:
+
+# Zwei gleichzeitige Läufe würden dieselbe Nachricht zweimal verschicken:
+# Beide läsen `push_log`, bevor der andere hineinschreibt.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.41.2"
+  # Ohne das rechnet der Job in UTC: Ein Runner steht auf UTC, `DateTime.now()`
+  # und `DayTime.on()` in push_digest.dart aber sind lokale Zeit. Die
+  # eingestellten 21:00 feuerten dann um 23 Uhr deutscher Zeit — im Sommer.
+  # Sommerzeit gleich mit erledigt, weil die Zonendatenbank sie kennt.
+  TZ: Europe/Berlin
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # Flutter statt nur Dart, weil die pubspec am Flutter-SDK hängt. Der
+      # Job selbst importiert ausschließlich flutterfreien Code
+      # (fairness.dart, push_digest.dart, models/) und läuft mit `dart run`.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Send notifications
+        env:
+          SUPABASE_URL: https://azrlhlcxhpwmxcinjovp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PUSH_JOB_SECRET: ${{ secrets.PUSH_JOB_SECRET }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$PUSH_JOB_SECRET" ]; then
+            echo "::notice::Secrets are not configured — skipping."
+            exit 0
+          fi
+          dart run tool/notify.dart
