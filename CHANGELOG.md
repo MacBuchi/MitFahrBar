@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.40.1] – 2026-07-26
+
+### Geändert
+
+- **„Änderungen bis zur Abfahrt" sagt jetzt, dass es den Abend-Blick
+  braucht.** Beides hing schon immer zusammen: Eine Änderungsmeldung kommt
+  nur, wenn ihr an dem Abend schon den Blick auf morgen bekommen habt — ohne
+  ihn wäre sie die erste Nachricht des Tages und ohne Bezug. Im Screen sah es
+  aber nach zwei unabhängigen Schaltern aus. Wer den Abend-Blick abschaltete,
+  bekam still gar nichts mehr. Jetzt ist der zweite Schalter in dem Fall
+  ausgegraut und erklärt sich. Eure Einstellung bleibt dabei gespeichert:
+  Schaltet ihr den Abend-Blick wieder ein, ist sie unverändert da.
+
 ## [0.40.0] – 2026-07-26
 
 ### Behoben

@@ -127,6 +127,67 @@ void main() {
     expect(push.prefs.values.single.changesEnabled, isFalse);
   });
 
+  // Die beiden Schalter sehen gleichwertig aus, sind es aber nicht:
+  // `dueMessages` meldet eine Änderung nur, wenn für den Tag schon ein
+  // Abend-Push protokolliert ist. Ohne Abend-Blick entsteht diese Zeile nie
+  // — „Änderungen bis zur Abfahrt" liefe also leer, während der Untertitel
+  // etwas anderes verspricht. Wer nur die Abendmeldung zu viel findet,
+  // verlöre stillschweigend beides und merkte es erst, wenn eine Umstellung
+  // unbemerkt bleibt.
+  testWidgets('ohne Abend-Blick sperrt der Änderungs-Schalter und sagt warum', (
+    tester,
+  ) async {
+    final backend = await _backend();
+    final push = FakePushRepository(backend);
+    await pumpApp(
+      tester,
+      backend,
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
+    await _login(tester);
+    await _open(tester);
+    await _choose(tester, 'Anna');
+
+    SwitchListTile changes() => tester.widget<SwitchListTile>(
+      find.widgetWithText(SwitchListTile, 'Änderungen bis zur Abfahrt'),
+    );
+    expect(changes().onChanged, isNotNull);
+
+    await tester.tap(find.text('Abends der Blick auf morgen'));
+    await tester.pumpAndSettle();
+
+    expect(
+      changes().onChanged,
+      isNull,
+      reason:
+          'Ein bedienbarer Schalter, der nichts bewirkt, ist schlimmer als '
+          'gar keiner.',
+    );
+    expect(
+      changes().value,
+      isFalse,
+      reason: 'Er soll sich als aus lesen, solange er wirkungslos ist.',
+    );
+    expect(find.textContaining('Braucht den Abend-Blick'), findsOneWidget);
+    expect(
+      push.prefs.values.single.changesEnabled,
+      isTrue,
+      reason:
+          'Nur die Anzeige folgt, der gespeicherte Wert nicht — sonst müsste '
+          'man ihn nach dem Wiedereinschalten neu setzen.',
+    );
+
+    await tester.tap(find.text('Abends der Blick auf morgen'));
+    await tester.pumpAndSettle();
+
+    expect(changes().onChanged, isNotNull);
+    expect(
+      changes().value,
+      isTrue,
+      reason: 'Die eigene Einstellung ist wieder da, unverändert.',
+    );
+  });
+
   testWidgets('„niemand" nimmt das Gerät aus der Zustellung', (tester) async {
     final backend = await _backend();
     final push = FakePushRepository(backend);
