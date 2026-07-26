@@ -3,7 +3,11 @@ library;
 
 /// `archived` ist der Ruhezustand für Gruppen, die stillgelegt wurden — er
 /// wird heute von nichts gesetzt und ist bewusst schon hier: siehe
-/// [Group.fromJson].
+/// [Group.statusFrom].
+///
+/// `pending` bedeutet seit #108 nicht mehr „wartet auf Freigabe" (die gibt es
+/// nicht mehr), sondern „nie in Gebrauch genommen": ein Fremd-Signup gegen die
+/// Gruppen-Domain. Solche Gruppen sind inert und werden nicht mehr aktiviert.
 enum GroupStatus { pending, active, rejected, archived }
 
 class Group {
@@ -12,7 +16,6 @@ class Group {
     required this.name,
     required this.handle,
     required this.status,
-    required this.isAdmin,
     this.createdAt,
   });
 
@@ -20,7 +23,6 @@ class Group {
   final String name;
   final String handle;
   final GroupStatus status;
-  final bool isAdmin;
   final DateTime? createdAt;
 
   bool get isActive => status == GroupStatus.active;
@@ -45,7 +47,6 @@ class Group {
     name: json['name'] as String,
     handle: json['handle'] as String,
     status: statusFrom(json['status'] as String),
-    isAdmin: json['is_admin'] as bool? ?? false,
     createdAt: json['created_at'] == null
         ? null
         : DateTime.parse(json['created_at'] as String),

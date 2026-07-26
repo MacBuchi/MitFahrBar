@@ -38,6 +38,21 @@ void main() {
     return inline!.group(1)!;
   }
 
+  /// [sql] ohne `--`-Kommentare.
+  ///
+  /// Nötig für jede Prüfung der Form „dieser Name kommt nicht mehr vor":
+  /// Gerade ein Rückbau wird im File ausführlich begründet, und die
+  /// Begründung nennt zwangsläufig, was entfernt wurde. Ohne diesen Filter
+  /// scheitert so ein Test an seinem eigenen Kommentar — was hier beim
+  /// Schreiben von #108 auch passiert ist.
+  String sqlOnly(String sql) => sql
+      .split('\n')
+      .map((line) {
+        final comment = line.indexOf('--');
+        return comment == -1 ? line : line.substring(0, comment);
+      })
+      .join('\n');
+
   // Die Tabellen mit fachlichem (statt generiertem) Schlüssel. Bei `persons`
   // und `trips` ist der Schlüssel eine UUID und damit ohnehin global
   // eindeutig — dort wäre `group_id` im Schlüssel sinnlos.
@@ -267,7 +282,7 @@ void main() {
         contains("account_type' = 'admin'"),
         reason:
             'Ohne die Ausnahme erzeugte jede Konsolen-Registrierung eine '
-            'Geister-„pending"-Gruppe in der Freigabeliste.',
+            'Geister-„pending"-Gruppe, die niemandem gehört.',
       );
     });
 
@@ -461,6 +476,135 @@ void main() {
             'Das File entfernt Funktionen, die veröffentlichte Clients '
             'aufrufen. Die Regel aus CLAUDE.md: Wer entfernt, was ein Client '
             'nutzt, hebt IM SELBEN FILE die Mindestversion.',
+      );
+    });
+  });
+
+  // Die Freigabe ist abgeschafft (Issue #108). Was hier geprüft wird, ist
+  // nicht der Rückbau selbst — der fällt beim Kompilieren auf —, sondern die
+  // Zusicherung, dass keine Gruppe sich künftig selbst freischalten kann und
+  // dass die Migration in einer Reihenfolge läuft, die Postgres akzeptiert.
+  group('Keine Admin-Gruppe mehr (Issue #108)', () {
+    final migration = File(
+      'supabase/migrations/20260726172000_retire_admin_group.sql',
+    ).readAsStringSync();
+
+    test('groups hat keine Update-Policy', () {
+      final policies = RegExp(
+        r'create policy \w+ on public\.groups\s+for (\w+)',
+      ).allMatches(schema).map((m) => m.group(1)).toList();
+
+      expect(
+        policies,
+        isNot(contains('update')),
+        reason:
+            'Eine Update-Policy auf `groups` wäre der Selbstbedienungs-Weg zum '
+            'eigenen `status`: Ein Client könnte sich freischalten oder eine '
+            'Archivierung zurückdrehen. Genau deshalb brauchte die alte '
+            'Freigabe eine Sonderrolle — Gruppen ändern sich nur noch über '
+            'SECURITY-DEFINER-Funktionen und den Service-Role-Key.',
+      );
+      expect(
+        policies,
+        isNot(contains('all')),
+        reason: '„for all" wäre update.',
+      );
+    });
+
+    test('is_admin und is_group_admin sind restlos verschwunden', () {
+      expect(
+        sqlOnly(schema),
+        isNot(contains('is_admin')),
+        reason:
+            'Das Flag saß auf einem GETEILTEN Gruppen-Login ohne „Passwort '
+            'vergessen", und es gab keinen Code-Weg, es zu setzen. Genau das '
+            'hat am 26.07.2026 eine Freigabe unmöglich gemacht.',
+      );
+      expect(
+        sqlOnly(schema),
+        isNot(contains('is_group_admin')),
+        reason:
+            'Die Funktion hing an der Spalte; bliebe sie stehen, verweigerte '
+            'Postgres das `drop column` wegen der Abhängigkeit.',
+      );
+    });
+
+    test('die Migration schreibt handle_new_group VOR dem drop column', () {
+      final rewrite = migration.indexOf(
+        'create or replace function public.handle_new_group',
+      );
+      final dropColumn = migration.indexOf(
+        'alter table public.groups drop column is_admin',
+      );
+      expect(rewrite, greaterThan(-1));
+      expect(dropColumn, greaterThan(-1));
+      expect(
+        rewrite,
+        lessThan(dropColumn),
+        reason:
+            'Die alte Fassung führt `is_admin` in ihrer Insert-Spaltenliste. '
+            'Fiele die Spalte zuerst, scheiterte in diesem Moment JEDER '
+            'Signup — auch der eines Verwalter-Kontos. Umgekehrt ist es '
+            'unkritisch: Die neue Fassung läuft auch gegen die noch '
+            'vorhandene Spalte, die einen Default hat.',
+      );
+    });
+
+    test('die Migration droppt die Policies vor der Funktion', () {
+      final dropPolicy = migration.indexOf(
+        'drop policy groups_admin_update on public.groups',
+      );
+      final dropFunction = migration.indexOf(
+        'drop function public.is_group_admin()',
+      );
+      expect(dropPolicy, greaterThan(-1));
+      expect(dropFunction, greaterThan(-1));
+      expect(
+        dropPolicy,
+        lessThan(dropFunction),
+        reason:
+            'Beide Policies rufen die Funktion auf — in der anderen '
+            'Reihenfolge bricht die Migration mit einem '
+            'Abhängigkeitsfehler ab.',
+      );
+    });
+
+    test('die Altlast wird differenziert aufgelöst, nicht pauschal', () {
+      expect(
+        migration,
+        stringContainsInOrder([
+          "set status = 'active'",
+          'exists (select 1 from public.group_admins',
+          'delete from auth.users',
+          'not exists (select 1 from public.group_admins',
+        ]),
+        reason:
+            'Verknüpfte pending-Gruppen gehören einem Verwalter, der sich '
+            'ausgewiesen hat — sie werden aktiv. Unverknüpfte sind Fremd- '
+            'oder Testsignups ohne Besitzer und ohne Inhalt (die RLS '
+            'verbietet einer nicht-aktiven Gruppe jedes Schreiben). Eine '
+            'pauschale Behandlung würde entweder Gruppen ohne Zuordnung '
+            'stehenlassen oder die eines Verwalters löschen.',
+      );
+      expect(
+        sqlOnly(migration),
+        isNot(contains('rejected')),
+        reason:
+            'Ein ausgesprochenes Nein ist eine Entscheidung, kein Rest — '
+            "'rejected' bleibt liegen. Die Migration darf diese Zeilen weder "
+            'aktivieren noch löschen.',
+      );
+    });
+
+    test('die Migration hebt die Mindestversion im selben File', () {
+      expect(
+        migration,
+        contains("set value = '0.38.0'"),
+        reason:
+            'Das File entfernt eine Spalte, die veröffentlichte Clients lesen '
+            '(`Group.fromJson`), und nimmt der App den Screen '
+            '„Gruppen-Freigaben". Die Regel aus CLAUDE.md: Wer entfernt, was '
+            'ein Client nutzt, hebt IM SELBEN FILE die Mindestversion.',
       );
     });
   });

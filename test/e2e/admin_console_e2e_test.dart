@@ -460,4 +460,49 @@ void main() {
       reason: 'Genau die gelöschte Verknüpfung ist weg, die andere bleibt.',
     );
   });
+
+  // Invariante 1 aus CLAUDE.md, nachgemessen am Ende der Suite — die bis
+  // hierher jede Anlage, Übernahme, Übergabe und Löschung durchgespielt hat.
+  //
+  // Bewusst nicht „jede aktive Gruppe ist verknüpft": Nach
+  // `admin_release_group` ist eine Gruppe legitim ohne Verwalter. Der
+  // Unterschied zur echten Waise ist der Zeitstempel, den der Trigger auf
+  // `group_admins` setzt — genau darauf ruht der vorgesehene Aufräum-Job.
+  // Fällt dieser Test, ist entweder ein Weg entstanden, der Gruppen
+  // unverknüpft zurücklässt, oder der Trigger greift nicht mehr.
+  test(
+    'jede aktive Gruppe hat einen Verwalter oder ein Übergabefenster',
+    () async {
+      // Gerade entstehende Gruppen bleiben außen vor: Die Edge Function setzt
+      // `status` und die Verknüpfung in zwei Schritten, ein paralleles Test-File
+      // kann also genau dazwischen stehen. Millisekunden, aber sie machten den
+      // Test flackernd.
+      final cutoff = DateTime.now().toUtc().subtract(
+        const Duration(seconds: 2),
+      );
+      final active = await service
+          .from('groups')
+          .select('id, handle, released_at')
+          .eq('status', 'active')
+          .lt('created_at', cutoff.toIso8601String());
+      expect(active, isNotEmpty, reason: 'sonst prüft der Test nichts');
+
+      final linked = (await service.from('group_admins').select('group_id'))
+          .map((row) => row['group_id'] as String)
+          .toSet();
+
+      for (final row in active) {
+        if (linked.contains(row['id'])) continue;
+        expect(
+          row['released_at'],
+          isNotNull,
+          reason:
+              'Aktive Gruppe ohne Verwalter und ohne Übergabe-Zeitstempel: '
+              '${row['handle']}. Eine solche Gruppe ist niemandem zugeordnet — '
+              'niemand kann ihr Passwort neu setzen, und kein Aufräum-Job kann '
+              'sie von einer laufenden Übergabe unterscheiden.',
+        );
+      }
+    },
+  );
 }

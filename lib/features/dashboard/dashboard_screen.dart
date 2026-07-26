@@ -43,12 +43,6 @@ class DashboardScreen extends ConsumerWidget {
         leadingWidth: 34 + AppSpacing.m * 2,
         title: Text(group?.name ?? 'MitFahrBar'),
         actions: [
-          if (group?.isAdmin ?? false)
-            IconButton(
-              tooltip: 'Gruppen-Freigaben',
-              icon: const Icon(Icons.admin_panel_settings_outlined),
-              onPressed: () => context.push('/admin'),
-            ),
           // Der Lizenz-Eintrag hängt bewusst NICHT an `isConfigured`: Die
           // SIL OFL der Schriften gilt auch im Demo-Modus.
           PopupMenuButton<String>(

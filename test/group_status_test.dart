@@ -22,7 +22,6 @@ Map<String, dynamic> _json(String status) => {
   'name': 'Dacia Racing',
   'handle': 'daciaracing',
   'status': status,
-  'is_admin': false,
 };
 
 void main() {
@@ -60,8 +59,8 @@ void main() {
       group.status,
       GroupStatus.archived,
       reason:
-          'Unbekannt wird als „stillgelegt" gelesen — der Screen erklärt das '
-          'dann als „nicht in Gebrauch" statt als Fehler.',
+          'Unbekannt wird als „stillgelegt" gelesen — der PendingScreen hat '
+          'für diesen Zweig eine Erklärung, statt einen Fehler zu zeigen.',
     );
   });
 }

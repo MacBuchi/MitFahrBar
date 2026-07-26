@@ -122,7 +122,6 @@ class FakeBackend {
     required String password,
     required String name,
     GroupStatus status = GroupStatus.active,
-    bool isAdmin = false,
   }) {
     final id = 'group-${_nextId++}';
     groups[id] = Group(
@@ -130,7 +129,6 @@ class FakeBackend {
       name: name,
       handle: handle,
       status: status,
-      isAdmin: isAdmin,
       createdAt: DateTime(2026, 1, _nextId),
     );
     accounts['$handle@grp.fahrgemeinschaft.app'] = FakeAccount(
@@ -337,27 +335,4 @@ class FakeGroupRepository implements GroupRepository {
 
   @override
   Future<Group?> myGroup() async => backend.currentGroup;
-
-  @override
-  Future<List<Group>> pendingGroups() async {
-    // Nur Admins bekommen die Liste – wie die RLS-Policy in der Datenbank.
-    if (!(backend.currentGroup?.isAdmin ?? false)) return const [];
-    return backend.groups.values
-        .where((g) => g.status == GroupStatus.pending)
-        .toList();
-  }
-
-  @override
-  Future<void> setStatus(String groupId, GroupStatus status) async {
-    final g = backend.groups[groupId];
-    if (g == null) return;
-    backend.groups[groupId] = Group(
-      id: g.id,
-      name: g.name,
-      handle: g.handle,
-      status: status,
-      isAdmin: g.isAdmin,
-      createdAt: g.createdAt,
-    );
-  }
 }

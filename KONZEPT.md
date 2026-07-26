@@ -163,6 +163,7 @@ Einmaliges Dart-CLI-Skript (`tool/import_xlsx.dart`): liest die 416 Fahrten + 13
   > **Überholt seit v0.37.0 (#106):** „Gruppe anfragen" gibt es nicht mehr. Gruppen entstehen in der **Verwalter-Konsole** durch ein Konto mit echter E-Mail-Adresse (bis zu fünf je Konto) und sind sofort `active` — an die Stelle der Freigabe tritt der Deckel. `pending` bleibt nur als inerter Zustand für Fremd-Signups gegen die Gruppen-Domain. Es gilt der Code.
 - **Strikte Trennung (RLS):** Jede Zeile trägt `group_id = auth.uid()`; man sieht nur die eigene Gruppe und nur wenn `active`. Fremde Gruppen sind unsichtbar — serverseitig erzwungen, nicht nur in der UI.
 - **Admin-Screen in der App:** Admin-Gruppen sehen offene Anfragen und geben frei/lehnen ab.
+  > **Überholt seit v0.38.0 (#108):** Der Screen und die Sonderrolle sind entfernt, samt `groups.is_admin` und der Update-Policy auf `groups`. Grund: Die Freigabe hing an einem **geteilten** Gruppen-Login ohne „Passwort vergessen" — genau das machte am 26.07.2026 eine Freigabe unmöglich. Verwaltet wird über das Verwalter-Konto mit echter E-Mail. Es gilt der Code.
 - Personen sind reine Datensätze innerhalb einer Gruppe — jeder in der Gruppe kann für jeden eintragen (wie beim Excel).
 - **Offen / nächster Ausbauschritt:** Bei öffentlicher Nutzung zusätzlicher Missbrauchsschutz (Bot-Schutz/Turnstile am Signup, Rate-Limits).
 

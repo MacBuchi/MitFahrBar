@@ -25,7 +25,11 @@ Abgedeckt ist, was die In-Memory-Fakes nur nachbilden können:
 - **Mandantentrennung** (`rls_e2e_test.dart`): Signup-Trigger inkl.
   Default-Settings (`points_weight = 1.0`), pending-Sperre, Isolation
   zweier Gruppen, nur-lesbare `app_config`, `group_id` in den
-  Planer-Schlüsseln (v0.15.0-Fix) — alles gegen echte Policies.
+  Planer-Schlüsseln (v0.15.0-Fix) — alles gegen echte Policies. Seit #108
+  auch: eine pending-Gruppe kann sich **nicht selbst freischalten**
+  (`groups` hat keine Update-Policy mehr) — sonst wäre jeder Fremd-Signup
+  gegen die Gruppen-Domain eine Gruppe, die sich selbst aktiviert, und die
+  Statuswerte als Riegel wertlos.
 - **Verwalter-Konsole** (`admin_console_e2e_test.dart`): kein
   Geister-pending beim Admin-Signup; Anlegen nur als bestätigtes
   Verwalter-Konto (anonym → 401, Gruppen-Login → 403) und dann **aktiv und
@@ -34,13 +38,18 @@ Abgedeckt ist, was die In-Memory-Fakes nur nachbilden können:
   Einrasten; eine fremde `target_group` prallt mit `not linked` ab;
   Gruppenpasswort-Reset wirkt; `released_at` wird beim Lösen gesetzt und beim
   Übernehmen geleert; Löschen reißt die Gruppe über die Auth-Kaskade mit —
-  aber nie das Verwalter-Konto.
+  aber nie das Verwalter-Konto. Am Ende der Suite steht die Messung von
+  **Invariante 1**: Jede aktive Gruppe hat einen Verwalter **oder** ein
+  markiertes Übergabefenster (`released_at`). Bewusst nicht „ist verknüpft" —
+  nach `admin_release_group` ist eine Gruppe legitim ohne Verwalter, und der
+  Zeitstempel ist genau der Unterschied zur echten Waise.
 - **Push-Registrierung** (`push_e2e_test.dart`): `register_push_device`
   ordnet nur eigene Personen zu, ein Gerät gehört immer genau **einer**
   Gruppe (die alte Zeile weicht — im Fake per Konstruktion unsichtbar),
   fremde Gruppen sehen weder Geräte noch Einstellungen, das Konfliktziel
   der `notification_prefs` passt zum Schlüssel, `push_log` ist für Clients
-  unerreichbar, und eine nicht freigegebene Gruppe registriert gar nichts.
+  unerreichbar, und eine Gruppe, die nicht `active` ist, registriert gar
+  nichts.
 - **Auth-Workflows mit echten Mails** (`auth_mail_e2e_test.dart`): Der
   Stack läuft wie Production mit **Bestätigungspflicht**
   (`enable_confirmations = true` in config.toml). Festgenagelt sind:

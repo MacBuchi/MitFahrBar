@@ -78,6 +78,41 @@ void main() {
     );
   });
 
+  // Issue #108: `groups` hat keine Update-Policy mehr. Das ist der Grund,
+  // warum die Sonderrolle einer Admin-Gruppe wegfallen KONNTE — vorher
+  // brauchte die Freigabe eine Policy, die fremde Zeilen schreiben darf.
+  test('eine pending-Gruppe kann sich nicht selbst freischalten', () async {
+    final c = await registerGroup('rlsu');
+    await makePending(service, c.id);
+
+    // Ihre eigene Zeile darf sie sehen (das Gate im Client liest den Status),
+    // aber nicht anfassen.
+    final own = await c.client.from('groups').select().eq('id', c.id);
+    expect(own, hasLength(1));
+
+    final updated = await c.client
+        .from('groups')
+        .update({'status': 'active'})
+        .eq('id', c.id)
+        .select();
+    expect(
+      updated,
+      isEmpty,
+      reason:
+          'Ohne Update-Policy trifft das Update keine Zeile. Griffe es, wäre '
+          'jeder Fremd-Signup gegen die Gruppen-Domain eine Gruppe, die sich '
+          'selbst freischaltet — und die Statuswerte wären als Riegel wertlos, '
+          'auch der künftige "archived".',
+    );
+
+    final after = await service
+        .from('groups')
+        .select('status')
+        .eq('id', c.id)
+        .single();
+    expect(after['status'], 'pending');
+  });
+
   test('aktive Gruppe sieht ausschließlich die eigenen Zeilen', () async {
     final personsA = await a.client.from('persons').select();
     expect(personsA, hasLength(1));

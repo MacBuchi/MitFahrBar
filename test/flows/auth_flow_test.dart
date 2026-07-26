@@ -1,4 +1,4 @@
-/// auth_flow_test.dart – Anmeldung, Freigabe-Gate und Mandantentrennung.
+/// auth_flow_test.dart – Anmeldung, Status-Gate und Mandantentrennung.
 library;
 
 import 'package:mitfahrbar/models/group.dart';
@@ -57,7 +57,7 @@ void main() {
     expect(find.text('Wer ist dran?'), findsNothing);
   });
 
-  testWidgets('nicht freigegebene Gruppe sieht nur den Warte-Hinweis', (
+  testWidgets('eine nicht aktive Gruppe kommt nicht in die App', (
     tester,
   ) async {
     final backend = FakeBackend()
@@ -74,11 +74,43 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Anmelden'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Warte auf Freigabe'), findsOneWidget);
+    // Seit #108 gibt es keine Freigabe mehr: 'pending' heißt „nie in Gebrauch
+    // genommen" (Fremd-Signup gegen die Gruppen-Domain), nicht „wartet".
+    expect(find.text('Nicht in Gebrauch'), findsOneWidget);
+    expect(find.textContaining('Verwalter-Konsole'), findsOneWidget);
     // Kein Zugriff auf die App-Inhalte.
     expect(find.text('Wer ist dran?'), findsNothing);
     expect(find.text('Übersicht'), findsNothing);
   });
+
+  testWidgets(
+    'ein stillgelegter Status wird erklärt, nicht als Fehler gezeigt',
+    (tester) async {
+      // Der Beweis für Invariante 2 auf UI-Ebene: Der Server darf einen Zustand
+      // setzen, den diese Fassung nicht kennt. `Group.statusFrom` liest ihn als
+      // `archived`, und dieser Zweig hat eine Erklärung. Ohne beides sähe die
+      // Nutzerin „Fehler: Invalid argument" — und der Sperr-Schirm greift
+      // bewusst nie, solange es kein installierbares Update gibt. Damit wäre
+      // jede künftige Statusänderung ein Release-Zwang.
+      final backend = FakeBackend()
+        ..addGroup(
+          handle: 'stillgelegt',
+          password: 'geheim123',
+          name: 'Alte Gruppe',
+          status: GroupStatus.archived,
+        );
+
+      await pumpApp(tester, backend);
+      await tester.enterText(find.byType(TextField).first, 'stillgelegt');
+      await tester.enterText(find.byType(TextField).last, 'geheim123');
+      await tester.tap(find.widgetWithText(FilledButton, 'Anmelden'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Gruppe stillgelegt'), findsOneWidget);
+      expect(find.textContaining('Fehler'), findsNothing);
+      expect(find.text('Wer ist dran?'), findsNothing);
+    },
+  );
 
   testWidgets('Gruppen sehen die Daten anderer Gruppen nicht', (tester) async {
     final backend = FakeBackend();

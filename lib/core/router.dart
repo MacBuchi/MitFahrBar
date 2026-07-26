@@ -10,7 +10,6 @@ import 'package:go_router/go_router.dart';
 
 import '../data/auth_repository.dart';
 import '../data/providers.dart';
-import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/pending_screen.dart';
 import '../features/console/console_login_screen.dart';
@@ -89,7 +88,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/console',
         builder: (context, state) => const ConsoleScreen(),
       ),
-      GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
       GoRoute(path: '/help', builder: (context, state) => const HelpScreen()),
       GoRoute(
         path: '/import',
