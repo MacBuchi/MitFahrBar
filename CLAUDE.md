@@ -19,12 +19,14 @@ lieber als ein zweiter Name im System.
   Zugangsdaten der aktiv genutzten Gruppe, für etwas, das nie jemand
   sieht (der Login ist Handle + Passwort).
 - **Der Handle `fahrgemeinschaft`** in
-  `20260720140000_multi_tenant_groups.sql` ist der echte Login der
-  Live-Gruppe (bis v0.38.0 war sie zugleich die Admin-Gruppe), also Daten in
-  einer bereits eingespielten Migration. Migrationen werden nie nachträglich
-  umgeschrieben — auch `is_admin` steht dort noch, obwohl die Spalte seit
-  v0.38.0 nicht mehr existiert. Wer eine Frischinstallation braucht, nimmt
-  `supabase/schema.sql`; die Migrationskette ist Geschichte, kein Sollzustand.
+  `20260720140000_multi_tenant_groups.sql` gehört der Gruppe, die die
+  Multi-Tenant-Migration aus dem damals einzigen Auth-User gemacht hat: bis
+  v0.38.0 die Admin-Gruppe. Sie ist **nicht** die aktiv genutzte Gruppe —
+  das ist DaciaRacing unter eigenem Handle. Es sind Daten in einer bereits
+  eingespielten Migration, und die wird nie nachträglich umgeschrieben; auch
+  `is_admin` steht dort noch, obwohl die Spalte seit v0.38.0 fehlt. Wer eine
+  Frischinstallation braucht, nimmt `supabase/schema.sql` — die
+  Migrationskette ist Geschichte, kein Sollzustand.
 
 Ebenso unverändert: die `CHANGELOG.md`-Einträge vor v0.34.0 — sie
 beschreiben Releases, die wirklich RideBuddy hießen.
