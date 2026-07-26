@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.39.0] – 2026-07-26
+
+### Geändert
+
+- **Freigaben gibt es nicht mehr.** Der Bildschirm „Gruppen-Freigaben" und die
+  Sonderrolle der Verwaltungs-Gruppe entfallen. Verwaltet wird ausschließlich
+  über die **Verwalter-Konsole** mit echter E-Mail-Adresse — dort funktioniert
+  „Passwort vergessen", ein vergessenes geteiltes Gruppenpasswort kann also
+  niemanden mehr blockieren. Genau das war vorher der Fall: Die Freigabe hing
+  an einem Zugang, den mehrere Leute teilen und für den es keinen Weg zurück
+  gab.
+
+- **Gruppen, die noch auf Freigabe warteten, gehören jetzt ihrem Verwalter**
+  und sind nutzbar. Alte Anfragen ohne Verwalter-Konto wurden entfernt; ihr
+  Anmeldename ist damit wieder frei.
+
+- Meldet sich ein Zugang an, der nie als Fahrgemeinschaft eingerichtet wurde,
+  erklärt die App das jetzt statt auf eine Freigabe zu verweisen, die es nicht
+  mehr gibt.
+
 ## [0.38.0] – 2026-07-26
 
 ### Behoben

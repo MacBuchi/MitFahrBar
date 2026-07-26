@@ -174,16 +174,10 @@ final currentUserIdProvider = Provider<String?>((ref) {
   return ref.watch(authRepositoryProvider).currentUserId;
 });
 
-/// Die Gruppe des aktuellen Logins (Status/Admin) — Gate für die App.
+/// Die Gruppe des aktuellen Logins (Name, Status) — Gate für die App.
 final myGroupProvider = FutureProvider<Group?>((ref) {
   ref.watch(currentUserIdProvider);
   return ref.watch(groupRepositoryProvider).myGroup();
-});
-
-/// Offene Gruppen-Anfragen (für den Admin-Screen).
-final pendingGroupsProvider = FutureProvider<List<Group>>((ref) {
-  ref.watch(currentUserIdProvider);
-  return ref.watch(groupRepositoryProvider).pendingGroups();
 });
 
 final personsProvider = FutureProvider<List<Person>>((ref) {

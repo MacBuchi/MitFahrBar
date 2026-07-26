@@ -19,9 +19,14 @@ lieber als ein zweiter Name im System.
   Zugangsdaten der aktiv genutzten Gruppe, für etwas, das nie jemand
   sieht (der Login ist Handle + Passwort).
 - **Der Handle `fahrgemeinschaft`** in
-  `20260720140000_multi_tenant_groups.sql` ist der echte Login der
-  Admin-Gruppe, also Daten in einer bereits eingespielten Migration.
-  Migrationen werden nie nachträglich umgeschrieben.
+  `20260720140000_multi_tenant_groups.sql` gehört der Gruppe, die die
+  Multi-Tenant-Migration aus dem damals einzigen Auth-User gemacht hat: bis
+  v0.38.0 die Admin-Gruppe. Sie ist **nicht** die aktiv genutzte Gruppe —
+  das ist DaciaRacing unter eigenem Handle. Es sind Daten in einer bereits
+  eingespielten Migration, und die wird nie nachträglich umgeschrieben; auch
+  `is_admin` steht dort noch, obwohl die Spalte seit v0.38.0 fehlt. Wer eine
+  Frischinstallation braucht, nimmt `supabase/schema.sql` — die
+  Migrationskette ist Geschichte, kein Sollzustand.
 
 Ebenso unverändert: die `CHANGELOG.md`-Einträge vor v0.34.0 — sie
 beschreiben Releases, die wirklich RideBuddy hießen.
@@ -44,7 +49,8 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
 - §5.5 ist abgearbeitet: Personen und Fahrzeuge pflegt seit v0.10.0
   `features/persons/persons_screen.dart` (`/persons`), die **Parameter**
   seit v0.33.0 `features/settings/settings_screen.dart` (`/settings`).
-  `admin_screen.dart` ist nur die Gruppen-Freigabe, nicht die Datenpflege.
+- Admin-Screen und Gruppen-Freigabe (§7) → seit v0.38.0 entfernt (#108),
+  siehe „Der Gruppen-Lebenszyklus" unten.
 
 ## Architektur-Leitplanken (nicht verhandelbar)
 
@@ -160,7 +166,10 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Wer das zurückdreht, macht jede künftige Statusänderung zu einem
     Release-Zwang: Der Fehler landete in `myGroupProvider`, die Nutzerin sähe
     „Fehler: Invalid argument", und der Sperr-Schirm greift bewusst nie ohne
-    installierbares Update. `test/group_status_test.dart` wacht darüber.
+    installierbares Update. `test/group_status_test.dart` wacht über den
+    Parser, `test/flows/auth_flow_test.dart` über die andere Hälfte: dass der
+    `archived`-Zweig im `PendingScreen` wirklich **erklärt** statt zu
+    scheitern. Ohne diesen Zweig wäre der tolerante Parser wertlos.
   - **Archivieren ist ein Statuswechsel, keine Löschung.**
     `my_group_active()` prüft auf `'active'` — `status='archived'` macht eine
     Gruppe über alle Policies hinweg still, verlustfrei und umkehrbar. Der
@@ -177,6 +186,40 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   zweiter Schlüssel (jedes Mitglied kennt das Gruppenpasswort). Diese Lücke
   darf nicht verschlimmert werden; deshalb überlebt das Verwalter-Konto das
   Löschen einer Gruppe.
+- **Es gibt keine Admin-Gruppe und keine Freigabe mehr** (#108, seit v0.38.0).
+  Weg sind `groups.is_admin`, `is_group_admin()`, die Update-Policy
+  `groups_admin_update`, `features/admin/`, die Route `/admin` und
+  `GroupRepository.pendingGroups`/`setStatus`. Der Grund ist kein Aufräumen:
+  Die administrative Macht saß auf einem **geteilten** Gruppen-Login ohne
+  „Passwort vergessen", und es gab keinen Code-Weg, das Flag zu setzen. Am
+  26.07.2026 war eine Freigabe deshalb unmöglich und brauchte Betreiber-SQL.
+  Verwaltet wird über das Verwalter-Konto mit echter E-Mail, wo der
+  Reset-Weg (#102) funktioniert.
+  - **Die Update-Policy auf `groups` kommt nie zurück.** Mit ihr könnte ein
+    Client seinen eigenen `status` schreiben, sich also selbst freischalten
+    und eine Archivierung zurückdrehen — damit wären **alle** Statuswerte als
+    Riegel wertlos, auch der künftige `archived`, und der Aufräum-Job hätte
+    keine Wirkung, die hält. Gruppen ändern sich ausschließlich über die
+    SECURITY-DEFINER-Funktionen der Konsole und den Service-Role-Key.
+    `test/schema_test.dart` prüft die Abwesenheit der Policy,
+    `test/e2e/rls_e2e_test.dart` beweist sie am echten Postgres (eine
+    pending-Gruppe kann sich nicht selbst aktivieren).
+  - **`pending` heißt ab hier „nie in Gebrauch genommen"**, nicht „wartet" —
+    es gibt niemanden mehr, der freigibt. Der Zustand entsteht nur noch durch
+    ein Fremd-`signUp` gegen die Gruppen-Domain (nicht abstellbar, solange die
+    Verwalter-Registrierung offen ist) und bleibt inert. `pending_screen.dart`
+    trägt Texte für genau die drei Zustände, die es gibt.
+  - **Die Migration ist der Musterfall für Reihenfolge.**
+    `handle_new_group()` wird neu geschrieben **vor** dem `drop column` — die
+    alte Fassung führt `is_admin` in ihrer Insert-Spaltenliste, fiele die
+    Spalte zuerst, scheiterte in diesem Moment **jeder** Signup, auch der
+    eines Verwalter-Kontos. Und die Policies fallen vor der Funktion, die sie
+    aufrufen, sonst verweigert Postgres das `drop function`. Beides nagelt
+    `test/schema_test.dart` als Positionsvergleich fest.
+  - Weil eine Migration ihre eigene Entfernung begründet, prüfen solche
+    „kommt nicht mehr vor"-Tests den SQL-Code **ohne Kommentare**
+    (`sqlOnly` in `test/schema_test.dart`) — sonst scheitern sie an der
+    Begründung im File selbst.
 - **Gruppen-Konten entstehen nur serverseitig** (seit v0.27.0, Edge Function
   `supabase/functions/request-group/`). Grund: In Production ist die
   Mail-Bestätigung Pflicht (`mailer_autoconfirm` aus — nötig, damit

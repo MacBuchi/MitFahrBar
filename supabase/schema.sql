@@ -6,15 +6,24 @@
 --
 -- Sicherheitsmodell: Multi-Tenant. Eine Gruppe = ein Login (auth user),
 -- group_id = auth.uid(). Jede Gruppe sieht nur ihre eigenen Daten (RLS),
--- und nur wenn sie freigegeben ('active') ist. Neue Gruppen sind 'pending'
--- und werden von einer Admin-Gruppe freigegeben. Der Publishable-Key im
--- Client ist öffentlich; die Zugriffskontrolle liegt vollständig hier.
+-- und nur wenn sie 'active' ist. Der Publishable-Key im Client ist
+-- öffentlich; die Zugriffskontrolle liegt vollständig hier.
 --
--- Daneben kann je Gruppe EIN Verwalter-Konto stehen (echte E-Mail,
--- account_type = 'admin' in den Metadata): Es sieht keine Gruppendaten
--- (anderer uid) und kann über SECURITY-DEFINER-Funktionen ausschließlich
--- das Gruppenpasswort neu setzen und die Gruppe löschen. Passwort-Reset
--- läuft dafür über Supabases Standard-Mailfluss — ohne Betreiber.
+-- Gruppen entstehen in der Verwalter-Konsole (Edge Function `request-group`)
+-- und sind sofort aktiv und verknüpft. 'pending' ist nur noch der inerte
+-- Ruhezustand für Fremd-Signups gegen die Gruppen-Domain: Ein direktes
+-- `auth.signUp` ist nie abstellbar (die Verwalter-Registrierung braucht
+-- offenes Signup), der Trigger unten macht daraus eine Zeile, die nichts
+-- lesen und nichts schreiben kann. Eine FREIGABE gibt es seit #108 nicht
+-- mehr — mit ihr fielen `groups.is_admin`, `is_group_admin()` und jede
+-- Update-Policy auf `groups`.
+--
+-- Je Gruppe steht EIN Verwalter-Konto (echte E-Mail, account_type = 'admin'
+-- in den Metadata); ein Konto trägt bis zu 5 Gruppen. Es sieht keine
+-- Gruppendaten (anderer uid) und kann über SECURITY-DEFINER-Funktionen
+-- ausschließlich das Gruppenpasswort neu setzen, die Verknüpfung lösen und
+-- die Gruppe löschen. Passwort-Reset läuft über Supabases Mailfluss (Code,
+-- kein Link — siehe #102) — ohne Betreiber.
 
 -- crypt()/gen_salt() für die Passwortprüfungen der Konsolen-Funktionen.
 create extension if not exists pgcrypto;
@@ -27,7 +36,6 @@ create table public.groups (
   handle text unique not null,
   status text not null default 'pending'
     check (status in ('pending', 'active', 'rejected', 'archived')),
-  is_admin boolean not null default false,
   created_at timestamptz not null default now(),
   -- Wann die Gruppe ihren Verwalter verloren hat. Eine aktive Gruppe ohne
   -- Verknüpfung ist nur als Übergabefenster vorgesehen; der Zeitstempel
@@ -227,19 +235,19 @@ create table public.group_admins (
 
 -- --------------------------------------------------------------- Funktionen
 
--- SECURITY-DEFINER-Helfer: lesen groups ohne RLS-Rekursion.
+-- SECURITY-DEFINER-Helfer: liest groups ohne RLS-Rekursion. Hieran hängt
+-- jede Datentabellen-Policy — 'archived' zu setzen macht eine Gruppe damit
+-- über alle Policies hinweg still, verlustfrei und umkehrbar.
 create or replace function public.my_group_active()
 returns boolean language sql stable security definer set search_path = public as $$
   select coalesce((select status = 'active' from public.groups where id = auth.uid()), false);
 $$;
 
-create or replace function public.is_group_admin()
-returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce((select is_admin and status = 'active'
-                   from public.groups where id = auth.uid()), false);
-$$;
-
 -- Jeder neue Auth-User wird zu einer 'pending'-Gruppe (+ Default-Settings).
+-- Der Trigger traut den Metadata eines Signups nur den Gruppennamen zu:
+-- Ein gebasteltes `auth.signUp` gegen die Gruppen-Domain darf keine aktive
+-- oder fremd verknüpfte Gruppe erzeugen. Aktiv und verknüpft wird eine
+-- Gruppe ausschließlich in der Edge Function `request-group`.
 create or replace function public.handle_new_group()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -249,10 +257,10 @@ begin
   if new.raw_user_meta_data->>'account_type' = 'admin' then
     return new;
   end if;
-  insert into public.groups (id, name, handle, status, is_admin)
+  insert into public.groups (id, name, handle, status)
   values (new.id,
           coalesce(nullif(new.raw_user_meta_data->>'group_name', ''), new_handle),
-          new_handle, 'pending', false);
+          new_handle, 'pending');
   insert into public.settings (group_id, key, value) values
     (new.id, 'commute_km', 30),
     (new.id, 'one_way_factor', 0.5),
@@ -519,11 +527,15 @@ alter table public.group_admins        enable row level security;
 -- Möglichkeit, Nachrichten zu unterdrücken oder erneut auszulösen.
 alter table public.push_log            enable row level security;
 
--- Eigene Gruppe lesen; Admins sehen alle (Freigabe-Liste). Insert = Trigger.
+-- Nur die eigene Gruppe lesen. Insert macht der Trigger.
+--
+-- Bewusst KEINE Update-Policy (#108): Eine Gruppe ändert sich ausschließlich
+-- über die SECURITY-DEFINER-Funktionen der Konsole und künftig über den
+-- vorgesehenen Aufräum-Job mit Service-Role-Key. Könnte ein Client `status`
+-- schreiben, könnte er sich selbst freischalten — genau das machte die alte
+-- Freigabe-Policy nötig und mit ihr die Sonderrolle einer Admin-Gruppe.
 create policy groups_select on public.groups for select to authenticated
-  using (id = auth.uid() or public.is_group_admin());
-create policy groups_admin_update on public.groups for update to authenticated
-  using (public.is_group_admin()) with check (public.is_group_admin());
+  using (id = auth.uid());
 
 create policy persons_isolated on public.persons for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
