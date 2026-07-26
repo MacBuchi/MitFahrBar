@@ -30,7 +30,7 @@ class FakeAccount {
 /// Verwalter-Konto (Konsole): echte E-Mail, eigenes Passwort, optional mit
 /// einer Gruppe verknüpft. `confirmed` bildet die Bestätigungspflicht ab:
 /// Frisch registrierte Konten sind unbestätigt und können sich nicht
-/// anmelden, bis der Mail-Link (im Fake: das Flag) eingelöst ist.
+/// anmelden, bis der Code aus der Mail (im Fake: das Flag) eingelöst ist.
 class FakeAdminAccount {
   FakeAdminAccount({required this.password, this.confirmed = true});
 
@@ -44,11 +44,17 @@ class FakeBackend {
   final Map<String, FakeAdminAccount> adminAccounts = {};
 
   /// Adressen, für die ein Passwort-Reset angefordert wurde — die Fake-
-  /// Entsprechung der Mail, die in Produktion rausgeht.
+  /// Entsprechung der Mail, die in Produktion rausgeht. Enthält auch
+  /// unbekannte Adressen: Die App darf beide Fälle nicht unterscheiden.
   final List<String> passwordResets = [];
 
   /// Adressen, für die die Bestätigungs-Mail erneut angefordert wurde.
   final List<String> confirmationResends = [];
+
+  /// Die Codes, die der Fake in der „Mail" verschickt. Fest statt zufällig,
+  /// damit Tests sie kennen; echt sind es sechs Ziffern von GoTrue.
+  static const resetCode = '123456';
+  static const confirmCode = '654321';
 
   /// Angeforderte E-Mail-Wechsel (neue Adresse) — wie in Produktion gilt
   /// der Wechsel erst nach beiden Bestätigungs-Links, der Fake wendet ihn
@@ -86,10 +92,22 @@ class FakeBackend {
     _authController.add(email);
   }
 
-  /// Schiebt ein rohes Auth-Ereignis in den Stream — z. B.
-  /// 'passwordRecovery', wie es Supabase nach einem Reset-Link meldet.
-  /// Die Konsole erkennt das Ereignis über seine String-Form.
+  /// Schiebt ein rohes Auth-Ereignis in den Stream. Die App erkennt
+  /// Ereignisse über ihre String-Form (siehe `isPasswordRecovery`), deshalb
+  /// genügt hier der Name statt einer echten `AuthState`.
   void emitAuthEvent(Object? event) => _authController.add(event);
+
+  /// Der Zustand direkt nach `verifyOTP` beim Zurücksetzen: Die Sitzung ist
+  /// gültig, das neue Passwort aber noch nicht gesetzt.
+  ///
+  /// Meldet bewusst NUR 'passwordRecovery' und geht nicht über
+  /// [setCurrentEmail] — dessen Ereignis passiert den Router-Filter und
+  /// öffnete die Konsole mitten im Zurücksetzen. Genau diesen Unterschied
+  /// prüft `test/flows/console_reset_flow_test.dart`.
+  void beginRecovery(String email) {
+    currentEmail = email;
+    _authController.add('passwordRecovery');
+  }
 
   FakeCarpoolRepository dataFor(String groupId) =>
       _data.putIfAbsent(groupId, FakeCarpoolRepository.new);

@@ -77,6 +77,13 @@ Das gemeinsame Gruppenpasswort setzt nur das **Verwalter-Konto** neu
 (Anmelde-Bildschirm → „Verwalter-Konsole"). Absicht: So sperrt niemand
 versehentlich die ganze Gruppe aus.
 
+Vergisst die Verwalterin ihr eigenes Passwort, hilft dort „Passwort
+vergessen?": MitFahrBar schickt einen **sechsstelligen Code** an ihre
+E-Mail-Adresse, den sie in derselben Maske einträgt und dabei gleich ein
+neues Passwort wählt. Bewusst ein Code und kein Link — der Code funktioniert
+auch, wenn die Mail auf einem anderen Gerät geöffnet wird als dem, auf dem
+angefordert wurde. Der Code gilt eine Stunde.
+
 ## Eigene Gruppe anlegen
 
 1. Auf dem Anmelde-Bildschirm **„Neue Gruppe anfragen"** wählen.

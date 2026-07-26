@@ -1,0 +1,21 @@
+<!--
+  Bestätigungs-Mail der Verwalter-Registrierung. Versionierte Kopie der
+  Vorlage im Supabase-Dashboard unter Authentication → Emails → Templates →
+  Confirm sign up. Das Dashboard ist die wirksame Quelle — Änderungen immer
+  an beiden Stellen. Siehe supabase/templates/recovery.html.
+
+  Auch hier {{ .Token }} statt Link, obwohl der Link hier nicht tödlich wäre
+  (GoTrue setzt email_confirmed_at schon serverseitig bei /auth/v1/verify,
+  nur die Landeseite bliebe tot). Der Grund ist Einheitlichkeit: Sonst stünden
+  zwei Mail-Mechaniken nebeneinander, von denen eine nur im Browser aufgeht.
+
+  Nur diese beiden Vorlagen sind angepasst; die übrigen (E-Mail-Wechsel usw.)
+  bleiben bewusst auf dem englischen Supabase-Standard — der E-Mail-Wechsel
+  läuft weiter über den Link und ist von PKCE nicht betroffen.
+-->
+<h2>Willkommen bei MitFahrBar</h2>
+<p>Bestätige deine Adresse mit diesem Code:</p>
+<p style="font-size:28px;letter-spacing:4px"><strong>{{ .Token }}</strong></p>
+<p>Gib ihn in der Verwalter-Konsole ein — danach bist du direkt drin.
+   Der Code gilt eine Stunde.</p>
+<p>Wenn du dich nicht registriert hast, ignoriere diese Mail einfach.</p>

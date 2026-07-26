@@ -141,9 +141,11 @@ bewusst außerhalb des Umfangs.
 
 `tool/browser_e2e.sh` schließt die letzte Naht: Playwright fährt die
 **echte Web-App im echten Browser** gegen den Stack — Verwalter-Konto
-registrieren, Bestätigungs-Link aus Mailpit öffnen (führt über die
-`site_url` aus config.toml zurück in die App und meldet an), Gruppe
-verknüpfen, Zustand serverseitig gegenprüfen. Flutter-Web zeichnet auf
+registrieren, den Code aus der Mailpit-Mail in die App tippen (`verifyOTP`
+liefert die Sitzung gleich mit), Gruppe verknüpfen, Zustand serverseitig
+gegenprüfen. Der Code statt eines Links seit Issue #102: `mailCode()`
+schlägt fehl, sobald die Mail wieder einen `auth/v1/verify`-Link führt —
+der wäre an das anfordernde Gerät gebunden. Flutter-Web zeichnet auf
 Canvas: Bedient wird über Koordinaten bei fixiertem Viewport (in
 `tool/browser_e2e/console.mjs` dokumentiert), geprüft über
 Semantics-Labels und Screenshots (`tool/browser_e2e/shots/`, in CI als
@@ -154,7 +156,12 @@ deshalb bewusst kein Required Check.
 ## Grenzen
 
 - Brevo/Prod-SMTP wird hier nicht geprüft — der Stack beweist den Weg
-  „App → GoTrue → SMTP → Postfach → Link"; ob Brevo in Production
+  „App → GoTrue → SMTP → Postfach → Code"; ob Brevo in Production
   zustellt, ist reine Dashboard-Konfiguration.
+- Die **Prod-Mail-Vorlagen** sieht der Stack ebenfalls nicht: `config.toml`
+  verdrahtet die versionierten Kopien aus `supabase/templates/`, wirksam
+  sind aber die im Dashboard. Driften sie auseinander, bleibt die Suite
+  grün und Production ist kaputt — dagegen läuft `tool/config_drift.sh`
+  täglich gegen die Management-API.
 - Android-native Pfade (Teilen, Dateiauswahl, In-App-Update) brauchen
   weiterhin ein Gerät (siehe run-web-Skill, „Was hier nicht geht").

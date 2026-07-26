@@ -3,11 +3,12 @@
 /// Bewusst karg: verknüpfen, Gruppenpasswort neu setzen, eigenes
 /// Admin-Passwort ändern, Gruppe löschen. Mehr kann und soll das
 /// Verwalter-Konto nicht — Gruppendaten sieht es nie (anderer uid,
-/// RLS blockt). Kommt die Sitzung über einen Passwort-Reset-Link herein,
-/// öffnet sich der Ändern-Dialog von selbst.
+/// RLS blockt).
+///
+/// „Passwort vergessen" endet NICHT hier: Das läuft seit dem Code-Weg
+/// vollständig auf dem Konsolen-Login ab (Issue #102). Der Dialog unten ist
+/// nur noch die bewusste Änderung im angemeldeten Zustand.
 library;
-
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,26 +19,11 @@ import '../../data/admin_repository.dart';
 import '../../data/auth_repository.dart';
 import '../../data/providers.dart';
 
-class ConsoleScreen extends ConsumerStatefulWidget {
+class ConsoleScreen extends ConsumerWidget {
   const ConsoleScreen({super.key});
 
   @override
-  ConsumerState<ConsoleScreen> createState() => _ConsoleScreenState();
-}
-
-class _ConsoleScreenState extends ConsumerState<ConsoleScreen> {
-  @override
-  Widget build(BuildContext context) {
-    // Reset-Link aus der Mail: Supabase meldet die Sitzung als
-    // „passwordRecovery" — dann direkt den Ändern-Dialog anbieten, statt
-    // die Nutzerin raten zu lassen, wo es weitergeht.
-    ref.listen(authStateProvider, (previous, next) {
-      final event = next.value;
-      if ('$event'.contains('passwordRecovery')) {
-        unawaited(_changeAdminPassword(context));
-      }
-    });
-
+  Widget build(BuildContext context, WidgetRef ref) {
     final group = ref.watch(adminGroupProvider);
     return Scaffold(
       appBar: AppBar(
@@ -59,11 +45,6 @@ class _ConsoleScreenState extends ConsumerState<ConsoleScreen> {
       },
     );
   }
-
-  Future<void> _changeAdminPassword(BuildContext context) => showDialog<void>(
-    context: context,
-    builder: (context) => const _AdminPasswordDialog(),
-  );
 }
 
 class _Body extends ConsumerWidget {
@@ -436,7 +417,9 @@ class _GroupPasswordDialogState extends ConsumerState<_GroupPasswordDialog> {
   }
 }
 
-/// Eigenes Admin-Passwort ändern — auch das Ziel des Reset-Links.
+/// Eigenes Admin-Passwort ändern, während man angemeldet ist. Das
+/// Zurücksetzen eines vergessenen Passworts läuft NICHT hier, sondern über
+/// den Code aus der Mail auf dem Konsolen-Login.
 class _AdminPasswordDialog extends ConsumerStatefulWidget {
   const _AdminPasswordDialog();
 

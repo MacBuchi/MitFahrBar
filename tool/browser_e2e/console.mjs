@@ -1,10 +1,15 @@
 // console.mjs – Browser-E2E der Verwalter-Konsole (Issue #71).
 //
 // Fährt die ECHTE Web-App im echten Browser gegen den lokalen Supabase-
-// Stack: Verwalter-Konto registrieren → Bestätigungs-Link aus Mailpit
-// öffnen (führt zurück in die App und meldet an) → Gruppe verknüpfen →
+// Stack: Verwalter-Konto registrieren → Code aus der Mail (Mailpit) in die
+// App tippen (verifyOTP meldet gleich an) → Gruppe verknüpfen →
 // Verknüpfung sichtbar. Das ist die letzte Naht, die Widget-Tests (Fakes)
 // und Dart-E2E (Backend) nicht abdecken.
+//
+// Der Code statt des Bestätigungs-Links seit Issue #102: Der Link ist an
+// das Gerät gebunden, das ihn angefordert hat (PKCE-Verifier im lokalen
+// Speicher). Die Vorlagen unter supabase/templates/ führen deshalb nur
+// {{ .Token }} — mailCode() wacht darüber, dass das so bleibt.
 //
 // Flutter-Web zeichnet auf Canvas. Buttons und Felder fehlen teils im
 // Semantics-Baum, deshalb läuft die Bedienung über KOORDINATEN (Viewport
@@ -75,8 +80,11 @@ async function prepareActiveGroup() {
   if (!patch.ok) throw new Error(`Gruppe aktivieren: ${patch.status}`);
 }
 
-/// Link aus der ersten Mailpit-Mail an [to] mit [subjectPart] im Betreff.
-async function mailLink(to, subjectPart) {
+/// Sechsstelliger Code aus der ersten Mailpit-Mail an [to] mit [subjectPart]
+/// im Betreff — zugleich der Wächter über die Mail-Vorlage: Ein Link darin
+/// hieße, {{ .ConfirmationURL }} steht noch drin und der gerätegebundene
+/// (kaputte) Weg ist wieder erreichbar.
+async function mailCode(to, subjectPart) {
   const query = encodeURIComponent(`to:"${to}" subject:"${subjectPart}"`);
   for (let i = 0; i < 40; i++) {
     const res = await fetch(`${MAILPIT_URL}/api/v1/search?query=${query}`);
@@ -86,8 +94,19 @@ async function mailLink(to, subjectPart) {
         `${MAILPIT_URL}/api/v1/message/${messages[0].ID}`,
       );
       const body = await detail.json();
-      const match = `${body.Text}\n${body.HTML}`.match(/https?:\/\/[^\s"<]+/);
+      const text = `${body.Text}\n${body.HTML}`;
+      if (text.includes('auth/v1/verify')) {
+        throw new Error(
+          'Die Mail enthält einen Link — die Vorlage darf nur den Code ' +
+            'zeigen (supabase/templates/, Issue #102)',
+        );
+      }
+      const match = text.match(/\b\d{6}\b/);
       if (match) return match[0];
+      throw new Error(
+        `Kein sechsstelliger Code in der Mail an ${to} — zeigt die Vorlage ` +
+          '{{ .Token }}?',
+      );
     }
     await new Promise((r) => setTimeout(r, 500));
   }
@@ -181,15 +200,20 @@ try {
   await page.waitForTimeout(1500);
   await checkpoint('registriert');
 
-  // 3. Bestätigungs-Link aus Mailpit öffnen — er führt über GoTrue zurück
-  //    in die App (site_url aus config.toml) und meldet die frische
-  //    Verwalter-Sitzung an; der Router leitet in die Konsole.
-  const confirmLink = await mailLink(adminEmail, 'Confirm your email');
-  await page.goto(confirmLink);
+  // 3. Code aus der Mail eintippen. Nach dem Registrieren steht der Screen
+  //    im Bestätigen-Modus: nur E-Mail (vorbelegt) und Code-Feld. verifyOTP
+  //    liefert die Sitzung gleich mit, der Router leitet in die Konsole —
+  //    ohne zweite Anmeldung und ohne Umweg über den Browser.
+  //    Koordinaten aus shots/04 im Bestätigen-Zustand: Code (550,644) ·
+  //    Knopf „Adresse bestätigen" (550,760).
+  const code = await mailCode(adminEmail, 'Adresse');
+  await typeAt(550, 644, code);
+  await checkpoint('code-eingetragen');
+  await clickAt(550, 760);
   await page.waitForTimeout(6000);
   await activateSemantics();
-  await checkpoint('konsole-nach-mail');
-  await expectLabel(/Gruppe verknüpfen/, 'Konsole nach Mail-Login');
+  await checkpoint('konsole-nach-code');
+  await expectLabel(/Gruppe verknüpfen/, 'Konsole nach Code-Bestätigung');
 
   // 4. Gruppe verknüpfen (Gruppen-Login als Beweis). Koordinaten aus
   //    shots/05 (Claim-Karte zentriert): Gruppenname (550,608) ·

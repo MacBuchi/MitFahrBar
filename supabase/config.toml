@@ -34,8 +34,8 @@ enabled = false
 email_sent = 100
 
 # Bestätigungspflicht wie in Production (dort seit dem Brevo-Setup am
-# 23.07.2026 aktiv): Verwalter-Konten müssen den Link aus der
-# Registrierungs-Mail einlösen. Gruppen-Konten entstehen deshalb NUR noch
+# 23.07.2026 aktiv): Verwalter-Konten müssen den Code aus der
+# Registrierungs-Mail eingeben. Gruppen-Konten entstehen deshalb NUR noch
 # serverseitig über die Edge Function request-group (email_confirm) — ein
 # Client-Signup bliebe an der unzustellbaren Fake-Adresse für immer hängen.
 # Der Teststack spiegelt das bewusst, damit die E2E-Suite die Prod-Wahrheit
@@ -43,9 +43,25 @@ email_sent = 100
 [auth.email]
 enable_confirmations = true
 
-# Browser-E2E (tool/browser_e2e.sh, Issue #71): Auth-Links aus Mailpit
-# führen zurück in die lokal ausgelieferte Web-App. Wirkt nur lokal; die
-# Dart-E2E-Suite folgt Redirects nie und bleibt davon unberührt.
+# Aus demselben Grund die Mail-Vorlagen: Beide Wege laufen über den Code aus
+# der Mail, nicht über deren Link (Issue #102) — der Link ist an das Gerät
+# gebunden, das ihn angefordert hat. Ohne diese Verdrahtung verschickte der
+# lokale Stack die Supabase-Standardvorlagen MIT Link, und die E2E-Suite
+# prüfte einen Ablauf, den es in Production nicht gibt. Die Dateien sind die
+# versionierten Kopien der Dashboard-Vorlagen; Änderungen gehören an beide
+# Stellen (Prod-Seite überwacht tool/config_drift.sh).
+[auth.email.template.confirmation]
+subject = "MitFahrBar: Bitte bestätige deine Adresse"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "MitFahrBar: Code zum Zurücksetzen"
+content_path = "./supabase/templates/recovery.html"
+
+# Browser-E2E (tool/browser_e2e.sh, Issue #71): Der E-Mail-Wechsel bestätigt
+# weiter per Link aus Mailpit und führt zurück in die lokal ausgelieferte
+# Web-App. Wirkt nur lokal; die Dart-E2E-Suite folgt Redirects nie und bleibt
+# davon unberührt.
 [auth]
 site_url = "http://localhost:8731"
 

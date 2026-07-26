@@ -187,6 +187,46 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   **eigenes SMTP** in Supabase (Brevo Free) — Supabases Standardversand
   liefert nur an Projekt-Teammitglieder. `test/schema_test.dart` nagelt
   alle vier Annahmen fest.
+- **Die Konsolen-Mails tragen einen Code, keinen Link** (Issue #102, seit
+  v0.35.0) — betrifft „Passwort vergessen" und die Registrierungs-
+  Bestätigung. Grund ist kein Geschmack: `resetPasswordForEmail` legt im
+  PKCE-Standardflow einen Code-Verifier im Speicher des **anfordernden**
+  Geräts ab (`gotrue_client.dart`, `_generatePKCECodeChallenge`) und
+  verlangt ihn beim Einlösen wieder. Wer in der Android-App anfordert und
+  die Mail im Handy-Browser öffnet — der Normalfall —, hat ihn dort nicht:
+  Der Link stirbt still mit „Code verifier could not be found in local
+  storage.", und weil das `passwordRecovery`-Ereignis am selben Eintrag
+  hängt, erscheint auch kein Dialog. Keine Landeseite kann das heilen.
+  `verifyOTP(type: recovery)` ist gerätefrei, braucht weder `redirectTo`
+  noch einen `uri_allow_list`-Eintrag. Drei Dinge hängen zusammen und
+  dürfen nicht einzeln „aufgeräumt" werden:
+  - **Verify und `updateUser` sind EIN Repository-Aufruf**
+    (`resetAdminPasswordWithCode`). `verifyOTP` erzeugt eine gültige
+    Sitzung, *bevor* das neue Passwort existiert — bliebe es dazwischen
+    stehen, wäre jemand angemeldet, ohne sein Passwort zu kennen.
+    Scheitert das Ändern, meldet der Screen die Recovery-Sitzung ab.
+  - **Der Router filtert `passwordRecovery` aus dem Refresh-Stream**
+    (`core/router.dart` + `isPasswordRecovery`). Ohne den Filter risse der
+    Redirect „Admin-Sitzung → /console" den Konsolen-Login mitten im
+    Zurücksetzen weg. Erst das Ereignis aus `updateUser` lässt herein.
+    `test/flows/console_reset_flow_test.dart` wird ohne den Filter rot.
+  - **Die Mail-Vorlagen zeigen `{{ .Token }}` und KEINEN
+    `{{ .ConfirmationURL }}`.** Bleibt der Link stehen, ist der kaputte Weg
+    weiter erreichbar. Wirksam sind die Vorlagen im **Dashboard**
+    (Authentication → Emails → Templates → Reset Password / Confirm sign
+    up); `supabase/templates/*.html` ist die versionierte Kopie, die
+    zugleich den lokalen Teststack versorgt (`config.toml`). **Änderungen
+    immer an beiden Stellen.** Weil CI das Dashboard nie sieht, prüft
+    `tool/config_drift.sh` beide Prod-Vorlagen täglich — auch darauf, dass
+    dort nicht mehr „RideBuddy" steht (bei der Umbenennung übersehen, weil
+    Dashboard-Texte in keinem Diff auftauchen).
+  Der **E-Mail-Wechsel** bleibt bewusst beim Link: `updateUser` erzeugt
+  keinen Verifier, die Bestätigung passiert serverseitig — er ist nicht
+  betroffen. Deshalb bleiben `site_url`/`uri_allow_list` nötig.
+  Der Rundlauf gegen echtes GoTrue steht in `test/e2e/auth_mail_e2e_test.dart`
+  (auch: falscher Code → `otp_expired`); dass die Vorlage keinen Link führt,
+  bewacht `firstCode` in `test/e2e/e2e_env.dart` und `mailCode` im
+  Browser-E2E. Dasselbe Muster fährt PilzBuddy (pilzbuddy#128).
 - **Mehrere Autos je Tag plant der Planer nur, wenn eines nicht reicht**
   (Issue #62). Die Invarianten, in dieser Reihenfolge: `planWeek` bestimmt
   zuerst die **minimale** Autozahl k (die k größten Autos müssen alle
@@ -495,6 +535,17 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   keine Ereignisse, der PR hinge sonst ohne Required Checks fest. Weil die
   Bilder in `doc/` liegen, nimmt der Version Guard `doc/` ausdrücklich aus:
   Ein neuer Screenshot ist kein Release.
+  **Der Dispatch-Lauf allein macht den PR aber nicht mergebar** (beobachtet
+  am 26.07.2026, PR #103): Der Bot-Push erzeugt zusätzlich `pull_request`-
+  Läufe, die auf `action_required` stehen bleiben und nie starten. Deren
+  Namen sind die Required Checks, also bleibt der PR `BLOCKED` — obwohl
+  `.../commits/<sha>/check-runs` alle sechs grün zeigt, denn das sind die
+  des Dispatch-Laufs, und die zählt die Branch Protection nicht.
+  Auflösung: die hängenden Läufe freigeben
+  (`gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`,
+  Kandidaten über `gh run list --branch <branch>` an
+  `action_required` erkennbar) — danach laufen sie normal durch und der PR
+  wird grün. Ein eigener Push (nicht vom Bot) hat das Problem nicht.
   **Zwei Läufe sind nie bitgleich** — die Stimmungs-Gesichter animieren,
   und jeder Lauf erwischt eine andere Phase (gemessen 5–281 abweichende
   Pixel, die Bounding-Box jedes Mal exakt auf einem Smiley).

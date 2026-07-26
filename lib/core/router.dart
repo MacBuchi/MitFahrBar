@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/auth_repository.dart';
 import '../data/providers.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -43,7 +44,17 @@ class _AuthRefresh extends ChangeNotifier {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authRepository = ref.watch(authRepositoryProvider);
-  final refresh = _AuthRefresh(authRepository.onAuthStateChange);
+  // `passwordRecovery` bewusst nicht durchlassen: Ein eingelöster Reset-Code
+  // erzeugt eine gültige Verwalter-Sitzung, BEVOR das neue Passwort gesetzt
+  // ist. Reagierte der Router darauf, risse der Redirect (Admin-Sitzung →
+  // /console) den Konsolen-Login mitten im Zurücksetzen weg — und bei einem
+  // Fehlschlag säße jemand angemeldet in der Konsole, ohne sein Passwort zu
+  // kennen. Der Login-Screen bleibt deshalb stehen, bis `updateUser` das
+  // Passwort wirklich geändert hat; dessen Ereignis öffnet die Konsole dann
+  // (siehe AuthRepository.resetAdminPasswordWithCode).
+  final refresh = _AuthRefresh(
+    authRepository.onAuthStateChange.where((e) => !isPasswordRecovery(e)),
+  );
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
