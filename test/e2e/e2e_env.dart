@@ -141,8 +141,13 @@ class AdminAccount {
 }
 
 /// Registriert ein Verwalter-Konto wie die Konsole: echte E-Mail plus
-/// `account_type: 'admin'` in den Metadata — und löst wie in Production
-/// den Bestätigungs-Link aus der Mail ein, bevor es sich anmeldet.
+/// `account_type: 'admin'` in den Metadata — und löst wie in Production den
+/// **Code** aus der Bestätigungs-Mail ein, bevor es sich anmeldet.
+///
+/// Der Code statt des Links ist die Prod-Wahrheit seit Issue #102: Der Link
+/// wäre an das anfordernde Gerät gebunden (PKCE-Verifier). Die Vorlagen unter
+/// supabase/templates/ führen deshalb nur `{{ .Token }}` — [firstCode] wacht
+/// darüber, dass das auch so bleibt.
 Future<AdminAccount> registerAdmin({
   String password = 'admin-passwort-1',
 }) async {
@@ -153,7 +158,11 @@ Future<AdminAccount> registerAdmin({
     password: password,
     data: {'account_type': 'admin'},
   );
-  await openAuthLink(firstLink(await waitForMail(email, subject: 'Confirm')));
+  await client.auth.verifyOTP(
+    email: email,
+    token: firstCode(await waitForMail(email, subject: 'Adresse')),
+    type: OtpType.signup,
+  );
   final res = await client.auth.signInWithPassword(
     email: email,
     password: password,
@@ -208,7 +217,34 @@ Future<bool> noMailFor(
   }
 }
 
-/// Erste URL im Mail-Inhalt — bei Auth-Mails der Bestätigungs-/Reset-Link.
+/// Der sechsstellige Code aus einer Auth-Mail — und zugleich der Wächter über
+/// die Mail-Vorlage.
+///
+/// Beides ist Absicht: Fehlt die Zahl, zeigt die Vorlage kein `{{ .Token }}`;
+/// steht ein GoTrue-Link darin, ist `{{ .ConfirmationURL }}` noch drin und der
+/// gerätegebundene (kaputte) Weg wieder erreichbar. Genau davor schützt die
+/// Umstellung aus Issue #102, deshalb schlägt der Test hier fehl statt später
+/// beim Nutzer.
+String firstCode(String body) {
+  if (body.contains('auth/v1/verify')) {
+    throw StateError(
+      'Die Mail enthält einen Link — die Vorlage darf nur den Code zeigen '
+      '(supabase/templates/, Issue #102):\n$body',
+    );
+  }
+  final match = RegExp(r'\b\d{6}\b').firstMatch(body);
+  if (match == null) {
+    throw StateError(
+      'Kein sechsstelliger Code in der Mail — zeigt die Vorlage '
+      '{{ .Token }}?\n$body',
+    );
+  }
+  return match.group(0)!;
+}
+
+/// Erste URL im Mail-Inhalt. Nach Issue #102 nur noch für den E-Mail-Wechsel
+/// gedacht: Der läuft weiter über den Link, weil `updateUser` keinen
+/// PKCE-Verifier erzeugt und die Bestätigung serverseitig passiert.
 String firstLink(String body) {
   final match = RegExp('https?://[^\\s"<]+').firstMatch(body);
   if (match == null) {

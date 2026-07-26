@@ -80,8 +80,8 @@ class FakeAuthRepository implements AuthRepository {
     if (backend.adminAccounts.containsKey(email)) {
       throw Exception('already registered');
     }
-    // Wie in Produktion: Registrieren meldet nicht an, und bis zum
-    // Bestätigungs-Link bleibt das Konto gesperrt.
+    // Wie in Produktion: Registrieren meldet nicht an, und bis der Code aus
+    // der Mail eingegeben ist, bleibt das Konto gesperrt.
     backend.adminAccounts[email] = FakeAdminAccount(
       password: password,
       confirmed: false,
@@ -101,6 +101,20 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> confirmAdminEmailWithCode({
+    required String email,
+    required String code,
+  }) async {
+    final account = backend.adminAccounts[email];
+    if (account == null || code != FakeBackend.confirmCode) {
+      throw const InvalidCodeException();
+    }
+    account.confirmed = true;
+    // Wie verifyOTP: Die Sitzung kommt gleich mit.
+    backend.setCurrentEmail(email);
+  }
+
+  @override
   Future<void> resendAdminConfirmation(String email) async {
     backend.confirmationResends.add(email);
   }
@@ -113,9 +127,32 @@ class FakeAuthRepository implements AuthRepository {
     backend.emailChangeRequests.add(newEmail);
   }
 
+  /// Nimmt jede Adresse an — auch unbekannte. Genau so verhält sich Supabase,
+  /// damit die Antwort kein Konto-Orakel wird.
   @override
-  Future<void> sendAdminPasswordReset(String email) async {
+  Future<void> sendAdminPasswordResetCode(String email) async {
     backend.passwordResets.add(email);
+  }
+
+  /// Spiegelt die echte Reihenfolge: `verifyOTP` meldet die Sitzung mit
+  /// 'passwordRecovery' an, erst `updateUser` setzt das Passwort und meldet
+  /// die fertige Anmeldung. Der Router hängt an genau diesem Unterschied —
+  /// beides hier zu verschmelzen führte den Test am Kernpunkt vorbei.
+  @override
+  Future<void> resetAdminPasswordWithCode({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final account = backend.adminAccounts[email];
+    if (account == null || code != FakeBackend.resetCode) {
+      // Wie GoTrue: derselbe Fehler für falschen Code und unbekannte
+      // Adresse — sonst wäre auch das ein Konto-Orakel.
+      throw const InvalidCodeException();
+    }
+    backend.beginRecovery(email);
+    account.password = newPassword;
+    backend.setCurrentEmail(email);
   }
 
   @override

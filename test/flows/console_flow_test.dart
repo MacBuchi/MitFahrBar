@@ -127,45 +127,6 @@ void main() {
     );
   });
 
-  testWidgets('der Reset-Link mündet im Dialog und setzt das Passwort', (
-    tester,
-  ) async {
-    final backend = _backend();
-    backend.adminAccounts[_adminEmail]!.groupId = backend.groups.keys.first;
-
-    await pumpApp(tester, backend, splash: false);
-    await _signInToConsole(tester);
-
-    // Der Klick auf den Reset-Link in der Mail meldet die Sitzung an und
-    // GoTrue signalisiert 'passwordRecovery' — die Konsole muss daraufhin
-    // von selbst den Ändern-Dialog öffnen, sonst endet der Link im Nichts.
-    backend.emitAuthEvent('passwordRecovery');
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Admin-Passwort ändern'),
-      findsOneWidget,
-      reason:
-          'Nach dem Reset-Link darf niemand raten müssen, wo es '
-          'weitergeht.',
-    );
-
-    await tester.enterText(find.byType(TextField).first, 'reset-neu-gesetzt');
-    await tester.enterText(find.byType(TextField).last, 'reset-neu-gesetzt');
-    await _tap(tester, find.widgetWithText(FilledButton, 'Ändern'));
-
-    expect(
-      backend.adminAccounts[_adminEmail]!.password,
-      'reset-neu-gesetzt',
-      reason: 'Das neue Admin-Passwort muss wirklich gesetzt sein.',
-    );
-    expect(
-      logRing.lines.join('\n'),
-      isNot(contains('reset-neu-gesetzt')),
-      reason: 'Ein Passwort darf nie im Protokoll landen.',
-    );
-  });
-
   testWidgets('Übergabe: Verknüpfung lösen gibt die Gruppe frei', (
     tester,
   ) async {
@@ -258,34 +219,7 @@ void main() {
     expect(backend.groups, hasLength(1));
   });
 
-  testWidgets('Passwort vergessen fragt nur die E-Mail ab', (tester) async {
-    final backend = _backend();
-    await pumpApp(tester, backend, splash: false);
-    await _openConsoleLogin(tester);
-
-    await _tap(tester, find.text('Passwort vergessen?'));
-    expect(
-      find.byType(TextField),
-      findsOneWidget,
-      reason: 'Im Reset-Modus gibt es kein Passwortfeld — nur die E-Mail.',
-    );
-
-    await tester.enterText(find.byType(TextField), _adminEmail);
-    await _tap(tester, find.widgetWithText(FilledButton, 'Reset-Link senden'));
-
-    expect(find.textContaining('Reset-Link unterwegs'), findsOneWidget);
-    expect(backend.passwordResets, [
-      _adminEmail,
-    ], reason: 'Der Reset wurde wirklich angefordert.');
-
-    await _tap(tester, find.text('Zurück zur Anmeldung'));
-    expect(
-      find.byType(TextField),
-      findsNWidgets(2),
-      reason: 'Zurück im Anmelden-Modus sind E-Mail und Passwort wieder da.',
-    );
-    expect(find.widgetWithText(FilledButton, 'Anmelden'), findsOneWidget);
-  });
+  // „Passwort vergessen" hat eine eigene Datei: console_reset_flow_test.dart.
 
   testWidgets('unbestätigtes Konto: Anmelden erklärt es, Resend geht', (
     tester,
@@ -309,6 +243,13 @@ void main() {
           'Ein unbestätigtes Konto ist kein „Passwort falsch" — die '
           'Nutzerin muss wissen, dass die Mail der nächste Schritt ist.',
     );
+    expect(
+      find.widgetWithText(TextField, 'Code aus der Mail'),
+      findsOneWidget,
+      reason:
+          'Und sie landet direkt in der Code-Eingabe, statt den nächsten '
+          'Schritt selbst suchen zu müssen.',
+    );
 
     await _tap(tester, find.text('Bestätigungs-Mail erneut senden'));
     expect(
@@ -316,7 +257,7 @@ void main() {
       ['frisch@example.org'],
       reason: 'Der Resend wurde wirklich angefordert.',
     );
-    expect(find.textContaining('Bestätigungs-Mail unterwegs'), findsOneWidget);
+    expect(find.textContaining('neuer Code unterwegs'), findsOneWidget);
   });
 
   testWidgets('das Auge macht das Passwort sichtbar', (tester) async {
@@ -365,7 +306,7 @@ void main() {
     await tester.enterText(find.byType(TextField).at(2), 'ganz-geheim-12');
     await _tap(tester, find.widgetWithText(FilledButton, 'Registrieren'));
 
-    expect(find.textContaining('Bestätigungs-Link'), findsOneWidget);
+    expect(find.textContaining('Code an neu@example.org'), findsOneWidget);
     expect(backend.adminAccounts.containsKey('neu@example.org'), isTrue);
   });
 

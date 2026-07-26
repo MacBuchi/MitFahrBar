@@ -47,6 +47,31 @@ expect() { # expect <json-key> <erwartet> <warum>
   fi
 }
 
+# Für Mail-Vorlagen: Der ganze HTML-Text lässt sich nicht sinnvoll exakt
+# vergleichen (Formulierungen dürfen sich ändern), die tragenden Platzhalter
+# schon.
+expect_contains() { # expect_contains <json-key> <teilstring> <warum>
+  local actual
+  actual="$(printf '%s' "$config" | jq -r ".$1")"
+  if [[ "$actual" != *"$2"* ]]; then
+    echo "DRIFT: $1 enthält kein '$2' — $3"
+    fail=1
+  else
+    echo "ok: $1 enthält '$2'"
+  fi
+}
+
+expect_absent() { # expect_absent <json-key> <teilstring> <warum>
+  local actual
+  actual="$(printf '%s' "$config" | jq -r ".$1")"
+  if [[ "$actual" == *"$2"* ]]; then
+    echo "DRIFT: $1 enthält '$2' — $3"
+    fail=1
+  else
+    echo "ok: $1 ohne '$2'"
+  fi
+}
+
 expect mailer_autoconfirm false \
   "Verwalter-Konten müssen ihr Postfach beweisen; Gruppen-Konten entstehen serverseitig (request-group). Autoconfirm AN machte die Bestätigungs-UX tot."
 expect external_email_enabled true \
@@ -60,13 +85,38 @@ expect smtp_admin_email noreply-mitfahrbar@mcbuchi.de \
 expect smtp_sender_name MitFahrBar \
   "Steht als Absender im Postfach der Nutzer — der sichtbarste Rest eines alten Namens."
 # site_url und uri_allow_list stehen fest verdrahtet in auth_repository.dart
-# als emailRedirectTo/redirectTo. Weicht das Dashboard davon ab, weist
-# Supabase die Weiterleitung ab und „Passwort vergessen" endet im Nichts —
-# genau die Sorte Ausfall, die man erst merkt, wenn jemand aussperrt ist.
+# als emailRedirectTo beim E-Mail-Wechsel (changeAdminEmail) — der einzige
+# Ablauf, der seit Issue #102 noch über einen Mail-Link läuft. Weicht das
+# Dashboard davon ab, weist Supabase die Weiterleitung ab und der Wechsel
+# endet im Nichts.
 expect site_url https://macbuchi.github.io/MitFahrBar/ \
   "Ziel der Auth-Links; muss der Pages-URL und auth_repository.dart entsprechen."
 expect uri_allow_list https://macbuchi.github.io/MitFahrBar/ \
   "Ohne passende Allow-List weist Supabase das emailRedirectTo aus auth_repository.dart ab."
+
+# Die Mail-Vorlagen (Issue #102). Sie leben NUR im Dashboard — CI sieht sie
+# sonst nie, und wer sie dort zurückstellt, bricht Production bei grüner CI.
+# Beide Abläufe laufen über den Zahlencode: Ein Link wäre an das Gerät
+# gebunden, das ihn angefordert hat (PKCE-Verifier im lokalen Speicher), und
+# stürbe beim Öffnen im Handy-Browser. Steht der Link wieder drin, ist genau
+# der kaputte Weg wieder erreichbar.
+# Die versionierten Kopien liegen in supabase/templates/ und versorgen den
+# lokalen Teststack — Änderungen gehören an beide Stellen.
+expect_contains mailer_templates_recovery_content '{{ .Token }}' \
+  "Ohne den Code kann niemand sein Passwort zurücksetzen — die App fragt genau danach."
+expect_absent mailer_templates_recovery_content '{{ .ConfirmationURL }}' \
+  "Der Link ist gerätegebunden und stirbt beim Öffnen im Handy-Browser (Issue #102)."
+expect_contains mailer_templates_confirmation_content '{{ .Token }}' \
+  "Die Registrierung wird im Konsolen-Login mit dem Code aus der Mail bestätigt."
+expect_absent mailer_templates_confirmation_content '{{ .ConfirmationURL }}' \
+  "Zwei Bestätigungswege nebeneinander, von denen einer nur im Browser aufgeht."
+
+# Der Produktname steht in jeder Auth-Mail — die Umbenennung (Issue #87) war
+# bewusst vollständig, das Dashboard konnte sie aber nicht mitbekommen.
+expect_absent mailer_templates_recovery_content 'RideBuddy' \
+  "Alter Produktname in der Reset-Mail; die Umbenennung erreicht das Dashboard nicht von allein."
+expect_absent mailer_templates_confirmation_content 'RideBuddy' \
+  "Alter Produktname in der Bestätigungs-Mail; siehe oben."
 
 if [ "$fail" -ne 0 ]; then
   echo ""

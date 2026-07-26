@@ -4,6 +4,31 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.35.0] – 2026-07-26
+
+### Behoben
+
+- **„Passwort vergessen" funktioniert jetzt auch vom Handy.** Wer sein
+  Verwalter-Passwort in der App zurücksetzen wollte, bekam eine Mail, deren
+  Link ins Leere lief — ohne jede Fehlermeldung. Statt eines Links schickt
+  MitFahrBar nun einen **sechsstelligen Code**: eintippen, neues Passwort
+  wählen, fertig — alles in derselben Maske und auf jedem Gerät. Betrifft
+  nur die Verwalter-Konsole; am Gruppen-Login ändert sich nichts.
+
+### Geändert
+
+- **Auch die Registrierung der Verwalter-Konsole bestätigt jetzt per Code.**
+  Kein Umweg mehr über den Browser: Code aus der Mail eintippen, und man ist
+  direkt in der Konsole. Die „Bestätigungs-Mail erneut senden"-Hilfe gibt es
+  weiterhin.
+
+> **Für den Betrieb:** Damit das wirkt, müssen im Supabase-Dashboard unter
+> Authentication → Emails → Templates **beide** Vorlagen („Reset Password"
+> und „Confirm sign up") den Code (`{{ .Token }}`) zeigen und den Link
+> (`{{ .ConfirmationURL }}`) **nicht** mehr enthalten. Kopien liegen in
+> `supabase/templates/`. Bis dahin meldet die tägliche Config-Drift-Wache
+> genau das.
+
 ## [0.34.2] – 2026-07-25
 
 ### Neu

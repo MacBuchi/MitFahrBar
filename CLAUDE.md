@@ -187,6 +187,46 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   **eigenes SMTP** in Supabase (Brevo Free) — Supabases Standardversand
   liefert nur an Projekt-Teammitglieder. `test/schema_test.dart` nagelt
   alle vier Annahmen fest.
+- **Die Konsolen-Mails tragen einen Code, keinen Link** (Issue #102, seit
+  v0.35.0) — betrifft „Passwort vergessen" und die Registrierungs-
+  Bestätigung. Grund ist kein Geschmack: `resetPasswordForEmail` legt im
+  PKCE-Standardflow einen Code-Verifier im Speicher des **anfordernden**
+  Geräts ab (`gotrue_client.dart`, `_generatePKCECodeChallenge`) und
+  verlangt ihn beim Einlösen wieder. Wer in der Android-App anfordert und
+  die Mail im Handy-Browser öffnet — der Normalfall —, hat ihn dort nicht:
+  Der Link stirbt still mit „Code verifier could not be found in local
+  storage.", und weil das `passwordRecovery`-Ereignis am selben Eintrag
+  hängt, erscheint auch kein Dialog. Keine Landeseite kann das heilen.
+  `verifyOTP(type: recovery)` ist gerätefrei, braucht weder `redirectTo`
+  noch einen `uri_allow_list`-Eintrag. Drei Dinge hängen zusammen und
+  dürfen nicht einzeln „aufgeräumt" werden:
+  - **Verify und `updateUser` sind EIN Repository-Aufruf**
+    (`resetAdminPasswordWithCode`). `verifyOTP` erzeugt eine gültige
+    Sitzung, *bevor* das neue Passwort existiert — bliebe es dazwischen
+    stehen, wäre jemand angemeldet, ohne sein Passwort zu kennen.
+    Scheitert das Ändern, meldet der Screen die Recovery-Sitzung ab.
+  - **Der Router filtert `passwordRecovery` aus dem Refresh-Stream**
+    (`core/router.dart` + `isPasswordRecovery`). Ohne den Filter risse der
+    Redirect „Admin-Sitzung → /console" den Konsolen-Login mitten im
+    Zurücksetzen weg. Erst das Ereignis aus `updateUser` lässt herein.
+    `test/flows/console_reset_flow_test.dart` wird ohne den Filter rot.
+  - **Die Mail-Vorlagen zeigen `{{ .Token }}` und KEINEN
+    `{{ .ConfirmationURL }}`.** Bleibt der Link stehen, ist der kaputte Weg
+    weiter erreichbar. Wirksam sind die Vorlagen im **Dashboard**
+    (Authentication → Emails → Templates → Reset Password / Confirm sign
+    up); `supabase/templates/*.html` ist die versionierte Kopie, die
+    zugleich den lokalen Teststack versorgt (`config.toml`). **Änderungen
+    immer an beiden Stellen.** Weil CI das Dashboard nie sieht, prüft
+    `tool/config_drift.sh` beide Prod-Vorlagen täglich — auch darauf, dass
+    dort nicht mehr „RideBuddy" steht (bei der Umbenennung übersehen, weil
+    Dashboard-Texte in keinem Diff auftauchen).
+  Der **E-Mail-Wechsel** bleibt bewusst beim Link: `updateUser` erzeugt
+  keinen Verifier, die Bestätigung passiert serverseitig — er ist nicht
+  betroffen. Deshalb bleiben `site_url`/`uri_allow_list` nötig.
+  Der Rundlauf gegen echtes GoTrue steht in `test/e2e/auth_mail_e2e_test.dart`
+  (auch: falscher Code → `otp_expired`); dass die Vorlage keinen Link führt,
+  bewacht `firstCode` in `test/e2e/e2e_env.dart` und `mailCode` im
+  Browser-E2E. Dasselbe Muster fährt PilzBuddy (pilzbuddy#128).
 - **Mehrere Autos je Tag plant der Planer nur, wenn eines nicht reicht**
   (Issue #62). Die Invarianten, in dieser Reihenfolge: `planWeek` bestimmt
   zuerst die **minimale** Autozahl k (die k größten Autos müssen alle
