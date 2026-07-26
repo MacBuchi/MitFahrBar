@@ -4,6 +4,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.37.0] – 2026-07-26
+
+### Geändert
+
+- **Gruppen entstehen jetzt in der Verwalter-Konsole.** Wer eine
+  Fahrgemeinschaft anlegen will, richtet sich dort einmal ein eigenes Konto
+  mit echter E-Mail-Adresse ein und legt seine Gruppe selbst an — **sofort
+  nutzbar**, ohne Warten auf eine Freigabe. Ein Konto darf bis zu **fünf**
+  Gruppen betreuen, jede mit eigener Karte in der Konsole. Anmeldename und
+  Gruppenpasswort gibt man wie bisher an alle Mitglieder weiter; die melden
+  sich damit ganz normal an.
+
+  „Neue Gruppe anfragen" verschwindet damit vom Anmelde-Bildschirm. Der Weg
+  dorthin führt über **„Verwalter-Konsole"**.
+
+- **Das Gruppenpasswort wird beim Anlegen zweimal eingetippt.** Bei einem
+  Tippfehler kam vorher niemand mehr in die neue Gruppe hinein — auch die
+  Person nicht, die sie angelegt hatte.
+
+- **Eine Gruppe zu löschen löscht nicht mehr das eigene Verwalter-Konto.**
+  Es betreut ja möglicherweise weitere Gruppen. Nach dem Löschen bleibt man
+  angemeldet und sieht die restliche Liste.
+
 ## [0.36.0] – 2026-07-26
 
 ### Neu

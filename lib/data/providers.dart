@@ -104,10 +104,10 @@ final adminRepositoryProvider = Provider<AdminRepository>(
       : NoopAdminRepository(),
 );
 
-/// Die verknüpfte Gruppe eines Verwalter-Kontos (`null` = unverknüpft).
-final adminGroupProvider = FutureProvider<AdminGroup?>((ref) {
+/// Die Gruppen eines Verwalter-Kontos, älteste zuerst (leer = keine).
+final adminGroupsProvider = FutureProvider<List<AdminGroup>>((ref) {
   ref.watch(currentUserIdProvider);
-  return ref.watch(adminRepositoryProvider).myAdminGroup();
+  return ref.watch(adminRepositoryProvider).myAdminGroups();
 });
 
 final appConfigRepositoryProvider = Provider<AppConfigRepository>(

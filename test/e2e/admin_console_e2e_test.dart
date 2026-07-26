@@ -1,9 +1,11 @@
-/// E2E: Verwalter-Konsole (Issue #55) gegen den echten Stack.
+/// E2E: Verwalter-Konsole (Issue #55, #106) gegen den echten Stack.
 ///
-/// Beweist die vier Annahmen, die test/schema_test.dart nur statisch prüft:
-/// kein Geister-Pending beim Admin-Signup, Erst-Verknüpfung nur mit
-/// Gruppen-Login und Einrasten, Passwort-Reset wirkt aufs Gruppen-Konto,
-/// Löschen reißt über die Auth-Kaskade alles mit.
+/// Beweist die Annahmen, die test/schema_test.dart nur statisch prüft: kein
+/// Geister-Pending beim Admin-Signup, Anlegen nur als bestätigtes
+/// Verwalter-Konto (und dann aktiv UND verknüpft), Übernehmen nur mit
+/// Gruppen-Login und Einrasten, der Deckel von fünf Gruppen, jede Aktion
+/// trifft nur die eigene Gruppe, Löschen reißt die Gruppe über die
+/// Auth-Kaskade mit — aber nie das Verwalter-Konto.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,20 @@ Future<void> expectRpcError(Future<dynamic> call, String messagePart) async {
   }
 }
 
+/// Erwartet einen HTTP-Status von der Edge Function.
+Future<void> expectFunctionStatus(
+  SupabaseClient client,
+  Map<String, dynamic> body,
+  int status,
+) async {
+  try {
+    await client.functions.invoke('request-group', body: body);
+    fail('Aufruf hätte mit $status scheitern müssen');
+  } on FunctionException catch (e) {
+    expect(e.status, status);
+  }
+}
+
 void main() {
   if (!e2eConfigured) {
     test('Konsolen-E2E', () {}, skip: e2eSkipReason);
@@ -33,7 +49,9 @@ void main() {
   setUpAll(() async {
     service = newServiceClient();
     g = await registerGroup('adm');
-    await activateGroup(service, g.id);
+    // Die Gruppe entsteht verknüpft; für die Übernahme-Tests wird sie zur
+    // freien Gruppe gemacht — genau der Zustand nach `admin_release_group`.
+    await unlinkGroup(service, g.id);
     // Daten, an denen später die Lösch-Kaskade bewiesen wird.
     final person = await g.client
         .from('persons')
@@ -64,6 +82,70 @@ void main() {
     );
   });
 
+  test('Anlegen: die Gruppe ist sofort aktiv UND verknüpft', () async {
+    final creator = await registerAdmin();
+    final handle = uniqueName('neu');
+    await creator.client.functions.invoke(
+      'request-group',
+      body: {
+        'handle': handle,
+        'password': 'gruppen-passwort-1',
+        'groupName': 'E2E Anlage',
+      },
+    );
+
+    final row = await service
+        .from('groups')
+        .select()
+        .eq('handle', handle)
+        .single();
+    expect(
+      row['status'],
+      'active',
+      reason: 'Es gibt keine Freigabe mehr — angelegt heißt nutzbar.',
+    );
+    expect(
+      await service
+          .from('group_admins')
+          .select()
+          .eq('group_id', row['id'] as String),
+      hasLength(1),
+      reason:
+          'Aktiv und verknüpft entstehen in einem Zug. Fehlte der zweite '
+          'Schritt, gehörte die Gruppe niemandem und niemand könnte sie mehr '
+          'erreichen.',
+    );
+    // Und der Login funktioniert mit dem getippten Passwort.
+    final probe = newAnonClient();
+    final session = await probe.auth.signInWithPassword(
+      email: '$handle@$e2eGroupDomain',
+      password: 'gruppen-passwort-1',
+    );
+    expect(session.user, isNotNull);
+  });
+
+  test('Anlegen: anonym und als Gruppe abgewiesen', () async {
+    final body = {
+      'handle': uniqueName('darfnicht'),
+      'password': 'gruppen-passwort-1',
+      'groupName': 'E2E Verboten',
+    };
+    // Der anon-Key IST ein gültiges JWT — `verify_jwt` allein schützt hier
+    // nichts. Ohne die getUser-Prüfung in der Function wäre der Endpunkt
+    // eine offene Gruppenfabrik.
+    await expectFunctionStatus(newAnonClient(), body, 401);
+    // Ein Gruppen-Login ist angemeldet, aber kein Verwalter-Konto.
+    await expectFunctionStatus(g.client, body, 403);
+    expect(
+      await service
+          .from('groups')
+          .select()
+          .eq('handle', body['handle'] as String),
+      isEmpty,
+      reason: 'Kein abgewiesener Aufruf darf eine Zeile hinterlassen.',
+    );
+  });
+
   test('claim: falsches Gruppenpasswort prallt ab', () async {
     await expectRpcError(
       admin.client.rpc(
@@ -84,18 +166,30 @@ void main() {
     );
   });
 
-  test(
-    'claim mit Gruppen-Login verknüpft und my_admin_group zeigt es',
-    () async {
-      await admin.client.rpc(
-        'claim_admin_group',
-        params: {'claim_handle': g.handle, 'group_password': g.password},
-      );
-      final linked = await admin.client.rpc('my_admin_group');
-      expect(linked, hasLength(1));
-      expect((linked.single as Map<String, dynamic>)['handle'], g.handle);
-    },
-  );
+  test('claim verknüpft und my_admin_groups zeigt es', () async {
+    await admin.client.rpc(
+      'claim_admin_group',
+      params: {'claim_handle': g.handle, 'group_password': g.password},
+    );
+    final linked = await admin.client.rpc<List<dynamic>>('my_admin_groups');
+    expect(linked, hasLength(1));
+    final row = linked.single as Map<String, dynamic>;
+    expect(row['handle'], g.handle);
+    expect(
+      row['group_id'],
+      g.id,
+      reason: 'Die Konsole braucht die id, um Aktionen zuzuordnen.',
+    );
+    expect(
+      (await service
+          .from('groups')
+          .select()
+          .eq('id', g.id)
+          .single())['released_at'],
+      isNull,
+      reason: 'Wer eine Gruppe übernimmt, löscht die Waisen-Markierung.',
+    );
+  });
 
   test('die Verknüpfung rastet ein: zweites Postfach prallt ab', () async {
     final second = await registerAdmin();
@@ -116,26 +210,68 @@ void main() {
     expect(await admin.client.from('group_admins').select(), isEmpty);
   });
 
-  test('derselbe Admin kann keine zweite Gruppe verknüpfen', () async {
-    // Die 1:1-Zusage gilt in beide Richtungen: nicht nur ein Konto je
-    // Gruppe, auch eine Gruppe je Konto (user_id ist Primärschlüssel).
-    final second = await registerGroup('zweitgruppe');
-    await activateGroup(service, second.id);
+  test('fünf Gruppen gehen, die sechste prallt am Deckel ab', () async {
+    final creator = await registerAdmin();
+    for (var i = 0; i < 5; i++) {
+      await creator.client.functions.invoke(
+        'request-group',
+        body: {
+          'handle': uniqueName('deckel$i'),
+          'password': 'gruppen-passwort-1',
+          'groupName': 'E2E Deckel $i',
+        },
+      );
+    }
+    expect(
+      await service.from('group_admins').select().eq('user_id', creator.id),
+      hasLength(5),
+    );
+
+    final sixth = uniqueName('deckelsechs');
+    await expectFunctionStatus(creator.client, {
+      'handle': sixth,
+      'password': 'gruppen-passwort-1',
+      'groupName': 'E2E Deckel 6',
+    }, 429);
+    expect(
+      await service.from('groups').select().eq('handle', sixth),
+      isEmpty,
+      reason:
+          'Der abgewiesene Versuch darf keinen Handle blockieren — sonst '
+          'wäre der Name für immer verbrannt.',
+    );
+  });
+
+  test('eine fremde Gruppe lässt sich nicht anfassen', () async {
+    final other = await registerGroup('fremd');
     await expectRpcError(
       admin.client.rpc(
-        'claim_admin_group',
+        'admin_reset_group_password',
+        params: {'target_group': other.id, 'new_password': 'lang-genug-123'},
+      ),
+      'not linked',
+    );
+    await expectRpcError(
+      admin.client.rpc(
+        'admin_delete_group',
         params: {
-          'claim_handle': second.handle,
-          'group_password': second.password,
+          'target_group': other.id,
+          'admin_password': admin.password,
+          'handle_confirmation': other.handle,
         },
       ),
-      'admin already linked',
+      'not linked',
+    );
+    expect(
+      await service.from('groups').select().eq('id', other.id),
+      hasLength(1),
+      reason: 'Die fremde Gruppe steht unberührt da.',
     );
   });
 
   test('Übergabe: lösen mit Sudo, dann rastet das nächste Konto ein', () async {
     final g2 = await registerGroup('uebergabe');
-    await activateGroup(service, g2.id);
+    await unlinkGroup(service, g2.id);
     final first = await registerAdmin();
     await first.client.rpc<void>(
       'claim_admin_group',
@@ -145,19 +281,30 @@ void main() {
     await expectRpcError(
       first.client.rpc<void>(
         'admin_release_group',
-        params: {'admin_password': 'voellig-falsch'},
+        params: {'target_group': g2.id, 'admin_password': 'voellig-falsch'},
       ),
       'wrong admin password',
     );
 
     await first.client.rpc<void>(
       'admin_release_group',
-      params: {'admin_password': first.password},
+      params: {'target_group': g2.id, 'admin_password': first.password},
     );
     expect(
       await service.from('group_admins').select().eq('group_id', g2.id),
       isEmpty,
       reason: 'Nur die Verknüpfungszeile fällt — Gruppe und Konto bleiben.',
+    );
+    expect(
+      (await service
+          .from('groups')
+          .select()
+          .eq('id', g2.id)
+          .single())['released_at'],
+      isNotNull,
+      reason:
+          'Eine aktive Gruppe ohne Verwalter ist markiert — sonst wäre eine '
+          'laufende Übergabe von einer echten Waise nicht zu unterscheiden.',
     );
 
     final successor = await registerAdmin();
@@ -165,7 +312,7 @@ void main() {
       'claim_admin_group',
       params: {'claim_handle': g2.handle, 'group_password': g2.password},
     );
-    final linked = await successor.client.rpc<List<dynamic>>('my_admin_group');
+    final linked = await successor.client.rpc<List<dynamic>>('my_admin_groups');
     expect(
       (linked.single as Map<String, dynamic>)['handle'],
       g2.handle,
@@ -182,9 +329,12 @@ void main() {
   });
 
   test('eine pending-Gruppe lässt sich nicht verknüpfen', () async {
-    // Erst die Freigabe macht die Gruppe verknüpfbar — vorher lehnt der
-    // Server ab, selbst mit korrektem Gruppen-Login.
+    // Seit #106 entsteht keine pending-Gruppe mehr über die App — den Zustand
+    // gibt es nur noch für Fremd-Signups gegen die Gruppen-Domain. Genau die
+    // dürfen nicht übernehmbar sein.
     final pending = await registerGroup('pend');
+    await unlinkGroup(service, pending.id);
+    await makePending(service, pending.id);
     final fresh = await registerAdmin();
     await expectRpcError(
       fresh.client.rpc(
@@ -202,7 +352,7 @@ void main() {
     await expectRpcError(
       admin.client.rpc(
         'admin_reset_group_password',
-        params: {'new_password': 'kurz'},
+        params: {'target_group': g.id, 'new_password': 'kurz'},
       ),
       'password too short',
     );
@@ -210,7 +360,7 @@ void main() {
     const newPassword = 'frisches-gruppen-pw-9';
     await admin.client.rpc(
       'admin_reset_group_password',
-      params: {'new_password': newPassword},
+      params: {'target_group': g.id, 'new_password': newPassword},
     );
 
     final probe = newAnonClient();
@@ -231,6 +381,7 @@ void main() {
       admin.client.rpc(
         'admin_delete_group',
         params: {
+          'target_group': g.id,
           'admin_password': 'falsches-admin-pw',
           'handle_confirmation': g.handle,
         },
@@ -241,6 +392,7 @@ void main() {
       admin.client.rpc(
         'admin_delete_group',
         params: {
+          'target_group': g.id,
           'admin_password': admin.password,
           'handle_confirmation': 'andere-gruppe',
         },
@@ -249,48 +401,63 @@ void main() {
     );
   });
 
-  test(
-    'Löschen reißt Gruppe, Daten und Admin-Konto in einem Schlag mit',
-    () async {
-      await admin.client.rpc(
-        'admin_delete_group',
-        params: {
-          'admin_password': admin.password,
-          'handle_confirmation': g.handle,
-        },
-      );
+  test('Löschen reißt Gruppe und Daten mit — nicht das Konto', () async {
+    // Eine zweite Gruppe am selben Konto: Sie beweist, dass das Löschen ein
+    // chirurgischer Schnitt ist und nicht das halbe Konto mitnimmt.
+    final keep = await registerGroup('bleibt');
+    await unlinkGroup(service, keep.id);
+    await admin.client.rpc<void>(
+      'claim_admin_group',
+      params: {'claim_handle': keep.handle, 'group_password': keep.password},
+    );
 
-      expect(await service.from('groups').select().eq('id', g.id), isEmpty);
-      expect(
-        await service.from('persons').select().eq('group_id', g.id),
-        isEmpty,
-      );
-      expect(
-        await service.from('trips').select().eq('group_id', g.id),
-        isEmpty,
-      );
-      expect(
-        await service.from('group_admins').select().eq('user_id', admin.id),
-        isEmpty,
-      );
+    await admin.client.rpc(
+      'admin_delete_group',
+      params: {
+        'target_group': g.id,
+        'admin_password': admin.password,
+        'handle_confirmation': g.handle,
+      },
+    );
 
-      final probe = newAnonClient();
-      await expectLater(
-        probe.auth.signInWithPassword(
-          email: g.email,
-          password: 'frisches-gruppen-pw-9',
-        ),
-        throwsA(isA<AuthException>()),
-        reason: 'Gruppen-Auth-User muss weg sein',
-      );
-      await expectLater(
-        probe.auth.signInWithPassword(
-          email: admin.email,
-          password: admin.password,
-        ),
-        throwsA(isA<AuthException>()),
-        reason: 'Admin-Konto muss sich selbst mitgelöscht haben',
-      );
-    },
-  );
+    expect(await service.from('groups').select().eq('id', g.id), isEmpty);
+    expect(
+      await service.from('persons').select().eq('group_id', g.id),
+      isEmpty,
+    );
+    expect(await service.from('trips').select().eq('group_id', g.id), isEmpty);
+
+    final probe = newAnonClient();
+    await expectLater(
+      probe.auth.signInWithPassword(
+        email: g.email,
+        password: 'frisches-gruppen-pw-9',
+      ),
+      throwsA(isA<AuthException>()),
+      reason: 'Gruppen-Auth-User muss weg sein',
+    );
+
+    // Und das Konto lebt weiter, mit seiner anderen Gruppe.
+    final session = await probe.auth.signInWithPassword(
+      email: admin.email,
+      password: admin.password,
+    );
+    expect(
+      session.user,
+      isNotNull,
+      reason:
+          'Bei bis zu fünf Gruppen wäre ein Selbst-Löschen Datenverlust an '
+          'den übrigen — und es verschärfte die Sackgasse, wenn Postfach und '
+          'Passwort verloren gehen.',
+    );
+    final rest = await service
+        .from('group_admins')
+        .select()
+        .eq('user_id', admin.id);
+    expect(
+      rest.map((row) => row['group_id']),
+      [keep.id],
+      reason: 'Genau die gelöschte Verknüpfung ist weg, die andere bleibt.',
+    );
+  });
 }

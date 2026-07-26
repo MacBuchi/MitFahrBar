@@ -26,9 +26,16 @@ create table public.groups (
   name text not null,
   handle text unique not null,
   status text not null default 'pending'
-    check (status in ('pending', 'active', 'rejected')),
+    check (status in ('pending', 'active', 'rejected', 'archived')),
   is_admin boolean not null default false,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Wann die Gruppe ihren Verwalter verloren hat. Eine aktive Gruppe ohne
+  -- Verknüpfung ist nur als Übergabefenster vorgesehen; der Zeitstempel
+  -- macht sie von einer echten Waise unterscheidbar. 'archived' ist der
+  -- vorgesehene Ruhezustand — `my_group_active()` prüft auf 'active', eine
+  -- archivierte Gruppe ist damit über alle Policies hinweg still,
+  -- verlustfrei und umkehrbar.
+  released_at timestamptz
 );
 
 create table public.persons (
@@ -206,13 +213,16 @@ create index push_devices_person_idx
   on public.push_devices (group_id, person_id);
 create index push_log_date_idx on public.push_log (plan_date);
 
--- Verknüpfung Verwalter-Konto ↔ Gruppe. `group_id unique` = höchstens ein
--- Admin je Gruppe; die Erst-Verknüpfung beweist sich mit dem Gruppen-Login
--- (claim_admin_group) und rastet danach ein.
+-- Verknüpfung Verwalter-Konto ↔ Gruppe. Ein Konto trägt bis zu 5 Gruppen
+-- (Deckel im Trigger unten), deshalb der zusammengesetzte Schlüssel.
+-- `group_id unique` bleibt: höchstens EIN Verwalter je Gruppe (#55). Eine
+-- bestehende Gruppe übernimmt man weiter mit dem Gruppen-Login
+-- (claim_admin_group); neue entstehen bereits verknüpft.
 create table public.group_admins (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
   group_id uuid unique not null references public.groups(id) on delete cascade,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  primary key (user_id, group_id)
 );
 
 -- --------------------------------------------------------------- Funktionen
@@ -259,10 +269,50 @@ create trigger on_auth_user_created_group
 
 -- ------------------------------------------------- Verwalter-Konsole (#55)
 
--- Verknüpft das angemeldete Admin-Konto mit einer Gruppe. Beweis ist das
--- Gruppen-Login (Handle + Gruppenpasswort) — und nur, solange die Gruppe
--- noch keinen Admin hat. Grenze des geteilten Logins: Das erste Postfach
--- gewinnt; der Verwalter verknüpft direkt nach dem Release.
+-- Deckel: 5 Gruppen je Verwalter-Konto (#106), serverseitig. Ein Deckel nur
+-- im UI ist kein Deckel.
+--
+-- Bewusst ein TRIGGER und keine aufrufbare Funktion: `alter default
+-- privileges` unten gibt `authenticated` execute auf jede Funktion. Eine
+-- Funktion `adopt_group(gruppe, konto)` wäre damit die Übernahme-Lücke —
+-- jedes angemeldete Konto könnte sich an jede unverknüpfte Gruppe hängen,
+-- ohne das Gruppenpasswort zu kennen. Der Vorschuss-Lock verhindert, dass
+-- zwei gleichzeitige Anlagen beide den Stand vor der anderen zählen.
+create or replace function public.enforce_group_admin_cap()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform pg_advisory_xact_lock(hashtext('group_admins:' || new.user_id::text));
+  if (select count(*) from public.group_admins
+       where user_id = new.user_id) >= 5 then
+    raise exception 'group limit reached';
+  end if;
+  return new;
+end $$;
+
+create trigger group_admins_cap
+  before insert on public.group_admins
+  for each row execute function public.enforce_group_admin_cap();
+
+-- Verliert eine Gruppe ihren Verwalter, wird der Zeitpunkt vermerkt — beim
+-- absichtlichen Lösen UND bei der Kaskade eines gelöschten Verwalter-Kontos
+-- (der zweite Fall wäre sonst eine stille Waise). Bewusst nur der
+-- Zeitstempel, kein Statuswechsel: Eine Übergabe darf die Gruppe nicht
+-- aussperren, die Mitfahrer fahren ja weiter.
+create or replace function public.mark_group_released()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  update public.groups set released_at = now() where id = old.group_id;
+  return old;
+end $$;
+
+create trigger group_admins_released
+  after delete on public.group_admins
+  for each row execute function public.mark_group_released();
+
+-- Übernimmt eine BESTEHENDE Gruppe: für Gruppen von vor #106 und für die
+-- Übergabe an eine Nachfolgerin. Beweis ist das Gruppen-Login (Handle +
+-- Gruppenpasswort) — und nur, solange die Gruppe noch keinen Admin hat.
+-- Grenze des geteilten Logins: Das erste Postfach gewinnt.
 create or replace function public.claim_admin_group(
   claim_handle text,
   group_password text
@@ -294,36 +344,39 @@ begin
   if exists (select 1 from public.group_admins where group_id = target.id) then
     raise exception 'group already claimed';
   end if;
-  if exists (select 1 from public.group_admins where user_id = auth.uid()) then
-    raise exception 'admin already linked';
-  end if;
 
   insert into public.group_admins (user_id, group_id)
   values (auth.uid(), target.id);
+
+  update public.groups set released_at = null where id = target.id;
 end $$;
 
--- Die verknüpfte Gruppe fürs Konsolen-UI (leer, wenn unverknüpft).
-create or replace function public.my_admin_group()
-returns table (handle text, name text)
+-- Alle verknüpften Gruppen fürs Konsolen-UI (leer, wenn keine). Die frühere
+-- Einzelform könnte bei mehreren Gruppen nur eine beliebige davon zeigen.
+create or replace function public.my_admin_groups()
+returns table (group_id uuid, handle text, name text)
 language sql stable security definer set search_path = public as $$
-  select g.handle, g.name
+  select g.id, g.handle, g.name
     from public.group_admins ga
     join public.groups g on g.id = ga.group_id
-   where ga.user_id = auth.uid();
+   where ga.user_id = auth.uid()
+   order by g.created_at;
 $$;
 
 -- Setzt das Passwort des GRUPPEN-Kontos neu — die Rettungsleine, wenn das
 -- geteilte Passwort verloren ging oder jemand alle ausgesperrt hat.
+-- Alle drei Aktionen nennen IHRE Gruppe. Die Eigentumsprüfung
+-- `user_id = auth.uid() and group_id = target_group` ist der eigentliche
+-- Inhalt der Signaturen — ohne sie träfe ein Verwalter die Gruppe eines
+-- anderen.
 create or replace function public.admin_reset_group_password(
+  target_group uuid,
   new_password text
 ) returns void
 language plpgsql security definer set search_path = public, extensions as $$
-declare
-  target uuid;
 begin
-  select group_id into target from public.group_admins
-    where user_id = auth.uid();
-  if target is null then
+  if not exists (select 1 from public.group_admins
+                  where user_id = auth.uid() and group_id = target_group) then
     raise exception 'not linked';
   end if;
   if length(coalesce(new_password, '')) < 8 then
@@ -331,26 +384,28 @@ begin
   end if;
   update auth.users
      set encrypted_password = crypt(new_password, gen_salt('bf'))
-   where id = target;
+   where id = target_group;
 end $$;
 
 -- Löst die Verknüpfung (Issue #73) — die Übergabe. Sudo-Muster: eigenes
 -- Admin-Passwort erneut. Danach kann ein anderes Konto über claim_admin_group
--- neu einrasten; Gruppendaten und Verwalter-Konto bleiben unberührt.
--- Bewusste Grenze: Wer Postfach UND Passwort verliert, braucht den
--- Betreiber — Selbstbedienung daran vorbei wäre die Übernahme-Lücke,
--- die das Einrasten gerade verhindert.
+-- neu einrasten; Gruppendaten und Verwalter-Konto bleiben unberührt, der
+-- Trigger vermerkt den Zeitpunkt in `released_at`.
+-- Bewusste Grenze: Wer Postfach UND Passwort verliert, kommt an seine
+-- Gruppen nicht mehr heran — Selbstbedienung daran vorbei wäre die
+-- Übernahme-Lücke, die das Einrasten gerade verhindert (jedes Mitglied kennt
+-- das Gruppenpasswort). Vorgesehen dafür ist eine Übernahme mit
+-- Widerspruchsfrist, nicht ein zweiter Schlüssel hier.
 create or replace function public.admin_release_group(
+  target_group uuid,
   admin_password text
 ) returns void
 language plpgsql security definer set search_path = public, extensions as $$
 declare
-  target uuid;
   own text;
 begin
-  select ga.group_id into target from public.group_admins ga
-   where ga.user_id = auth.uid();
-  if target is null then
+  if not exists (select 1 from public.group_admins
+                  where user_id = auth.uid() and group_id = target_group) then
     raise exception 'not linked';
   end if;
 
@@ -359,27 +414,33 @@ begin
     raise exception 'wrong admin password';
   end if;
 
-  delete from public.group_admins where user_id = auth.uid();
+  delete from public.group_admins
+   where user_id = auth.uid() and group_id = target_group;
 end $$;
 
--- Löscht Gruppe UND Admin-Konto. Sudo-Muster: eigenes Admin-Passwort erneut
--- plus getippter Handle. Der Gruppen-Auth-User zieht über die Kaskade
+-- Löscht DIE GRUPPE. Sudo-Muster: eigenes Admin-Passwort erneut plus
+-- getippter Handle. Der Gruppen-Auth-User zieht über die Kaskade
 -- (groups.id -> auth.users, Datentabellen -> groups) alles mit.
+--
+-- Das Verwalter-Konto überlebt: Bei bis zu 5 Gruppen wäre ein Selbst-Löschen
+-- Datenverlust an den übrigen. Deshalb wird hier genau EINE Zeile in
+-- `auth.users` entfernt — die der Zielgruppe. `test/schema_test.dart` zählt
+-- das nach.
 create or replace function public.admin_delete_group(
+  target_group uuid,
   admin_password text,
   handle_confirmation text
 ) returns void
 language plpgsql security definer set search_path = public, extensions as $$
 declare
-  target uuid;
   target_handle text;
   own text;
 begin
-  select ga.group_id, g.handle into target, target_handle
+  select g.handle into target_handle
     from public.group_admins ga
     join public.groups g on g.id = ga.group_id
-   where ga.user_id = auth.uid();
-  if target is null then
+   where ga.user_id = auth.uid() and ga.group_id = target_group;
+  if target_handle is null then
     raise exception 'not linked';
   end if;
 
@@ -391,8 +452,7 @@ begin
     raise exception 'handle mismatch';
   end if;
 
-  delete from auth.users where id = target;
-  delete from auth.users where id = auth.uid();
+  delete from auth.users where id = target_group;
 end $$;
 
 -- ------------------------------------------------ Push-Registrierung (#101)

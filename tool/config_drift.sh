@@ -73,7 +73,7 @@ expect_absent() { # expect_absent <json-key> <teilstring> <warum>
 }
 
 expect mailer_autoconfirm false \
-  "Verwalter-Konten müssen ihr Postfach beweisen; Gruppen-Konten entstehen serverseitig (request-group). Autoconfirm AN machte die Bestätigungs-UX tot."
+  "Verwalter-Konten müssen ihr Postfach beweisen; Gruppen-Konten entstehen serverseitig (request-group, seit #106 nur für angemeldete Verwalter). Autoconfirm AN machte die Bestätigungs-UX tot — und die Function verlangt ein bestätigtes Postfach."
 expect external_email_enabled true \
   "Ohne E-Mail-Auth kein Login — weder Gruppen noch Verwalter."
 expect disable_signup false \

@@ -324,16 +324,19 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 leading: Icon(Icons.admin_panel_settings_outlined),
                 text:
-                    'Eine Person je Gruppe kann sich auf dem Login-Bildschirm '
-                    'eine Verwalter-Konsole einrichten (eigenes E-Mail-Konto): '
-                    'Dort wird das Gruppenpasswort neu gesetzt, wenn es '
-                    'verloren geht — und nur dort lässt sich die Gruppe '
-                    'löschen. Eure E-Mail sieht dabei niemand aus der Gruppe. '
-                    'Soll jemand anderes übernehmen, löst die Verwalterin '
-                    'die Verknüpfung in der Konsole; auch die E-Mail-Adresse '
-                    'lässt sich dort ändern. Nur wer Postfach UND Passwort '
-                    'zugleich verliert, kommt nicht mehr an das '
-                    'Verwalter-Konto — darum beides gut aufheben.',
+                    'Gruppen entstehen in der Verwalter-Konsole, erreichbar '
+                    'über den Login-Bildschirm: Wer eine Fahrgemeinschaft '
+                    'gründet, richtet sich dort einmal ein eigenes Konto mit '
+                    'echter E-Mail-Adresse ein und legt seine Gruppe an — '
+                    'sofort nutzbar, bis zu fünf Gruppen je Konto. Dort wird '
+                    'auch das Gruppenpasswort neu gesetzt, wenn es verloren '
+                    'geht, und nur dort lässt sich eine Gruppe löschen. Eure '
+                    'E-Mail sieht dabei niemand aus der Gruppe. Soll jemand '
+                    'anderes übernehmen, löst die Verwalterin die Verknüpfung '
+                    'in der Konsole; auch die E-Mail-Adresse lässt sich dort '
+                    'ändern. Nur wer Postfach UND Passwort zugleich verliert, '
+                    'kommt nicht mehr an das Verwalter-Konto — darum beides '
+                    'gut aufheben.',
               ),
               _Line(
                 text:

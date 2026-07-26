@@ -113,10 +113,46 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   halten alle drei fest.
 - **Multi-Tenant:** Eine Gruppe = ein Login (`group_id = auth.uid()`). Alle
   Datentabellen tragen `group_id` (Default `auth.uid()`), RLS erzwingt
-  `group_id = auth.uid() AND my_group_active()`. Neue Gruppen sind `pending`
-  bis eine Admin-Gruppe sie freigibt. Login = Handle → `handle@grp.local`
+  `group_id = auth.uid() AND my_group_active()`. Neue Gruppen entstehen seit
+  v0.37.0 in der Verwalter-Konsole und sind sofort `active`; `pending` gibt es
+  nur noch als Ruhezustand für Fremd-Signups gegen die Gruppen-Domain (siehe
+  Lebenszyklus unten). Login = Handle → `handle@grp.fahrgemeinschaft.app`
   (`core/group_login.dart`). Neue Datentabellen brauchen zwingend `group_id`
   plus dieselbe RLS-Policy, sonst lecken Daten zwischen Gruppen.
+- **Der Gruppen-Lebenszyklus trägt drei Invarianten** (#106, seit v0.37.0).
+  Sie sind der Grund, warum das Stilllegen ungenutzter Gruppen später ein Job
+  von wenigen Zeilen ist und kein Umbau:
+  - **Eine aktive Gruppe hat genau einen Verwalter.** Jede Gruppe entsteht
+    verknüpft (Function schreibt `status='active'` UND die
+    `group_admins`-Zeile; scheitert der zweite Schritt, wird der Auth-User
+    zurückgenommen). Der einzige legitime Ausnahmezustand ist das
+    Übergabefenster nach `admin_release_group` — und der ist **markiert**:
+    `groups.released_at` wird von einem Trigger auf `group_admins` gesetzt,
+    der auch die Kaskade eines gelöschten Verwalter-Kontos fängt. Ohne diesen
+    Trigger wäre eine stille Waise von einer laufenden Übergabe nicht zu
+    unterscheiden.
+  - **Ein unbekannter Status gilt niemals als aktiv.** `Group.statusFrom`
+    parst tolerant (`unbekannt → archived`) statt mit `byName`, das **wirft**.
+    Wer das zurückdreht, macht jede künftige Statusänderung zu einem
+    Release-Zwang: Der Fehler landete in `myGroupProvider`, die Nutzerin sähe
+    „Fehler: Invalid argument", und der Sperr-Schirm greift bewusst nie ohne
+    installierbares Update. `test/group_status_test.dart` wacht darüber.
+  - **Archivieren ist ein Statuswechsel, keine Löschung.**
+    `my_group_active()` prüft auf `'active'` — `status='archived'` macht eine
+    Gruppe über alle Policies hinweg still, verlustfrei und umkehrbar. Der
+    Wert steht deshalb schon im Check-Constraint, obwohl ihn heute nichts
+    setzt.
+  Vorgesehen, aber **nicht gebaut**: ein Aufräum-Job neben `tool/notify.dart`
+  (GitHub Actions, Service-Role-Key, nur Zahlen ins Log). Verwaist = `groups`
+  ohne `group_admins`-Zeile (Join, kein Feld nötig), ungenutzt = `trips` /
+  `plan_availability` / `auth.users.last_sign_in_at`, das GoTrue von selbst
+  pflegt. Bewusst **kein** `last_active_at`: Es müsste vom Client kommen, und
+  `groups` hat keine Update-Policy. Ebenfalls benannt und nicht gebaut: Wer
+  Postfach UND Passwort verliert, kommt an seine Gruppen nicht mehr heran —
+  vorgesehen dafür ist eine **Übernahme mit Widerspruchsfrist**, nicht ein
+  zweiter Schlüssel (jedes Mitglied kennt das Gruppenpasswort). Diese Lücke
+  darf nicht verschlimmert werden; deshalb überlebt das Verwalter-Konto das
+  Löschen einer Gruppe.
 - **Gruppen-Konten entstehen nur serverseitig** (seit v0.27.0, Edge Function
   `supabase/functions/request-group/`). Grund: In Production ist die
   Mail-Bestätigung Pflicht (`mailer_autoconfirm` aus — nötig, damit
@@ -124,30 +160,32 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   funktioniert). Ein Client-`signUp` für eine Gruppe schickte damit eine
   Bestätigungsmail an die unzustellbare Fake-Adresse (Bounce bei Brevo) und
   das Konto bliebe für immer gesperrt. Die Function legt es per Admin-API
-  mit `email_confirm: true` an — mail-frei; der Signup-Trigger macht daraus
-  wie immer die pending-Gruppe. Drei Fallen: Das Handle-Mapping existiert
-  doppelt (Dart in `core/group_login.dart`, TypeScript in der Function) und
-  muss synchron bleiben; wer `mailer_autoconfirm` wieder einschaltet, nimmt
-  den Verwalter-Konten die Postfach-Verifizierung; und der Teststack läuft
-  bewusst mit `enable_confirmations = true` (config.toml), damit die E2E-
-  Suite (`test/e2e/auth_mail_e2e_test.dart`) genau diese Prod-Wahrheit
-  prüft — genau dieser Config-Drift hat den Fehler ursprünglich versteckt.
+  mit `email_confirm: true` an — mail-frei. Drei Fallen: Das Handle-Mapping
+  existiert doppelt (Dart in `core/group_login.dart`, TypeScript in der
+  Function) und muss synchron bleiben; wer `mailer_autoconfirm` wieder
+  einschaltet, nimmt den Verwalter-Konten die Postfach-Verifizierung; und der
+  Teststack läuft bewusst mit `enable_confirmations = true` (config.toml),
+  damit die E2E-Suite (`test/e2e/auth_mail_e2e_test.dart`) genau diese
+  Prod-Wahrheit prüft — genau dieser Config-Drift hat den Fehler ursprünglich
+  versteckt.
   Nach jedem Merge, der `supabase/functions/` ändert: prüfen, ob die
   GitHub-Integration die Function deployt hat (sie deployt die in
   config.toml deklarierten), sonst manuell
-  `supabase functions deploy request-group`. Missbrauchsschutz (#69):
-  Die Function deckelt neue pending-Gruppen **global** auf
-  `SIGNUP_HOURLY_CAP` je Stunde (Default 5) — bewusst global statt je IP
-  (keine IP-Speicherung, keine neue Tabelle, durabel über die DB) und
-  bewusst ohne Captcha-Dienst (dieselbe Linie wie „kein Sentry"). Die
-  eingecheckte `supabase/functions/.env` hebt die Grenze NUR lokal an,
-  sonst liefe die E2E-Suite ins 429; deployt wird sie nie. Vorgemerkt
-  statt gebaut (entschieden 2026-07-24, #69 damit geschlossen): Wird
-  Signup-Missbrauch real, ist **Cloudflare Turnstile** der vorgesehene
-  zweite Riegel — Widget im Request-Screen, Token-Prüfung in der
-  Function. Bis dahin kein Issue dafür anlegen; der Preis (Fremd-Dienst
-  samt Cloudflare-Account, HtmlElementView im Web, WebView auf Android)
-  lohnt erst bei echtem Befund.
+  `supabase functions deploy request-group`. **Bei diesem Umbau ist das
+  release-blockierend:** Neue App plus alte Function heißt, die Anlage läuft
+  anonym durch, die Gruppe bleibt `pending` und unverknüpft — eine tote Gruppe.
+  **Seit v0.37.0 ruft die Konsole diese Function, authentifiziert** (#106): Der
+  Rumpf prüft mit `getUser`, dass ein Verwalter-Konto mit bestätigtem Postfach
+  ruft (401 ohne Nutzer, 403 sonst). `verify_jwt = true` allein genügt dafür
+  **nicht** — der anon-Key ist selbst ein gültiges JWT; ohne die Prüfung wäre
+  der Endpunkt eine offene Gruppenfabrik. Der Deckel liegt bei 5 Gruppen je
+  Konto und gilt zweifach: hier als klare Meldung (429) und als Wahrheit im
+  Trigger `group_admins_cap`. Damit sind `SIGNUP_HOURLY_CAP` (#69) und die
+  vorgemerkte **Cloudflare-Turnstile**-Idee erledigt und ausgebaut — der
+  öffentliche Weg, den sie schützen sollten, existiert nicht mehr.
+  Der Deckel ist bewusst ein **Trigger** und keine aufrufbare Funktion:
+  `alter default privileges` gibt `authenticated` execute auf jede Funktion,
+  eine „verknüpfe mich"-Funktion wäre also die Übernahme-Lücke.
 - **`group_id` gehört auch in fachliche Primärschlüssel.** Wo der Schlüssel
   keine generierte UUID ist, sondern aus Fachdaten besteht (`plan_date`,
   `person_id`, …), muss `group_id` darin stehen — sonst ist er über alle
@@ -168,8 +206,17 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   **keine** Gruppendaten (anderer uid, RLS blockt) und kann ausschließlich
   über SECURITY-DEFINER-Funktionen: Gruppenpasswort neu setzen und Gruppe
   löschen (`admin_delete_group` löscht den Gruppen-**Auth-User** — die
-  Kaskade nimmt alles mit; nie einzelne Tabellen löschen). `group_admins`
-  hat bewusst **null Policies**; der Signup-Trigger überspringt
+  Kaskade nimmt alles mit; nie einzelne Tabellen löschen).
+  **Umgekehrt trägt ein Konto seit v0.37.0 bis zu 5 Gruppen** (#106): PK ist
+  `(user_id, group_id)`, `group_id unique` bleibt. Jede Aktion nennt deshalb
+  ihre `target_group` und prüft das Eigentum — und `admin_delete_group`
+  entfernt **genau eine** Zeile in `auth.users`, die der Zielgruppe. Das
+  Verwalter-Konto überlebt: Bei mehreren Gruppen wäre ein Selbst-Löschen
+  Datenverlust an den übrigen. Die Signaturen wurden dabei **gedroppt und neu
+  angelegt**, nicht ersetzt — `create or replace` kann keine Signatur ändern,
+  ein Overload hätte bei einem alten Client still die *erste* Gruppe getroffen
+  und damit die falsche gelöscht.
+  `group_admins` hat bewusst **null Policies**; der Signup-Trigger überspringt
   Admin-Konten, sonst entstehen Geister-„pending"-Gruppen; die
   Erst-Verknüpfung beweist sich mit dem Gruppen-Login und **rastet ein**
   (bis dahin gewinnt das erste Postfach — der Verwalter verknüpft direkt

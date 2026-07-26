@@ -1,10 +1,17 @@
-// console.mjs – Browser-E2E der Verwalter-Konsole (Issue #71).
+// console.mjs – Browser-E2E der Verwalter-Konsole (Issue #71, #106).
 //
 // Fährt die ECHTE Web-App im echten Browser gegen den lokalen Supabase-
-// Stack: Verwalter-Konto registrieren → Code aus der Mail (Mailpit) in die
-// App tippen (verifyOTP meldet gleich an) → Gruppe verknüpfen →
-// Verknüpfung sichtbar. Das ist die letzte Naht, die Widget-Tests (Fakes)
-// und Dart-E2E (Backend) nicht abdecken.
+// Stack — den Weg, den eine Gründerin wirklich geht: Verwalter-Konto
+// registrieren → Code aus der Mail (Mailpit) in die App tippen (verifyOTP
+// meldet gleich an) → **Gruppe anlegen** → Gruppe erscheint verwaltet in der
+// Liste. Das ist die letzte Naht, die Widget-Tests (Fakes) und Dart-E2E
+// (Backend) nicht abdecken: Hier läuft echtes Flutter-Web gegen die echte
+// Edge Function, mit dem JWT aus einer echten Browser-Sitzung.
+//
+// Das Übernehmen einer bestehenden Gruppe (claim) deckt die Dart-E2E ab
+// (admin_console_e2e_test.dart) — es bräuchte hier eine per Service-Key
+// vorbereitete Waisen-Gruppe, und seit #106 ist das Anlegen der Weg, den
+// jeder neue Verwalter zuerst nimmt.
 //
 // Der Code statt des Bestätigungs-Links seit Issue #102: Der Link ist an
 // das Gerät gebunden, das ihn angefordert hat (PKCE-Verifier im lokalen
@@ -22,7 +29,6 @@ import { mkdirSync } from 'node:fs';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:8731/';
 const SUPABASE_URL = required('E2E_SUPABASE_URL');
-const ANON_KEY = required('E2E_SUPABASE_ANON_KEY');
 const SERVICE_KEY = required('E2E_SUPABASE_SERVICE_KEY');
 const MAILPIT_URL = required('E2E_MAILPIT_URL');
 
@@ -41,44 +47,22 @@ const groupPassword = 'browser-e2e-gruppe-1';
 const adminEmail = `be2e-admin-${runTag}@browser-e2e.test`;
 const adminPassword = 'browser-e2e-admin-1';
 
+// Y-Koordinaten der Anlage-Karte bei **leerer** Gruppenliste (Viewport
+// 1100×1200, Karte maxWidth 480, x immer 550). Abgelesen an
+// shots/06-anlage-ausgefuellt.png vom 26.07.2026 — nicht geschätzt: Jedes
+// zusätzliche Feld, jeder geänderte Hilfetext und jede Gruppe in der Liste
+// darüber verschiebt alles nach unten. Beim Anpassen `tool/browser_e2e.sh`
+// laufen lassen und die Bilder ansehen, statt zu rechnen.
+const CREATE_NAME = 333;
+const CREATE_HANDLE = 417;
+const CREATE_PW = 501;
+const CREATE_REPEAT = 565;
+const CREATE_BUTTON = 622;
+
 mkdirSync(new URL('./shots/', import.meta.url), { recursive: true });
 const shot = (name) => new URL(`./shots/${name}.png`, import.meta.url).pathname;
 
 // ---------------------------------------------------------------- Backend
-
-/// Aktive Gruppe als Verknüpfungsziel: Anlage über die echte Edge Function,
-/// Freigabe wie durch die Admin-Gruppe (Service-Role) — wie in der Dart-E2E.
-async function prepareActiveGroup() {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/request-group`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${ANON_KEY}`,
-      apikey: ANON_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      handle: groupHandle,
-      password: groupPassword,
-      groupName: 'Browser-E2E-Gruppe',
-    }),
-  });
-  if (!res.ok) throw new Error(`request-group: ${res.status}`);
-
-  const patch = await fetch(
-    `${SUPABASE_URL}/rest/v1/groups?handle=eq.${groupHandle}`,
-    {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        apikey: SERVICE_KEY,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({ status: 'active' }),
-    },
-  );
-  if (!patch.ok) throw new Error(`Gruppe aktivieren: ${patch.status}`);
-}
 
 /// Sechsstelliger Code aus der ersten Mailpit-Mail an [to] mit [subjectPart]
 /// im Betreff — zugleich der Wächter über die Mail-Vorlage: Ein Link darin
@@ -171,9 +155,6 @@ async function checkpoint(name) {
 }
 
 try {
-  await prepareActiveGroup();
-  console.log(`✓ aktive Gruppe ${groupHandle} vorbereitet`);
-
   // 1. App laden, Semantics aktivieren, Splash wegtippen, dann per
   //    Router-URL direkt zum Konsolen-Login.
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
@@ -213,34 +194,48 @@ try {
   await page.waitForTimeout(6000);
   await activateSemantics();
   await checkpoint('konsole-nach-code');
-  await expectLabel(/Gruppe verknüpfen/, 'Konsole nach Code-Bestätigung');
+  await expectLabel(/Neue Gruppe anlegen/, 'Konsole nach Code-Bestätigung');
 
-  // 4. Gruppe verknüpfen (Gruppen-Login als Beweis). Koordinaten aus
-  //    shots/05 (Claim-Karte zentriert): Gruppenname (550,608) ·
-  //    Gruppenpasswort (550,672) · „Verknüpfen" (550,728).
-  await typeAt(550, 608, groupHandle);
-  await typeAt(550, 672, groupPassword);
-  await checkpoint('claim-ausgefuellt');
-  await clickAt(550, 728);
-  await page.waitForTimeout(2000);
-  // Das „Verwaltet:"-ListTile taucht nicht im Semantics-Baum auf — die
-  // Übergabe-Karte gibt es aber NUR im verknüpften Zustand.
-  await expectLabel(/Verknüpfung lösen/, 'Konsole im verknüpften Zustand');
-  await checkpoint('verknuepft');
+  // 4. Gruppe anlegen. Vier Felder — das Gruppenpasswort wird doppelt
+  //    abgefragt (#107). Koordinaten aus shots/05 (leere Liste, Anlege-Karte
+  //    oben): Name (550,CREATE_NAME) · Anmeldename (550,CREATE_HANDLE) ·
+  //    Gruppenpasswort (550,CREATE_PW) · Wiederholen (550,CREATE_REPEAT) ·
+  //    Knopf „Gruppe anlegen" (550,CREATE_BUTTON).
+  await typeAt(550, CREATE_NAME, 'Browser-E2E-Gruppe');
+  await typeAt(550, CREATE_HANDLE, groupHandle);
+  await typeAt(550, CREATE_PW, groupPassword);
+  await typeAt(550, CREATE_REPEAT, groupPassword);
+  await checkpoint('anlage-ausgefuellt');
+  await clickAt(550, CREATE_BUTTON);
+  await page.waitForTimeout(3000);
+  await activateSemantics();
+  // Anker ist das ListTile der Gruppenkarte, nicht ein Knopf: Flutter-Web
+  // exponiert die Knöpfe der Karte NICHT im Semantics-Baum (nachgesehen am
+  // 26.07.2026 — im Baum stehen nur die ListTile- und Kartentexte). Dafür
+  // nennt dieses Label die konkrete Gruppe und ist damit der genauere Beweis.
+  await expectLabel(
+    new RegExp(`Verwaltet: ${groupHandle}`),
+    'Gruppenkarte nach dem Anlegen',
+  );
+  await checkpoint('angelegt');
 
-  // 5. Serverseitige Gegenprobe: Die Verknüpfungszeile existiert wirklich.
+  // 5. Serverseitige Gegenprobe: Die Gruppe ist aktiv UND verknüpft — beides
+  //    gehört zusammen, sonst gehörte sie niemandem.
   const check = await fetch(
-    `${SUPABASE_URL}/rest/v1/group_admins?select=group_id,` +
-      `groups!inner(handle)&groups.handle=eq.${groupHandle}`,
+    `${SUPABASE_URL}/rest/v1/groups?select=status,handle,` +
+      `group_admins!inner(user_id)&handle=eq.${groupHandle}`,
     { headers: { Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY } },
   );
   const rows = await check.json();
   if (!Array.isArray(rows) || rows.length !== 1) {
     throw new Error(
-      `group_admins-Zeile fehlt (${JSON.stringify(rows).slice(0, 200)})`,
+      `Gruppe fehlt oder ist unverknüpft (${JSON.stringify(rows).slice(0, 200)})`,
     );
   }
-  console.log('✓ group_admins-Zeile bestätigt');
+  if (rows[0].status !== 'active') {
+    throw new Error(`Gruppe ist ${rows[0].status}, erwartet: active`);
+  }
+  console.log('✓ Gruppe ist aktiv und verknüpft');
 
   console.log('Browser-E2E: alle Schritte bestanden.');
   await browser.close();

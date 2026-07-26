@@ -323,5 +323,145 @@ void main() {
             'Gruppendaten und Verwalter-Konto bleiben bestehen.',
       );
     });
+
+    test(
+      'ein Konto trägt mehrere Gruppen, eine Gruppe nur einen Verwalter',
+      () {
+        final table = RegExp(
+          r'create table public\.group_admins.*?\);',
+          dotAll: true,
+        ).firstMatch(schema)?.group(0);
+        expect(table, isNotNull);
+        expect(
+          table,
+          contains('primary key (user_id, group_id)'),
+          reason:
+              'Mit `user_id` allein als Schlüssel wäre der Deckel von fünf '
+              'Gruppen unmöglich — das Schema erlaubte genau eine.',
+        );
+        expect(
+          table,
+          contains('group_id uuid unique'),
+          reason:
+              'Die Eindeutigkeit bleibt: Höchstens EIN Verwalter je Gruppe '
+              '(#55). Fällt sie, könnten zwei Konten dieselbe Gruppe '
+              'beanspruchen und einander die Passwörter überschreiben.',
+        );
+      },
+    );
+
+    test('der Deckel von fünf Gruppen hängt an einem Trigger', () {
+      final function = RegExp(
+        r'create or replace function public\.enforce_group_admin_cap.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(
+        function,
+        isNotNull,
+        reason:
+            'Der Deckel muss serverseitig gelten — ein Limit nur im UI ist '
+            'kein Limit.',
+      );
+      expect(function, contains('>= 5'));
+      expect(
+        function,
+        contains('pg_advisory_xact_lock'),
+        reason:
+            'Ohne den Riegel zählen zwei gleichzeitige Anlagen beide den '
+            'Stand vor der jeweils anderen — dann entstehen sechs Gruppen.',
+      );
+      expect(
+        schema,
+        contains('before insert on public.group_admins'),
+        reason:
+            'Als Trigger und nicht als Funktion: `alter default privileges` '
+            'gibt authenticated execute auf jede Funktion. Eine aufrufbare '
+            '„verknüpfe mich"-Funktion wäre die Übernahme-Lücke — jedes '
+            'Konto könnte sich an jede unverknüpfte Gruppe hängen, ohne das '
+            'Gruppenpasswort zu kennen.',
+      );
+    });
+
+    test('jede Aktion nennt ihre Gruppe, und Löschen trifft nur sie', () {
+      expect(
+        schema,
+        contains('my_admin_groups('),
+        reason: 'Die Konsole liest jetzt eine Liste.',
+      );
+      expect(
+        RegExp(r'my_admin_group\(').hasMatch(schema),
+        isFalse,
+        reason:
+            'Die Einzelform muss weg: Bei mehreren Gruppen zeigte sie eine '
+            'beliebige davon, und ein alter Client träfe damit die falsche.',
+      );
+      final function = RegExp(
+        r'create or replace function public\.admin_delete_group.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, contains('target_group'));
+      expect(
+        RegExp(r'delete from auth\.users').allMatches(function!).length,
+        1,
+        reason:
+            'Genau eine Löschung — die der Zielgruppe. Ein zweites Delete '
+            'auf `auth.uid()` nähme das Verwalter-Konto mit und damit den '
+            'Zugang zu dessen übrigen Gruppen.',
+      );
+    });
+
+    test('der Lebenszyklus ist vorbereitet: archived und released_at', () {
+      expect(
+        schema,
+        contains(
+          "check (status in ('pending', 'active', 'rejected', "
+          "'archived'))",
+        ),
+        reason:
+            'Stilllegen ist damit ein Statuswechsel: `my_group_active()` '
+            'prüft auf \'active\', eine archivierte Gruppe ist also über '
+            'alle Policies hinweg still — verlustfrei und umkehrbar. Ohne '
+            'den erlaubten Wert bräuchte das später eine Constraint-'
+            'Migration UND ein Client-Release.',
+      );
+      expect(
+        schema,
+        contains('released_at timestamptz'),
+        reason:
+            'Markiert Gruppen ohne Verwalter. Ohne den Zeitstempel wäre eine '
+            'laufende Übergabe von einer echten Waise nicht zu '
+            'unterscheiden.',
+      );
+      expect(
+        schema,
+        contains('after delete on public.group_admins'),
+        reason:
+            'Der Trigger fängt beide Wege — das absichtliche Lösen UND die '
+            'Kaskade eines gelöschten Verwalter-Kontos. Der zweite wäre '
+            'sonst eine stille Waise.',
+      );
+    });
+
+    test('die Konsolen-Migration hebt die Mindestversion im selben File', () {
+      final migration = File(
+        'supabase/migrations/20260726153700_console_group_creation.sql',
+      ).readAsStringSync();
+      expect(migration, contains('add primary key (user_id, group_id)'));
+      expect(
+        migration,
+        contains('drop function public.my_admin_group();'),
+        reason:
+            '`create or replace` kann keine Signatur ändern — ohne das Drop '
+            'bliebe die alte Fassung als Overload stehen.',
+      );
+      expect(
+        migration,
+        contains("key = 'min_supported_version'"),
+        reason:
+            'Das File entfernt Funktionen, die veröffentlichte Clients '
+            'aufrufen. Die Regel aus CLAUDE.md: Wer entfernt, was ein Client '
+            'nutzt, hebt IM SELBEN FILE die Mindestversion.',
+      );
+    });
   });
 }

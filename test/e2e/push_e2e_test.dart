@@ -26,10 +26,9 @@ void main() {
     await disposeClients();
   });
 
-  /// Eine freigegebene Gruppe mit einer Person.
+  /// Eine aktive Gruppe mit einer Person.
   Future<(GroupAccount, String)> groupWithPerson(String label) async {
     final group = await registerGroup(label);
-    await activateGroup(service, group.id);
     final person = await group.client
         .from('persons')
         .insert({'name': 'E2E $label'})
@@ -247,8 +246,9 @@ void main() {
   test(
     'eine nicht freigegebene Gruppe registriert gar nichts',
     () async {
-      // Ohne activateGroup: `my_group_active()` ist false.
+      // Zurück auf pending: `my_group_active()` ist dann false.
       final pending = await registerGroup('pushj');
+      await makePending(newServiceClient(), pending.id);
       await expectLater(
         pending.client.rpc<void>(
           'register_push_device',

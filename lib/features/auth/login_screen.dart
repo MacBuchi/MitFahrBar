@@ -119,12 +119,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           : const Text('Anmelden'),
                     ),
                     const SizedBox(height: AppSpacing.s),
-                    TextButton(
-                      onPressed: _busy ? null : () => context.push('/request'),
-                      child: const Text('Neue Gruppe anfragen'),
-                    ),
-                    // Dezent: Der Weg für die eine Person je Gruppe, die
-                    // verwaltet — alle anderen brauchen ihn nie.
+                    // Dezent, aber der einzige Weg zu einer neuen Gruppe:
+                    // Angelegt werden sie seit #106 in der Konsole, von einem
+                    // Verwalter-Konto mit echter E-Mail-Adresse. Für alle
+                    // anderen Mitglieder bleibt dieser Knopf ohne Bedeutung —
+                    // sie melden sich oben mit dem geteilten Zugang an.
                     TextButton(
                       onPressed: _busy
                           ? null
