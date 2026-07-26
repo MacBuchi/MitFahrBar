@@ -30,6 +30,12 @@ Abgedeckt ist, was die In-Memory-Fakes nur nachbilden können:
   Geister-pending beim Admin-Signup, Verknüpfung nur mit Gruppen-Login,
   Einrasten, Gruppenpasswort-Reset wirkt, Löschen reißt über die
   Auth-Kaskade alles mit.
+- **Push-Registrierung** (`push_e2e_test.dart`): `register_push_device`
+  ordnet nur eigene Personen zu, ein Gerät gehört immer genau **einer**
+  Gruppe (die alte Zeile weicht — im Fake per Konstruktion unsichtbar),
+  fremde Gruppen sehen weder Geräte noch Einstellungen, das Konfliktziel
+  der `notification_prefs` passt zum Schlüssel, `push_log` ist für Clients
+  unerreichbar, und eine nicht freigegebene Gruppe registriert gar nichts.
 - **Auth-Workflows mit echten Mails** (`auth_mail_e2e_test.dart`): Der
   Stack läuft wie Production mit **Bestätigungspflicht**
   (`enable_confirmations = true` in config.toml). Festgenagelt sind:
