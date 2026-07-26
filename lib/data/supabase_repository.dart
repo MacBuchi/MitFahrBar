@@ -36,36 +36,53 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
     return rows.map(Person.fromJson).toList();
   }
 
+  /// Der einzige Unique auf `persons` ist `persons_group_name_key`
+  /// (Issue #109) — eine 23505 von dieser Tabelle kann also nur der Name
+  /// sein. Übersetzt in einen fachlichen Typ, damit die Oberfläche keinen
+  /// Postgres-Fehlercode auswerten muss.
+  static Never _translate(PostgrestException error, Person person) {
+    if (error.code == '23505') throw DuplicatePersonName(person.name);
+    throw error;
+  }
+
   @override
   Future<Person> createPerson(Person person) async {
-    final row = await _client
-        .from('persons')
-        .insert({
-          'name': person.name,
-          'active': person.active,
-          'vehicle': person.vehicle,
-          'energy_type': person.energyType?.name,
-          'consumption_per_100km': person.consumptionPer100km,
-          'seats': person.seats,
-        })
-        .select()
-        .single();
-    return Person.fromJson(row);
+    try {
+      final row = await _client
+          .from('persons')
+          .insert({
+            'name': person.name,
+            'active': person.active,
+            'vehicle': person.vehicle,
+            'energy_type': person.energyType?.name,
+            'consumption_per_100km': person.consumptionPer100km,
+            'seats': person.seats,
+          })
+          .select()
+          .single();
+      return Person.fromJson(row);
+    } on PostgrestException catch (error) {
+      _translate(error, person);
+    }
   }
 
   @override
   Future<void> updatePerson(Person person) async {
-    await _client
-        .from('persons')
-        .update({
-          'name': person.name,
-          'active': person.active,
-          'vehicle': person.vehicle,
-          'energy_type': person.energyType?.name,
-          'consumption_per_100km': person.consumptionPer100km,
-          'seats': person.seats,
-        })
-        .eq('id', person.id);
+    try {
+      await _client
+          .from('persons')
+          .update({
+            'name': person.name,
+            'active': person.active,
+            'vehicle': person.vehicle,
+            'energy_type': person.energyType?.name,
+            'consumption_per_100km': person.consumptionPer100km,
+            'seats': person.seats,
+          })
+          .eq('id', person.id);
+    } on PostgrestException catch (error) {
+      _translate(error, person);
+    }
   }
 
   @override

@@ -27,8 +27,23 @@ class FakeCarpoolRepository implements CarpoolRepository {
   @override
   Future<List<Person>> loadPersons() async => List.unmodifiable(_persons);
 
+  /// Bildet `persons_group_name_key` nach (Issue #109): Ein Name gehört in
+  /// dieser Gruppe genau einer Person, verglichen ohne Groß-/Kleinschreibung
+  /// und ohne Rand-Leerzeichen. Inaktive zählen mit — genau wie der Index.
+  ///
+  /// Bewusst hier und nicht nur im Screen: Ein Fake, der die Regel nicht
+  /// kennt, macht jeden Test darüber wertlos.
+  void _rejectDuplicate(Person person) {
+    final needle = person.name.trim().toLowerCase();
+    final clash = _persons.any(
+      (p) => p.id != person.id && p.name.trim().toLowerCase() == needle,
+    );
+    if (clash) throw DuplicatePersonName(person.name);
+  }
+
   @override
   Future<Person> createPerson(Person person) async {
+    _rejectDuplicate(person);
     final created = Person(
       id: person.id.isEmpty ? _newId('person') : person.id,
       name: person.name,
@@ -44,6 +59,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
 
   @override
   Future<void> updatePerson(Person person) async {
+    _rejectDuplicate(person);
     final index = _persons.indexWhere((p) => p.id == person.id);
     if (index >= 0) _persons[index] = person;
   }

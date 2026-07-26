@@ -148,6 +148,86 @@ void main() {
     );
   });
 
+  // Issue #109: Ein Name gehört in der Gruppe genau einer Person. Vorher gab
+  // es dazu einen GLOBALEN Unique aus der Zeit vor der Mandantentrennung —
+  // die zweite Gruppe konnte gar keine „Anna" anlegen, und der Fehlschlag
+  // verschwand still (kein try um createPerson): Der Dialog schloss sich, als
+  // hätte es geklappt, und die Person fehlte einfach.
+  testWidgets('ein vergebener Name wird gemeldet, nicht still verschluckt', (
+    tester,
+  ) async {
+    await pumpApp(tester, _backend());
+    await _login(tester);
+    await _openPersons(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Person anlegen'));
+    await tester.pumpAndSettle();
+    // Andere Schreibweise, dieselbe Person — genauso vergleicht der
+    // Unique-Index in der Datenbank und der CSV-Import.
+    await tester.enterText(find.byType(TextField).first, '  anna ');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('gibt es in der Gruppe schon'),
+      findsOneWidget,
+      reason:
+          'Ohne Meldung sieht ein abgelehnter Name wie ein geglücktes '
+          'Anlegen aus — dieselbe Klasse wie der tote Update-Knopf in 0.37.0.',
+    );
+    expect(
+      find.text('Anna'),
+      findsOneWidget,
+      reason: 'Es darf keine zweite Zeile entstehen.',
+    );
+  });
+
+  // Der eigene Name darf beim Ändern nicht mit sich selbst kollidieren:
+  // Sonst ließe sich an einer Person nichts mehr bearbeiten.
+  testWidgets('die eigene Person darf ihren Namen behalten', (tester) async {
+    await pumpApp(tester, _backend());
+    await _login(tester);
+    await _openPersons(tester);
+
+    await tester.tap(find.text('Anna'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(1), 'Dacia Sandero');
+    await tester.tap(find.widgetWithText(FilledButton, 'Speichern'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('gibt es in der Gruppe schon'), findsNothing);
+    expect(find.textContaining('Dacia Sandero'), findsOneWidget);
+  });
+
+  // Die Namen gehören der Gruppe, nicht der Datenbank: Zwei Fahrgemeinschaften
+  // dürfen beide eine „Anna" haben. Bewiesen wird das am echten Postgres
+  // (test/e2e/rls_e2e_test.dart) — hier steht die Hälfte, die die App trägt.
+  testWidgets('eine andere Gruppe darf denselben Namen anlegen', (
+    tester,
+  ) async {
+    final backend = _backend();
+    backend.addGroup(
+      handle: 'andere',
+      password: 'geheim123',
+      name: 'Andere Gruppe',
+    );
+    await pumpApp(tester, backend);
+    await tester.enterText(find.byType(TextField).first, 'andere');
+    await tester.enterText(find.byType(TextField).last, 'geheim123');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anmelden'));
+    await tester.pumpAndSettle();
+    await _openPersons(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Person anlegen'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Anna');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('gibt es in der Gruppe schon'), findsNothing);
+    expect(find.text('Anna'), findsOneWidget);
+  });
+
   // Löschen gibt es bewusst nicht: person_id in trip_participations hängt an
   // ON DELETE CASCADE, ein Löschen würde also die Teilnahmen und damit die
   // Punkte aller anderen rückwirkend verändern. Stilllegen ist der Ersatz.

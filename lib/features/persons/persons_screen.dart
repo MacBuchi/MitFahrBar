@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/tokens.dart';
+import '../../data/carpool_repository.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 
@@ -34,7 +35,7 @@ class PersonsScreen extends ConsumerWidget {
               for (final person in _sorted(list))
                 _PersonTile(
                   person: person,
-                  onEdit: () => _edit(context, ref, person),
+                  onEdit: () => _edit(context, ref, person, list),
                 ),
             ],
             Padding(
@@ -45,7 +46,7 @@ class PersonsScreen extends ConsumerWidget {
                 0,
               ),
               child: FilledButton.tonalIcon(
-                onPressed: () => _edit(context, ref, null),
+                onPressed: () => _edit(context, ref, null, list),
                 icon: const Icon(Icons.person_add_alt),
                 label: const Text('Person anlegen'),
               ),
@@ -71,22 +72,71 @@ class PersonsScreen extends ConsumerWidget {
 }
 
 /// Legt an oder aktualisiert; `null` bedeutet „neu".
-Future<void> _edit(BuildContext context, WidgetRef ref, Person? person) async {
+///
+/// [existing] ist die geladene Liste — sie trägt die Vorprüfung auf einen
+/// schon vergebenen Namen, damit die Meldung ohne Roundtrip kommt.
+Future<void> _edit(
+  BuildContext context,
+  WidgetRef ref,
+  Person? person,
+  List<Person> existing,
+) async {
   final result = await showDialog<Person>(
     context: context,
     builder: (context) => _PersonDialog(person: person),
   );
-  if (result == null) return;
+  if (result == null || !context.mounted) return;
+
+  // Ein Name gehört in der Gruppe genau einer Person (Issue #109) —
+  // verglichen wie der Unique-Index in der Datenbank und wie der CSV-Import
+  // Namen zuordnet: getrimmt, ohne Groß-/Kleinschreibung. Inaktive zählen
+  // mit: Wer zurückkommt, wird reaktiviert. Eine zweite Zeile spaltete seine
+  // Punkte-Historie und verschöbe rückwirkend die Quote aller anderen.
+  //
+  // Diese Prüfung ist der Komfort, nicht der Riegel — der steht in der
+  // Datenbank, weil zwei Geräte gleichzeitig anlegen können. Deshalb fängt
+  // der catch unten denselben Fall noch einmal.
+  final needle = result.name.trim().toLowerCase();
+  if (existing.any(
+    (p) => p.id != result.id && p.name.trim().toLowerCase() == needle,
+  )) {
+    _report(context, result.name);
+    return;
+  }
 
   final repository = ref.read(carpoolRepositoryProvider);
-  if (person == null) {
-    await repository.createPerson(result);
-  } else {
-    await repository.updatePerson(result);
+  try {
+    if (person == null) {
+      await repository.createPerson(result);
+    } else {
+      await repository.updatePerson(result);
+    }
+  } on DuplicatePersonName catch (error) {
+    if (context.mounted) _report(context, error.name);
+    return;
+  } catch (_) {
+    // Ohne diesen Zweig verschwand JEDER Fehlschlag still in der
+    // async-Funktion: Der Dialog schloss sich, als hätte es geklappt, und die
+    // Person fehlte einfach. Dieselbe Klasse wie der tote Update-Knopf in
+    // 0.37.0 — sichtbar wurde es erst, als der Unique-Constraint aus #109
+    // regelmäßig zuschlug. Bewusst ohne den Fehlertext: Der trüge Details aus
+    // der Datenbank in die Oberfläche.
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Konnte nicht gespeichert werden.')),
+      );
+    }
+    return;
   }
   // Ohne die Invalidierung bliebe die Liste auf dem Stand vom Login —
   // personsProvider lädt sonst nur bei Wechsel des Benutzers neu.
   ref.invalidate(personsProvider);
+}
+
+void _report(BuildContext context, String name) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('„$name" gibt es in der Gruppe schon.')),
+  );
 }
 
 class _DeactivateHint extends StatelessWidget {
@@ -117,10 +167,26 @@ class _PersonTile extends ConsumerWidget {
   final Person person;
   final VoidCallback onEdit;
 
-  Future<void> _setActive(WidgetRef ref, bool active) async {
-    await ref
-        .read(carpoolRepositoryProvider)
-        .updatePerson(person.copyWith(active: active));
+  Future<void> _setActive(
+    BuildContext context,
+    WidgetRef ref,
+    bool active,
+  ) async {
+    try {
+      await ref
+          .read(carpoolRepositoryProvider)
+          .updatePerson(person.copyWith(active: active));
+    } catch (_) {
+      // Der Schalter zeigt den Wert aus dem Provider, nicht einen eigenen
+      // Zustand: Scheitert das Schreiben, tippt man ihn an und es passiert
+      // schlicht nichts. Ohne Meldung sieht das wie ein toter Schalter aus.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Konnte nicht gespeichert werden.')),
+        );
+      }
+      return;
+    }
     ref.invalidate(personsProvider);
   }
 
@@ -144,7 +210,7 @@ class _PersonTile extends ConsumerWidget {
       onTap: onEdit,
       trailing: Switch(
         value: person.active,
-        onChanged: (value) => _setActive(ref, value),
+        onChanged: (value) => _setActive(context, ref, value),
       ),
     );
   }

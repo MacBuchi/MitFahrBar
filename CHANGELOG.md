@@ -4,6 +4,30 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.41.0] – 2026-07-26
+
+### Behoben
+
+- **Zwei Gruppen konnten nicht beide eine „Anna" haben.** Namen von Personen
+  mussten bisher über *alle* Fahrgemeinschaften hinweg verschieden sein — ein
+  Überbleibsel aus der Zeit, als es nur eine einzige Gruppe gab. Wer einen
+  Namen anlegte, den eine fremde Gruppe schon führte, bekam ihn nicht. Jetzt
+  gilt die Regel nur noch innerhalb der eigenen Gruppe: Dort gehört ein Name
+  genau einer Person, außerhalb ist er frei.
+
+- **Ein abgelehnter Name verschwand still.** Klappte das Anlegen nicht, schloss
+  sich der Dialog, als wäre alles gut — die Person fehlte einfach in der Liste.
+  Jetzt sagt die App, was los ist: „„Anna" gibt es in der Gruppe schon."
+  Dasselbe gilt für den Schalter „aktiv": Scheitert das Speichern, steht es
+  jetzt da, statt dass nichts passiert.
+
+### Geändert
+
+- **Groß-/Kleinschreibung zählt bei Namen nicht mehr.** „anna" und „Anna" sind
+  dieselbe Person, ebenso ein versehentliches Leerzeichen am Ende. Das
+  verhindert Doppel-Einträge, die später niemand mehr auseinanderhalten kann —
+  und ist genau die Regel, mit der der CSV-Import Namen ohnehin zuordnet.
+
 ## [0.40.1] – 2026-07-26
 
 ### Geändert

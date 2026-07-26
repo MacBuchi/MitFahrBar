@@ -234,4 +234,65 @@ void main() {
         .eq('plan_date', '2026-07-27');
     expect(rows, hasLength(2));
   });
+
+  // Issue #109: `persons.name` trug bis v0.41.0 einen GLOBALEN `unique
+  // (name)` aus der Zeit vor der Mandantentrennung. Die zweite Gruppe konnte
+  // damit keine „Anna" anlegen — und erfuhr an der Fehlermeldung, dass der
+  // Name woanders existiert. Genau das prüfen die nächsten drei Tests; im
+  // Fake-Backend wäre das nur nachgebaut.
+  group('persons.name ist je Gruppe eindeutig (#109)', () {
+    test('zwei Gruppen dürfen denselben Namen tragen', () async {
+      // Gruppe A hat „Anna E2E" schon aus dem setUpAll.
+      final mine = await b.client
+          .from('persons')
+          .insert({'name': 'Anna E2E'})
+          .select()
+          .single();
+      expect(
+        mine['name'],
+        'Anna E2E',
+        reason:
+            'Ein gemeinsamer Vorname ist bei zwei realen Fahrgemeinschaften '
+            'der Normalfall. Vorher scheiterte das hier mit 23505.',
+      );
+    });
+
+    test('eine Gruppe nicht zweimal — auch nicht anders geschrieben', () async {
+      // Kleingeschrieben und mit Rand-Leerzeichen: Der Index normalisiert
+      // über `lower(btrim(name))`, genauso wie core/csv_import.dart Namen
+      // Personen zuordnet. Liefen beide auseinander, fände der Import zwei
+      // Zeilen und nähme willkürlich die erste.
+      await expectLater(
+        a.client.from('persons').insert({'name': '  anna e2e '}),
+        throwsA(
+          isA<PostgrestException>().having((e) => e.code, 'code', '23505'),
+        ),
+      );
+    });
+
+    test('ein inaktiver Name bleibt belegt', () async {
+      await a.client
+          .from('persons')
+          .update({'active': false})
+          .eq('id', personA['id'] as String);
+      addTearDown(
+        () => a.client
+            .from('persons')
+            .update({'active': true})
+            .eq('id', personA['id'] as String),
+      );
+
+      await expectLater(
+        a.client.from('persons').insert({'name': 'Anna E2E'}),
+        throwsA(
+          isA<PostgrestException>().having((e) => e.code, 'code', '23505'),
+        ),
+        reason:
+            'Kein `where active` im Index, und das ist Absicht: Wer '
+            'zurückkommt, wird reaktiviert. Eine zweite Zeile spaltete seine '
+            'Punkte-Historie und verschöbe rückwirkend die Quote aller '
+            'anderen — dieselbe Begründung, aus der es kein deletePerson gibt.',
+      );
+    });
+  });
 }
