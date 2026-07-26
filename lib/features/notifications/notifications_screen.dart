@@ -246,14 +246,29 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             contentPadding: EdgeInsets.zero,
           ),
           const Divider(height: 32),
+          // Der Änderungs-Schalter hängt am Abend-Blick, und das ist keine
+          // Anzeigefrage: `dueMessages` in core/push_digest.dart meldet eine
+          // Änderung nur, wenn für den Tag schon ein Abend-Push in
+          // `push_log` steht — sonst wäre sie die erste Nachricht des Tages
+          // und ohne Bezug. Ohne Abend-Blick entsteht diese Zeile nie, der
+          // Schalter liefe also vollständig leer. Zwei gleichwertig
+          // aussehende Schalter, von denen einer heimlich wirkungslos ist,
+          // fallen erst auf, wenn eine Umstellung unbemerkt bleibt.
+          //
+          // Der GESPEICHERTE Wert bleibt dabei unberührt: Wer den Abend-Blick
+          // wieder einschaltet, findet seine Einstellung vor, statt sie neu
+          // setzen zu müssen.
           SwitchListTile(
-            value: prefs.changesEnabled,
-            onChanged: _busy
+            value: prefs.eveningEnabled && prefs.changesEnabled,
+            onChanged: _busy || !prefs.eveningEnabled
                 ? null
                 : (value) => _save(prefs.copyWith(changesEnabled: value)),
             title: const Text('Änderungen bis zur Abfahrt'),
-            subtitle: const Text(
-              'Wenn jemand den Plan für den Tag noch umstellt.',
+            subtitle: Text(
+              prefs.eveningEnabled
+                  ? 'Wenn jemand den Plan für den Tag noch umstellt.'
+                  : 'Braucht den Abend-Blick — ohne ihn wäre eine Änderung '
+                        'die erste Nachricht des Tages, ohne Bezug.',
             ),
             contentPadding: EdgeInsets.zero,
           ),

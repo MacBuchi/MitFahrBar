@@ -114,6 +114,14 @@ String dayDigestFor(PlannedDay day, String personId) {
 /// keine Zeile in [prefs] hat, bekommt nichts — das Einschalten im Screen
 /// legt sie an, und damit gibt es genau eine Wahrheit darüber, wer etwas
 /// bekommt.
+///
+/// **Eine Änderungs-Meldung setzt den Abend-Push voraus** (unten: der
+/// `evening == null`-Zweig endet immer mit `continue`). Ohne ihn wäre sie
+/// die erste Nachricht des Tages und ohne Bezug — mit abgeschaltetem
+/// Abend-Blick ist `changesEnabled` deshalb wirkungslos.
+/// `features/notifications/notifications_screen.dart` spiegelt genau das,
+/// indem es den Änderungs-Schalter dann sperrt; wer die Regel hier ändert,
+/// ändert sie dort mit.
 List<DuePush> dueMessages({
   required List<PlannedDay> week,
   required Map<String, NotificationPrefs> prefs,
