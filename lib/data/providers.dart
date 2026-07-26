@@ -74,6 +74,16 @@ final pushTapListenerProvider = Provider<PushTapListener>(
   (ref) => listenForPushTaps,
 );
 
+/// Nachrichten, die eintreffen, während die App vorne ist — sie zeigt kein
+/// System an, das muss die App selbst tun. Als Provider aus demselben Grund
+/// wie die beiden oben: Im Test gibt es kein FirebaseMessaging.
+typedef PushMessageListener =
+    Future<void> Function(void Function(String title, String body) onMessage);
+
+final pushMessageListenerProvider = Provider<PushMessageListener>(
+  (ref) => listenForPushMessages,
+);
+
 final pushRepositoryProvider = Provider<PushRepository>(
   (ref) => SupabaseConfig.isConfigured
       ? SupabasePushRepository(ref.watch(supabaseClientProvider))

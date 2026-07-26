@@ -44,7 +44,14 @@ abstract class PushRepository {
 
   /// Schickt eine Nachricht an genau dieses Gerät, damit man das Ankommen
   /// prüfen kann, ohne bis 21 Uhr zu warten.
-  Future<void> sendTest(String token);
+  ///
+  /// Liefert `true`, wenn FCM sie **angenommen** hat. Das Ergebnis nicht
+  /// anzusehen wäre bequem und falsch: Die Function antwortet auch dann mit
+  /// 200, wenn der Versand scheiterte — sie meldet den Ausgang je Gerät im
+  /// Rumpf. Bis 0.39.0 quittierte der Screen deshalb jeden Fehlschlag mit
+  /// „unterwegs", dieselbe Klasse Fehler wie der tote Update-Knopf: ein
+  /// Erfolg, den niemand geprüft hat.
+  Future<bool> sendTest(String token);
 }
 
 class SupabasePushRepository implements PushRepository {
@@ -107,8 +114,17 @@ class SupabasePushRepository implements PushRepository {
   }
 
   @override
-  Future<void> sendTest(String token) async {
-    await _client.functions.invoke('send-push', body: {'test': token});
+  Future<bool> sendTest(String token) async {
+    final response = await _client.functions.invoke(
+      'send-push',
+      body: {'test': token},
+    );
+    // `results` ist eine Liste `{token, status}` — 'ok', 'unregistered' oder
+    // 'error'. Ein leeres oder unerwartetes Ergebnis gilt als Fehlschlag:
+    // lieber einmal zu viel gemeldet als ein stiller.
+    final results = (response.data as Map?)?['results'];
+    if (results is! List) return false;
+    return results.any((r) => (r as Map?)?['status'] == 'ok');
   }
 }
 
@@ -134,5 +150,5 @@ class NoopPushRepository implements PushRepository {
   Future<void> deletePrefs(String personId) async {}
 
   @override
-  Future<void> sendTest(String token) async {}
+  Future<bool> sendTest(String token) async => false;
 }

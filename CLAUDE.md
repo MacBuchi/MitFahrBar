@@ -465,9 +465,34 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     ohnehin tut. Zudem müsste die Function `planWeek` rechnen. Trigger →
     `pg_net` → GitHub `repository_dispatch` legte ein Repo-Token in die
     Datenbank: **nicht bauen.**
+  - **Zustellen ist nicht Anzeigen** (v0.40.0, teuer gelernt). Android und
+    der Web-Service-Worker zeigen eine `notification`-Payload **nur an,
+    solange die App nicht im Vordergrund ist**. Ist sie vorne, liefert FCM
+    sie ausschließlich an `FirebaseMessaging.onMessage` — hörte dort niemand
+    zu, verschwand sie spurlos. Das war kein Schönheitsfehler am Test-Knopf:
+    Auch der **echte Abend-Versand** verpuffte, wenn jemand die App zufällig
+    offen hatte, und weil der Job ihn als zugestellt verbucht und `push_log`
+    den Tag als erledigt führt, kam er **nie wieder** (beobachtet
+    26.07.2026, 17:14). Der Handler gehört global in `app.dart` an
+    `scaffoldMessengerKey` — in einem einzelnen Screen verdrahtet zeigte er
+    nichts, sobald man woanders steht.
+  - **Der Service-Worker-Pfad ist relativ** (`webServiceWorkerPath`). Das
+    FCM-Web-SDK registriert ohne Angabe `/firebase-messaging-sw.js` am
+    **Origin-Root**; die App liegt aber unter `/MitFahrBar/`, dort steht 404
+    und `getToken` scheitert dauerhaft — die PWA bekam nie ein Token. Ein
+    relativer Pfad löst der Browser gegen das `<base href>` auf, das Flutter
+    aus `--base-href` setzt; ein absoluter wäre eine zweite Stelle, die mit
+    `release.yml` synchron bleiben müsste. `test/push_service_worker_test.dart`
+    hält Pfad und Datei zusammen.
+  - **Ein Knopf meldet keinen Erfolg, den er nicht geprüft hat.** Die Edge
+    Function antwortet auch bei gescheitertem Versand mit 200 und meldet den
+    Ausgang je Gerät im Rumpf; `sendTest` wertet ihn aus. Dieselbe Klasse
+    Fehler wie der tote Update-Knopf in 0.37.0 — und der Regressionstest
+    **tippt**, statt nur zu finden.
   Push-Texte gehören nie ins Log (sie enthalten Personennamen), und der Job
   loggt nur Zahlen. Festgenagelt in `test/push_digest_test.dart`,
-  `test/notify_workflow_test.dart`, `test/schema_test.dart` und
+  `test/notify_workflow_test.dart`, `test/schema_test.dart`,
+  `test/push_service_worker_test.dart` und
   `test/flows/notifications_flow_test.dart`.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
 - **Der Einladungstext darf nie ins Log.** „Jemanden einladen"

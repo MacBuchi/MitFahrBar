@@ -175,6 +175,79 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(push.tests, ['test-token']);
+    expect(
+      find.textContaining('Startbildschirm'),
+      findsOneWidget,
+      reason:
+          'Solange die App vorne ist, zeigt weder Android noch der Browser '
+          'eine Benachrichtigung an — ohne diesen Hinweis wartet man auf '
+          'etwas, das erst beim Wechseln erscheint.',
+    );
+  });
+
+  // Der Knopf darf keinen Erfolg behaupten, den er nicht geprüft hat —
+  // dieselbe Klasse Fehler wie der tote Update-Knopf in 0.37.0. Die Function
+  // antwortet auch bei gescheitertem Versand mit 200 und meldet den Ausgang
+  // je Gerät im Rumpf.
+  testWidgets('ein abgelehnter Versand wird als Fehlschlag gemeldet', (
+    tester,
+  ) async {
+    final backend = await _backend();
+    final push = FakePushRepository(backend)..testAccepted = false;
+    await pumpApp(
+      tester,
+      backend,
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
+    await _login(tester);
+    await _open(tester);
+    await _choose(tester, 'Anna');
+
+    await tester.scrollUntilVisible(
+      find.text('Test-Benachrichtigung senden'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Test-Benachrichtigung senden'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Konnte nicht zugestellt werden'), findsOne);
+    expect(
+      find.textContaining('Unterwegs'),
+      findsNothing,
+      reason: 'Ein Fehlschlag darf nie wie ein geglückter Versand aussehen.',
+    );
+  });
+
+  // Die Kernursache von 0.39.0: Trifft eine Nachricht ein, während die App
+  // vorne ist, zeigt sie weder Android noch der Service Worker an — FCM
+  // liefert sie ausschließlich an `onMessage`. Bis dahin hörte niemand zu,
+  // und die Nachricht verschwand spurlos. Nicht nur beim Test-Knopf: Auch
+  // der echte Abend-Versand verpuffte, wenn jemand die App zufällig offen
+  // hatte — und weil der Job ihn als zugestellt verbucht, kam er nie wieder.
+  testWidgets('eine eintreffende Nachricht wird auch außerhalb des '
+      'Benachrichtigungs-Screens sichtbar', (tester) async {
+    final backend = await _backend();
+    await pumpApp(tester, backend);
+    await _login(tester);
+
+    // Wir stehen auf der Übersicht — der Screen, auf dem man am ehesten ist.
+    expect(find.text('Wer ist dran?'), findsOneWidget);
+
+    backend.deliverPush('Morgen (Mo, 27.07.)', 'Du fährst · dabei: Ben');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(
+      find.text('Morgen (Mo, 27.07.)'),
+      findsOneWidget,
+      reason:
+          'Der Handler gehört global in app.dart (scaffoldMessengerKey). In '
+          'einem einzelnen Screen verdrahtet zeigte er nichts, sobald man '
+          'woanders steht — also fast immer.',
+    );
+    expect(find.textContaining('Du fährst'), findsOneWidget);
   });
 
   testWidgets('ohne Berechtigung bleibt der Screen leer statt kaputt', (

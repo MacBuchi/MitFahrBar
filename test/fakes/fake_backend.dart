@@ -50,6 +50,15 @@ class FakeBackend {
   final Map<String, FakeAccount> accounts = {};
   final Map<String, FakeAdminAccount> adminAccounts = {};
 
+  /// Wohin eine Nachricht geht, die eintrifft, während die App vorne ist —
+  /// gesetzt von `pumpApp`. [deliverPush] ist die Fake-Entsprechung von
+  /// `FirebaseMessaging.onMessage`, das es im Test nicht gibt.
+  void Function(String title, String body)? pushMessageSink;
+
+  /// Stellt eine Nachricht zu, als käme sie gerade von FCM.
+  void deliverPush(String title, String body) =>
+      pushMessageSink?.call(title, body);
+
   /// Adressen, für die ein Passwort-Reset angefordert wurde — die Fake-
   /// Entsprechung der Mail, die in Produktion rausgeht. Enthält auch
   /// unbekannte Adressen: Die App darf beide Fälle nicht unterscheiden.
@@ -324,8 +333,15 @@ class FakePushRepository implements PushRepository {
     prefs.remove(_key(personId));
   }
 
+  /// Ob FCM die Testnachricht annimmt. Auf `false` gesetzt spielt der Test
+  /// den Fall durch, den der Screen bis 0.39.0 als Erfolg meldete.
+  bool testAccepted = true;
+
   @override
-  Future<void> sendTest(String token) async => tests.add(token);
+  Future<bool> sendTest(String token) async {
+    tests.add(token);
+    return testAccepted;
+  }
 }
 
 class FakeGroupRepository implements GroupRepository {

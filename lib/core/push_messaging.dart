@@ -61,6 +61,23 @@ const _webOptions = FirebaseOptions(
   storageBucket: PushConfig.storageBucket,
 );
 
+/// Wo der Push-Service-Worker im Web liegt — **bewusst relativ**.
+///
+/// Das FCM-Web-SDK registriert ohne Angabe `/firebase-messaging-sw.js` am
+/// **Origin-Root**. Die App liegt auf GitHub Pages aber unter `/MitFahrBar/`,
+/// dort steht 404 — `getToken` scheitert dann dauerhaft, die PWA bekommt nie
+/// ein Token, und der Benachrichtigungs-Screen lässt sich nicht einmal einer
+/// Person zuordnen. Genau so lag es bis 0.39.0 (nachgemessen an der
+/// Live-Seite: `A bad HTTP response code (404) was received`).
+///
+/// Ein relativer Pfad löst der Browser gegen das `<base href>` des Dokuments
+/// auf, und das setzt Flutter beim Build aus `--base-href`. Deshalb ist hier
+/// **kein** absoluter Pfad und keine zweite Konstante: Beides müsste mit
+/// `--base-href` in `release.yml` synchron gehalten werden und driftete
+/// irgendwann. Der relative Pfad stimmt auch von Unterseiten aus, weil er am
+/// `<base>` hängt und nicht an der aktuellen Adresse.
+const webServiceWorkerPath = 'firebase-messaging-sw.js';
+
 /// Das Token dieses Geräts — `null`, wenn es keines gibt.
 ///
 /// [ask] entscheidet über den Berechtigungsdialog: Beim Öffnen des Screens
@@ -91,7 +108,10 @@ Future<String?> pushToken({required bool ask}) async {
     // die Frist hinge der Screen an einem Ladekreis, der nie endet.
     // TimeoutException landet unten im catch und wird zu „kein Token".
     return await messaging
-        .getToken(vapidKey: kIsWeb ? PushConfig.vapidKey : null)
+        .getToken(
+          vapidKey: kIsWeb ? PushConfig.vapidKey : null,
+          serviceWorkerScriptPath: kIsWeb ? webServiceWorkerPath : null,
+        )
         .timeout(const Duration(seconds: 15));
   } catch (error) {
     // Absichtlich ohne das Token im Text: Was ins Log kommt, kann über eine
@@ -119,5 +139,39 @@ Future<void> listenForPushTaps(void Function() onTap) async {
     }
   } catch (error) {
     log.w('Push-Tap nicht verdrahtet', error: error);
+  }
+}
+
+/// Ruft [onMessage], wenn eine Nachricht eintrifft, **während die App im
+/// Vordergrund ist**.
+///
+/// Ohne diesen Zweig verschwindet sie spurlos, und das ist kein
+/// Schönheitsfehler: Android und der Web-Service-Worker zeigen eine
+/// `notification`-Payload nur an, solange die App **nicht** vorne ist. Ist
+/// sie es, liefert FCM sie ausschließlich hierher. Bis 0.39.0 hörte niemand
+/// zu — mit zwei Folgen:
+///
+/// * Der Test-Knopf konnte gar nicht funktionieren: Beim Tippen ist die App
+///   zwangsläufig im Vordergrund.
+/// * Schlimmer, weil unbemerkt: Auch der **echte Abend-Versand** verpuffte,
+///   wenn jemand die App zufällig offen hatte. Der Job verbucht ihn als
+///   zugestellt (FCM hat ihn ja angenommen), `push_log` merkt sich den Tag
+///   als erledigt — und die Nachricht kommt nie wieder. Beobachtet am
+///   26.07.2026, 17:14.
+///
+/// Der Text trägt Personennamen und gehört deshalb **niemals ins Log**
+/// (`logRing` kann über eine Rückmeldung in einem öffentlichen Issue landen).
+Future<void> listenForPushMessages(
+  void Function(String title, String body) onMessage,
+) async {
+  if (!pushSupported) return;
+  try {
+    FirebaseMessaging.onMessage.listen((message) {
+      final notification = message.notification;
+      if (notification == null) return;
+      onMessage(notification.title ?? 'MitFahrBar', notification.body ?? '');
+    });
+  } catch (error) {
+    log.w('Vordergrund-Nachrichten nicht verdrahtet', error: error);
   }
 }

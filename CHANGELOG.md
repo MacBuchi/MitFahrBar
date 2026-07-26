@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.40.0] – 2026-07-26
+
+### Behoben
+
+- **Benachrichtigungen kamen nicht an, wenn die App gerade offen war.** Weder
+  Android noch der Browser zeigen eine Benachrichtigung an, solange man in der
+  App ist — sie wurde bisher einfach verworfen. Das betraf nicht nur den
+  Test-Knopf: Auch der Abend-Blick auf den nächsten Tag konnte so verloren
+  gehen, und er wurde danach nicht noch einmal geschickt. Jetzt erscheint sie
+  als Hinweis in der App, egal auf welchem Bildschirm ihr gerade seid.
+
+- **Im Browser ließen sich Benachrichtigungen gar nicht einrichten.** Die
+  Auswahl „Ich bin …" sprang immer auf „niemand" zurück. Ursache war eine
+  Hintergrund-Datei, die MitFahrBar an der falschen Stelle gesucht hat.
+
+- **Der Test-Knopf meldet nur noch Erfolg, wenn wirklich etwas verschickt
+  wurde**, und sagt dazu, dass die Benachrichtigung erst auf dem
+  Startbildschirm sichtbar wird. Vorher meldete er „unterwegs", auch wenn
+  nichts ankam.
+
 ## [0.39.0] – 2026-07-26
 
 ### Geändert
