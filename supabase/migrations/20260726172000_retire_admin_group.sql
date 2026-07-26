@@ -141,12 +141,28 @@ drop function public.is_group_admin();
 
 alter table public.groups drop column is_admin;
 
--- ------------------------------------------------------------ Mindestversion
+-- -------------------------------------- Mindestversion: bewusst UNVERÄNDERT
 --
--- Pflicht nach der Hausregel in CLAUDE.md: Dieses File entfernt eine Spalte,
--- die veröffentlichte Clients lesen (`Group.fromJson`), und nimmt der App den
--- Screen „Gruppen-Freigaben". Ein alter Client läuft danach in Fehler, also
--- muss er sich aktualisieren.
-update public.app_config
-   set value = '0.38.0', updated_at = now()
- where key = 'min_supported_version';
+-- Die Hausregel lautet „wer entfernt, was ein Client liest, hebt im selben
+-- File die Mindestversion". Sie zielt auf Clients, die BRECHEN — und der
+-- veröffentlichte 0.37.0-Client bricht hier nicht:
+--
+--   * `is_admin` fehlt   → `json['is_admin'] as bool? ?? false` liefert
+--                          `false`, der Admin-Knopf verschwindet, kein Wurf.
+--   * `pendingGroups()`  → `groups_select` zeigt nur die eigene Zeile,
+--                          also eine leere Liste statt eines Fehlers.
+--   * `setStatus()`      → ohne Update-Policy trifft das Update 0 Zeilen,
+--                          ebenfalls kein Fehler.
+--
+-- Er degradiert also sauber, und zu erzwingen gibt es nichts.
+--
+-- Zu heben wäre hier sogar schädlicher als der Schaden, den es verhindern
+-- soll: Die Mindestversion wirft JEDEN veralteten Client auf den
+-- Sperr-Schirm — und dessen Update-Knopf war bis 0.37.0 tot (kein Navigator
+-- im gesperrten Zustand, siehe `app.dart`; behoben in 0.38.0). Wer davor
+-- steht, erreicht der Fix nicht mehr: Aus diesem Loch kann man sich nicht
+-- heraus-releasen, es hilft nur Deinstallieren und Neuinstallieren von Hand.
+-- Genau das ist am 26.07.2026 auf einem Pixel 7 passiert.
+--
+-- Gehoben wird künftig nur, wenn ein alter Client ohne Update falsche Daten
+-- zeigt oder in eine Exception läuft — nicht routinemäßig zu jeder Migration.

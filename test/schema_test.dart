@@ -620,15 +620,18 @@ void main() {
       );
     });
 
-    test('die Migration hebt die Mindestversion im selben File', () {
+    test('die Migration hebt die Mindestversion NICHT', () {
       expect(
-        migration,
-        contains("set value = '0.38.0'"),
+        sqlOnly(migration),
+        isNot(contains('min_supported_version')),
         reason:
-            'Das File entfernt eine Spalte, die veröffentlichte Clients lesen '
-            '(`Group.fromJson`), und nimmt der App den Screen '
-            '„Gruppen-Freigaben". Die Regel aus CLAUDE.md: Wer entfernt, was '
-            'ein Client nutzt, hebt IM SELBEN FILE die Mindestversion.',
+            'Hier wäre Heben schädlicher als der Schaden, den es verhindert. '
+            'Der 0.37.0-Client bricht nicht: `json[\'is_admin\'] as bool? ?? '
+            'false` fängt die entfernte Spalte ab, die Selects laufen ins '
+            'Leere statt in Fehler. Erzwingen würde nur jeden veralteten '
+            'Client auf den Sperr-Schirm werfen — dessen Update-Knopf war bis '
+            '0.37.0 tot, und wer davorsteht, erreicht kein Fix mehr. Aus dem '
+            'Loch kann man sich nicht heraus-releasen.',
       );
     });
   });
