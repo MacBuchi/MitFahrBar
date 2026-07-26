@@ -4,4 +4,13 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Nur im Debug-Build: Der lokale Supabase-Stack (doc/testbackend.md)
+         spricht http, und seit Android 9 blockt das System unverschlüsselten
+         Verkehr per Vorgabe. Ohne das hier scheitert jeder Aufruf gegen den
+         Teststack stumm mit „Cleartext HTTP traffic not permitted" — die App
+         sieht aus, als wäre der Server offline.
+
+         Steht bewusst NUR hier und nicht im main-Manifest: Die
+         veröffentlichte App darf ausschließlich https sprechen. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

@@ -35,21 +35,31 @@ bool get pushSupported => pushPlatform != null && PushConfig.isConfigured;
 Future<void> initPushMessaging() async {
   if (!pushSupported) return;
   try {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: PushConfig.apiKey,
-        appId: PushConfig.appId,
-        messagingSenderId: PushConfig.messagingSenderId,
-        projectId: PushConfig.projectId,
-        authDomain: PushConfig.authDomain,
-        storageBucket: PushConfig.storageBucket,
-      ),
-    );
+    // Auf Android hat das Google-Services-Gradle-Plugin die Standard-App
+    // längst nativ aus google-services.json gestartet, bevor Dart überhaupt
+    // läuft. Ein zweiter Aufruf mit Optionen quittiert das mit
+    // „[core/duplicate-app]". Der Fehler wäre folgenlos — aber er stünde bei
+    // JEDEM Start im Log und verdeckte dort die echten. Auf einem Pixel
+    // beobachtet, 26.07.2026.
+    //
+    // Im Web gibt es diesen Vorlauf nicht: Dort sind die Optionen Pflicht,
+    // weil es keine google-services.json gibt.
+    if (Firebase.apps.isNotEmpty) return;
+    await Firebase.initializeApp(options: kIsWeb ? _webOptions : null);
   } catch (error) {
     // Ohne Token, aber lauffähig.
     log.w('Firebase nicht gestartet', error: error);
   }
 }
+
+const _webOptions = FirebaseOptions(
+  apiKey: PushConfig.apiKey,
+  appId: PushConfig.appId,
+  messagingSenderId: PushConfig.messagingSenderId,
+  projectId: PushConfig.projectId,
+  authDomain: PushConfig.authDomain,
+  storageBucket: PushConfig.storageBucket,
+);
 
 /// Das Token dieses Geräts — `null`, wenn es keines gibt.
 ///
