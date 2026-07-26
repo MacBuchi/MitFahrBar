@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.38.0] – 2026-07-26
+
+### Behoben
+
+- **Der Update-Knopf auf dem Sperr-Bildschirm tat nichts.** Wer die Meldung
+  „Update erforderlich" bekam, saß fest: Tippen bewirkte nichts, und die App
+  ließ sich nur retten, indem man sie löschte und neu installierte. Der Knopf
+  öffnet jetzt wieder den Update-Dialog.
+
+  Damit so etwas nicht noch einmal alles blockiert, steht darunter ein
+  **zweiter Weg: „Stattdessen im Browser laden"**. Er kommt ohne den Dialog
+  aus. Meldet sich gar kein Browser, zeigt der Bildschirm die Adresse zum
+  Abtippen — es bleibt in jedem Fall ein Weg zur neuen Version.
+
 ## [0.37.0] – 2026-07-26
 
 ### Geändert

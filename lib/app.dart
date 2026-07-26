@@ -52,7 +52,26 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
         return SplashGate(
           child: required == null
               ? (child ?? const SizedBox.shrink())
-              : UpdateRequiredScreen(info: required),
+              // Eigener Navigator, und das ist die Rettungsleine selbst:
+              // `child` IST der Router-Navigator, und der Sperr-Schirm
+              // ERSETZT ihn. Ohne diesen Ersatz gäbe es im gesperrten
+              // Zustand keinen Navigator und kein Overlay im Baum —
+              // `showDialog` wirft dann „Navigator operation requested with
+              // a context that does not include a Navigator", Flutter
+              // schluckt die Exception, und der Update-Knopf tut sichtbar
+              // NICHTS. Genau so ist es am 26.07.2026 auf einem Pixel 7
+              // passiert: Der Schirm sperrte, der Knopf war tot, es half nur
+              // Deinstallieren und Neuinstallieren von Hand.
+              //
+              // Im Normalbetrieb fiel es nie auf, weil das Update-Banner
+              // innerhalb des Router-Navigators sitzt. Kaputt war
+              // ausschließlich der Weg, den man nur im gesperrten Zustand
+              // sieht — der einzige, auf den es dann ankommt.
+              : Navigator(
+                  onGenerateRoute: (_) => MaterialPageRoute<void>(
+                    builder: (_) => UpdateRequiredScreen(info: required),
+                  ),
+                ),
         );
       },
       theme: lightTheme(),
