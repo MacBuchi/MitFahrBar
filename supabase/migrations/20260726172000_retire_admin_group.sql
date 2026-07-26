@@ -64,6 +64,36 @@ delete from auth.users
                        where ga.group_id = g.id)
  );
 
+-- Und die Admin-Gruppe selbst.
+--
+-- `fahrgemeinschaft` ist der allererste Auth-User dieser Instanz; die
+-- Multi-Tenant-Migration hat ihn zur Gruppe mit `is_admin = true` gemacht
+-- (`20260720140000`, Zeile 42). Getragen hat sie nie etwas: Die Daten gingen
+-- 36 Minuten später in `daciaracing`, ihr einziger Zweck war das Flag. Nimmt
+-- dieses File ihr das Flag und lässt die Zeile stehen, bleibt eine AKTIVE
+-- Gruppe ohne Verwalter zurück — die Waise, die Invariante 1 ausschließt, und
+-- niemand käme je wieder an sie heran: kein Gruppenpasswort mehr bekannt
+-- (genau daran scheiterte am 26.07.2026 die Freigabe), also auch kein
+-- `claim_admin_group`. Ein halber Rückbau wäre schlechter als keiner.
+--
+-- Gelöscht statt archiviert, weil es nichts zu bewahren gibt und eine
+-- archivierte Leerzeile den Handle dauerhaft blockierte.
+--
+-- Die drei `not exists` sind kein Zierrat, sondern machen den Schritt
+-- SELBSTPRÜFEND: Er trifft die Zeile nur, solange sie unverknüpft und
+-- inhaltsleer ist. Auf jeder anderen Instanz — Frischinstallation, lokaler
+-- Teststack, künftige Deployments — läuft er wirkungslos durch, und sollte
+-- wider Erwarten doch etwas an ihr hängen, passiert nichts.
+delete from auth.users
+ where id in (
+   select g.id from public.groups g
+    where g.handle = 'fahrgemeinschaft'
+      and not exists (select 1 from public.group_admins ga
+                       where ga.group_id = g.id)
+      and not exists (select 1 from public.persons p where p.group_id = g.id)
+      and not exists (select 1 from public.trips   t where t.group_id = g.id)
+ );
+
 -- --------------------------------------- 2. handle_new_group() ohne is_admin
 --
 -- Bis auf die Spaltenliste unverändert. Der Trigger traut den Metadata eines

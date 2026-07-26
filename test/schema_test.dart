@@ -596,6 +596,30 @@ void main() {
       );
     });
 
+    test('die Admin-Gruppe fällt nur, wenn sie frei UND leer ist', () {
+      final block = sqlOnly(
+        migration,
+      ).split("g.handle = 'fahrgemeinschaft'").last.split(');').first;
+      expect(
+        block,
+        stringContainsInOrder([
+          'not exists',
+          'group_admins',
+          'not exists',
+          'persons',
+          'not exists',
+          'trips',
+        ]),
+        reason:
+            'Der Schritt muss selbstprüfend bleiben. Zu `delete … where '
+            "handle = 'fahrgemeinschaft'` vereinfacht, risse er auf einer "
+            'anderen Instanz eine Gruppe samt Daten mit — oder hier eine, an '
+            'der inzwischen doch etwas hängt. Die Bedingungen sind der Grund, '
+            'warum ein namentlicher Treffer in einer Migration überhaupt '
+            'vertretbar ist.',
+      );
+    });
+
     test('die Migration hebt die Mindestversion im selben File', () {
       expect(
         migration,
