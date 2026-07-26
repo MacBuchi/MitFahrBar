@@ -66,6 +66,15 @@ Future<void> pumpApp(
         appConfigRepositoryProvider.overrideWithValue(
           FakeAppConfigRepository(backend),
         ),
+        // Im Test gibt es weder FCM noch einen Berechtigungsdialog. Ohne
+        // diese beiden Overrides griffe schon der App-Start auf ein nicht
+        // initialisiertes Firebase zu — der Fehler landete im Log und der
+        // Screen zeigte sich dauerhaft als „nicht eingerichtet".
+        pushRepositoryProvider.overrideWithValue(FakePushRepository(backend)),
+        pushTokenProvider.overrideWithValue(
+          ({required bool ask}) async => 'test-token',
+        ),
+        pushTapListenerProvider.overrideWithValue((onTap) async {}),
         // Kein Netzzugriff im Test: standardmäßig kein Update und keine
         // Release-Notes (der Über-Dialog blendet den Abschnitt dann aus).
         updateInfoProvider.overrideWith((ref) => Future.value(backend.update)),

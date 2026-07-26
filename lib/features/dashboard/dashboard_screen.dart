@@ -59,6 +59,8 @@ class DashboardScreen extends ConsumerWidget {
                 context.push('/persons');
               } else if (value == 'settings') {
                 unawaited(context.push('/settings'));
+              } else if (value == 'notifications') {
+                unawaited(context.push('/notifications'));
               } else if (value == 'invite') {
                 final g = group;
                 if (g != null) unawaited(showInviteDialog(context, g));
@@ -103,6 +105,17 @@ class DashboardScreen extends ConsumerWidget {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+              // Wie „Einladen" an ein echtes Backend gehängt: Ohne Zugang
+              // gibt es kein Gerät, dem man etwas zustellen könnte.
+              if (SupabaseConfig.isConfigured)
+                const PopupMenuItem(
+                  value: 'notifications',
+                  child: ListTile(
+                    leading: Icon(Icons.notifications_outlined),
+                    title: Text('Benachrichtigungen'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               // Einladen gibt es nur mit echtem Backend: Im Demo-Modus gibt
               // es keinen Zugang, den man weitergeben könnte.
               if (SupabaseConfig.isConfigured && group != null)

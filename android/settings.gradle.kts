@@ -21,6 +21,11 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // Liest android/app/google-services.json und erzeugt daraus die
+    // Firebase-Konfiguration im Build. Ohne dieses Plugin findet
+    // firebase_core zur Laufzeit kein Projekt und die App startet mit einer
+    // Ausnahme — sichtbar erst auf dem Gerät, nie im Test.
+    id("com.google.gms.google-services") version "4.4.4" apply false
 }
 
 include(":app")

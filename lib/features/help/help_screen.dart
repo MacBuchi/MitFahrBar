@@ -265,6 +265,16 @@ class HelpScreen extends StatelessWidget {
                     'an den Punkten ändert sich dadurch nichts.',
               ),
               _Line(
+                leading: Icon(Icons.notifications_outlined),
+                text:
+                    'Benachrichtigungen: Sag der App, wer du bist, und dieses '
+                    'Gerät bekommt abends den Blick auf morgen — und Bescheid, '
+                    'wenn jemand den Plan bis zur Abfahrt noch umstellt. '
+                    'Beide Uhrzeiten stellst du selbst ein, sie gelten nur für '
+                    'dich. Nachricht kommt nur an Tagen, an denen du '
+                    'eingetragen bist.',
+              ),
+              _Line(
                 leading: Icon(Icons.person_add_alt),
                 text:
                     'Jemanden einladen baut eine fertige Nachricht mit Link '

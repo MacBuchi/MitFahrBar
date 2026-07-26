@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Der Name, unter dem Android die Benachrichtigungen in den
+     Systemeinstellungen führt. Ohne eigenen Kanal legte FCM einen namens
+     „Miscellaneous" an — die Gruppe fände dort nicht, was sie abschalten
+     will. -->
+<resources>
+    <string name="notification_channel_plan_id">plan</string>
+    <string name="notification_channel_plan_name">Fahrgemeinschaft</string>
+    <string name="notification_channel_plan_description">Der Blick auf den nächsten Tag und Änderungen am Wochenplan.</string>
+</resources>

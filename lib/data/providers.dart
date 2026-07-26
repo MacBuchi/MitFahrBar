@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/export_file.dart';
 import '../core/import_file.dart';
 import '../core/fairness.dart';
+import '../core/push_messaging.dart';
 import '../core/share_text.dart';
 import '../core/supabase_config.dart';
 import '../core/update_check.dart';
@@ -22,6 +23,7 @@ import 'carpool_repository.dart';
 import 'fake_repository.dart';
 import 'feedback_repository.dart';
 import 'group_repository.dart';
+import 'push_repository.dart';
 import 'supabase_repository.dart';
 
 final supabaseClientProvider = Provider<SupabaseClient>(
@@ -55,6 +57,28 @@ final splashEnabledProvider = Provider<bool>((ref) => true);
 typedef FilePicker = Future<String?> Function();
 
 final filePickerProvider = Provider<FilePicker>((ref) => pickCsvText);
+
+/// Das Push-Token dieses Geräts. Ebenfalls als Provider, damit Tests den
+/// Plattform-Pfad ersetzen können — im Test gibt es weder FCM noch einen
+/// Berechtigungsdialog. `ask` steuert, ob gefragt oder nur nachgesehen wird.
+typedef PushTokenSource = Future<String?> Function({required bool ask});
+
+final pushTokenProvider = Provider<PushTokenSource>((ref) => pushToken);
+
+/// Verdrahtet den Tipp auf eine Benachrichtigung mit dem Router. Ebenfalls
+/// als Provider: Ohne Override griffe der Test auf FirebaseMessaging zu, das
+/// es dort nicht gibt.
+typedef PushTapListener = Future<void> Function(void Function() onTap);
+
+final pushTapListenerProvider = Provider<PushTapListener>(
+  (ref) => listenForPushTaps,
+);
+
+final pushRepositoryProvider = Provider<PushRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabasePushRepository(ref.watch(supabaseClientProvider))
+      : NoopPushRepository(),
+);
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => SupabaseConfig.isConfigured

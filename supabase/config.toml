@@ -72,3 +72,12 @@ site_url = "http://localhost:8731"
 # `supabase functions deploy request-group --project-ref <ref>`.
 [functions.request-group]
 verify_jwt = true
+
+# Bewusst ohne JWT-Prüfung: Der Versand-Job (tool/notify.dart auf GitHub
+# Actions) hat keines — ein `sb_secret_*`-Service-Role-Key ist kein JWT mehr.
+# Er weist sich stattdessen mit dem Header `x-push-secret` aus. Der zweite
+# Aufrufer ist die App („Test-Benachrichtigung"), und für die prüft die
+# Function das Nutzer-JWT selbst über die RLS. Beides steht explizit im
+# Rumpf von index.ts.
+[functions.send-push]
+verify_jwt = false

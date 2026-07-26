@@ -16,23 +16,37 @@ void main() {
     'lib/data/supabase_repository.dart',
   ).readAsStringSync();
 
-  /// Der `primary key (...)`-Ausdruck aus dem `create table`-Block von
-  /// [table].
+  /// Der Primärschlüssel aus dem `create table`-Block von [table] — sowohl
+  /// die Tabellen-Form `primary key (a, b)` als auch die Spalten-Form
+  /// `token text primary key`.
   String primaryKeyOf(String table) {
     final block = RegExp(
       'create table public\\.$table \\((.*?)\\n\\);',
       dotAll: true,
     ).firstMatch(schema);
     expect(block, isNotNull, reason: 'Tabelle $table nicht in schema.sql');
-    final key = RegExp(r'primary key \(([^)]*)\)').firstMatch(block!.group(1)!);
-    expect(key, isNotNull, reason: '$table hat keinen primary key');
-    return key!.group(1)!;
+    final body = block!.group(1)!;
+
+    final composite = RegExp(r'primary key \(([^)]*)\)').firstMatch(body);
+    if (composite != null) return composite.group(1)!;
+
+    final inline = RegExp(
+      r'^\s*(\w+)\s[^,]*\bprimary key\b',
+      multiLine: true,
+    ).firstMatch(body);
+    expect(inline, isNotNull, reason: '$table hat keinen primary key');
+    return inline!.group(1)!;
   }
 
   // Die Tabellen mit fachlichem (statt generiertem) Schlüssel. Bei `persons`
   // und `trips` ist der Schlüssel eine UUID und damit ohnehin global
   // eindeutig — dort wäre `group_id` im Schlüssel sinnlos.
-  for (final table in ['plan_availability', 'plan_overrides']) {
+  for (final table in [
+    'plan_availability',
+    'plan_overrides',
+    'notification_prefs',
+    'push_log',
+  ]) {
     test('$table hat group_id im Primärschlüssel', () {
       expect(
         primaryKeyOf(table),
@@ -46,6 +60,84 @@ void main() {
       );
     });
   }
+
+  // Push-Benachrichtigungen (Issue #101). Drei Annahmen, die alle erst in der
+  // echten Datenbank auffielen — und eine bewusste Ausnahme von der Regel
+  // oben, die ohne Test wie ein Versehen aussieht.
+  group('Push-Benachrichtigungen', () {
+    test('push_devices hat den Token als Schlüssel, nicht group_id', () {
+      expect(
+        primaryKeyOf('push_devices').replaceAll(' ', ''),
+        'token',
+        reason:
+            'Bewusste Ausnahme von der group_id-Regel: FCM-Token sind '
+            'global eindeutig, eine Kollision zwischen Gruppen ist '
+            'konstruktiv unmöglich. Und ein Gerät gehört zu genau EINER '
+            'Gruppe — mit (group_id, token) bliebe beim Gruppenwechsel die '
+            'alte Zeile stehen, und die alte Gruppe bekäme weiter '
+            'Nachrichten auf ein Gerät, das ihr nicht mehr gehört.',
+      );
+    });
+
+    test('push_log hat RLS an und bewusst keine einzige Policy', () {
+      expect(
+        schema,
+        contains(
+          'alter table public.push_log            enable row level security',
+        ),
+        reason: 'Ohne RLS läse jeder authenticated das Versand-Gedächtnis.',
+      );
+      expect(
+        RegExp(r'create policy \w+ on public\.push_log').hasMatch(schema),
+        isFalse,
+        reason:
+            'Das Gedächtnis gehört allein dem Versand-Job. Mit einer '
+            'Client-Policy könnte jedes Mitglied Nachrichten unterdrücken '
+            '(Zeile anlegen) oder erneut auslösen (Zeile löschen) — '
+            'dasselbe Muster wie bei group_admins.',
+      );
+    });
+
+    test('register_push_device prüft die Gruppe der Person', () {
+      final function = RegExp(
+        r'create or replace function public\.register_push_device.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        function,
+        contains('p.group_id = me'),
+        reason:
+            'Ohne die Prüfung könnte eine Gruppe ihre Zustellung an eine '
+            'fremde person_id hängen — und bekäme Nachrichten über die '
+            'Verfügbarkeit einer Person, die sie nie sehen darf.',
+      );
+      expect(
+        function,
+        contains('delete from public.push_devices where token'),
+        reason:
+            'Der Gruppenwechsel eines Geräts muss die alte Zeile entfernen. '
+            'Sie liegt unter fremder group_id, die RLS zeigt sie nicht — '
+            'ein blanker Upsert liefe in eine Unique-Verletzung auf einer '
+            'unsichtbaren Zeile.',
+      );
+    });
+
+    test('das Konfliktziel der Einstellungen nennt den Primärschlüssel', () {
+      final targets = RegExp(r"onConflict: '([^']*)'")
+          .allMatches(File('lib/data/push_repository.dart').readAsStringSync())
+          .map((m) => m.group(1))
+          .toList();
+      expect(
+        targets,
+        contains(primaryKeyOf('notification_prefs').replaceAll(' ', '')),
+        reason:
+            'Weicht das Konfliktziel vom Schlüssel ab, meldet Postgres beim '
+            'Speichern „no unique or exclusion constraint matching the ON '
+            'CONFLICT specification" — und zwar erst am Gerät.',
+      );
+    });
+  });
 
   // `app_config` hält die Mindestversion, die veraltete Clients aussperrt.
   // Eine Schreib-Policy dort wäre der Weg, sich selbst auszusperren: Ein

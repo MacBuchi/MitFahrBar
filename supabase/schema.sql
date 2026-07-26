@@ -145,6 +145,67 @@ create table public.plan_overrides (
 create index plan_availability_group_idx on public.plan_availability (group_id);
 create index plan_overrides_group_idx on public.plan_overrides (group_id);
 
+-- Push-Benachrichtigungen zum Wochenplaner (Issue #101). Drei Aufgaben:
+-- push_devices = wohin, notification_prefs = wann, push_log = was schon raus
+-- ist. Der vorgeschlagene Fahrer steht auch hier NICHT — push_log hält nur
+-- einen Hash des Tageszustands, damit der Versand-Job Änderungen erkennt.
+
+-- Ein Gerät = eine Zeile. Primärschlüssel ist der Token, NICHT
+-- (group_id, token): FCM-Token sind global eindeutig, eine Kollision
+-- zwischen Gruppen ist konstruktiv unmöglich — und ein Gerät gehört zu genau
+-- EINER Gruppe, meldet es sich in einer anderen an, muss die alte Zeile
+-- weichen. Die „group_id in den Schlüssel"-Regel zielt auf fachliche
+-- Schlüssel, die ohne sie über alle Gruppen eindeutig wären; ein Token ist
+-- das nicht.
+create table public.push_devices (
+  token text primary key,
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  -- Wer an diesem Gerät benachrichtigt wird. KEIN Login: Jeder kann jeden
+  -- wählen, wie im Planer jeder für jeden einträgt. Zustelladresse, kein
+  -- Identitätsnachweis. NULL = noch niemandem zugeordnet, bekommt nichts.
+  person_id uuid references public.persons(id) on delete cascade,
+  platform text not null check (platform in ('android', 'web')),
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
+);
+
+-- Uhrzeiten je PERSON (nicht je Gerät), alle in Europe/Berlin.
+-- **Keine Zeile = keine Benachrichtigungen**: Die Zeile entsteht beim
+-- Einschalten im Screen. So gibt es genau eine Wahrheit darüber, wer etwas
+-- bekommt, und der Versand-Job braucht keine Vorgabewerte zu kennen.
+create table public.notification_prefs (
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  person_id uuid not null references public.persons(id) on delete cascade,
+  evening_enabled boolean not null default true,
+  evening_time time not null default '21:00',
+  -- Ende des Änderungs-Fensters: Danach nützt keine Nachricht mehr, und ein
+  -- nachgeholter Lauf darf niemanden nachts wecken.
+  departure_time time not null default '07:30',
+  changes_enabled boolean not null default true,
+  updated_at timestamptz not null default now(),
+  primary key (group_id, person_id)
+);
+
+-- Versand-Gedächtnis. Kein `default auth.uid()`: Hier schreibt nur der
+-- Versand-Job mit dem service_role-Key, und der hat keine auth.uid().
+create table public.push_log (
+  group_id uuid not null
+    references public.groups(id) on delete cascade,
+  person_id uuid not null references public.persons(id) on delete cascade,
+  plan_date date not null,
+  kind text not null check (kind in ('evening', 'change')),
+  digest text not null,
+  sent_at timestamptz not null default now(),
+  primary key (group_id, person_id, plan_date, kind)
+);
+
+create index push_devices_group_idx on public.push_devices (group_id);
+create index push_devices_person_idx
+  on public.push_devices (group_id, person_id);
+create index push_log_date_idx on public.push_log (plan_date);
+
 -- Verknüpfung Verwalter-Konto ↔ Gruppe. `group_id unique` = höchstens ein
 -- Admin je Gruppe; die Erst-Verknüpfung beweist sich mit dem Gruppen-Login
 -- (claim_admin_group) und rastet danach ein.
@@ -334,6 +395,51 @@ begin
   delete from auth.users where id = auth.uid();
 end $$;
 
+-- ------------------------------------------------ Push-Registrierung (#101)
+
+-- Registrierung über SECURITY DEFINER statt direktem Upsert: Wechselt ein
+-- Gerät die Gruppe, liegt seine alte Zeile unter fremder group_id — die RLS
+-- zeigt sie nicht, der Upsert liefe in eine Unique-Verletzung auf einer
+-- unsichtbaren Zeile (dieselbe Falle wie seinerzeit bei plan_overrides).
+create or replace function public.register_push_device(
+  device_token text,
+  person uuid,
+  device_platform text
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+begin
+  if me is null or not public.my_group_active() then
+    raise exception 'not allowed';
+  end if;
+  if coalesce(device_token, '') = '' then
+    raise exception 'missing token';
+  end if;
+  if device_platform not in ('android', 'web') then
+    raise exception 'unknown platform';
+  end if;
+  if person is not null and not exists (
+    select 1 from public.persons p
+     where p.id = person and p.group_id = me
+  ) then
+    raise exception 'unknown person';
+  end if;
+
+  delete from public.push_devices where token = device_token;
+  insert into public.push_devices (token, group_id, person_id, platform)
+  values (device_token, me, person, device_platform);
+end $$;
+
+create or replace function public.unregister_push_device(
+  device_token text
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from public.push_devices
+   where token = device_token and group_id = auth.uid();
+end $$;
+
 -- --------------------------------------------------------------------- RLS
 
 alter table public.groups              enable row level security;
@@ -343,9 +449,15 @@ alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
 alter table public.plan_availability   enable row level security;
 alter table public.plan_overrides      enable row level security;
+alter table public.push_devices        enable row level security;
+alter table public.notification_prefs  enable row level security;
 -- Bewusst KEINE Policies auf group_admins: Kein Client liest oder schreibt
 -- die Verknüpfung direkt, alles läuft über die Konsolen-Funktionen.
 alter table public.group_admins        enable row level security;
+-- Ebenso ohne Policy: Das Versand-Gedächtnis gehört allein dem Job
+-- (service_role umgeht RLS). Eine Client-Policy gäbe jedem Mitglied die
+-- Möglichkeit, Nachrichten zu unterdrücken oder erneut auszulösen.
+alter table public.push_log            enable row level security;
 
 -- Eigene Gruppe lesen; Admins sehen alle (Freigabe-Liste). Insert = Trigger.
 create policy groups_select on public.groups for select to authenticated
@@ -370,6 +482,14 @@ create policy plan_availability_isolated on public.plan_availability
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy plan_overrides_isolated on public.plan_overrides
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy push_devices_isolated on public.push_devices
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy notification_prefs_isolated on public.notification_prefs
   for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
