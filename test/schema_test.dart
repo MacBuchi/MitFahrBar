@@ -635,4 +635,85 @@ void main() {
       );
     });
   });
+
+  group('persons.name ist je Gruppe eindeutig (Issue #109)', () {
+    final migration = File(
+      'supabase/migrations/20260726213000_persons_name_unique_per_group.sql',
+    ).readAsStringSync();
+
+    test('das Gesamtbild trägt keinen globalen Unique auf dem Namen', () {
+      final table = schema
+          .split('create table public.persons')
+          .last
+          .split(');')
+          .first;
+      expect(
+        table,
+        isNot(contains('unique')),
+        reason:
+            'Ein `name text unique` gilt über ALLE Gruppen. Die zweite Gruppe '
+            'kann dann keine „Anna" anlegen und erfährt an der Fehlermeldung, '
+            'dass der Name woanders existiert — genau der Querverweis, den die '
+            'RLS sonst unmöglich macht.',
+      );
+    });
+
+    test('dafür einen Index je Gruppe, normalisiert', () {
+      expect(
+        sqlOnly(schema),
+        stringContainsInOrder([
+          'create unique index persons_group_name_key',
+          'public.persons',
+          'group_id',
+          'lower(btrim(name))',
+        ]),
+        reason:
+            '`lower(btrim())` ist genau die Abbildung, mit der '
+            'core/csv_import.dart Namen auf Personen zuordnet '
+            '(`name.trim().toLowerCase()`). Driftete beides auseinander, fände '
+            'der Import zu einem Namen zwei Zeilen und schriebe Fahrten auf '
+            'die falsche Person.',
+      );
+    });
+
+    test('der Index nimmt Inaktive nicht aus', () {
+      final index = sqlOnly(
+        migration,
+      ).split('create unique index').last.split(';').first;
+      expect(
+        index,
+        isNot(contains('where')),
+        reason:
+            'Ein `where active` gäbe den Namen einer inaktiven Person frei. '
+            'Wer zurückkommt, wird aber reaktiviert — eine zweite Zeile '
+            'spaltete seine Punkte-Historie und verschöbe rückwirkend die '
+            'Quote aller anderen. Dieselbe Begründung, aus der es kein '
+            'deletePerson gibt.',
+      );
+    });
+
+    test('der alte Constraint fällt, bevor der Index kommt', () {
+      final sql = sqlOnly(migration);
+      expect(
+        sql.indexOf('drop constraint persons_name_key'),
+        lessThan(sql.indexOf('create unique index')),
+        reason:
+            'Umgekehrt stünden für einen Moment beide Regeln, und die alte ist '
+            'die strengere — auf einer Instanz mit „Anna" in zwei Gruppen '
+            'scheiterte der Index dann an Daten, die er selbst erlauben soll.',
+      );
+    });
+
+    test('die Migration hebt die Mindestversion NICHT', () {
+      expect(
+        sqlOnly(migration),
+        isNot(contains("value = '")),
+        reason:
+            'Ein veröffentlichter Client liest keinen Constraint: Er bricht '
+            'nicht und zeigt nichts Falsches — er kann danach mehr als vorher. '
+            'Heben würde nur jeden veralteten Client auf den Sperr-Schirm '
+            'werfen, für einen Gewinn, den er ohne Update ohnehin hat.',
+      );
+    });
+  });
 }

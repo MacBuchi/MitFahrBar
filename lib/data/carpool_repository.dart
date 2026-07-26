@@ -6,9 +6,32 @@ import '../models/person.dart';
 import '../models/plan_ride.dart';
 import '../models/trip.dart';
 
+/// Der Name gehört in dieser Gruppe schon jemandem (Issue #109).
+///
+/// Ein eigener Typ statt eines Postgres-Fehlercodes in der Oberfläche: Die
+/// Regel ist fachlich („ein Name = eine Person"), und der Screen soll sie
+/// melden können, ohne PostgREST zu kennen. Das Fake-Backend wirft dieselbe
+/// Ausnahme — dadurch prüft der Flow-Test wirklich diesen Pfad und nicht
+/// einen nachgebauten.
+class DuplicatePersonName implements Exception {
+  const DuplicatePersonName(this.name);
+
+  final String name;
+
+  @override
+  String toString() => 'DuplicatePersonName($name)';
+}
+
 abstract class CarpoolRepository {
   Future<List<Person>> loadPersons();
+
+  /// Wirft [DuplicatePersonName], wenn der Name in dieser Gruppe schon
+  /// vergeben ist — verglichen ohne Groß-/Kleinschreibung und ohne
+  /// Rand-Leerzeichen, wie der Unique-Index in der Datenbank.
   Future<Person> createPerson(Person person);
+
+  /// Wirft [DuplicatePersonName] wie [createPerson] — Umbenennen kann
+  /// genauso kollidieren wie Anlegen.
   Future<void> updatePerson(Person person);
 
   /// Fahrten absteigend nach Datum.

@@ -94,6 +94,35 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   rückwirkend die Punkte *aller anderen*. Deshalb gibt es bewusst kein
   `deletePerson` im Repository. `active: false` ist der Ersatz und wird von
   `activeRankingProvider` und dem Fahrten-Editor respektiert.
+- **Ein Name gehört in EINER Gruppe genau einer Person — über Gruppengrenzen
+  hinweg dagegen frei** (#109, seit v0.41.0). Bis dahin stand auf
+  `persons.name` ein **globaler** `unique (name)` aus der Zeit vor der
+  Mandantentrennung: Die zweite Gruppe konnte keine „Anna" anlegen und erfuhr
+  an der Fehlermeldung, dass der Name woanders existiert — genau der
+  Querverweis, den die RLS sonst unmöglich macht. Drei Dinge daran sind nicht
+  beliebig:
+  - **Index statt Constraint**, weil normalisiert verglichen wird:
+    `lower(btrim(name))`. Das ist **genau** die Abbildung, mit der
+    `core/csv_import.dart` Namen auf Personen zuordnet
+    (`name.trim().toLowerCase()`). Driftete beides auseinander, fände der
+    Import zu einem Namen zwei Zeilen, nähme willkürlich die erste und
+    schriebe Fahrten auf die falsche Person.
+  - **Inaktive zählen mit** (kein `where active`) — dieselbe Begründung wie
+    beim fehlenden `deletePerson`: Wer zurückkommt, wird reaktiviert; eine
+    zweite Zeile spaltete seine Punkte-Historie. Der Preis ist eine echt
+    andere Anna, die dann „Anna K." heißt; unterscheidbar benennen muss die
+    Gruppe sie ohnehin, weil überall nur der Name steht.
+  - **Der Screen meldet den Fall, statt ihn zu verschlucken.** Bis v0.41.0
+    lief `createPerson` ohne `try` — der Dialog schloss sich, als hätte es
+    geklappt, und die Person fehlte einfach (dieselbe Klasse wie der tote
+    Update-Knopf). Die Vorprüfung im Screen ist der Komfort, der Index der
+    Riegel: Zwei Geräte können gleichzeitig anlegen. Übersetzt wird die
+    23505 in `DuplicatePersonName`, damit die Oberfläche keinen
+    Postgres-Fehlercode auswerten muss — und das Fake-Backend wirft dieselbe
+    Ausnahme, sonst prüfte der Flow-Test einen nachgebauten Pfad.
+  Bewiesen wird die Regel am echten Postgres (`test/e2e/rls_e2e_test.dart`),
+  nicht im Fake: Ohne die Migration meldet der erste Test dort wortwörtlich
+  `duplicate key value violates unique constraint "persons_name_key"`.
 - In Screens keine rohen Farb-/Pixelwerte — `core/tokens.dart` bzw.
   `Theme.of(context)` verwenden.
 - Sicherheit serverseitig (RLS), Auth-Guard im Router (`redirect` +
@@ -653,9 +682,11 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   `features/import/import_screen.dart` = Ablauf) liest genau das Format, das
   der Export schreibt; `test/csv_import_test.dart` prüft den **Rundlauf**
   Export → Import. Zwei Regeln sind der eigentliche Inhalt, nicht Komfort:
-  Der Import legt **nie** still Personen an — `persons.name` hat keine
-  Eindeutigkeit, aus „Bernd"/„Bernnd" würden zwei Personen und das verschiebt
-  rückwirkend die Punkte *aller anderen* (Issue #34). Und eine Fahrt, an der
+  Der Import legt **nie** still Personen an — aus „Bernd"/„Bernnd" würden
+  zwei Personen und das verschiebt rückwirkend die Punkte *aller anderen*
+  (Issue #34). Die Eindeutigkeit des Namens (seit v0.41.0, siehe unten) hilft
+  dagegen **nicht**: Ein Vertipper ist ein anderer Name, kein doppelter. Und
+  eine Fahrt, an der
   eine weggelassene Person beteiligt war, wird **ganz** übersprungen statt
   ohne sie angelegt; sonst änderten sich still die Punkte der übrigen an dem
   Tag. Tage mit vorhandener Fahrt bleiben unberührt.

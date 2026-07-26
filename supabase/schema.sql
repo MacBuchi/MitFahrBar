@@ -61,6 +61,19 @@ create table public.persons (
   created_at timestamptz not null default now()
 );
 
+-- Ein Name gehört in EINER Gruppe genau einer Person (Issue #109) — über
+-- Gruppengrenzen hinweg dagegen frei, zwei Fahrgemeinschaften dürfen beide
+-- eine „Anna" haben. Bis v0.41.0 stand hier ein globaler `unique (name)` aus
+-- der Zeit vor der Mandantentrennung; er sperrte die zweite Gruppe aus und
+-- verriet ihr dabei, dass der Name woanders existiert.
+--
+-- Index statt Constraint, weil normalisiert verglichen wird: `lower(btrim())`
+-- ist genau die Abbildung, mit der `core/csv_import.dart` Namen auf Personen
+-- zuordnet. Inaktive zählen mit — wer zurückkommt, wird reaktiviert, nicht
+-- neu angelegt (eine zweite Zeile spaltete seine Punkte-Historie).
+create unique index persons_group_name_key
+  on public.persons (group_id, lower(btrim(name)));
+
 create table public.trips (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null default auth.uid()
