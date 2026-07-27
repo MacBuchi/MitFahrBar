@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.44.0] – 2026-07-27
+
+### Neu
+
+- **Die App fragt beim ersten Start, wer du bist.** Das ist keine Anmeldung —
+  ihr teilt euch weiterhin einen Zugang. Es sagt nur diesem Gerät, wen es
+  meint. Ändern lässt sich das jederzeit im Menü oben rechts unter „Ich bin",
+  und wer für jemand anderen eintragen will, stellt einfach um.
+- **Wer schon Benachrichtigungen eingerichtet hat, wird nicht neu gefragt** —
+  die App übernimmt die bestehende Zuordnung.
+- **Wer die Frage überspringt**, sieht auf der Startseite einen Hinweis: Ohne
+  Auswahl gibt es keine Benachrichtigungen. Ein Tipp darauf holt die Auswahl
+  nach.
+
+### Geändert
+
+- **Die Personen-Auswahl ist aus den Benachrichtigungen ausgezogen.** Dort
+  steht jetzt ein einfacher Schalter „Benachrichtigungen auf diesem Gerät";
+  für wen sie gelten, sagt die Auswahl im Menü. Solange niemand gewählt ist,
+  ist der Menüpunkt ausgegraut und sagt auch, warum.
+
 ## [0.43.0] – 2026-07-27
 
 ### Neu

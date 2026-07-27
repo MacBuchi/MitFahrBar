@@ -80,6 +80,14 @@ class HelpScreen extends StatelessWidget {
             title: 'Übersicht',
             children: [
               _Line(
+                leading: Icon(Icons.badge_outlined),
+                text:
+                    'Beim ersten Start fragt die App, wer du bist. Das ist '
+                    'keine Anmeldung — ihr teilt euch einen Zugang. Es sagt '
+                    'nur diesem Gerät, wen es meint. Ändern kannst du das '
+                    'jederzeit im Menü oben rechts unter „Ich bin".',
+              ),
+              _Line(
                 text:
                     'Ganz oben steht die nächste Fahrt: welcher Tag, wer '
                     'fährt und wer dabei ist. Ein Tipp darauf führt in die '

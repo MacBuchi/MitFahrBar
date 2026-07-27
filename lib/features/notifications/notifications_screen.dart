@@ -1,9 +1,15 @@
 /// notifications_screen.dart – Benachrichtigungen einrichten (Issue #101).
 ///
-/// Der Screen ordnet **dieses Gerät** einer Person zu und pflegt deren
-/// Uhrzeiten. Die Zuordnung ist ausdrücklich **kein Login**: Jeder kann jeden
-/// wählen, genau wie im Planer jeder für jeden einträgt. Sie ist eine
-/// Zustelladresse — „eine Gruppe = ein Login" bleibt unangetastet.
+/// **Wer** benachrichtigt wird, steht seit #121 nicht mehr hier, sondern in
+/// der Geräte-Zuordnung („Ich bin" im Menü, `data/device_identity.dart`).
+/// Sie wirkt auch dort, wo es kein Push gibt, und gehörte deshalb nicht in
+/// ein Untermenü, das ohne Push gar nicht erreichbar ist. Hier bleibt, was
+/// wirklich zu den Benachrichtigungen gehört: ob dieses Gerät welche bekommt
+/// und wann.
+///
+/// Der Schalter oben ist zugleich der einzige Ort, an dem die App die
+/// Berechtigung erfragen darf — ungefragt gefragt wird sie weggetippt, und
+/// Android fragt danach nie wieder.
 ///
 /// Die Uhrzeiten stehen bewusst **nicht** unter „Parameter": Dort liegen die
 /// gruppenweiten Kosten-Werte, die für alle gelten. Hier entscheidet jede
@@ -18,7 +24,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/push_messaging.dart';
 import '../../data/providers.dart';
 import '../../models/notification_prefs.dart';
-import '../../models/person.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -30,7 +35,11 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   String? _token;
-  String? _personId;
+
+  /// Auf welche Person dieses Gerät in `push_devices` steht — `null` heißt
+  /// „bekommt keine". Nicht zu verwechseln mit der Geräte-Zuordnung: Die sagt,
+  /// wer hier sitzt, diese hier, ob er auch etwas zugestellt bekommt.
+  String? _registeredPersonId;
   NotificationPrefs? _prefs;
   bool _loading = true;
   bool _busy = false;
@@ -57,10 +66,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       if (!mounted) return;
       setState(() {
         _token = token;
-        _personId = state.personId;
+        _registeredPersonId = state.personId;
         _prefs = state.prefs;
         _loading = false;
       });
+      // Wer sich seit der letzten Registrierung umbenannt hat — also im Menü
+      // eine andere Person gewählt hat —, bekäme sonst weiter die Meldungen
+      // der alten. Die Zuordnung im Menü ist die Wahrheit, `push_devices`
+      // folgt ihr.
+      await _syncPerson();
     } catch (_) {
       // Ohne diesen Zweig bliebe der Ladekreis für immer stehen: Die
       // Ausnahme verschwände still in der async-Funktion, und der Screen
@@ -101,36 +115,80 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
   }
 
-  Future<void> _choosePerson(String? personId) async {
+  /// Zieht `push_devices` auf die im Menü gewählte Person nach.
+  ///
+  /// Läuft still: Wer den Screen öffnet, hat nicht um eine Registrierung
+  /// gebeten — nur darum, dass das Richtige eingestellt ist.
+  Future<void> _syncPerson() async {
+    final registered = _registeredPersonId;
+    final token = _token;
     final platform = pushPlatform;
-    if (platform == null) return;
+    final me = ref.read(myPersonProvider);
+    if (registered == null || token == null || platform == null) return;
+    if (me == null || me.id == registered) return;
+
     await _guard(() async {
-      // Erst jetzt fragen — der Nutzer hat gerade eingeschaltet.
+      final repository = ref.read(pushRepositoryProvider);
+      await repository.register(
+        token: token,
+        personId: me.id,
+        platform: platform,
+      );
+      final state = await repository.stateFor(token);
+      final prefs = state.prefs ?? NotificationPrefs.initial(me.id);
+      if (state.prefs == null) await repository.savePrefs(prefs);
+      if (!mounted) return;
+      setState(() {
+        _registeredPersonId = me.id;
+        _prefs = prefs;
+      });
+    });
+  }
+
+  /// Der Hauptschalter: Bekommt dieses Gerät Benachrichtigungen?
+  ///
+  /// Früher war das die Personen-Auswahl — die ist seit #121 im Menü, also
+  /// braucht es hier einen eigenen. Er ist zugleich der einzige Ort, an dem
+  /// die Berechtigung erfragt werden darf: Der Nutzer hat gerade eingeschaltet.
+  Future<void> _setEnabled(bool value) async {
+    final platform = pushPlatform;
+    final me = ref.read(myPersonProvider);
+    if (platform == null || me == null) return;
+
+    await _guard(() async {
+      final repository = ref.read(pushRepositoryProvider);
+
+      if (!value) {
+        final token = _token;
+        if (token != null) await repository.unregister(token);
+        if (!mounted) return;
+        setState(() {
+          _registeredPersonId = null;
+          _prefs = null;
+        });
+        return;
+      }
+
       final token = _token ?? await ref.read(pushTokenProvider)(ask: true);
       if (token == null) {
         _report('Ohne erlaubte Benachrichtigungen geht es nicht.');
         return;
       }
-      final repository = ref.read(pushRepositoryProvider);
       await repository.register(
         token: token,
-        personId: personId,
+        personId: me.id,
         platform: platform,
       );
-
-      var prefs = _prefs;
-      if (personId != null && (prefs == null || prefs.personId != personId)) {
-        // Keine Zeile heißt „keine Benachrichtigungen". Wer sich hier
-        // zuordnet, will welche — also legen wir sie mit der Vorbelegung an.
-        final state = await repository.stateFor(token);
-        prefs = state.prefs ?? NotificationPrefs.initial(personId);
-        if (state.prefs == null) await repository.savePrefs(prefs);
-      }
+      // Keine Zeile heißt „keine Benachrichtigungen". Wer hier einschaltet,
+      // will welche — also legen wir sie mit der Vorbelegung an.
+      final state = await repository.stateFor(token);
+      final prefs = state.prefs ?? NotificationPrefs.initial(me.id);
+      if (state.prefs == null) await repository.savePrefs(prefs);
       if (!mounted) return;
       setState(() {
         _token = token;
-        _personId = personId;
-        _prefs = personId == null ? null : prefs;
+        _registeredPersonId = me.id;
+        _prefs = prefs;
       });
     });
   }
@@ -181,23 +239,31 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (_, _) =>
                   _Hint('Personen nicht geladen.', onRetry: _retry),
-              data: _body,
+              // Die Liste selbst braucht der Rumpf nicht mehr — nur, dass sie
+              // da ist, denn `myPersonProvider` schlägt darin nach.
+              data: (_) => _body(),
             ),
     );
   }
 
-  Widget _body(List<Person> persons) {
-    final active = [
-      for (final p in persons)
-        if (p.active) p,
-    ]..sort((a, b) => a.name.compareTo(b.name));
+  Widget _body() {
+    final me = ref.watch(myPersonProvider);
 
-    // Die gemerkte Person muss es noch geben: Wird sie auf einem anderen
-    // Gerät inaktiv gesetzt — oder wechselt die Anmeldung die Gruppe —,
-    // zeigte das Dropdown sonst auf einen Wert ohne Eintrag und Flutter
-    // bricht mit „exactly one item" ab.
-    final selected = active.any((p) => p.id == _personId) ? _personId : null;
-    final prefs = selected == null ? null : _prefs;
+    // Ohne gewählte Person gibt es niemanden, für den man etwas einstellen
+    // könnte. Über das Menü ist der Punkt dann ausgegraut — direkt über die
+    // Adresse ist er trotzdem erreichbar, und dann erklärt der Screen das,
+    // statt leer zu bleiben.
+    if (me == null) {
+      return const _Hint(
+        'Erst festlegen, wer du bist: Das steht im Menü oben rechts unter '
+        '„Ich bin". Ohne diese Angabe weiß dieses Gerät nicht, wessen Tag es '
+        'melden soll.',
+      );
+    }
+
+    // Registriert ist das Gerät genau dann, wenn eine Person daran hängt.
+    final enabled = _registeredPersonId != null;
+    final prefs = enabled ? _prefs : null;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -207,24 +273,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           'und Bescheid sagen, wenn sich bis zur Abfahrt noch etwas ändert.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 20),
-        DropdownButtonFormField<String?>(
-          initialValue: selected,
-          decoration: const InputDecoration(
-            labelText: 'Ich bin',
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('niemand')),
-            for (final person in active)
-              DropdownMenuItem(value: person.id, child: Text(person.name)),
-          ],
-          onChanged: _busy ? null : _choosePerson,
+        const Divider(height: 32),
+        SwitchListTile(
+          value: enabled,
+          onChanged: _busy ? null : _setEnabled,
+          title: const Text('Benachrichtigungen auf diesem Gerät'),
+          subtitle: Text('für ${me.name}'),
+          contentPadding: EdgeInsets.zero,
         ),
-        const SizedBox(height: 8),
         Text(
-          'Das ist keine Anmeldung — die Gruppe teilt sich einen Zugang. '
-          'Die Auswahl sagt nur, für wen dieses Gerät benachrichtigt wird.',
+          'Wer das ist, änderst du im Menü unter „Ich bin". Das ist keine '
+          'Anmeldung — die Gruppe teilt sich einen Zugang.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         if (prefs != null) ...[

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.43.0+60
+version: 0.44.0+61
 
 environment:
   sdk: ^3.11.0
@@ -60,6 +60,13 @@ dependencies:
   # mit einem Paket ab.
   firebase_core: ^4.12.1
   firebase_messaging: ^16.4.3
+  # Wer sitzt an diesem Gerät (#121). Kam bisher nur transitiv über
+  # supabase_flutter herein — seit `lib/` selbst dort ablegt, gehört sie
+  # deklariert. Achtung: Die Android-Backup-Regeln schließen
+  # FlutterSharedPreferences.xml als GANZE Datei aus (dort liegt das
+  # Sitzungs-Token der Gruppe); alles hier Abgelegte überlebt deshalb
+  # keinen Gerätewechsel. Siehe res/xml/backup_rules.xml.
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:

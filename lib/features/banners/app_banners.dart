@@ -1,5 +1,10 @@
-/// app_banners.dart – Hinweisleisten über der Übersicht: die nächste Fahrt,
-/// eine neue App-Version und Feedback (Wunsch/Fehler).
+/// app_banners.dart – Hinweisleisten über der Übersicht, in dieser
+/// Reihenfolge: fehlende Personen-Auswahl, die nächste Fahrt, eine neue
+/// App-Version und Feedback (Wunsch/Fehler).
+///
+/// Die Reihenfolge ist keine Laune: Oben stehen die dauerhaften (offene
+/// Einrichtung, dann Information), unten die, die kommen und gehen. Andersherum
+/// spränge der Inhalt, sobald ein Update-Hinweis auftaucht oder weggetippt wird.
 library;
 
 import 'dart:async';
@@ -20,6 +25,7 @@ import '../../core/tokens.dart';
 import '../../core/update_check.dart';
 import '../../data/feedback_repository.dart';
 import '../../data/providers.dart';
+import '../identity/identity_dialog.dart';
 
 /// Banner nur für die laufende Sitzung ausblenden (bewusst ohne Persistenz).
 final updateBannerDismissedProvider = StateProvider<bool>((ref) => false);
@@ -37,8 +43,12 @@ class AppBanners extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Steht zuoberst und bleibt: Es ist das einzige dauerhafte der drei.
-        // Läge es unten, spränge es, sobald ein Update-Hinweis kommt und geht.
+        // Ganz oben, weil es eine offene Einrichtung meldet und keine
+        // Information: Solange niemand gewählt ist, funktioniert ein Teil der
+        // App nicht. Verschwindet für immer, sobald jemand gewählt ist.
+        const _IdentityBanner(),
+        // Danach das dauerhafte Informations-Banner. Läge es unten, spränge
+        // es, sobald ein Update-Hinweis kommt und geht.
         const _NextRideBanner(),
         if (update != null && !updateDismissed)
           _Banner(
@@ -61,6 +71,42 @@ class AppBanners extends ConsumerWidget {
                 ref.read(feedbackBannerDismissedProvider.notifier).state = true,
           ),
       ],
+    );
+  }
+}
+
+/// „Niemand ausgewählt" — die Erinnerung an die übersprungene Startabfrage
+/// (#121).
+///
+/// Sie steht **nur hier**, nicht zusätzlich als wiederkehrender Dialog: Zwei
+/// Mahner sind einer zu viel, und was bei jedem Start aufpoppt, klickt man
+/// blind weg. Nicht ausblendbar, dafür ist ein Tipp der Weg zur Lösung.
+class _IdentityBanner extends ConsumerWidget {
+  const _IdentityBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Abgeschaltet heißt abgeschaltet: Sonst mahnte ein Feature, das es in
+    // diesem Lauf gar nicht gibt. Deckt den Demo-Modus mit ab — der Provider
+    // hängt selbst an `SupabaseConfig.isConfigured`.
+    if (!ref.watch(identityEnabledProvider)) return const SizedBox.shrink();
+
+    final identity = ref.watch(deviceIdentityProvider).value;
+    // Vor der ersten Frage kein Banner — dort kommt der Dialog. Und solange
+    // geladen wird, sagt ein Streifen, der nichts weiß, besser nichts.
+    if (identity == null || !identity.asked) return const SizedBox.shrink();
+    if (ref.watch(myPersonProvider) != null) return const SizedBox.shrink();
+
+    final scheme = Theme.of(context).colorScheme;
+    return _Banner(
+      icon: Icons.badge_outlined,
+      text: 'Niemand ausgewählt',
+      subtitle:
+          'Tippen, um festzulegen, wer du bist — sonst gibt es hier '
+          'keine Benachrichtigungen.',
+      background: scheme.secondaryContainer,
+      foreground: scheme.onSecondaryContainer,
+      onTap: () => unawaited(showIdentityDialog(context)),
     );
   }
 }

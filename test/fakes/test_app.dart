@@ -6,6 +6,7 @@ library;
 
 import 'package:mitfahrbar/app.dart';
 import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,11 +31,18 @@ import 'fake_backend.dart';
 /// auf — sonst rechnet der Test mit einer anderen Woche als die App.
 final DateTime testToday = DateTime(2026, 7, 22);
 
+/// [identity] schaltet die Geräte-Zuordnung (#121) EIN und gibt ihren
+/// Startzustand vor. Standardmäßig ist sie **aus** — aus demselben Grund wie
+/// beim Splash: `SupabaseConfig.isConfigured` ist im Test `true` (der
+/// eingecheckte Default ist die echte Projekt-URL), also träfe sonst jeder
+/// Flow-Test zuerst auf die Startabfrage oder das Banner statt auf seinen
+/// eigenen Inhalt.
 Future<void> pumpApp(
   WidgetTester tester,
   FakeBackend backend, {
   List<Override> overrides = const [],
   bool splash = false,
+  DeviceIdentity? identity,
 }) async {
   await initializeDateFormatting('de');
   addTearDown(backend.dispose);
@@ -91,6 +99,10 @@ Future<void> pumpApp(
         // samstags — der Planer zeigt am Wochenende die kommende Woche,
         // und deren Tage sind noch nicht bestätigbar (25.07.2026).
         nowProvider.overrideWithValue(() => testToday),
+        identityEnabledProvider.overrideWithValue(identity != null),
+        deviceIdentityStoreProvider.overrideWithValue(
+          InMemoryDeviceIdentityStore(identity ?? DeviceIdentity.unknown),
+        ),
         ...overrides,
       ],
       child: const FahrgemeinschaftApp(),

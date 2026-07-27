@@ -21,17 +21,54 @@ import '../../core/widgets/mitfahrbar_mark.dart';
 import '../about/about_dialog.dart';
 import '../banners/app_banners.dart';
 import '../export/export_action.dart';
+import '../identity/identity_dialog.dart';
 import '../invite/invite_dialog.dart';
 import 'dashboard_charts.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  /// Die Startabfrage kommt einmal je App-Lauf, nie zweimal übereinander.
+  bool _asking = false;
+
+  /// Fragt beim ersten Start, wer hier sitzt (#121).
+  ///
+  /// Bewusst **hier** und nicht im `builder` der MaterialApp: Dort liegen
+  /// Splash und Sperr-Schirm, und ein `showDialog` ohne eigenen Navigator ist
+  /// genau der Fehler, der 0.37.0 den toten Update-Knopf beschert hat. Die
+  /// Übersicht liegt im Router-Navigator und existiert erst nach dem Login mit
+  /// geladenen Personen — also genau dann, wenn die Frage beantwortbar ist.
+  void _maybeAsk(List<Person> persons) {
+    if (_asking) return;
+    if (persons.every((p) => !p.active)) return;
+    final identity = ref.read(deviceIdentityProvider).value;
+    if (identity == null || identity.asked) return;
+
+    _asking = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(showIdentityDialog(context, atStart: true));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ranking = ref.watch(activeRankingProvider);
     final persons = ref.watch(personsProvider);
     final group = ref.watch(myGroupProvider).value;
+    final me = ref.watch(myPersonProvider);
+    // Ist die Zuordnung abgeschaltet (Tests), verhält sich das Menü exakt wie
+    // vorher: kein eigener Eintrag, und „Benachrichtigungen" bleibt offen.
+    // Sonst hinge an einem ausgeschalteten Feature trotzdem eine Sperre.
+    final identityOn = ref.watch(identityEnabledProvider);
+    final hasIdentity = !identityOn || me != null;
+
+    if (persons.value case final list?) _maybeAsk(list);
 
     return Scaffold(
       appBar: AppBar(
@@ -49,7 +86,9 @@ class DashboardScreen extends ConsumerWidget {
             tooltip: 'Zugang',
             icon: const Icon(Icons.account_circle_outlined),
             onSelected: (value) {
-              if (value == 'persons') {
+              if (value == 'identity') {
+                unawaited(showIdentityDialog(context));
+              } else if (value == 'persons') {
                 context.push('/persons');
               } else if (value == 'settings') {
                 unawaited(context.push('/settings'));
@@ -83,6 +122,20 @@ class DashboardScreen extends ConsumerWidget {
               }
             },
             itemBuilder: (context) => [
+              // Ganz oben: Wer hier sitzt, entscheidet, was die übrigen
+              // Einträge können. Der Stand steht rechts statt als Untertitel —
+              // dieses Menü ist lang, und eine zweite Zeile schiebt die
+              // unteren Einträge vom Bildschirm.
+              if (identityOn)
+                PopupMenuItem(
+                  value: 'identity',
+                  child: ListTile(
+                    leading: const Icon(Icons.badge_outlined),
+                    title: const Text('Ich bin'),
+                    trailing: Text(me?.name ?? 'niemand'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               const PopupMenuItem(
                 value: 'persons',
                 child: ListTile(
@@ -101,12 +154,24 @@ class DashboardScreen extends ConsumerWidget {
               ),
               // Wie „Einladen" an ein echtes Backend gehängt: Ohne Zugang
               // gibt es kein Gerät, dem man etwas zustellen könnte.
+              //
+              // Ohne gewählte Person ausgegraut statt versteckt — versteckt
+              // bliebe unerklärt, warum der Punkt fehlt. Umgekehrt bleibt er
+              // dort ganz weg, wo die Plattform gar kein Push kann (iOS): Ein
+              // dauerhaft toter Eintrag wäre schlechter als keiner.
+              // `PopupMenuItem.enabled` sperrt, `ListTile.enabled` graut —
+              // es braucht beide.
               if (SupabaseConfig.isConfigured)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'notifications',
+                  enabled: hasIdentity,
                   child: ListTile(
-                    leading: Icon(Icons.notifications_outlined),
-                    title: Text('Benachrichtigungen'),
+                    enabled: hasIdentity,
+                    leading: const Icon(Icons.notifications_outlined),
+                    title: const Text('Benachrichtigungen'),
+                    subtitle: hasIdentity
+                        ? null
+                        : const Text('Erst festlegen, wer du bist'),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),

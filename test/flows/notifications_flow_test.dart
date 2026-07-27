@@ -1,13 +1,15 @@
 /// notifications_flow_test.dart – Benachrichtigungen einrichten (Issue #101).
 ///
-/// Der eigentliche Inhalt ist die Zuordnung Gerät → Person: Sie ist bewusst
-/// **kein** Login (jeder kann jeden wählen), muss aber trotzdem an der Gruppe
-/// hängen — sonst bekäme ein Gerät nach einem Gruppenwechsel weiter die
-/// Nachrichten der alten Gruppe.
+/// **Wer** benachrichtigt wird, steht seit #121 nicht mehr hier, sondern in
+/// der Geräte-Zuordnung (`identity_flow_test.dart`). Hier bleibt: ob dieses
+/// Gerät welche bekommt, wann — und dass die Zuordnung an der Gruppe hängt,
+/// sonst bekäme ein Gerät nach einem Gruppenwechsel weiter die Nachrichten der
+/// alten.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/data/push_repository.dart';
 import 'package:mitfahrbar/models/person.dart';
@@ -23,7 +25,14 @@ class _BrokenPushRepository extends NoopPushRepository {
       throw StateError('keine Tabelle');
 }
 
-Future<FakeBackend> _backend() async {
+class _Fixture {
+  const _Fixture(this.backend, this.anna, this.ben);
+  final FakeBackend backend;
+  final String anna;
+  final String ben;
+}
+
+Future<_Fixture> _backend() async {
   final backend = FakeBackend();
   final groupId = backend.addGroup(
     handle: 'daciaracing',
@@ -31,17 +40,18 @@ Future<FakeBackend> _backend() async {
     name: 'Dacia Racing',
   );
   final data = backend.dataFor(groupId);
-  await data.createPerson(const Person(id: '', name: 'Anna', active: true));
-  await data.createPerson(const Person(id: '', name: 'Ben', active: true));
+  final anna = await data.createPerson(
+    const Person(id: '', name: 'Anna', active: true),
+  );
+  final ben = await data.createPerson(
+    const Person(id: '', name: 'Ben', active: true),
+  );
   await data.createPerson(const Person(id: '', name: 'Alt', active: false));
-  return backend;
+  return _Fixture(backend, anna.id, ben.id);
 }
 
-Future<void> _login(
-  WidgetTester tester, {
-  String handle = 'daciaracing',
-}) async {
-  await tester.enterText(find.byType(TextField).first, handle);
+Future<void> _login(WidgetTester tester) async {
+  await tester.enterText(find.byType(TextField).first, 'daciaracing');
   await tester.enterText(find.byType(TextField).last, 'geheim123');
   await tester.tap(find.widgetWithText(FilledButton, 'Anmelden'));
   await tester.pumpAndSettle();
@@ -54,22 +64,22 @@ Future<void> _open(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _choose(WidgetTester tester, String name) async {
-  await tester.tap(find.byType(DropdownButtonFormField<String?>));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text(name).last);
+/// Der Hauptschalter — seit #121 der Einschalter statt der Personen-Auswahl.
+Future<void> _toggle(WidgetTester tester) async {
+  await tester.tap(find.text('Benachrichtigungen auf diesem Gerät'));
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('wer sich zuordnet, bekommt die Vorbelegung angelegt', (
+  testWidgets('wer einschaltet, bekommt die Vorbelegung angelegt', (
     tester,
   ) async {
-    final backend = await _backend();
-    final push = FakePushRepository(backend);
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [pushRepositoryProvider.overrideWithValue(push)],
     );
     await _login(tester);
@@ -78,48 +88,73 @@ void main() {
     // Vorher gibt es nichts — keine Zeile heißt keine Benachrichtigungen.
     expect(push.prefs, isEmpty);
     expect(find.text('Abends der Blick auf morgen'), findsNothing);
+    // Für wen es gilt, sagt der Schalter — gewählt wird es im Menü.
+    expect(find.text('für Anna'), findsOneWidget);
 
-    await _choose(tester, 'Anna');
+    await _toggle(tester);
 
     expect(push.prefs, hasLength(1));
     final prefs = push.prefs.values.single;
+    expect(prefs.personId, f.anna);
     expect(prefs.eveningTime.format(), '21:00');
     expect(prefs.departureTime.format(), '07:30');
     expect(prefs.eveningEnabled, isTrue);
     expect(find.text('Abends der Blick auf morgen'), findsOneWidget);
   });
 
-  testWidgets('inaktive Personen stehen nicht zur Auswahl', (tester) async {
-    final backend = await _backend();
-    await pumpApp(tester, backend);
+  // Die Zuordnung im Menü ist die Wahrheit, `push_devices` folgt ihr. Ohne
+  // diesen Abgleich bekäme das Gerät nach einem Wechsel weiter die Meldungen
+  // der vorigen Person — und niemand käme darauf, warum.
+  testWidgets('eine geänderte Zuordnung zieht die Zustellung nach', (
+    tester,
+  ) async {
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
+    await pumpApp(
+      tester,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
     await _login(tester);
     await _open(tester);
+    await _toggle(tester);
+    expect(push.devices['test-token']?.$2, f.anna);
 
-    await tester.tap(find.byType(DropdownButtonFormField<String?>));
+    // Zurück und im Menü auf Ben umstellen.
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
-    expect(find.text('Anna'), findsWidgets);
-    expect(
-      find.text('Alt'),
-      findsNothing,
-      reason:
-          'Wer inaktiv ist, fährt nicht mit — eine Zustellung an ihn wäre '
-          'Lärm, und der Planer kennt ihn ohnehin nicht mehr.',
+    await tester.tap(find.byIcon(Icons.account_circle_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ich bin'));
+    await tester.pumpAndSettle();
+    // „Ben" steht auch im Ranking hinter dem Dialog — auf den im Dialog
+    // eingrenzen, sonst tippt der Test auf die Übersicht.
+    await tester.tap(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('Ben')),
     );
+    await tester.pumpAndSettle();
+
+    await _open(tester);
+
+    expect(push.devices['test-token']?.$2, f.ben);
+    expect(find.text('für Ben'), findsOneWidget);
   });
 
   testWidgets('ein Schalter landet sofort in den Einstellungen', (
     tester,
   ) async {
-    final backend = await _backend();
-    final push = FakePushRepository(backend);
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [pushRepositoryProvider.overrideWithValue(push)],
     );
     await _login(tester);
     await _open(tester);
-    await _choose(tester, 'Anna');
+    await _toggle(tester);
 
     await tester.tap(find.text('Änderungen bis zur Abfahrt'));
     await tester.pumpAndSettle();
@@ -137,16 +172,17 @@ void main() {
   testWidgets('ohne Abend-Blick sperrt der Änderungs-Schalter und sagt warum', (
     tester,
   ) async {
-    final backend = await _backend();
-    final push = FakePushRepository(backend);
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [pushRepositoryProvider.overrideWithValue(push)],
     );
     await _login(tester);
     await _open(tester);
-    await _choose(tester, 'Anna');
+    await _toggle(tester);
 
     SwitchListTile changes() => tester.widget<SwitchListTile>(
       find.widgetWithText(SwitchListTile, 'Änderungen bis zur Abfahrt'),
@@ -188,20 +224,21 @@ void main() {
     );
   });
 
-  testWidgets('„niemand" nimmt das Gerät aus der Zustellung', (tester) async {
-    final backend = await _backend();
-    final push = FakePushRepository(backend);
+  testWidgets('Ausschalten nimmt das Gerät aus der Zustellung', (tester) async {
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [pushRepositoryProvider.overrideWithValue(push)],
     );
     await _login(tester);
     await _open(tester);
-    await _choose(tester, 'Anna');
-    await _choose(tester, 'niemand');
+    await _toggle(tester);
+    await _toggle(tester);
 
-    expect(push.devices['test-token']?.$2, isNull);
+    expect(push.devices['test-token'], isNull);
     expect(find.text('Abends der Blick auf morgen'), findsNothing);
     expect(
       push.prefs,
@@ -213,16 +250,17 @@ void main() {
   });
 
   testWidgets('die Test-Benachrichtigung geht an dieses Gerät', (tester) async {
-    final backend = await _backend();
-    final push = FakePushRepository(backend);
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [pushRepositoryProvider.overrideWithValue(push)],
     );
     await _login(tester);
     await _open(tester);
-    await _choose(tester, 'Anna');
+    await _toggle(tester);
 
     // Der Knopf steht unten in der Liste: Was nicht im Blickfeld ist, baut
     // die ListView gar nicht erst — vor dem Tippen also hinscrollen.
@@ -253,16 +291,17 @@ void main() {
   testWidgets('ein abgelehnter Versand wird als Fehlschlag gemeldet', (
     tester,
   ) async {
-    final backend = await _backend();
-    final push = FakePushRepository(backend)..testAccepted = false;
+    final f = await _backend();
+    final push = FakePushRepository(f.backend)..testAccepted = false;
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [pushRepositoryProvider.overrideWithValue(push)],
     );
     await _login(tester);
     await _open(tester);
-    await _choose(tester, 'Anna');
+    await _toggle(tester);
 
     await tester.scrollUntilVisible(
       find.text('Test-Benachrichtigung senden'),
@@ -289,14 +328,14 @@ void main() {
   // hatte — und weil der Job ihn als zugestellt verbucht, kam er nie wieder.
   testWidgets('eine eintreffende Nachricht wird auch außerhalb des '
       'Benachrichtigungs-Screens sichtbar', (tester) async {
-    final backend = await _backend();
-    await pumpApp(tester, backend);
+    final f = await _backend();
+    await pumpApp(tester, f.backend);
     await _login(tester);
 
     // Wir stehen auf der Übersicht — der Screen, auf dem man am ehesten ist.
     expect(find.text('Wer ist dran?'), findsOneWidget);
 
-    backend.deliverPush('Morgen (Mo, 27.07.)', 'Du fährst · dabei: Ben');
+    f.backend.deliverPush('Morgen (Mo, 27.07.)', 'Du fährst · dabei: Ben');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -314,10 +353,11 @@ void main() {
   testWidgets('ohne Berechtigung bleibt der Screen leer statt kaputt', (
     tester,
   ) async {
-    final backend = await _backend();
+    final f = await _backend();
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [
         // Kein Token = abgelehnt oder nicht unterstützt.
         pushTokenProvider.overrideWithValue(
@@ -330,22 +370,30 @@ void main() {
 
     expect(find.text('Abends der Blick auf morgen'), findsNothing);
     expect(
-      find.byType(DropdownButtonFormField<String?>),
-      findsOneWidget,
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(
+              SwitchListTile,
+              'Benachrichtigungen auf diesem Gerät',
+            ),
+          )
+          .onChanged,
+      isNotNull,
       reason:
-          'Die Auswahl bleibt bedienbar: Erst beim Zuordnen wird gefragt — '
-          'ein Screen, der ohne Berechtigung gar nichts zeigt, führt in die '
-          'Sackgasse.',
+          'Der Schalter bleibt bedienbar: Erst beim Einschalten wird gefragt '
+          '— ein Screen, der ohne Berechtigung gar nichts anbietet, führt in '
+          'die Sackgasse.',
     );
   });
 
   testWidgets('ein Fehler beim Laden endet nicht im ewigen Ladekreis', (
     tester,
   ) async {
-    final backend = await _backend();
+    final f = await _backend();
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [
         pushRepositoryProvider.overrideWithValue(_BrokenPushRepository()),
       ],
@@ -369,28 +417,29 @@ void main() {
   testWidgets('ein Gerät der einen Gruppe zeigt in der anderen nichts', (
     tester,
   ) async {
-    final backend = await _backend();
-    final push = FakePushRepository(backend);
-    backend.addGroup(
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
+    f.backend.addGroup(
       handle: 'andere',
       password: 'geheim123',
       name: 'Andere Gruppe',
     );
     await pumpApp(
       tester,
-      backend,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
       overrides: [pushRepositoryProvider.overrideWithValue(push)],
     );
     await _login(tester);
     await _open(tester);
-    await _choose(tester, 'Anna');
+    await _toggle(tester);
     expect(push.devices['test-token']?.$2, isNotNull);
 
     // Dasselbe Gerät, dasselbe Token, andere Gruppe angemeldet. Geprüft wird
     // hier bewusst am Repository statt über einen zweiten Login-Durchlauf:
     // An- und Abmelden hat mit auth_flow_test.dart einen eigenen Test, und
     // der Inhalt dieses hier ist die Mandantengrenze.
-    backend.setCurrentEmail('andere@grp.fahrgemeinschaft.app');
+    f.backend.setCurrentEmail('andere@grp.fahrgemeinschaft.app');
     await tester.pumpAndSettle();
 
     expect(
