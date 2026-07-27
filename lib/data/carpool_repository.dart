@@ -3,6 +3,7 @@ library;
 
 import '../models/app_settings.dart';
 import '../models/person.dart';
+import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
 import '../models/trip.dart';
 
@@ -63,6 +64,21 @@ abstract class CarpoolRepository {
   /// #62: ein Tag kann mehrere Autos haben). Eine leere Menge nimmt das
   /// Übersteuern zurück und lässt wieder den Vorschlag gelten.
   Future<void> setPlanDrivers(DateTime date, Set<String> driverIds);
+
+  /// Anmerkungen ab [from] für [days] Tage, älteste zuerst (Issue #127).
+  ///
+  /// Dieselbe Spanne wie [loadPlan] und aus demselben Grund: Der Planer
+  /// zeigt eine Woche und holt sie in EINER Anfrage. Der Tagesschirm ruft
+  /// mit `days: 1`.
+  Future<List<PlanNote>> loadNotes(DateTime from, {int days = 7});
+
+  /// Legt eine Anmerkung an. [personId] ist der Verfasser — kein
+  /// Identitätsnachweis, jeder darf für jeden schreiben.
+  Future<void> addNote(DateTime date, String personId, String body);
+
+  /// Löscht eine Anmerkung. Gruppenweit möglich: Ein Löschknopf nur beim
+  /// eigenen Autor wäre Vertipper-Schutz, keine Zugriffskontrolle.
+  Future<void> deleteNote(String noteId);
 }
 
 /// Rohdaten des Wochenplans, wie sie in der Datenbank stehen.

@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.46.0] – 2026-07-27
+
+### Neu
+
+- **Ihr könnt jetzt Anmerkungen an einen Tag schreiben** — kurze Hinweise wie
+  „Komme erst um 9" oder „Ich parke heute woanders". Zu finden über die
+  Sprechblase am Banner der nächsten Fahrt oder mit einem Tipp auf eine
+  Tageszeile im Wochenplan; dort steht auch, wie viele es sind.
+- **Wer benachrichtigt wird, bekommt die neueste Anmerkung aufs Handy** — im
+  Abend-Blick oder als Änderungs-Meldung. Achtung: **Das kann eine Weile
+  dauern.** Was sofort ankommen muss, sagt ihr weiterhin besser per WhatsApp
+  oder am Telefon. Wer den Abend-Blick abgeschaltet hat, bekommt auch keine
+  Anmerkungen — der Benachrichtigungs-Screen sagt das jetzt dazu.
+- Wer unter „Ich bin" jemanden ausgewählt hat, schreibt sofort los; sonst
+  wählt ihr vorher kurz aus, wer schreibt. Löschen darf jeder — es ist wie
+  im Planer, wo auch jeder für jeden einträgt.
+
+Die Anmerkungen ändern **nichts** am Plan und nichts an den Punkten. Damit
+ist auch der Wunsch nach einer Kennzeichnung für abweichende Zeiten erledigt.
+
 ## [0.45.0] – 2026-07-27
 
 ### Neu

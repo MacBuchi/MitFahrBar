@@ -20,6 +20,7 @@ import 'package:mitfahrbar/models/app_settings.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/group.dart';
 import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
 import 'package:mitfahrbar/models/trip.dart';
 
@@ -247,6 +248,17 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
   @override
   Future<void> setPlanDrivers(DateTime date, Set<String> driverIds) =>
       _target.setPlanDrivers(date, driverIds);
+
+  @override
+  Future<List<PlanNote>> loadNotes(DateTime from, {int days = 7}) =>
+      _target.loadNotes(from, days: days);
+
+  @override
+  Future<void> addNote(DateTime date, String personId, String body) =>
+      _target.addNote(date, personId, body);
+
+  @override
+  Future<void> deleteNote(String noteId) => _target.deleteNote(noteId);
 }
 
 class FakeAppConfigRepository implements AppConfigRepository {

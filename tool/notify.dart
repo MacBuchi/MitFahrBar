@@ -25,6 +25,7 @@ import 'package:mitfahrbar/core/push_digest.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
 import 'package:mitfahrbar/models/trip.dart';
 
@@ -124,6 +125,24 @@ Future<int> _handleGroup({
   final week = planningWeek(now);
   final planned = await _plan(api, scope, week, active);
 
+  // Anmerkungen (#127). `order=created_at` ist Pflicht: Der Digest mischt die
+  // Notiz-IDs ein, und ohne zugesicherte Reihenfolge unterschiede er sich
+  // zwischen zwei Läufen ohne jede Datenänderung — es gäbe endlos
+  // „Änderung"-Meldungen. `push_digest.dart` sortiert zusätzlich selbst;
+  // dieser Parameter ist die zweite Hälfte desselben Riegels und zugleich
+  // das, was die Anzeige-Reihenfolge festlegt.
+  final noteRows = await api.rows('plan_notes', {
+    ...scope,
+    'plan_date': 'gte.${_isoDay(week.first)}',
+    'order': 'created_at',
+    'select': '*',
+  });
+  final notes = [
+    for (final row in noteRows)
+      if (active.containsKey(row['person_id']))
+        PlanNote.fromJson(row.cast<String, dynamic>()),
+  ];
+
   final logRows = await api.rows('push_log', {
     ...scope,
     'plan_date': 'gte.${_isoDay(week.first)}',
@@ -146,6 +165,7 @@ Future<int> _handleGroup({
     sent: sent,
     persons: active,
     now: now,
+    notes: notes,
   );
   if (due.isEmpty) return 0;
 

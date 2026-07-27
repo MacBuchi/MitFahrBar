@@ -18,6 +18,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/help/help_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/import/import_screen.dart';
+import '../features/notes/notes_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/persons/persons_screen.dart';
 import '../features/plan/plan_screen.dart';
@@ -118,6 +119,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/trip/:id',
         builder: (context, state) =>
             TripEditorScreen(tripId: state.pathParameters['id']),
+      ),
+      GoRoute(
+        // Anmerkungen eines Tages (#127). Das Datum steht als
+        // ISO-Kalendertag im Pfad — anders als beim Fahrten-Editor ist das
+        // hier richtig: Ein Reload oder ein geteilter Link soll denselben
+        // Tag zeigen. `tryParse` statt `parse`, weil eine getippte Adresse
+        // alles enthalten kann; der Screen erklärt den Fall, statt zu
+        // scheitern.
+        path: '/notes/:date',
+        builder: (context, state) => NotesScreen(
+          date: DateTime.tryParse(state.pathParameters['date'] ?? ''),
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

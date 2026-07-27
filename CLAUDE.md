@@ -550,6 +550,49 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   `test/notify_workflow_test.dart`, `test/schema_test.dart`,
   `test/push_service_worker_test.dart` und
   `test/flows/notifications_flow_test.dart`.
+- **Anmerkungen am Plantag heißen `plan_notes` und sind kein Chat**
+  (Issue #127, seit v0.46.0; deckt #120 mit ab). Der Wunsch kam zweimal in
+  derselben Woche: als „Uhrensymbol für abweichende Zeiten" und als „Chat an
+  der Wer-fährt-Kachel" mit dem Beispiel „falls jemand erst ab 9 mitfahren
+  kann". Gebaut wurde freier Text — ein Symbol ohne Uhrzeit sagt nichts, mit
+  Uhrzeit bräuchte das Raster einen Zeitwähler, wo heute ein Tap steht.
+  `KONZEPT.md` §1 („Kein Chat: Kommunikation bleibt in WhatsApp") gilt
+  weiter und trägt dort einen Ergänzungshinweis: **kein Thread, keine
+  Antwort, kein Gelesen-Status, keine Echtzeit.** Wer den Umfang wachsen
+  lässt, kippt die Begründung, mit der das Feature überhaupt entstand.
+  - **Die Punkte bleiben unberührt.** `fairness.dart` und `PlannedDay` sehen
+    die Anmerkungen nie; `dueMessages`/`dayDigestFor`/`composeBody` bekommen
+    sie als eigenen Parameter. Wer sie stattdessen in `PlannedDay` legt,
+    bricht „Geplantes darf die Punkte nie berühren" von der anderen Seite.
+  - **Der Digest sortiert die Notiz-Kennungen — das ist der Kern, nicht
+    Kosmetik.** PostgREST sichert ohne `order` keine Reihenfolge zu;
+    ungesortiert unterschiede sich der Hash zwischen zwei Läufen ohne jede
+    Datenänderung, und jeder Anwesende bekäme dauerhaft „Änderung"-Meldungen
+    über eine Planänderung, die es nie gab. Deshalb **beide** Hälften:
+    `order=created_at` in `tool/notify.dart` UND `..sort()` in
+    `dayDigestFor`. Der Test dazu wurde scharf gestellt (Sortierung raus →
+    rot). Im Digest steht nur die Kennung, nicht der Text: Es gibt kein
+    Bearbeiten.
+  - **Keine eigene `PushKind`** — die Anmerkung reist als `change` mit. Eine
+    eigene Art müsste die Empfängerfrage neu beantworten und bräuchte ein
+    Gegenstück zu `removedDigest`, sonst bekäme ein Ausgetragener weiter
+    Meldungen. Der Preis ist ausgesprochen statt still: Wer den Abend-Blick
+    abschaltet, bekommt auch keine Anmerkungs-Meldung — der
+    Benachrichtigungs-Screen sagt das.
+  - **Der Verfasser ist ein Feld, keine Sperre.** Eine Schreibsperre an
+    `myPersonProvider` wäre doppelt falsch: Sie hielte die Geräte-Zuordnung
+    für eine Zugriffskontrolle (siehe #121), und weil
+    `identityEnabledProvider` im Demo-Modus **aus** ist, stellte sie den
+    Schirm genau dort tot, wo die README-Screenshots entstehen. Löschen darf
+    jeder — Vertipper-Schutz, keine Zugriffskontrolle.
+  - **Der Text steht im Push, nicht nur ein Zähler.** Zugestellt wird über
+    den vorhandenen Job (real ~70 min, #115); eine späte Meldung, die nur
+    „1 Anmerkung" sagt, wäre zweimal wertlos. Gekürzt wie die Namensliste.
+    Der Text darf **nie** ins Log — dieselbe Regel wie beim Einladungstext,
+    auch im Fehlerpfad (Meldungen ohne Fehlertext).
+  Festgenagelt in `test/push_digest_test.dart`, `test/schema_test.dart`,
+  `test/notify_workflow_test.dart`, `test/flows/notes_flow_test.dart`,
+  `test/flows/banner_flow_test.dart` und `test/e2e/rls_e2e_test.dart`.
 - Kein `print` in `lib/` — zentraler Logger `core/log.dart`.
 - **Der Einladungstext darf nie ins Log.** „Jemanden einladen"
   (`features/invite/`) kann auf Wunsch das **Gruppenpasswort** enthalten —

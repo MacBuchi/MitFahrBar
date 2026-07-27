@@ -16,11 +16,14 @@
 /// liest auch die Übersicht hier — das Banner „nächste Fahrt" nimmt
 /// [composeGroupBody] und [dayLabel]. Der Wortlaut gehört deshalb hierher und
 /// nicht ins Widget: Was das Handy meldet und was die App zeigt, darf nicht
-/// auseinanderlaufen.
+/// auseinanderlaufen. Aus demselben Grund tragen seit #127 **beide**
+/// compose-Funktionen die Anmerkungen: Nur eine zu ergänzen ließe Banner und
+/// Benachrichtigung sofort abdriften.
 library;
 
 import '../models/notification_prefs.dart';
 import '../models/person.dart';
+import '../models/plan_note.dart';
 import 'fairness.dart';
 
 /// Warum eine Nachricht rausgeht.
@@ -90,7 +93,16 @@ const String removedDigest = 'raus';
 ///
 /// **Nicht drin sind die Punkte.** Die ändern sich bei jeder eingetragenen
 /// Fahrt und lösten sonst Nachrichten aus, die niemanden interessieren.
-String dayDigestFor(PlannedDay day, String personId) {
+///
+/// [notes] darf die Anmerkungen **aller** Tage enthalten — hier wird auf
+/// [day] gefiltert. Eine flache Liste statt einer Map nach Tag ist Absicht:
+/// Ein Aufrufer, der falsch auf Tagesbeginn normiert, könnte Anmerkungen
+/// sonst unsichtbar am Tag vorbeischieben.
+String dayDigestFor(
+  PlannedDay day,
+  String personId, {
+  List<PlanNote> notes = const [],
+}) {
   if (!day.availableIds.contains(personId)) return removedDigest;
 
   final state = StringBuffer();
@@ -111,6 +123,28 @@ String dayDigestFor(PlannedDay day, String personId) {
       ..write(')');
   }
   state.write(day.confirmed ? '|x' : '|-');
+
+  // Anmerkungen (#127): Eine neue oder gelöschte verändert den Tag für alle
+  // und soll deshalb eine Meldung auslösen.
+  //
+  // **Die Sortierung ist der Kern dieser Zeile, keine Kosmetik.** Der
+  // Versand-Job liest per PostgREST, das ohne `order` keine Reihenfolge
+  // zusichert. Ungesortiert unterschiede sich der Hash zwischen zwei Läufen
+  // ohne jede Datenänderung — Ergebnis wäre im Abstand des Cooldowns eine
+  // „Änderung"-Meldung an jeden Anwesenden, dauerhaft, über eine
+  // Planänderung, die es nie gab.
+  //
+  // Nur die IDs, nicht der Text: Es gibt kein Bearbeiten, die ID ist exakt.
+  // Löschen und neu schreiben ergibt eine neue ID und damit richtigerweise
+  // eine Meldung.
+  final ids = [
+    for (final note in notes)
+      if (_dayOnly(note.date) == _dayOnly(day.date)) note.id,
+  ]..sort();
+  state
+    ..write('|')
+    ..write(ids.join(','));
+
   return _hash(state.toString());
 }
 
@@ -128,12 +162,21 @@ String dayDigestFor(PlannedDay day, String personId) {
 /// `features/notifications/notifications_screen.dart` spiegelt genau das,
 /// indem es den Änderungs-Schalter dann sperrt; wer die Regel hier ändert,
 /// ändert sie dort mit.
+///
+/// [notes] sind die Anmerkungen (#127) **aller** Tage; sie reisen bewusst als
+/// `change` mit und bekommen keine eigene [PushKind]. Eine eigene Art müsste
+/// die Empfängerfrage neu beantworten und bräuchte ein Gegenstück zu
+/// [removedDigest] — sonst bekäme jemand, der aus dem Tag heraus ist, weiter
+/// Anmerkungs-Meldungen. **Der Preis, der dazugehört:** Wer den Abend-Blick
+/// abgeschaltet hat, bekommt auch keine Anmerkungs-Meldung; der
+/// Benachrichtigungs-Screen sagt das.
 List<DuePush> dueMessages({
   required List<PlannedDay> week,
   required Map<String, NotificationPrefs> prefs,
   required List<SentPush> sent,
   required Map<String, Person> persons,
   required DateTime now,
+  List<PlanNote> notes = const [],
   Duration changeCooldown = const Duration(minutes: 30),
 }) {
   final index = <String, SentPush>{
@@ -169,7 +212,7 @@ List<DuePush> dueMessages({
       final closes = pref.departureTime.on(date);
       if (now.isBefore(opens) || !now.isBefore(closes)) continue;
 
-      final digest = dayDigestFor(day, personId);
+      final digest = dayDigestFor(day, personId, notes: notes);
       final evening = index[_logKey(personId, date, PushKind.evening)];
       final change = index[_logKey(personId, date, PushKind.change)];
 
@@ -184,7 +227,7 @@ List<DuePush> dueMessages({
             planDate: date,
             kind: PushKind.evening,
             title: composeTitle(date, PushKind.evening, now, removed: false),
-            body: composeBody(day, personId, persons),
+            body: composeBody(day, personId, persons, notes: notes),
             digest: digest,
           ),
         );
@@ -211,7 +254,7 @@ List<DuePush> dueMessages({
             now,
             removed: digest == removedDigest,
           ),
-          body: composeBody(day, personId, persons),
+          body: composeBody(day, personId, persons, notes: notes),
           digest: digest,
         ),
       );
@@ -240,8 +283,9 @@ String composeTitle(
 String composeBody(
   PlannedDay day,
   String personId,
-  Map<String, Person> persons,
-) {
+  Map<String, Person> persons, {
+  List<PlanNote> notes = const [],
+}) {
   if (!day.availableIds.contains(personId)) {
     return 'Du bist für diesen Tag nicht mehr eingetragen.';
   }
@@ -283,6 +327,8 @@ String composeBody(
   }
 
   if (day.cars.length > 1) parts.add('${day.cars.length} Autos');
+  final note = _notePhrase(day, persons, notes);
+  if (note != null) parts.add(note);
   return parts.join(' · ');
 }
 
@@ -294,7 +340,11 @@ String composeBody(
 /// nicht. Diese Fassung nennt den Fahrer beim Namen und zählt alle übrigen
 /// Anwesenden als Mitfahrer — sie teilt sich [_driverPhrase] und [_names] mit
 /// der persönlichen, damit beide dieselbe Sprache sprechen.
-String composeGroupBody(PlannedDay day, Map<String, Person> persons) {
+String composeGroupBody(
+  PlannedDay day,
+  Map<String, Person> persons, {
+  List<PlanNote> notes = const [],
+}) {
   final parts = <String>[];
 
   if (day.cars.isEmpty) {
@@ -322,8 +372,48 @@ String composeGroupBody(PlannedDay day, Map<String, Person> persons) {
   }
 
   if (day.cars.length > 1) parts.add('${day.cars.length} Autos');
+  final note = _notePhrase(day, persons, notes);
+  if (note != null) parts.add(note);
   return parts.join(' · ');
 }
+
+/// Die jüngste Anmerkung des Tages als `Anna: komme erst um 9`, ältere nur
+/// gezählt — oder `null`, wenn es keine gibt.
+///
+/// **Der Text steht bewusst drin, nicht nur eine Zahl.** Zugestellt wird über
+/// den 10-Minuten-Job (real deutlich träger, Issue #115); eine späte Meldung,
+/// die nur „1 Anmerkung" sagt, wäre zweimal wertlos. Gekürzt wird aus
+/// demselben Grund wie bei [_names]: Eine Benachrichtigung wird ohnehin
+/// abgeschnitten, lieber lesbar kurz als vollständig unlesbar.
+///
+/// Was hier entsteht, darf **niemals** in einem `log`-Aufruf landen —
+/// dieselbe Regel wie beim Einladungstext: `logRing` hängt an der
+/// Rückmeldung, und die wird ein öffentliches Issue.
+String? _notePhrase(
+  PlannedDay day,
+  Map<String, Person> persons,
+  List<PlanNote> notes,
+) {
+  final mine = [
+    for (final note in notes)
+      if (_dayOnly(note.date) == _dayOnly(day.date)) note,
+  ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  if (mine.isEmpty) return null;
+
+  final latest = mine.last;
+  final body = latest.body.trim();
+  final short = body.length <= _noteMaxChars
+      ? body
+      : '${body.substring(0, _noteMaxChars).trimRight()}…';
+  final phrase = '${_name(latest.personId, persons)}: $short';
+  return mine.length == 1 ? phrase : '$phrase (+${mine.length - 1} weitere)';
+}
+
+/// Ab hier wird die Anmerkung in der Benachrichtigung gekürzt. Android und
+/// die Browser schneiden je nach Gerät früher oder später ab — dieser Wert
+/// sorgt dafür, dass wenigstens das Kürzungszeichen sichtbar wird und nicht
+/// mitten im Wort abgeschnitten aussieht.
+const int _noteMaxChars = 60;
 
 /// `Morgen (Di, 28.07.)` — bezogen auf [now], damit ein nachgeholter Lauf am
 /// Morgen nicht „morgen" schreibt, wenn der Tag längst da ist.

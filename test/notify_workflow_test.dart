@@ -91,6 +91,22 @@ void main() {
     expect(job, contains('planWeek('));
   });
 
+  test('die Anmerkungen werden sortiert gelesen (#127)', () {
+    final query = job.split("api.rows('plan_notes'").last.split('});').first;
+    expect(
+      query,
+      contains("'order': 'created_at'"),
+      reason:
+          'Der Digest mischt die Kennungen der Anmerkungen ein. PostgREST '
+          'sichert ohne `order` keine Reihenfolge zu — der Hash unterschiede '
+          'sich dann zwischen zwei Läufen ohne jede Datenänderung, und jeder '
+          'Anwesende bekäme dauerhaft „Änderung"-Meldungen über eine '
+          'Planänderung, die es nie gab. (Der Digest sortiert zusätzlich '
+          'selbst; das hier ist die zweite Hälfte desselben Riegels und '
+          'zugleich die Reihenfolge, in der die App sie anzeigt.)',
+    );
+  });
+
   test('das Konfliktziel des Protokolls nennt den vollen Schlüssel', () {
     final schema = File('supabase/schema.sql').readAsStringSync();
     final key = RegExp(

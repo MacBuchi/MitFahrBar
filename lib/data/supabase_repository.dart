@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_settings.dart';
 import '../models/person.dart';
+import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
@@ -247,6 +248,38 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
     await _client.from('plan_overrides').upsert([
       for (final id in driverIds) {'plan_date': _isoDay(date), 'driver_id': id},
     ], onConflict: 'group_id,plan_date,driver_id');
+  }
+
+  @override
+  Future<List<PlanNote>> loadNotes(DateTime from, {int days = 7}) async {
+    // `order` ist Pflicht, nicht Geschmack: PostgREST sichert ohne ihn keine
+    // Reihenfolge zu. Die Anzeige braucht sie ohnehin — und der Versand-Job
+    // mischt die Anmerkungen in den Tages-Digest, wo eine wechselnde
+    // Reihenfolge endlos „Änderung"-Meldungen auslöste (der Digest sortiert
+    // deshalb zusätzlich selbst, siehe core/push_digest.dart).
+    final rows = await _client
+        .from('plan_notes')
+        .select('id, plan_date, person_id, body, created_at')
+        .gte('plan_date', _isoDay(from))
+        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))))
+        .order('created_at');
+    return rows.map(PlanNote.fromJson).toList();
+  }
+
+  @override
+  Future<void> addNote(DateTime date, String personId, String body) async {
+    // Insert, kein Upsert: Eine Anmerkung hat keinen fachlichen Schlüssel,
+    // mehrere je Tag und Person sind der Normalfall.
+    await _client.from('plan_notes').insert({
+      'plan_date': _isoDay(date),
+      'person_id': personId,
+      'body': body.trim(),
+    });
+  }
+
+  @override
+  Future<void> deleteNote(String noteId) async {
+    await _client.from('plan_notes').delete().eq('id', noteId);
   }
 
   /// `date`-Spalten wollen reines yyyy-MM-dd; ein voller Zeitstempel würde

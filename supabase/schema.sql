@@ -170,8 +170,32 @@ create table public.plan_overrides (
   primary key (group_id, plan_date, driver_id)
 );
 
+-- Anmerkungen zu einem Plantag (Issue #127, deckt #120 mit ab): „komme erst
+-- um 9". **Kein Chat** — keine Threads, kein Gelesen-Status, keine Antworten;
+-- KONZEPT.md §1 („Kommunikation bleibt in WhatsApp") gilt weiter. Der Name
+-- sagt genau das: eine Notiz am Plantag, neben den beiden Tabellen darüber.
+--
+-- Der Schlüssel ist eine generierte UUID, kein fachlicher — mehrere
+-- Anmerkungen je Tag und Person sind der Normalfall. Vorlage ist deshalb
+-- `feedback`, nicht `plan_availability`. `btrim` im Längen-Check, weil
+-- `between 1 and 500` allein 500 Leerzeichen durchließe.
+--
+-- `person_id` ist der Verfasser und kein Identitätsnachweis: Jeder kann für
+-- jeden schreiben, wie im Planer jeder für jeden einträgt.
+create table public.plan_notes (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  plan_date date not null,
+  person_id uuid not null references public.persons(id) on delete cascade,
+  body text not null check (char_length(btrim(body)) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+
 create index plan_availability_group_idx on public.plan_availability (group_id);
 create index plan_overrides_group_idx on public.plan_overrides (group_id);
+-- Gelesen wird immer eine Spanne von Tagen (die Planwoche) einer Gruppe.
+create index plan_notes_day_idx on public.plan_notes (group_id, plan_date);
 
 -- Push-Benachrichtigungen zum Wochenplaner (Issue #101). Drei Aufgaben:
 -- push_devices = wohin, notification_prefs = wann, push_log = was schon raus
@@ -530,6 +554,7 @@ alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
 alter table public.plan_availability   enable row level security;
 alter table public.plan_overrides      enable row level security;
+alter table public.plan_notes          enable row level security;
 alter table public.push_devices        enable row level security;
 alter table public.notification_prefs  enable row level security;
 -- Bewusst KEINE Policies auf group_admins: Kein Client liest oder schreibt
@@ -567,6 +592,10 @@ create policy plan_availability_isolated on public.plan_availability
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy plan_overrides_isolated on public.plan_overrides
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy plan_notes_isolated on public.plan_notes
   for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());

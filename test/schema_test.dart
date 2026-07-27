@@ -636,6 +636,104 @@ void main() {
     });
   });
 
+  group('Anmerkungen am Plantag (Issue #127)', () {
+    final migration = File(
+      'supabase/migrations/20260727173000_plan_notes.sql',
+    ).readAsStringSync();
+
+    test('die Tabelle ist gegen fremde Gruppen dicht', () {
+      expect(
+        schema,
+        contains(
+          'alter table public.plan_notes          enable row level security',
+        ),
+        reason:
+            'Ohne RLS läse jede Gruppe die Anmerkungen jeder anderen. Die '
+            'Ausrichtung ist Absicht: Der Block ist auf trip_participations '
+            'ausgerichtet, und zwei Prüfungen hier vergleichen Zeilen '
+            'daraus wörtlich.',
+      );
+      expect(
+        sqlOnly(schema),
+        stringContainsInOrder([
+          'create policy plan_notes_isolated on public.plan_notes',
+          'group_id = auth.uid() and public.my_group_active()',
+          'with check (group_id = auth.uid() and public.my_group_active())',
+        ]),
+        reason:
+            'Ohne `with check` könnte ein Client eine Zeile mit fremder '
+            'group_id einfügen; ohne my_group_active() schriebe eine '
+            'archivierte Gruppe weiter.',
+      );
+    });
+
+    test('der Schlüssel ist eine generierte Kennung', () {
+      expect(
+        primaryKeyOf('plan_notes'),
+        contains('id'),
+        reason:
+            'Anmerkungen haben keinen fachlichen Schlüssel — mehrere je Tag '
+            'und Person sind der Normalfall. Deshalb steht plan_notes '
+            'bewusst NICHT in der group_id-im-Schlüssel-Schleife oben: Eine '
+            'UUID ist über alle Gruppen ohnehin eindeutig, dort wäre '
+            'group_id sinnlos. Vorlage ist feedback, nicht plan_availability.',
+      );
+    });
+
+    test('leere Anmerkungen kommen nicht in die Datenbank', () {
+      expect(
+        sqlOnly(schema),
+        contains('char_length(btrim(body)) between 1 and 500'),
+        reason:
+            '`btrim` ist nicht kosmetisch: Ohne ihn ließe der Check 500 '
+            'Leerzeichen durch, und die Anzeige stünde vor einer leeren '
+            'Zeile, die sie nicht erklären kann. Der Screen spiegelt '
+            'dieselbe Prüfung, damit niemand einen rohen Postgres-Fehler '
+            'sieht.',
+      );
+    });
+
+    test('die Gruppe nimmt ihre Anmerkungen beim Löschen mit', () {
+      final table = RegExp(
+        r'create table public\.plan_notes \((.*?)\n\);',
+        dotAll: true,
+      ).firstMatch(schema)!.group(1)!;
+      expect(
+        table,
+        contains('references public.groups(id) on delete cascade'),
+        reason:
+            'admin_delete_group löscht ausschließlich den Auth-User und '
+            'verlässt sich auf die Kaskade. Ohne sie bliebe hier ein Rest '
+            'einer gelöschten Gruppe stehen.',
+      );
+    });
+
+    test('die Migration setzt die Grants selbst', () {
+      expect(
+        sqlOnly(migration),
+        stringContainsInOrder([
+          'grant select, insert, update, delete on public.plan_notes',
+          'grant all on public.plan_notes to service_role',
+        ]),
+        reason:
+            'Neuere Stacks sind „secure by default": Ohne Grant fände die '
+            'App die Tabelle auf einem frischen Stack nicht.',
+      );
+    });
+
+    test('die Migration hebt die Mindestversion NICHT', () {
+      expect(
+        sqlOnly(migration),
+        isNot(contains("value = '")),
+        reason:
+            'Eine reine Neuanlage entfernt und benennt nichts um, was ein '
+            'veröffentlichter Client liest — ältere Clients kennen die '
+            'Tabelle schlicht nicht. Heben würde nur jeden veralteten '
+            'Client auf den Sperr-Schirm werfen.',
+      );
+    });
+  });
+
   group('persons.name ist je Gruppe eindeutig (Issue #109)', () {
     final migration = File(
       'supabase/migrations/20260726213000_persons_name_unique_per_group.sql',

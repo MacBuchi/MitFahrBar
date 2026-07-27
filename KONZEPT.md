@@ -11,6 +11,18 @@ Web-App für eine feste Fahrgemeinschaft (~9 aktive Personen, 13 historisch) zur
 - **Hauptplattform:** Web (PWA), gehostet auf **GitHub Pages** — auf dem Handy installierbar, kein App Store nötig.
 - **Backend:** **Supabase** (PostgreSQL + Auth + RLS) — geteilte Daten für alle Mitglieder, Echtzeit-fähig.
 - **Kein Chat:** Kommunikation bleibt in WhatsApp. Die App dokumentiert.
+
+  > **Ergänzung 2026-07-27 (Issue #127, deckt #120 mit ab): Anmerkungen am
+  > Plantag.** Der Satz gilt weiter — es gibt keine Threads, keine Antworten,
+  > keinen Gelesen-Status und keine Zustellung in Echtzeit. Was es seit
+  > v0.46.0 gibt, ist eine kurze Notiz an einem geplanten Tag („Komme erst um
+  > 9"), sichtbar am Banner der nächsten Fahrt und an jeder Tageszeile im
+  > Planer. Sie entstand als Antwort auf zwei Wünsche derselben Woche: das
+  > gewünschte „Uhrensymbol für abweichende Zeiten" (#120) wäre ohne Uhrzeit
+  > nichtssagend und mit Uhrzeit ein Zeitwähler in einem Raster, das aus
+  > einem Tap besteht. Zugestellt wird über den vorhandenen Versand-Job, der
+  > träge ist (Issue #115) — **was jetzt ankommen muss, gehört weiter in
+  > WhatsApp oder ans Telefon.** Die Punkte berührt eine Anmerkung nie.
 - **Bedienprinzip:** Der häufigste Vorgang (heutige Fahrt eintragen) muss in **unter 10 Sekunden mit 3–4 Taps** erledigt sein.
 
 ## 2. Tech-Stack (gemäß ProgrammingGuidelineDocuHub)
