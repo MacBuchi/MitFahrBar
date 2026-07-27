@@ -297,6 +297,33 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   ist ehrlich zu dem, was ein geteilter Zugang ohnehin bedeutet. Echte Logins
   pro Person würden `group_id = auth.uid()` und damit jede RLS-Policy
   umkrempeln; das ist ein eigenes Projekt, kein Nebeneffekt eines Features.
+  - **Die Geräte-Zuordnung „Ich bin" (#121, seit v0.44.0) ist davon keine
+    Ausnahme** — sie ist eine **Einstellung dieses Geräts**, kein Login.
+    `group_id = auth.uid()` ist unangetastet, keine Policy ändert sich, jeder
+    kann jeden wählen und die Auswahl jederzeit ändern (Pärchen tragen
+    füreinander ein). Sie schützt vor **Vertippern**, nicht vor Menschen: Ein
+    zweites Gerät mit anderer Auswahl bearbeitet weiterhin alles. Wer sie je
+    für eine Zugriffskontrolle hält, baut auf Sand — und wer den Planer
+    darauf aufbaut, muss den Weg für andere offen lassen.
+  - Sie liegt **lokal** (`data/device_identity.dart`), nicht in
+    `push_devices`: Dort hinge sie am FCM-Token und gäbe es im Browser ohne
+    Push und auf iOS gar nicht — genau dort soll sie aber wirken. Damit
+    schreibt `lib/` **erstmals selbst** in SharedPreferences; die Folgen für
+    die Android-Backup-Regeln stehen unten.
+  - Drei Zustände, nicht zwei: nie gefragt / bewusst übersprungen /
+    ausgewählt. Ohne den mittleren käme die Startabfrage bei jedem Start
+    wieder. Gemahnt wird an **genau einer** Stelle — dem Banner auf der
+    Übersicht, nicht zusätzlich per Dialog.
+  - Die Startabfrage hängt an der **Übersicht**, nicht am `builder` der
+    MaterialApp: Dort liegen Splash und Sperr-Schirm, und ein `showDialog`
+    ohne eigenen Navigator ist genau der Fehler aus 0.37.0.
+  - In Tests ist sie über `identityEnabledProvider` standardmäßig **aus**
+    (`pumpApp(identity: …)` schaltet sie ein). Grund: `SupabaseConfig
+    .isConfigured` ist im Test `true` — der eingecheckte Default ist die
+    echte Projekt-URL, erst `--dart-define` auf den Platzhalter schaltet den
+    Demo-Modus. Ohne den Schalter träfe jeder Flow-Test zuerst auf Dialog
+    oder Banner. Derselbe Handel wie beim Splash, mit demselben Preis: Der
+    Standardpfad deckt nur ab, wer ihn einschaltet.
 - **Daneben: höchstens EIN Verwalter-Konto je Gruppe** (Issue #55, v0.23.0) —
   echte E-Mail, `account_type: 'admin'` in den Auth-Metadata. Es sieht
   **keine** Gruppendaten (anderer uid, RLS blockt) und kann ausschließlich
@@ -661,12 +688,15 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Sitzungs-Token ist also das gemeinsame Zugangsmerkmal der Gruppe und darf
   nicht über das Google-Konto eines Mitglieds auf fremde Geräte wandern.
   Zwei Fallen dabei: Backup-Regeln adressieren **ganze Dateien**, nie
-  einzelne Schlüssel — deshalb steht dort `FlutterSharedPreferences.xml`, was
-  nur deswegen verlustfrei ist, weil `shared_preferences` ausschließlich
-  transitiv über `supabase_flutter` hereinkommt. Sobald `lib/` selbst etwas
-  in SharedPreferences ablegt, gehört diese Regel überdacht. Und ab
-  Android 12 braucht der Ausschluss **beide** Blöcke (`cloud-backup` *und*
+  einzelne Schlüssel — deshalb steht dort `FlutterSharedPreferences.xml`. Und
+  ab Android 12 braucht der Ausschluss **beide** Blöcke (`cloud-backup` *und*
   `device-transfer`), sonst reist das Token beim Gerätewechsel doch mit.
+  **Seit v0.44.0 ist diese Datei nicht mehr leer außer der Sitzung:** Die
+  Geräte-Zuordnung (#121) liegt daneben. Der Ausschluss bleibt trotzdem — das
+  Token wiegt schwerer —, und der Preis ist bewusst: Die Zuordnung überlebt
+  keinen Gerätewechsel, das neue Gerät fragt erneut. Das ist der richtige
+  Ausgang, ein neues Gerät gehört oft einer anderen Person. Wer künftig etwas
+  ablegt, das eine Sicherung überstehen **muss**, braucht eine eigene Datei.
 - **CSV-Export** ist die einzige Sicherung, die die Gruppe selbst in der Hand
   hat — alles seit dem Erst-Import lebt nur in Supabase (Free Plan, kein
   Point-in-Time-Recovery). `core/csv_export.dart` ist reine Aufbereitung

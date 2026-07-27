@@ -20,6 +20,7 @@ import 'admin_repository.dart';
 import 'app_config_repository.dart';
 import 'auth_repository.dart';
 import 'carpool_repository.dart';
+import 'device_identity.dart';
 import 'fake_repository.dart';
 import 'feedback_repository.dart';
 import 'group_repository.dart';
@@ -89,6 +90,82 @@ final pushRepositoryProvider = Provider<PushRepository>(
       ? SupabasePushRepository(ref.watch(supabaseClientProvider))
       : NoopPushRepository(),
 );
+
+/// Wo die Geräte-Zuordnung liegt. Im Demo-Modus und in Tests flüchtig — dort
+/// gibt es nichts zu behalten.
+final deviceIdentityStoreProvider = Provider<DeviceIdentityStore>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SharedPrefsDeviceIdentityStore()
+      : InMemoryDeviceIdentityStore(),
+);
+
+/// Ob die Geräte-Zuordnung überhaupt greift.
+///
+/// In Tests standardmäßig **aus** (`pumpApp`), aus demselben Grund wie beim
+/// Splash: Sonst träfe jeder Flow-Test zuerst auf die Startabfrage oder das
+/// Banner. `SupabaseConfig.isConfigured` ist im Test nämlich `true` — der
+/// eingecheckte Default ist die echte Projekt-URL, erst ein `--dart-define`
+/// auf den Platzhalter schaltet den Demo-Modus.
+final identityEnabledProvider = Provider<bool>((ref) => true);
+
+/// Wer an diesem Gerät sitzt (#121) — **kein Login**, siehe
+/// `data/device_identity.dart`.
+final deviceIdentityProvider =
+    AsyncNotifierProvider<DeviceIdentityNotifier, DeviceIdentity>(
+      DeviceIdentityNotifier.new,
+    );
+
+class DeviceIdentityNotifier extends AsyncNotifier<DeviceIdentity> {
+  @override
+  Future<DeviceIdentity> build() async {
+    if (!ref.watch(identityEnabledProvider)) return DeviceIdentity.skipped;
+
+    final store = ref.watch(deviceIdentityStoreProvider);
+    final stored = await store.load();
+    if (stored.asked || stored.chosen) return stored;
+
+    // Wer heute schon Push nutzt, hat die Frage längst beantwortet — dann
+    // steht die Person in `push_devices`. Ohne diesen Griff fragte die App
+    // die halbe Gruppe nach etwas, das sie schon gesagt hat.
+    //
+    // `ask: false`: Ein ungefragter Berechtigungsdialog wird weggetippt, und
+    // Android fragt danach nie wieder.
+    try {
+      final token = await ref.read(pushTokenProvider)(ask: false);
+      if (token == null) return stored;
+      final state = await ref.read(pushRepositoryProvider).stateFor(token);
+      final personId = state.personId;
+      if (personId == null) return stored;
+      final adopted = DeviceIdentity(personId: personId, asked: true);
+      await store.save(adopted);
+      return adopted;
+    } catch (_) {
+      // Kein Netz, kein Firebase, kein Problem: Dann wird eben gefragt.
+      return stored;
+    }
+  }
+
+  /// Eine Person übernehmen — oder mit `null` bewusst überspringen. Beides
+  /// zählt als beantwortet, damit die Startabfrage nicht wiederkommt.
+  Future<void> choose(String? personId) async {
+    final next = DeviceIdentity(personId: personId, asked: true);
+    state = AsyncData(next);
+    await ref.read(deviceIdentityStoreProvider).save(next);
+  }
+}
+
+/// Die gewählte Person als Objekt — `null`, solange keine gewählt ist oder
+/// die Auswahl auf eine gelöschte Person zeigt.
+final myPersonProvider = Provider<Person?>((ref) {
+  final id = ref.watch(deviceIdentityProvider).value?.personId;
+  if (id == null) return null;
+  final persons = ref.watch(personsProvider).value;
+  if (persons == null) return null;
+  for (final person in persons) {
+    if (person.id == id) return person;
+  }
+  return null;
+});
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => SupabaseConfig.isConfigured
