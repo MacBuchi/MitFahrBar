@@ -8,11 +8,22 @@
 /// * Nur das Datenende ist gerundet, die Grundlinie bleibt eckig.
 /// * Beschriftungen tragen Text-, niemals Datenfarben – die Zuordnung
 ///   übernimmt die farbige Marke daneben.
-/// * Beschriftet wird sparsam: die Spitze, nicht jeder Wert.
+/// * Achsen und Hilfslinien sind durchgezogene Haarlinien, eine Stufe vom
+///   Untergrund entfernt – nie gestrichelt, das läse sich als Schwellwert.
+/// * **Werte trägt entweder die Direktbeschriftung oder die Achse, nie
+///   beides.** Bis v0.42.0 beschriftete das Monats-Diagramm die Spitze und
+///   den laufenden Monat und kam ohne Wertachse aus – das trägt, solange ein
+///   Dutzend breite Säulen dastehen. Seit es die ganze Historie zeigt (#119,
+///   bei dieser Gruppe 44 Monate), sind es zu viele und zu schmale Säulen
+///   dafür: Dort steht jetzt eine Y-Achse mit Hilfslinien, und die Zahlen
+///   über den Balken sind weg. Der gestapelte Balken darunter hat wenige
+///   Zeilen und bleibt deshalb bei der Direktbeschriftung.
 library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 // Nur DateFormat: intl exportiert ebenfalls ein `TextDirection` und würde
 // sonst das der Zeichen-API verdecken.
@@ -21,15 +32,40 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../chart_data.dart';
 import '../tokens.dart';
 
+/// Wo ein Achsenwert auf der Zeichenfläche liegt.
+///
+/// Die eine Rechnung für Hilfslinie **und** Achsenzahl: Zwei getrennte
+/// Formeln driften auseinander, und dann liegt die Linie neben ihrer Zahl.
+double _tickY(int tick, int maxTick, double plotTop, double axisY) =>
+    maxTick == 0 ? axisY : axisY - (axisY - plotTop) * tick / maxTick;
+
 /// Fahrten je Monat als Säulen – eine Reihe, daher eine Farbe und keine
 /// Legende: die Überschrift sagt bereits, was gezeigt wird.
-class MonthlyTripsChart extends StatelessWidget {
+///
+/// Reicht die Breite nicht für alle Monate, wird waagerecht gescrollt statt
+/// die Säulen zu Strichen zu quetschen (#119). Die Wertachse steht dabei
+/// **außerhalb** des Scrollbereichs – mitgescrollt wäre sie keine Achse mehr.
+class MonthlyTripsChart extends StatefulWidget {
   const MonthlyTripsChart({super.key, required this.data});
 
   final List<MonthBucket> data;
 
   @override
+  State<MonthlyTripsChart> createState() => _MonthlyTripsChartState();
+}
+
+class _MonthlyTripsChartState extends State<MonthlyTripsChart> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final data = widget.data;
     final theme = Theme.of(context);
     final month = DateFormat('MMM', 'de');
     final full = DateFormat('MMMM yyyy', 'de');
@@ -39,49 +75,171 @@ class MonthlyTripsChart extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ) ??
         const TextStyle(fontSize: 11);
-    final valueStyle =
-        theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.onSurface,
-          fontWeight: FontWeight.w600,
-        ) ??
-        const TextStyle(fontSize: 12);
+
+    final maxTrips = data.isEmpty
+        ? 0
+        : data.map((b) => b.trips).reduce(math.max);
+    final ticks = axisTicks(maxTrips);
 
     return Semantics(
       label: data.map((b) => '${full.format(b.date)}: ${b.trips}').join(', '),
       excludeSemantics: true,
       child: SizedBox(
-        height: AppChart.columnPlotHeight + AppSpacing.xl,
-        child: CustomPaint(
-          painter: _MonthlyTripsPainter(
-            data: data,
-            barColor: theme.colorScheme.primary,
-            axisColor: theme.colorScheme.outlineVariant,
-            labelStyle: labelStyle,
-            valueStyle: valueStyle,
-            monthLabel: (bucket) => month.format(bucket.date),
-          ),
-          child: const SizedBox.expand(),
+        height:
+            AppChart.columnPlotHeight +
+            AppSpacing.xl +
+            AppChart.columnScrollbarStrip,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            CustomPaint(
+              painter: _ValueAxisPainter(
+                ticks: ticks,
+                labelStyle: labelStyle,
+                monthLabelHeight: _textHeight(
+                  month.format(DateTime(2026)),
+                  labelStyle,
+                ),
+              ),
+              child: SizedBox(width: _axisWidth(ticks, labelStyle)),
+            ),
+            const SizedBox(width: AppSpacing.s),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final needed = data.length * AppChart.columnMinSlot;
+                  final width = math.max(constraints.maxWidth, needed);
+                  final scrolls = needed > constraints.maxWidth;
+                  return ScrollConfiguration(
+                    // Flutter lässt auf Web und Desktop von Haus aus **nur**
+                    // Finger ziehen, nicht die Maus. Im Browser hinge die
+                    // Historie damit am Mausrad — auf dem Handy fiele es nie
+                    // auf, und die PWA nutzt die Gruppe genauso.
+                    behavior: ScrollConfiguration.of(context).copyWith(
+                      dragDevices: const {
+                        PointerDeviceKind.touch,
+                        PointerDeviceKind.mouse,
+                        PointerDeviceKind.trackpad,
+                        PointerDeviceKind.stylus,
+                      },
+                    ),
+                    child: Scrollbar(
+                      controller: _controller,
+                      // Nur zeigen, wenn es wirklich etwas zu holen gibt: Der
+                      // Balken IST der Hinweis, dass links noch mehr liegt.
+                      thumbVisibility: scrolls,
+                      child: SingleChildScrollView(
+                        controller: _controller,
+                        scrollDirection: Axis.horizontal,
+                        // Der Blick steht beim aktuellen Monat; gewischt wird
+                        // in die Vergangenheit. Andersherum landete man 2023.
+                        reverse: true,
+                        child: SizedBox(
+                          width: width,
+                          child: CustomPaint(
+                            painter: _MonthlyTripsPainter(
+                              data: data,
+                              ticks: ticks,
+                              barColor: theme.colorScheme.primary,
+                              axisColor: theme.colorScheme.outlineVariant,
+                              labelStyle: labelStyle,
+                              monthLabel: (bucket) => month.format(bucket.date),
+                            ),
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
+double _textHeight(String value, TextStyle style) => (TextPainter(
+  text: TextSpan(text: value, style: style),
+  textDirection: TextDirection.ltr,
+)..layout()).height;
+
+/// Breite der Achsenspalte: die längste Zahl, die dort stehen wird.
+double _axisWidth(List<int> ticks, TextStyle style) {
+  var widest = 0.0;
+  for (final tick in ticks) {
+    final painter = TextPainter(
+      text: TextSpan(text: '$tick', style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    widest = math.max(widest, painter.width);
+  }
+  return widest;
+}
+
+/// Die Zahlen der Wertachse – rechtsbündig, auf Höhe ihrer Hilfslinie.
+class _ValueAxisPainter extends CustomPainter {
+  _ValueAxisPainter({
+    required this.ticks,
+    required this.labelStyle,
+    required this.monthLabelHeight,
+  });
+
+  final List<int> ticks;
+  final TextStyle labelStyle;
+
+  /// Die Monatskürzel stehen unter der Grundlinie; die Achse muss denselben
+  /// Streifen frei lassen, sonst sitzen ihre Zahlen zu tief.
+  final double monthLabelHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (ticks.isEmpty) return;
+    final axisY =
+        size.height -
+        AppChart.columnScrollbarStrip -
+        monthLabelHeight -
+        AppSpacing.xs;
+    final plotTop = _textHeight('0', labelStyle) / 2;
+    final maxTick = ticks.last;
+
+    for (final tick in ticks) {
+      final painter = TextPainter(
+        text: TextSpan(text: '$tick', style: labelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final y = _tickY(tick, maxTick, plotTop, axisY);
+      painter.paint(
+        canvas,
+        Offset(size.width - painter.width, y - painter.height / 2),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ValueAxisPainter old) =>
+      old.monthLabelHeight != monthLabelHeight ||
+      old.labelStyle != labelStyle ||
+      !listEquals(old.ticks, ticks);
+}
+
 class _MonthlyTripsPainter extends CustomPainter {
   _MonthlyTripsPainter({
     required this.data,
+    required this.ticks,
     required this.barColor,
     required this.axisColor,
     required this.labelStyle,
-    required this.valueStyle,
     required this.monthLabel,
   });
 
   final List<MonthBucket> data;
+  final List<int> ticks;
   final Color barColor;
   final Color axisColor;
   final TextStyle labelStyle;
-  final TextStyle valueStyle;
   final String Function(MonthBucket) monthLabel;
 
   TextPainter _text(String value, TextStyle style) => TextPainter(
@@ -94,39 +252,48 @@ class _MonthlyTripsPainter extends CustomPainter {
     if (data.isEmpty) return;
 
     final labels = [for (final b in data) _text(monthLabel(b), labelStyle)];
-    final maxTrips = data.map((b) => b.trips).reduce(math.max);
-    final peak = data.indexWhere((b) => b.trips == maxTrips);
-    final peakLabel = _text('${data[peak].trips}', valueStyle);
+    final maxTick = ticks.isEmpty ? 0 : ticks.last;
 
     // Die Fläche muss das Achsenband einschließen, sonst wird es abgeschnitten.
-    final labelHeight = labels.first.height;
-    final axisY = size.height - labelHeight - AppSpacing.xs;
-    final plotTop = peakLabel.height + AppSpacing.xs;
-    final plotHeight = axisY - plotTop;
-    if (plotHeight <= 0) return;
+    // Oben bleibt eine halbe Zeilenhöhe frei: Dort sitzt die Zahl des obersten
+    // Hilfsstrichs, auf ihrer Linie zentriert (siehe _ValueAxisPainter).
+    // Unten bleibt der Streifen der Scrollleiste frei.
+    final axisY =
+        size.height -
+        AppChart.columnScrollbarStrip -
+        labels.first.height -
+        AppSpacing.xs;
+    final plotTop = _text('0', labelStyle).height / 2;
+    if (axisY - plotTop <= 0) return;
 
     final slot = size.width / data.length;
     final barWidth = math.min(AppChart.barMaxThickness, slot - AppSpacing.s);
     if (barWidth <= 0) return;
 
-    // Grundlinie: haarfein, durchgezogen, eine Stufe vom Untergrund entfernt.
-    canvas.drawLine(
-      Offset(0, axisY),
-      Offset(size.width, axisY),
-      Paint()
-        ..color = axisColor
-        ..strokeWidth = AppChart.hairline,
-    );
+    // Hilfslinien inklusive der Grundlinie bei 0: haarfein, durchgezogen, eine
+    // Stufe vom Untergrund entfernt. Sie tragen seit #119 die Werte, die
+    // vorher an den Säulen standen — deshalb liegen sie hinter den Balken,
+    // nicht darüber.
+    final linePaint = Paint()
+      ..color = axisColor
+      ..strokeWidth = AppChart.hairline;
+    for (final tick in ticks) {
+      final y = _tickY(tick, maxTick, plotTop, axisY);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
 
     final barPaint = Paint()..color = barColor;
     for (final (index, bucket) in data.indexed) {
       if (bucket.trips == 0) continue;
       final center = slot * index + slot / 2;
-      final height = maxTrips == 0 ? 0.0 : bucket.trips / maxTrips * plotHeight;
+      // Gegen den obersten Hilfsstrich gerechnet, nicht gegen das Maximum —
+      // sonst stieße die höchste Säule immer an die Decke und läge nicht auf
+      // ihrem Wert.
+      final top = _tickY(bucket.trips, maxTick, plotTop, axisY);
       canvas.drawRRect(
         RRect.fromLTRBAndCorners(
           center - barWidth / 2,
-          axisY - height,
+          top,
           center + barWidth / 2,
           axisY,
           topLeft: const Radius.circular(AppChart.barEndRadius),
@@ -134,28 +301,6 @@ class _MonthlyTripsPainter extends CustomPainter {
         ),
         barPaint,
       );
-    }
-
-    // Beschriftet werden nur die Spitze und der laufende Monat – die eine
-    // gibt der Achse ihren Maßstab, der andere beantwortet „wie stehen wir
-    // gerade da". Eine Zahl an jeder Säule wäre Lärm.
-    if (maxTrips > 0) {
-      final labelled = {peak, data.length - 1};
-      for (final index in labelled) {
-        final bucket = data[index];
-        if (bucket.trips == 0) continue;
-        final value = index == peak
-            ? peakLabel
-            : _text('${bucket.trips}', valueStyle);
-        final center = slot * index + slot / 2;
-        value.paint(
-          canvas,
-          Offset(
-            center - value.width / 2,
-            axisY - bucket.trips / maxTrips * plotHeight - value.height,
-          ),
-        );
-      }
     }
 
     // Passt ein Kürzel nicht in sein Raster, wird nur jedes zweite gesetzt –
@@ -177,6 +322,7 @@ class _MonthlyTripsPainter extends CustomPainter {
       old.barColor != barColor ||
       old.axisColor != axisColor ||
       old.data.length != data.length ||
+      !listEquals(old.ticks, ticks) ||
       !identical(old.data, data);
 }
 

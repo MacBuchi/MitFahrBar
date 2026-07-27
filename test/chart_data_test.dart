@@ -80,6 +80,82 @@ void main() {
     });
   });
 
+  // Das Zeitfenster des Monats-Diagramms (#119): so weit zurück, wie die
+  // Gruppe wirklich fährt.
+  group('monthsToCover', () {
+    test('ohne Fahrten bleibt es beim Jahr', () {
+      expect(monthsToCover(const [], now), 12);
+    });
+
+    test('kurze Historie wird nicht gestaucht', () {
+      expect(
+        monthsToCover([tripOn(DateTime(2026, 5, 4))], now),
+        12,
+        reason:
+            'Zwei Säulen nebeneinander wären kein Diagramm — leere Monate '
+            'gehören ins Bild.',
+      );
+    });
+
+    test('lange Historie reicht bis zur ersten Fahrt', () {
+      // Januar 2023 bis Juli 2026 sind 43 Monate einschließlich beider.
+      expect(monthsToCover([tripOn(DateTime(2023, 1, 9))], now), 43);
+    });
+
+    test('ein Ausreißer weit zurück wird gekappt', () {
+      expect(
+        monthsToCover([tripOn(DateTime(2009, 3, 1))], now),
+        60,
+        reason:
+            'Ein falsch getipptes Jahr darf die Achse nicht dauerhaft '
+            'strecken und alle echten Monate an den Rand quetschen.',
+      );
+    });
+
+    test('eine Fahrt in der Zukunft verlängert das Fenster nicht', () {
+      expect(
+        monthsToCover([tripOn(DateTime(2027, 11, 19))], now),
+        12,
+        reason:
+            'Genau so ein Datum steckt im Erst-Import — gezeichnet wird es '
+            'ohnehin nicht, also darf es auch nichts verschieben.',
+      );
+    });
+  });
+
+  group('axisTicks', () {
+    test('beginnt immer bei 0', () {
+      for (final max in [1, 7, 8, 40, 137]) {
+        expect(axisTicks(max).first, 0, reason: 'maxValue $max');
+      }
+    });
+
+    test('deckt das Maximum ab', () {
+      for (final max in [1, 3, 7, 8, 9, 23, 40, 137, 1001]) {
+        expect(
+          axisTicks(max).last,
+          greaterThanOrEqualTo(max),
+          reason: 'sonst ragte die höchste Säule über die Achse hinaus',
+        );
+      }
+    });
+
+    test('nimmt runde Schritte', () {
+      expect(axisTicks(8), [0, 2, 4, 6, 8]);
+      expect(axisTicks(7), [0, 2, 4, 6, 8]);
+      expect(axisTicks(3), [0, 1, 2, 3, 4]);
+      expect(axisTicks(23), [0, 10, 20, 30, 40]);
+    });
+
+    test('ohne Fahrten bleibt eine brauchbare Skala', () {
+      expect(axisTicks(0), [0, 1]);
+    });
+
+    test('die Schrittzahl ist einstellbar', () {
+      expect(axisTicks(8, count: 2), hasLength(3));
+    });
+  });
+
   test('ParticipationRow summiert alle Teilnahmearten', () {
     const row = ParticipationRow(
       label: 'Test',
