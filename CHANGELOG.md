@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.47.0] – 2026-07-27
+
+### Verbessert
+
+- **Im Monats-Diagramm seht ihr jetzt, wo ein Jahr endet.** An jedem
+  Jahreswechsel steht eine senkrechte Linie mit der Jahreszahl daneben —
+  vorher folgte auf „Dez" ein „Jan", das genauso aussah wie das vorige.
+- **Eure eigene Zeile im Wochenplan ist zart hinterlegt** und der Name etwas
+  kräftiger, sobald ihr unter „Ich bin" jemanden ausgewählt habt. Das ist nur
+  Orientierung: Eintragen dürft ihr weiterhin für jeden.
+- **Die Kachel mit der nächsten Fahrt trägt jetzt das Cyan der App** statt des
+  fliederfarbenen Tons, der aus der Reihe fiel. Den hat der Hinweis auf eine
+  neue Version übernommen — der soll auffallen.
+
 ## [0.46.0] – 2026-07-27
 
 ### Neu

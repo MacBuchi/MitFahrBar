@@ -1017,5 +1017,53 @@ void main() {
       expect(_cell('Bert', monday, state: 'nur eine Richtung'), findsOneWidget);
       handle.dispose();
     });
+
+    /// Die Schriftstärke des Namens in der Rasterzeile — `null`, wenn die
+    /// Zeile nichts Eigenes setzt.
+    FontWeight? weightOf(WidgetTester tester, String name) =>
+        tester.widget<Text>(find.text(name)).style?.fontWeight;
+
+    testWidgets('die eigene Zeile ist hervorgehoben', (tester) async {
+      final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      expect(
+        weightOf(tester, 'Anna'),
+        FontWeight.w600,
+        reason:
+            'Im Raster sucht man zuerst sich selbst. Die Hervorhebung ist '
+            'Orientierung, keine Berechtigung — jeder darf weiterhin für '
+            'jeden eintragen.',
+      );
+      expect(
+        weightOf(tester, 'Bert'),
+        isNot(FontWeight.w600),
+        reason: 'Fremde Zeilen bleiben, wie sie waren.',
+      );
+    });
+
+    testWidgets('ohne gewählte Person ist keine Zeile hervorgehoben', (
+      tester,
+    ) async {
+      final (backend, _) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(tester, backend, identity: DeviceIdentity.skipped);
+      await _login(tester);
+      await _openPlan(tester);
+
+      expect(weightOf(tester, 'Anna'), isNot(FontWeight.w600));
+      expect(
+        weightOf(tester, 'Bert'),
+        isNot(FontWeight.w600),
+        reason:
+            'Wer die Startabfrage überspringt, sieht das Raster wie vor dem '
+            'Release — dieselbe Regel wie beim Durchschalten.',
+      );
+    });
   });
 }

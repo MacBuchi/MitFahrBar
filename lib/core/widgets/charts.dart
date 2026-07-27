@@ -142,8 +142,10 @@ class _MonthlyTripsChartState extends State<MonthlyTripsChart> {
                               ticks: ticks,
                               barColor: theme.colorScheme.primary,
                               axisColor: theme.colorScheme.outlineVariant,
+                              boundaryColor: theme.colorScheme.outline,
                               labelStyle: labelStyle,
                               monthLabel: (bucket) => month.format(bucket.date),
+                              yearLabel: (bucket) => '${bucket.year}',
                             ),
                             child: const SizedBox.expand(),
                           ),
@@ -231,16 +233,29 @@ class _MonthlyTripsPainter extends CustomPainter {
     required this.ticks,
     required this.barColor,
     required this.axisColor,
+    required this.boundaryColor,
     required this.labelStyle,
     required this.monthLabel,
+    required this.yearLabel,
   });
 
   final List<MonthBucket> data;
   final List<int> ticks;
   final Color barColor;
   final Color axisColor;
+
+  /// Eine Stufe kräftiger als [axisColor] — die Jahresgrenze soll sich von
+  /// den Hilfslinien absetzen, ohne mit den Balken zu konkurrieren.
+  final Color boundaryColor;
   final TextStyle labelStyle;
   final String Function(MonthBucket) monthLabel;
+
+  /// Die Jahreszahl an einer Jahresgrenze (Issue #129).
+  ///
+  /// Bewusst **getrennt** vom Monatskürzel: Stünde sie im Label („Jan 26"),
+  /// wüchse das breiteste Label und die Ausdünn-Schwelle unten spränge an —
+  /// dann verschwänden im Normalfall Monatskürzel, die heute stehen.
+  final String Function(MonthBucket) yearLabel;
 
   TextPainter _text(String value, TextStyle style) => TextPainter(
     text: TextSpan(text: value, style: style),
@@ -280,6 +295,32 @@ class _MonthlyTripsPainter extends CustomPainter {
     for (final tick in ticks) {
       final y = _tickY(tick, maxTick, plotTop, axisY);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+
+    // Jahresgrenzen (Issue #129). Seit die Historie ganz gezeigt wird (#124),
+    // folgt auf „Dez" ein „Jan", das genauso aussieht wie das vorige — ohne
+    // Marke ist nicht zu sehen, wo ein Jahr endet. Die Linie steht auf der
+    // LINKEN Kante des Januar-Slots, trennt also wirklich, statt einen Monat
+    // zu durchschneiden.
+    //
+    // **Durchgezogen, nicht gestrichelt** — die Gestaltungsregel oben gilt
+    // auch hier. Unterschieden wird von den Hilfslinien durch die Richtung
+    // (senkrecht statt waagerecht) und eine Stufe mehr Kontrast; gestrichelt
+    // läse sich als Schwellwert.
+    final boundaryPaint = Paint()
+      ..color = boundaryColor
+      ..strokeWidth = AppChart.hairline;
+    for (final (index, bucket) in data.indexed) {
+      if (index == 0 || bucket.month != DateTime.january) continue;
+      final x = slot * index;
+      canvas.drawLine(Offset(x, plotTop), Offset(x, axisY), boundaryPaint);
+      // Die Zahl des BEGINNENDEN Jahres, klein und gedämpft am oberen Rand.
+      // Oben, weil die Zeile unter der Achse den Monatskürzeln gehört — und
+      // weil dort am ehesten Platz neben den Säulen ist.
+      _text(
+        yearLabel(bucket),
+        labelStyle.copyWith(color: boundaryColor),
+      ).paint(canvas, Offset(x + AppSpacing.xs / 2, plotTop));
     }
 
     final barPaint = Paint()..color = barColor;

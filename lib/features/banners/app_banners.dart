@@ -54,8 +54,13 @@ class AppBanners extends ConsumerWidget {
           _Banner(
             icon: Icons.system_update,
             text: 'Version ${update.latestVersion} ist verfügbar',
-            background: Theme.of(context).colorScheme.primaryContainer,
-            foreground: Theme.of(context).colorScheme.onPrimaryContainer,
+            // Der einzige Ton außerhalb der Cyan-Familie — Material 3 dreht
+            // für `tertiary` den Farbton. Genau hier ist das richtig: Der
+            // Update-Hinweis kommt und geht, und dass er aus der Reihe fällt,
+            // ist der Zweck. Bis v0.46.0 trug ihn die nächste Fahrt, wo er
+            // als Fremdkörper auffiel (Rückmeldung aus der Gruppe).
+            background: Theme.of(context).colorScheme.tertiaryContainer,
+            foreground: Theme.of(context).colorScheme.onTertiaryContainer,
             onTap: () => showUpdateDialog(context, update),
             onDismiss: () =>
                 ref.read(updateBannerDismissedProvider.notifier).state = true,
@@ -146,8 +151,13 @@ class _NextRideBanner extends ConsumerWidget {
       icon: Icons.directions_car,
       text: dayLabel(day.date, ref.watch(nowProvider)()),
       subtitle: composeGroupBody(day, byId, notes: notes),
-      background: scheme.tertiaryContainer,
-      foreground: scheme.onTertiaryContainer,
+      // Dieselbe Cyan-Familie wie Marke, Logo und Balken. Vorher stand hier
+      // `tertiaryContainer`, das Material 3 aus einem Cyan-Seed als Lavendel
+      // ableitet — der einzige fremde Ton der ganzen Oberfläche, und genau
+      // so kam er in der Gruppe auch an. Der Update-Hinweis hat ihn
+      // übernommen, wo das Herausfallen erwünscht ist.
+      background: scheme.primaryContainer,
+      foreground: scheme.onPrimaryContainer,
       // Dieselbe Adresse, die auch eine angetippte Benachrichtigung ansteuert.
       onTap: () => ref.read(routerProvider).go(pushTapRoute),
       // Eigener Knopf statt eines zweiten Tap-Ziels auf derselben Fläche:
@@ -166,7 +176,7 @@ class _NextRideBanner extends ConsumerWidget {
                 ? Icons.chat_bubble_outline
                 : Icons.chat_bubble_rounded,
             size: 18,
-            color: scheme.onTertiaryContainer,
+            color: scheme.onPrimaryContainer,
           ),
         ),
       ),

@@ -124,6 +124,45 @@ void main() {
       );
     });
 
+    testWidgets('trägt die Markenfarbe, nicht den Fremdton', (tester) async {
+      final backend = await _rideBackend();
+      backend.update = const UpdateInfo(
+        latestVersion: '9.9.9',
+        releaseUrl: 'https://example.invalid/r',
+      );
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      final context = tester.element(find.text('Heute (Mi, 22.07.)'));
+      final scheme = Theme.of(context).colorScheme;
+
+      Color colorOf(String text) => tester
+          .widget<Material>(
+            find
+                .ancestor(of: find.text(text), matching: find.byType(Material))
+                .first,
+          )
+          .color!;
+
+      expect(
+        colorOf('Heute (Mi, 22.07.)'),
+        scheme.primaryContainer,
+        reason:
+            'Material 3 leitet `tertiary` aus einem Cyan-Seed als Lavendel '
+            'ab — der einzige fremde Ton der Oberfläche. Auf dem dauerhaften '
+            'Banner fiel er in der Gruppe als Stilbruch auf (v0.47.0).',
+      );
+      expect(
+        colorOf('Version 9.9.9 ist verfügbar'),
+        scheme.tertiaryContainer,
+        reason:
+            'Dorthin ist der Fremdton gewandert: Der Update-Hinweis kommt '
+            'und geht, da ist Herausfallen der Zweck. Tauschte man beide '
+            'zurück, stünden nach dieser Änderung zwei gleichfarbige '
+            'Streifen übereinander.',
+      );
+    });
+
     testWidgets('bleibt weg, solange niemand eingetragen ist', (tester) async {
       // _backend() legt Anna an, aber keine Verfügbarkeit.
       await pumpApp(tester, _backend());
