@@ -80,10 +80,16 @@ class HelpScreen extends StatelessWidget {
             title: 'Übersicht',
             children: [
               _Line(
+                text:
+                    'Ganz oben steht die nächste Fahrt: welcher Tag, wer '
+                    'fährt und wer dabei ist. Ein Tipp darauf führt in die '
+                    'Woche.',
+              ),
+              _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
                 text:
-                    'Oben steht, wer dran ist — das Auto markiert, wer als '
-                    'Nächstes fährt.',
+                    'Darunter steht, wer dran ist — das Auto markiert, wer '
+                    'als Nächstes fährt.',
               ),
               _Line(
                 leading: MoodFace(mood: Mood.ecstatic, size: 22),

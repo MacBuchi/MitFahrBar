@@ -141,7 +141,7 @@ void main() {
   test('Dateiname trägt das Datum, damit Sicherungen nebeneinander liegen', () {
     expect(
       csvFileName(DateTime(2026, 7, 5)),
-      'ridebuddy-fahrten-2026-07-05.csv',
+      'mitfahrbar-fahrten-2026-07-05.csv',
     );
   });
 }

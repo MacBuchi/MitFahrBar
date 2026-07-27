@@ -290,6 +290,88 @@ void main() {
     });
   });
 
+  // Der Tag, den das Banner auf der Übersicht zeigt (#122).
+  group('nextRide', () {
+    /// Die Standardwoche, alle vier Tage offen und besetzt.
+    List<PlannedDay> plan({
+      Set<DateTime> confirmed = const {},
+      Set<DateTime> empty = const {},
+    }) => [
+      for (final day in week)
+        PlannedDay(
+          date: day,
+          availableIds: empty.contains(day) ? const [] : const ['a', 'b'],
+          oneWayIds: const {},
+          suggestedDriverIds: empty.contains(day) ? const [] : const ['a'],
+          cars: empty.contains(day)
+              ? const []
+              : const [
+                  PlannedCar(driverId: 'a', fullIds: ['b']),
+                ],
+          confirmed: confirmed.contains(day),
+        ),
+    ];
+
+    test('mitten in der Woche steht der laufende Tag vorn', () {
+      final wednesday = DateTime(2026, 3, 4);
+      expect(nextRide(plan(), wednesday)?.date, wednesday);
+    });
+
+    // Ohne diesen Riegel bliebe das Banner den ganzen Abend auf einem Tag
+    // stehen, der längst gefahren und eingetragen ist.
+    test('ein eingetragener Tag rückt auf den nächsten weiter', () {
+      final wednesday = DateTime(2026, 3, 4);
+      final thursday = DateTime(2026, 3, 5);
+
+      expect(
+        nextRide(plan(confirmed: {wednesday}), wednesday)?.date,
+        thursday,
+        reason: 'Die Fahrt existiert — der Tag ist erledigt.',
+      );
+    });
+
+    test('vergangene Tage der Woche zählen nicht', () {
+      final thursday = DateTime(2026, 3, 5);
+      expect(nextRide(plan(), thursday)?.date, thursday);
+    });
+
+    // „Noch niemand verfügbar" ist keine Fahrt, über die sich etwas sagen
+    // ließe — dann lieber den nächsten Tag zeigen, an dem etwas steht.
+    test('ein Tag ohne Verfügbare wird übersprungen', () {
+      final wednesday = DateTime(2026, 3, 4);
+      final thursday = DateTime(2026, 3, 5);
+
+      expect(nextRide(plan(empty: {wednesday}), wednesday)?.date, thursday);
+    });
+
+    test('ohne offenen Tag bleibt nichts übrig', () {
+      final friday = DateTime(2026, 3, 6);
+      expect(nextRide(plan(confirmed: {friday}), friday), isNull);
+      expect(nextRide(const [], friday), isNull);
+    });
+
+    // Freitag und Samstag hat „morgen" keinen Eintrag in planningWeek — dort
+    // zeigt das Banner deshalb bereits den Montag, statt leer zu bleiben.
+    test('am Freitag zeigt der Planer der neuen Woche deren Montag', () {
+      final saturday = DateTime(2026, 3, 7);
+      final nextWeek = [
+        for (final day in planningWeek(saturday))
+          PlannedDay(
+            date: day,
+            availableIds: const ['a', 'b'],
+            oneWayIds: const {},
+            suggestedDriverIds: const ['a'],
+            cars: const [
+              PlannedCar(driverId: 'a', fullIds: ['b']),
+            ],
+            confirmed: false,
+          ),
+      ];
+
+      expect(nextRide(nextWeek, saturday)?.date, DateTime(2026, 3, 9));
+    });
+  });
+
   group('isoWeekNumber', () {
     // Der Planer-Kopf zeigt die KW (#84) — ISO 8601: Woche 1 ist die mit
     // dem ersten Donnerstag des Jahres.

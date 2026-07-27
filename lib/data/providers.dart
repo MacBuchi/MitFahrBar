@@ -356,6 +356,17 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
   }
 }
 
+/// Der Tag für das Banner „nächste Fahrt" auf der Übersicht (#122).
+///
+/// Reine Ableitung aus [weekPlanProvider] — keine eigene Ladung. Der Preis
+/// steht trotzdem an: Weil die Übersicht das jetzt beobachtet, lädt der
+/// Wochenplan schon beim App-Start und nicht erst beim Öffnen des Planers.
+/// Das ist eine Anfrage mehr und der Gegenwert des Banners.
+final nextRideProvider = Provider<AsyncValue<PlannedDay?>>((ref) {
+  final now = ref.watch(nowProvider);
+  return ref.watch(weekPlanProvider).whenData((week) => nextRide(week, now()));
+});
+
 /// Gespeicherte Verfügbarkeit EINES Tages (Person → wie sie mitfährt),
 /// gefiltert auf aktive Personen — dieselbe Regel wie im [WeekPlanNotifier]
 /// (Issue #54). Der Fahrten-Editor belegt damit bei einer NEUEN Fahrt die

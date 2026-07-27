@@ -461,6 +461,64 @@ void main() {
     });
   });
 
+  // Das Banner auf der Übersicht (#122) spricht dieselbe Sprache wie die
+  // Benachrichtigung, kennt aber kein „du": Im Browser und auf nicht
+  // zugeordneten Geräten gibt es keine Person, auf die man den Text beziehen
+  // könnte.
+  group('Text für die ganze Gruppe', () {
+    test('nennt Fahrerin und Mitfahrer beim Namen', () {
+      expect(
+        composeGroupBody(dayWith(), persons),
+        'Anna fährt · dabei: Bernd, Clara',
+      );
+    });
+
+    test('kommt ohne „du" aus', () {
+      expect(composeGroupBody(dayWith(), persons), isNot(contains('u fährst')));
+    });
+
+    test('zählt über alle Autos zusammen, nicht je Auto', () {
+      final day = dayWith(
+        cars: const [
+          PlannedCar(driverId: anna, fullIds: [bernd]),
+          PlannedCar(driverId: clara),
+        ],
+      );
+      expect(
+        composeGroupBody(day, persons),
+        'Anna und Clara fahren · dabei: Bernd · 2 Autos',
+      );
+    });
+
+    test('sagt es, wenn niemand fahren kann', () {
+      final day = dayWith(available: const [anna, bernd], cars: const []);
+      expect(composeGroupBody(day, persons), 'Kein Fahrer · 2 dabei');
+    });
+
+    test('unterscheidet „kein Fahrer" von „alle nur eine Richtung"', () {
+      final day = dayWith(
+        available: const [anna, bernd],
+        oneWay: const {anna, bernd},
+        cars: const [],
+      );
+      expect(
+        composeGroupBody(day, persons),
+        'Kein Fahrer möglich — alle nur eine Richtung · 2 dabei',
+      );
+    });
+
+    test('sagt es, wenn die Fahrerin allein fährt', () {
+      final day = dayWith(
+        available: const [anna],
+        cars: const [PlannedCar(driverId: anna)],
+      );
+      expect(
+        composeGroupBody(day, persons),
+        'Anna fährt · niemand mitzunehmen',
+      );
+    });
+  });
+
   test('die Vorbelegung deckt sich mit den Defaults der Migration', () {
     final migration = File(
       'supabase/migrations/20260726100000_push_notifications.sql',

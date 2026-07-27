@@ -11,6 +11,12 @@
 /// Fairness-Logik) und legt hier nur einen *Hash* des Tageszustands ab, um
 /// beim nächsten Lauf zu erkennen, ob sich etwas geändert hat. Wer statt des
 /// Hashes den Plan speichert, baut die zweite Wahrheit über den Tag.
+///
+/// **Zwei Abnehmer, ein Wortschatz** (seit #122): Neben `tool/notify.dart`
+/// liest auch die Übersicht hier — das Banner „nächste Fahrt" nimmt
+/// [composeGroupBody] und [dayLabel]. Der Wortlaut gehört deshalb hierher und
+/// nicht ins Widget: Was das Handy meldet und was die App zeigt, darf nicht
+/// auseinanderlaufen.
 library;
 
 import '../models/notification_prefs.dart';
@@ -274,6 +280,45 @@ String composeBody(
     ].where((id) => id != personId).toList();
     if (others.isNotEmpty) parts.add('dabei: ${_names(others, persons)}');
     if (day.oneWayIds.contains(personId)) parts.add('du nur eine Richtung');
+  }
+
+  if (day.cars.length > 1) parts.add('${day.cars.length} Autos');
+  return parts.join(' · ');
+}
+
+/// Derselbe Tag, aber aus Sicht der ganzen Gruppe — für die Übersicht (#122),
+/// wo niemand „du" ist.
+///
+/// [composeBody] braucht eine `personId`, und die kennt nur ein Gerät mit
+/// Push-Zuordnung: im Browser und auf nicht zugeordneten Geräten gibt es sie
+/// nicht. Diese Fassung nennt den Fahrer beim Namen und zählt alle übrigen
+/// Anwesenden als Mitfahrer — sie teilt sich [_driverPhrase] und [_names] mit
+/// der persönlichen, damit beide dieselbe Sprache sprechen.
+String composeGroupBody(PlannedDay day, Map<String, Person> persons) {
+  final parts = <String>[];
+
+  if (day.cars.isEmpty) {
+    final allOneWay =
+        day.availableIds.isNotEmpty &&
+        day.oneWayIds.length == day.availableIds.length;
+    parts.add(
+      allOneWay
+          ? 'Kein Fahrer möglich — alle nur eine Richtung'
+          : 'Kein Fahrer',
+    );
+    parts.add('${day.availableIds.length} dabei');
+  } else {
+    parts.add(_driverPhrase(day.driverIds, persons));
+    // Alle Anwesenden außer den Fahrern — bei mehreren Autos ist „dabei" die
+    // Gruppe des Tages, nicht die eines Autos.
+    final riders = day.availableIds
+        .where((id) => !day.driverIds.contains(id))
+        .toList();
+    parts.add(
+      riders.isEmpty
+          ? 'niemand mitzunehmen'
+          : 'dabei: ${_names(riders, persons)}',
+    );
   }
 
   if (day.cars.length > 1) parts.add('${day.cars.length} Autos');

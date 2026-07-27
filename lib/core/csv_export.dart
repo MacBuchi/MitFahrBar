@@ -89,8 +89,11 @@ String formatCsvDate(DateTime date) {
 }
 
 /// Dateiname mit Datum, damit mehrere Sicherungen nebeneinander liegen.
+///
+/// Der Import liest ausschließlich den Inhalt, nie den Namen — ältere
+/// `ridebuddy-fahrten-*.csv` (bis v0.41.0, #117) bleiben also lesbar.
 String csvFileName(DateTime today) =>
-    'ridebuddy-fahrten-${today.year}-'
+    'mitfahrbar-fahrten-${today.year}-'
     '${today.month.toString().padLeft(2, '0')}-'
     '${today.day.toString().padLeft(2, '0')}.csv';
 
