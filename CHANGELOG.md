@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.45.0] – 2026-07-27
+
+### Neu
+
+- **Im Wochenplaner tippst du deine eigene Zeile direkt durch.** Bei allen
+  anderen fragt die App kurz nach — damit niemand aus Versehen bei jemandem
+  dreht. Eintragen darfst du weiterhin für jeden: Die Rückfrage bietet gleich
+  alle drei Möglichkeiten an („dabei", „nur eine Richtung", „kann nicht"), das
+  sind zwei Tipps statt bis zu drei beim Durchschalten.
+- Wer im Menü unter „Ich bin" niemanden ausgewählt hat, für den bleibt das
+  Raster wie bisher — freies Tippen, keine Rückfrage.
+
 ## [0.44.0] – 2026-07-27
 
 ### Neu

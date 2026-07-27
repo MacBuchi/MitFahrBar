@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 
 import 'package:mitfahrbar/core/fairness.dart';
+import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
@@ -844,5 +845,177 @@ void main() {
     // Typografisches Minus (U+2212), nicht der Bindestrich — gleiche Breite
     // wie das Plus, damit die Spalte nicht flattert.
     expect(find.text('−1'), findsOneWidget);
+  });
+
+  // Die Leitplanke aus #121. Sie ist eine **Vertipper-Bremse, keine Sperre**:
+  // Über die Rückfrage kommt jeder durch, und Pärchen, die füreinander
+  // eintragen, sind mit zwei Tipps oft schneller als mit dem Durchschalten.
+  //
+  // Alle übrigen Tests dieser Datei laufen ohne `identity:` — sie prüfen
+  // damit weiterhin das freie Raster. Das ist kein Zufall, sondern der Beleg
+  // für „ohne gewählte Person bleibt alles wie bisher".
+  group('Nur die eigene Zeile', () {
+    /// Wie [_backend], gibt aber die IDs zurück — die Geräte-Zuordnung
+    /// braucht eine.
+    Future<(FakeBackend, Map<String, String>)> backendWithIds(
+      List<String> names,
+    ) async {
+      final backend = FakeBackend();
+      final group = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final ids = <String, String>{};
+      for (final name in names) {
+        final person = await backend
+            .dataFor(group)
+            .createPerson(Person(id: '', name: name, active: true));
+        ids[name] = person.id;
+      }
+      return (backend, ids);
+    }
+
+    testWidgets('die eigene Zelle schaltet direkt weiter', (tester) async {
+      final handle = tester.ensureSemantics();
+      final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      // Zweimal tippen: Wer als Einzige verfügbar ist, wird sofort als
+      // Fahrerin vorgeschlagen — die Zelle läse dann „fährt". Nach dem
+      // zweiten Tipp ist sie 1-way und kommt als Fahrerin nicht in Frage,
+      // der Zustand ist also eindeutig.
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(_cell('Anna', monday, state: 'nur eine Richtung'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('eine fremde Zelle fragt nach, statt zu schalten', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        _cell('Bert', monday, state: 'kann nicht'),
+        findsOneWidget,
+        reason: 'Der Tipp allein darf noch nichts geändert haben.',
+      );
+      // Alle drei Zustände stehen zur Wahl — die Rückfrage erledigt es
+      // gleich mit, statt nur zu fragen.
+      for (final label in ['dabei', 'nur eine Richtung', 'kann nicht']) {
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text(label),
+          ),
+          findsOneWidget,
+        );
+      }
+      handle.dispose();
+    });
+
+    testWidgets('eine Auswahl in der Rückfrage schreibt den Zustand', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('nur eine Richtung'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        _cell('Bert', monday, state: 'nur eine Richtung'),
+        findsOneWidget,
+        reason:
+            'Zwei Tipps zu jedem Zustand — beim Durchschalten wären es bis '
+            'zu drei.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Abbrechen lässt den Zustand unverändert', (tester) async {
+      final handle = tester.ensureSemantics();
+      final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Abbrechen'));
+      await tester.pumpAndSettle();
+
+      expect(_cell('Bert', monday, state: 'kann nicht'), findsOneWidget);
+      handle.dispose();
+    });
+
+    // Wer die Startabfrage überspringt, soll nicht schlechter dastehen als
+    // vor dem Release.
+    testWidgets('ohne gewählte Person bleibt es beim Durchschalten', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final (backend, _) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(tester, backend, identity: DeviceIdentity.skipped);
+      await _login(tester);
+      await _openPlan(tester);
+
+      // Zweimal, aus demselben Grund wie oben: Als einziger Verfügbarer
+      // würde Bert nach dem ersten Tipp als Fahrer vorgeschlagen.
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(_cell('Bert', monday, state: 'nur eine Richtung'), findsOneWidget);
+      handle.dispose();
+    });
   });
 }
