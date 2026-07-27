@@ -106,7 +106,9 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 text:
                     'Darunter: was ihr gemeinsam erreicht habt, Fahrten pro '
-                    'Monat und wie jede und jeder unterwegs war.',
+                    'Monat und wie jede und jeder unterwegs war. Das '
+                    'Monats-Diagramm lässt sich nach rechts wischen — '
+                    'dahinter liegt eure ganze Historie.',
               ),
             ],
           ),

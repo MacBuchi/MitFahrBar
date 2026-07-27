@@ -52,6 +52,63 @@ List<MonthBucket> tripsPerMonth(
   ];
 }
 
+/// Wie viele Monate das Diagramm abdecken muss, damit die **erste** Fahrt
+/// darin liegt (#119).
+///
+/// Vorher stand das Fenster fest auf zwölf Monaten. Eine Gruppe, die seit
+/// Jahren fährt, sah damit nur ihr letztes Jahr.
+///
+/// Zwei Grenzen, beide nicht kosmetisch:
+/// * **Mindestens [floor]**: Eine junge Gruppe bekäme sonst ein gestauchtes
+///   Diagramm aus zwei Säulen. Leere Monate gehören ins Bild — dieselbe
+///   Begründung wie bei [tripsPerMonth].
+/// * **Höchstens [cap]**: Ein einzelnes falsch getipptes Datum weit in der
+///   Vergangenheit streckte die Achse sonst dauerhaft, und alle echten Monate
+///   quetschten sich in den rechten Rand. (Fahrten in der *Zukunft* fängt
+///   [tripsPerMonth] bereits ab, weil es nie über den laufenden Monat
+///   hinaus zählt — genau so ein Ausreißer steckt im Erst-Import der Gruppe.)
+int monthsToCover(
+  List<Trip> trips,
+  DateTime now, {
+  int floor = 12,
+  int cap = 60,
+}) {
+  final newest = now.year * 12 + (now.month - 1);
+  var oldest = newest;
+  for (final trip in trips) {
+    final key = trip.date.year * 12 + (trip.date.month - 1);
+    // Was nach heute liegt, zählt nicht — sonst verlängerte ein Vertipper in
+    // die Zukunft das Fenster, obwohl die Fahrt gar nicht gezeichnet wird.
+    if (key < oldest) oldest = key;
+  }
+  return (newest - oldest + 1).clamp(floor, cap);
+}
+
+/// Gerundete Werte für die Wertachse, von 0 bis mindestens [maxValue].
+///
+/// **Beginnt immer bei 0.** Eine abgeschnittene Wertachse verfälscht bei
+/// Säulen die Länge — der optische Vergleich ist genau das, wofür die Form
+/// gewählt wurde.
+///
+/// Die Schrittweite ist die kleinste aus 1/2/5/10/20/25/50/…, mit der
+/// [count] Schritte über [maxValue] hinauskommen; so stehen an der Achse
+/// glatte Zahlen statt krummer Bruchteile des Maximums.
+List<int> axisTicks(int maxValue, {int count = 4}) {
+  if (count < 1) return const [0];
+  if (maxValue <= 0) return [0, 1];
+
+  var magnitude = 1;
+  while (true) {
+    for (final factor in const [1, 2, 5]) {
+      final step = factor * magnitude;
+      if (step * count >= maxValue) {
+        return [for (var i = 0; i <= count; i++) i * step];
+      }
+    }
+    magnitude *= 10;
+  }
+}
+
 /// Eine Zeile des Teilnahme-Diagramms: wie eine Person unterwegs war.
 ///
 /// Die Reihenfolge der Felder ist zugleich die Stapelreihenfolge und

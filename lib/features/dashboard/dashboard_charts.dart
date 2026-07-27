@@ -55,9 +55,11 @@ class GroupAchievementsCard extends ConsumerWidget {
         .map((s) => byId[s.personId]?.name ?? s.personId)
         .join(' & ');
 
-    final thisYear = trips
-        .where((t) => t.date.year == DateTime.now().year)
-        .length;
+    // Uhr aus dem Provider, nicht von der Wand: In Tests steht sie auf einem
+    // festen Tag, und eine Karte, die daran vorbei rechnet, zeigt am
+    // Jahreswechsel etwas anderes als der Rest der App.
+    final now = ref.watch(nowProvider)();
+    final thisYear = trips.where((t) => t.date.year == now.year).length;
 
     return _ChartCard(
       title: 'Gemeinsam erreicht',
@@ -102,7 +104,15 @@ class MonthlyTripsCard extends ConsumerWidget {
     final trips = ref.watch(tripsProvider).value;
     if (trips == null || trips.isEmpty) return const SizedBox.shrink();
 
-    final buckets = tripsPerMonth(trips);
+    // Das Fenster reicht bis zur ersten Fahrt (#119) — eine Gruppe, die seit
+    // Jahren fährt, sah vorher nur ihr letztes Jahr. Passt das nicht in die
+    // Breite, scrollt das Diagramm.
+    final now = ref.watch(nowProvider)();
+    final buckets = tripsPerMonth(
+      trips,
+      months: monthsToCover(trips, now),
+      now: now,
+    );
     if (buckets.every((b) => b.trips == 0)) return const SizedBox.shrink();
 
     final range = DateFormat('MMM yyyy', 'de');

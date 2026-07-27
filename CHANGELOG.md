@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.43.0] – 2026-07-27
+
+### Neu
+
+- **„Fahrten pro Monat" zeigt jetzt eure ganze Historie.** Bisher standen dort
+  zwölf Monate, egal wie lange ihr schon fahrt. Jetzt reicht das Diagramm bis
+  zur ersten eingetragenen Fahrt zurück — was nicht in die Breite passt, holt
+  ihr mit einem Wisch nach rechts herein.
+- **Das Diagramm hat eine Werteachse bekommen.** Links stehen runde Zahlen mit
+  dezenten Hilfslinien, dafür sind die Zahlen über den Säulen weggefallen. Bei
+  zwei Dutzend Monaten wäre an jeder Säule ohnehin kein Platz mehr gewesen.
+
 ## [0.42.0] – 2026-07-27
 
 ### Neu
