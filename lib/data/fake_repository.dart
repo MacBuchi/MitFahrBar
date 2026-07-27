@@ -4,6 +4,7 @@ library;
 
 import '../models/app_settings.dart';
 import '../models/person.dart';
+import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
@@ -154,6 +155,39 @@ class FakeCarpoolRepository implements CarpoolRepository {
       _planDrivers[key] = {...driverIds};
     }
   }
+
+  // Anmerkungen (Issue #127). Eine flache Liste statt einer Map nach Tag:
+  // Es gibt mehrere je Tag, und die Reihenfolge ist die Einfügereihenfolge —
+  // dasselbe, was `order('created_at')` in der Datenbank liefert.
+  final List<PlanNote> _notes = [];
+
+  @override
+  Future<List<PlanNote>> loadNotes(DateTime from, {int days = 7}) async {
+    final start = _day(from);
+    final end = start.add(Duration(days: days - 1));
+    return List.unmodifiable([
+      for (final note in _notes)
+        if (!note.date.isBefore(start) && !note.date.isAfter(end)) note,
+    ]);
+  }
+
+  @override
+  Future<void> addNote(DateTime date, String personId, String body) async {
+    _notes.add(
+      PlanNote(
+        id: _newId('note'),
+        date: _day(date),
+        personId: personId,
+        body: body.trim(),
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteNote(String noteId) async {
+    _notes.removeWhere((n) => n.id == noteId);
+  }
 }
 
 /// Demo-Daten für den Start ohne Backend (keine echten Namen).
@@ -232,5 +266,30 @@ FakeCarpoolRepository demoRepository() {
       ),
     );
   }
+
+  // Zwei Anmerkungen (Issue #127) auf dem nächsten Werktag — sie zeigen im
+  // Demo-Modus, wofür das Feld da ist. Bewusst harmlos formuliert: Der
+  // Demo-Modus ist die Quelle der README-Screenshots, die im Repo landen.
+  final today = DateTime.now();
+  var soon = DateTime(today.year, today.month, today.day);
+  while (soon.weekday >= DateTime.saturday) {
+    soon = soon.add(const Duration(days: 1));
+  }
+  repo._notes.addAll([
+    PlanNote(
+      id: 'demo-note-1',
+      date: soon,
+      personId: 'p2',
+      body: 'Komme erst um 9 — Zahnarzt.',
+      createdAt: today,
+    ),
+    PlanNote(
+      id: 'demo-note-2',
+      date: soon,
+      personId: 'p3',
+      body: 'Alles klar, wir warten am Parkplatz.',
+      createdAt: today,
+    ),
+  ]);
   return repo;
 }

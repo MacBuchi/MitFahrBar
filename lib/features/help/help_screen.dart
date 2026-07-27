@@ -91,7 +91,8 @@ class HelpScreen extends StatelessWidget {
                 text:
                     'Ganz oben steht die nächste Fahrt: welcher Tag, wer '
                     'fährt und wer dabei ist. Ein Tipp darauf führt in die '
-                    'Woche.',
+                    'Woche — die Sprechblase rechts in die Anmerkungen des '
+                    'Tages.',
               ),
               _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
@@ -227,6 +228,18 @@ class HelpScreen extends StatelessWidget {
                     'Hajo! Das Konfetti bekommt, wer das vollste Auto der '
                     'Woche fährt — gezählt wie die Punkte, eine 1-way-'
                     'Mitfahrt also halb. Bei Gleichstand alle.',
+              ),
+              _Line(
+                leading: Icon(Icons.chat_bubble_outline),
+                text:
+                    'Ein Tipp auf eine Tageszeile öffnet die Anmerkungen: '
+                    'kurze Hinweise wie „Komme erst um 9". Sie ändern nichts '
+                    'am Plan und nichts an den Punkten — sie sagen den '
+                    'anderen Bescheid. Wer für den Tag benachrichtigt wird, '
+                    'bekommt sie mit dem Abend-Blick oder der '
+                    'Änderungs-Meldung aufs Handy; das kann aber dauern. '
+                    'Was sofort ankommen muss, gehört weiter in WhatsApp '
+                    'oder ans Telefon.',
               ),
               _Line(
                 leading: Icon(Icons.tune),

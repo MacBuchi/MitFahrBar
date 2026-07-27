@@ -783,37 +783,62 @@ class _DayRow extends ConsumerWidget {
     return ' · nur $sum Plätze für ${day.availableIds.length}';
   }
 
+  /// Zusatz am Tag, wenn jemand etwas angemerkt hat (#127).
+  ///
+  /// Hängt am `subtitle` und nicht am `trailing`: Dort stehen je nach Zustand
+  /// schon bis zu zwei Knöpfe, und ein dritter müsste in alle fünf Zweige.
+  /// Dasselbe Muster wie [_seatHint].
+  static String _notesHint(int count) => switch (count) {
+    0 => '',
+    1 => ' · 1 Anmerkung',
+    _ => ' · $count Anmerkungen',
+  };
+
+  /// Der Tag als ISO-Kalendertag für die Adresse `/notes/:date`.
+  String get _isoDay =>
+      '${day.date.year.toString().padLeft(4, '0')}-'
+      '${day.date.month.toString().padLeft(2, '0')}-'
+      '${day.date.day.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final label = DateFormat('EEEE, d.M.', 'de').format(day.date);
     final joined = [
       for (final id in day.driverIds) byId[id]?.name ?? id,
     ].join(' + ');
+    final notes = _notesHint(
+      ref.watch(weekNotesProvider).value?[day.date]?.length ?? 0,
+    );
 
     return ListTile(
+      // Die Anmerkungen stehen JEDEM Tag offen, auch einem eingetragenen.
+      // Das weicht die Sperre oben nicht auf: Sie schützt die Punkte vor
+      // einer versehentlichen Planänderung, und eine Anmerkung berührt sie
+      // nicht.
+      onTap: () => unawaited(context.push('/notes/$_isoDay')),
       title: Text(label),
-      subtitle: Text(switch ((day.confirmed, day.cars.length)) {
-        (true, 0) => 'Eingetragen',
-        (true, 1) => 'Eingetragen · $joined ist gefahren',
-        (true, _) => 'Eingetragen · $joined sind gefahren',
-        // Zwei verschiedene Gründe für „kein Fahrer": Entweder hat noch
-        // niemand angetippt, oder es können alle nur eine Richtung — dann
-        // stellt niemand ein Auto. „Noch niemand verfügbar" wäre im zweiten
-        // Fall schlicht falsch und die Nutzerin sucht den Fehler bei sich.
-        (false, 0) when day.availableIds.isEmpty => 'Noch niemand verfügbar',
-        (false, 0) => 'Kein Fahrer möglich — alle nur eine Richtung',
-        (false, 1) =>
-          '$joined fährt · '
+      subtitle: Text(
+        '${switch ((day.confirmed, day.cars.length)) {
+          (true, 0) => 'Eingetragen',
+          (true, 1) => 'Eingetragen · $joined ist gefahren',
+          (true, _) => 'Eingetragen · $joined sind gefahren',
+          // Zwei verschiedene Gründe für „kein Fahrer": Entweder hat noch
+          // niemand angetippt, oder es können alle nur eine Richtung — dann
+          // stellt niemand ein Auto. „Noch niemand verfügbar" wäre im zweiten
+          // Fall schlicht falsch und die Nutzerin sucht den Fehler bei sich.
+          (false, 0) when day.availableIds.isEmpty => 'Noch niemand verfügbar',
+          (false, 0) => 'Kein Fahrer möglich — alle nur eine Richtung',
+          (false, 1) => '$joined fährt · '
               '${day.isOverridden ? 'von Hand gesetzt' : 'Vorschlag'}'
               // Der Planer bevorzugt Autos mit genug Plätzen; reicht es an
               // dem Tag trotzdem nicht, sagt er das, statt still zu wenige
               // Sitze vorzuschlagen.
               '${_seatHint()}',
-        (false, final k) =>
-          '$joined fahren · $k Autos · '
+          (false, final k) => '$joined fahren · $k Autos · '
               '${day.isOverridden ? 'von Hand gesetzt' : 'Vorschlag'}'
               '${_seatHint()}',
-      }),
+        }}$notes',
+      ),
       leading: Icon(
         day.confirmed ? Icons.check_circle : Icons.event_available_outlined,
         color: day.confirmed ? AppColors.driver : null,

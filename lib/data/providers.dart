@@ -14,6 +14,7 @@ import '../core/update_check.dart';
 import '../models/app_settings.dart';
 import '../models/group.dart';
 import '../models/person.dart';
+import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
 import '../models/trip.dart';
 import 'admin_repository.dart';
@@ -461,6 +462,45 @@ final nextRideProvider = Provider<AsyncValue<PlannedDay?>>((ref) {
   final now = ref.watch(nowProvider);
   return ref.watch(weekPlanProvider).whenData((week) => nextRide(week, now()));
 });
+
+/// Die Anmerkungen der Planwoche, nach Kalendertag (Issue #127).
+///
+/// Eine Anfrage für die ganze Woche, dieselbe Spanne wie [weekPlanProvider] —
+/// daraus speisen sich der Zähler je Tag im Planer **und** der am Banner
+/// „nächste Fahrt". Weil der nächste Fahrtag per Konstruktion in dieser Woche
+/// liegt ([nextRideProvider] filtert dieselbe Liste), kostet das Banner
+/// dadurch keine zweite Anfrage.
+///
+/// Die Schlüssel sind auf Tagesbeginn normiert — sonst fände ein Nachschlagen
+/// mit `PlannedDay.date` seine Zeile nicht (dieselbe Falle wie im
+/// [WeekPlanNotifier]).
+final weekNotesProvider = FutureProvider<Map<DateTime, List<PlanNote>>>((
+  ref,
+) async {
+  ref.watch(currentUserIdProvider);
+  final dates = planningWeek(ref.read(nowProvider)());
+  final notes = await ref
+      .watch(carpoolRepositoryProvider)
+      .loadNotes(dates.first, days: 7);
+  final byDay = <DateTime, List<PlanNote>>{};
+  for (final note in notes) {
+    final day = DateTime(note.date.year, note.date.month, note.date.day);
+    (byDay[day] ??= <PlanNote>[]).add(note);
+  }
+  return byDay;
+});
+
+/// Die Anmerkungen EINES Tages, älteste zuerst — für den Anmerkungs-Schirm.
+///
+/// Bewusst nicht aus [weekNotesProvider] abgeleitet: Der deckt nur die zu
+/// planende Woche ab, der Schirm ist aber über eine Adresse (`/notes/:date`)
+/// direkt erreichbar. Schlüssel auf Tagesbeginn normiert, sonst entsteht je
+/// Uhrzeit ein eigener Cache-Eintrag; `autoDispose` räumt verlassene Tage weg.
+final dayNotesProvider = FutureProvider.autoDispose
+    .family<List<PlanNote>, DateTime>((ref, day) {
+      ref.watch(currentUserIdProvider);
+      return ref.watch(carpoolRepositoryProvider).loadNotes(day, days: 1);
+    });
 
 /// Gespeicherte Verfügbarkeit EINES Tages (Person → wie sie mitfährt),
 /// gefiltert auf aktive Personen — dieselbe Regel wie im [WeekPlanNotifier]

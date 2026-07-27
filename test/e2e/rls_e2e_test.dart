@@ -213,6 +213,53 @@ void main() {
     },
   );
 
+  // Issue #127: Anmerkungen am Plantag. Zwei Wirkungen an einer Stelle —
+  // die Mandantentrennung und die Tatsache, dass eine UUID als Schlüssel
+  // beliebig viele Zeilen je Tag und Person zulässt.
+  test('Anmerkungen bleiben in ihrer Gruppe', () async {
+    final personB = await b.client.from('persons').select().single();
+    const day = '2026-07-28';
+
+    await a.client.from('plan_notes').insert([
+      {'plan_date': day, 'person_id': personA['id'], 'body': 'Komme um 9'},
+      {'plan_date': day, 'person_id': personA['id'], 'body': 'Doch um 8'},
+    ]);
+    await b.client.from('plan_notes').insert({
+      'plan_date': day,
+      'person_id': personB['id'],
+      'body': 'Nicht sichtbar für A',
+    });
+
+    final mine = await a.client.from('plan_notes').select();
+    expect(
+      mine,
+      hasLength(2),
+      reason:
+          'Zwei eigene Zeilen am selben Tag und derselben Person — der '
+          'Schlüssel ist eine UUID, kein fachlicher. Und die Zeile der '
+          'anderen Gruppe darf nicht dabei sein.',
+    );
+    expect(
+      mine.map((row) => row['body']),
+      isNot(contains('Nicht sichtbar für A')),
+    );
+  });
+
+  test('eine leere Anmerkung lehnt die Datenbank ab', () async {
+    await expectLater(
+      a.client.from('plan_notes').insert({
+        'plan_date': '2026-07-29',
+        'person_id': personA['id'],
+        'body': '   ',
+      }),
+      throwsA(isA<PostgrestException>()),
+      reason:
+          'Der Check prüft `btrim` — ohne ihn ließe `between 1 and 500` '
+          'reine Leerzeichen durch, und die Anzeige stünde vor einer leeren '
+          'Zeile, die sie nicht erklären kann.',
+    );
+  });
+
   // Issue #62: Seit dem Schlüssel (group_id, plan_date, driver_id) darf
   // ein Tag mehrere Fahrer-Zeilen tragen — vorher wäre dieser zweite
   // Insert an derselben Unique-Verletzung gescheitert wie einst die

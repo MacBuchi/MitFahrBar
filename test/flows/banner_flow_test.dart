@@ -89,6 +89,39 @@ void main() {
             'nächste Fahrt auch einen Knopf, wären es zwei — und „alles auf '
             'einen Blick" (#122) erfüllt kein weggetipptes Banner.',
       );
+      // Der Test oben zählt über den ganzen Schirm und würde einen zweiten
+      // Knopf am FALSCHEN Banner nicht bemerken; diese Zusicherung hängt am
+      // richtigen. Der Anmerkungs-Knopf (#127) trägt deshalb einen eigenen
+      // Tooltip — hieße er auch „Ausblenden", wäre die Prüfung oben rot,
+      // ohne dass die Regel verletzt wäre.
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Heute (Mi, 22.07.)'),
+            matching: find.byType(InkWell),
+          ),
+          matching: find.byTooltip('Ausblenden'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('führt über die Sprechblase in die Anmerkungen', (
+      tester,
+    ) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      // Tippen, nicht nur finden.
+      await tester.tap(find.byTooltip('Anmerkungen'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Anmerkungen'), findsWidgets);
+      expect(
+        find.textContaining('Komme erst um 9'),
+        findsOneWidget,
+        reason: 'Der leere Schirm nennt ein Beispiel.',
+      );
     });
 
     testWidgets('bleibt weg, solange niemand eingetragen ist', (tester) async {

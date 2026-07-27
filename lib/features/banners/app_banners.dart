@@ -134,15 +134,42 @@ class _NextRideBanner extends ConsumerWidget {
 
     final byId = {for (final person in persons) person.id: person};
     final scheme = Theme.of(context).colorScheme;
+    // Anmerkungen des Tages (#127) — aus der Wochenladung, die der Planer
+    // ohnehin braucht; das Banner kostet dadurch keine eigene Anfrage.
+    final notes = ref.watch(weekNotesProvider).value?[day.date] ?? const [];
+    final iso =
+        '${day.date.year.toString().padLeft(4, '0')}-'
+        '${day.date.month.toString().padLeft(2, '0')}-'
+        '${day.date.day.toString().padLeft(2, '0')}';
 
     return _Banner(
       icon: Icons.directions_car,
       text: dayLabel(day.date, ref.watch(nowProvider)()),
-      subtitle: composeGroupBody(day, byId),
+      subtitle: composeGroupBody(day, byId, notes: notes),
       background: scheme.tertiaryContainer,
       foreground: scheme.onTertiaryContainer,
       // Dieselbe Adresse, die auch eine angetippte Benachrichtigung ansteuert.
       onTap: () => ref.read(routerProvider).go(pushTapRoute),
+      // Eigener Knopf statt eines zweiten Tap-Ziels auf derselben Fläche:
+      // Der Streifen führt weiter in die Woche, die Sprechblase in die
+      // Anmerkungen. Der Tooltip ist bewusst NICHT „Ausblenden" — dieses
+      // Banner lässt sich nicht ausblenden, und ein Test zählt genau das.
+      action: IconButton(
+        tooltip: 'Anmerkungen',
+        onPressed: () => ref.read(routerProvider).push('/notes/$iso'),
+        visualDensity: VisualDensity.compact,
+        icon: Badge(
+          isLabelVisible: notes.isNotEmpty,
+          label: Text('${notes.length}'),
+          child: Icon(
+            notes.isEmpty
+                ? Icons.chat_bubble_outline
+                : Icons.chat_bubble_rounded,
+            size: 18,
+            color: scheme.onTertiaryContainer,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -156,6 +183,7 @@ class _Banner extends StatelessWidget {
     required this.onTap,
     this.subtitle,
     this.onDismiss,
+    this.action,
   });
 
   final IconData icon;
@@ -169,6 +197,14 @@ class _Banner extends StatelessWidget {
 
   /// Ohne Rückruf gibt es keinen „Ausblenden"-Knopf — das Banner bleibt.
   final VoidCallback? onDismiss;
+
+  /// Eigener Knopf am rechten Rand, VOR dem Ausblenden-Knopf.
+  ///
+  /// Ein zweiter Slot statt [onDismiss] zweckzuentfremden: Dessen Zusicherung
+  /// („ohne Rückruf kein Ausblenden") wäre sonst eine Zufälligkeit, und ein
+  /// Knopf mit dem Tooltip „Ausblenden", der etwas anderes tut, ist die Art
+  /// Falle, die erst auf dem Gerät auffällt.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +251,7 @@ class _Banner extends StatelessWidget {
                           ],
                         ),
                 ),
+                ?action,
                 if (onDismiss != null)
                   IconButton(
                     tooltip: 'Ausblenden',

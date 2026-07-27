@@ -12,6 +12,7 @@ import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/core/push_digest.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/plan_note.dart';
 
 void main() {
   // 2026-07-27 ist ein Montag, 2026-07-28 ein Dienstag.
@@ -515,6 +516,173 @@ void main() {
       expect(
         composeGroupBody(day, persons),
         'Anna fährt · niemand mitzunehmen',
+      );
+    });
+  });
+
+  group('Anmerkungen (#127)', () {
+    PlanNote note(String id, {DateTime? on, String body = 'Komme erst um 9'}) =>
+        PlanNote(
+          id: id,
+          date: on ?? tuesday,
+          personId: bernd,
+          body: body,
+          createdAt: mondayEvening,
+        );
+
+    test('eine neue Anmerkung ändert den Digest', () {
+      expect(
+        dayDigestFor(dayWith(), anna, notes: [note('n1')]),
+        isNot(dayDigestFor(dayWith(), anna)),
+        reason:
+            'Ohne das bliebe der Tag für den Versand-Job unverändert und die '
+            'Anmerkung erreichte niemanden.',
+      );
+    });
+
+    test('eine andere Reihenfolge derselben Anmerkungen ändert ihn NICHT', () {
+      final forward = [note('n1'), note('n2'), note('n3')];
+      final backward = forward.reversed.toList();
+      expect(
+        dayDigestFor(dayWith(), anna, notes: backward),
+        dayDigestFor(dayWith(), anna, notes: forward),
+        reason:
+            'DAS ist der eigentliche Riegel: tool/notify.dart liest per '
+            'PostgREST, das ohne `order` keine Reihenfolge zusichert. Ohne '
+            'die Sortierung im Digest unterschiede sich der Hash zwischen '
+            'zwei Läufen ohne jede Datenänderung — jeder Anwesende bekäme im '
+            'Abstand des Cooldowns eine „Änderung"-Meldung über eine '
+            'Planänderung, die es nie gab, und zwar dauerhaft.',
+      );
+    });
+
+    test('eine Anmerkung an einem anderen Tag ändert ihn nicht', () {
+      expect(
+        dayDigestFor(
+          dayWith(),
+          anna,
+          notes: [note('n1', on: DateTime(2026, 7, 29))],
+        ),
+        dayDigestFor(dayWith(), anna),
+        reason:
+            'Die Liste kommt flach für die ganze Woche herein — der Digest '
+            'muss selbst auf seinen Tag filtern.',
+      );
+    });
+
+    test('nur die Kennung zählt, nicht der Text', () {
+      expect(
+        dayDigestFor(dayWith(), anna, notes: [note('n1', body: 'anders')]),
+        dayDigestFor(dayWith(), anna, notes: [note('n1')]),
+        reason:
+            'Es gibt kein Bearbeiten — dieselbe Kennung ist derselbe Eintrag. '
+            'Löschen und neu schreiben ergibt eine neue Kennung und damit '
+            'richtigerweise eine Meldung.',
+      );
+    });
+
+    test('wer nicht dabei ist, behält den festen Wert', () {
+      expect(
+        dayDigestFor(dayWith(), 'unbekannt', notes: [note('n1')]),
+        removedDigest,
+        reason:
+            'Sonst bekäme jemand, der aus dem Tag heraus ist, weiter '
+            'Anmerkungs-Meldungen — der feste Wert ist genau der Riegel '
+            'dagegen.',
+      );
+    });
+
+    test('eine Anmerkung löst eine Änderungs-Meldung aus', () {
+      final due = dueMessages(
+        week: [dayWith()],
+        prefs: prefsFor([anna]),
+        sent: [sentEvening(anna, dayDigestFor(dayWith(), anna), mondayEvening)],
+        persons: persons,
+        now: mondayEvening.add(const Duration(hours: 1)),
+        notes: [note('n1')],
+      );
+      expect(due, hasLength(1));
+      expect(due.single.kind, PushKind.change);
+      expect(
+        due.single.body,
+        contains('Bernd: Komme erst um 9'),
+        reason:
+            'Der Text steht bewusst drin, nicht nur eine Zahl: Zugestellt '
+            'wird über den trägen Job, und eine späte Meldung, die nur '
+            '„1 Anmerkung" sagt, wäre zweimal wertlos.',
+      );
+    });
+
+    test('ohne Abend-Push gibt es keine Anmerkungs-Meldung', () {
+      final due = dueMessages(
+        week: [dayWith()],
+        prefs: prefsFor([anna], evening: false),
+        sent: const [],
+        persons: persons,
+        now: mondayEvening.add(const Duration(hours: 1)),
+        notes: [note('n1')],
+      );
+      expect(
+        due,
+        isEmpty,
+        reason:
+            'Anmerkungen reisen als Änderungs-Meldung mit und erben deren '
+            'Bedingung. Das ist der bewusst gezahlte Preis dafür, dass es '
+            'keine eigene Push-Art gibt — der Benachrichtigungs-Screen sagt '
+            'es der Nutzerin.',
+      );
+    });
+
+    test('mehrere Anmerkungen: die jüngste im Text, der Rest gezählt', () {
+      final older = PlanNote(
+        id: 'n1',
+        date: tuesday,
+        personId: anna,
+        body: 'Ich fahre',
+        createdAt: mondayEvening,
+      );
+      final newer = PlanNote(
+        id: 'n2',
+        date: tuesday,
+        personId: bernd,
+        body: 'Komme erst um 9',
+        createdAt: mondayEvening.add(const Duration(minutes: 5)),
+      );
+      // Bewusst in verkehrter Reihenfolge übergeben: Die Auswahl hängt am
+      // Zeitstempel, nicht an der Listenposition.
+      expect(
+        composeGroupBody(dayWith(), persons, notes: [newer, older]),
+        endsWith('Bernd: Komme erst um 9 (+1 weitere)'),
+      );
+    });
+
+    test('ein langer Text wird gekürzt', () {
+      final long = note('n1', body: 'A' * 200);
+      final body = composeGroupBody(dayWith(), persons, notes: [long]);
+      expect(body, contains('…'));
+      expect(
+        body.length,
+        lessThan(140),
+        reason:
+            'Eine Benachrichtigung wird ohnehin abgeschnitten — lieber '
+            'lesbar kurz als vollständig unlesbar (dieselbe Regel wie bei '
+            'der Namensliste).',
+      );
+    });
+
+    test('das Banner und die Nachricht sagen dasselbe', () {
+      final n = [note('n1')];
+      expect(
+        composeGroupBody(dayWith(), persons, notes: n),
+        endsWith('Bernd: Komme erst um 9'),
+      );
+      expect(
+        composeBody(dayWith(), clara, persons, notes: n),
+        endsWith('Bernd: Komme erst um 9'),
+        reason:
+            'Zwei Abnehmer, ein Wortschatz: Trüge nur eine der beiden '
+            'compose-Funktionen die Anmerkung, zeigte die Übersicht etwas '
+            'anderes als das Handy meldet.',
       );
     });
   });

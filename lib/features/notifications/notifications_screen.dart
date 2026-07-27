@@ -325,9 +325,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             title: const Text('Änderungen bis zur Abfahrt'),
             subtitle: Text(
               prefs.eveningEnabled
-                  ? 'Wenn jemand den Plan für den Tag noch umstellt.'
+                  ? 'Wenn jemand den Plan für den Tag noch umstellt — oder '
+                        'eine Anmerkung schreibt.'
+                  // Anmerkungen (#127) reisen als Änderungs-Meldung mit und
+                  // hängen damit an derselben Bedingung. Das gehört
+                  // ausgesprochen, sonst ist es eine stille Lücke.
                   : 'Braucht den Abend-Blick — ohne ihn wäre eine Änderung '
-                        'die erste Nachricht des Tages, ohne Bezug.',
+                        'die erste Nachricht des Tages, ohne Bezug. Auch '
+                        'Anmerkungen kommen dann nicht an.',
             ),
             contentPadding: EdgeInsets.zero,
           ),
