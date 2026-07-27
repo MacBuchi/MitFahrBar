@@ -101,12 +101,22 @@ final deviceIdentityStoreProvider = Provider<DeviceIdentityStore>(
 
 /// Ob die Geräte-Zuordnung überhaupt greift.
 ///
-/// In Tests standardmäßig **aus** (`pumpApp`), aus demselben Grund wie beim
-/// Splash: Sonst träfe jeder Flow-Test zuerst auf die Startabfrage oder das
-/// Banner. `SupabaseConfig.isConfigured` ist im Test nämlich `true` — der
-/// eingecheckte Default ist die echte Projekt-URL, erst ein `--dart-define`
-/// auf den Platzhalter schaltet den Demo-Modus.
-final identityEnabledProvider = Provider<bool>((ref) => true);
+/// **Im Demo-Modus aus.** Dort gibt es kein Gerät, dem man etwas zustellen
+/// könnte, und keine Gruppe, in der man sich vertippen könnte — die Frage
+/// hätte keine Folge. Sie stünde aber als modaler Dialog über der Übersicht,
+/// und genau davon lebt der README-Screenshot. Ohne diesen Riegel entscheidet
+/// ein Wettlauf darüber, ob das Bild die App zeigt oder einen Dialog: Die
+/// Startabfrage wartet auf die Push-Abfrage im Provider, und je nachdem, wie
+/// schnell die zurückkommt, ist der Dialog beim Auslösen schon da oder nicht.
+///
+/// In Tests standardmäßig ebenfalls **aus** (`pumpApp` überschreibt), aus
+/// demselben Grund wie beim Splash: Sonst träfe jeder Flow-Test zuerst auf
+/// Dialog oder Banner. `SupabaseConfig.isConfigured` ist im Test nämlich
+/// `true` — der eingecheckte Default ist die echte Projekt-URL, erst ein
+/// `--dart-define` auf den Platzhalter schaltet den Demo-Modus.
+final identityEnabledProvider = Provider<bool>(
+  (ref) => SupabaseConfig.isConfigured,
+);
 
 /// Wer an diesem Gerät sitzt (#121) — **kein Login**, siehe
 /// `data/device_identity.dart`.

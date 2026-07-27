@@ -21,7 +21,6 @@ import '../../core/push_messaging.dart';
 import '../../core/release_notes.dart';
 import '../../core/reload_app.dart';
 import '../../core/router.dart';
-import '../../core/supabase_config.dart';
 import '../../core/tokens.dart';
 import '../../core/update_check.dart';
 import '../../data/feedback_repository.dart';
@@ -87,11 +86,9 @@ class _IdentityBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Nur im echten Betrieb: Im Demo-Modus gibt es kein Gerät, dem man etwas
-    // zustellen könnte — dieselbe Linie wie beim Menüpunkt.
-    if (!SupabaseConfig.isConfigured) return const SizedBox.shrink();
     // Abgeschaltet heißt abgeschaltet: Sonst mahnte ein Feature, das es in
-    // diesem Lauf gar nicht gibt.
+    // diesem Lauf gar nicht gibt. Deckt den Demo-Modus mit ab — der Provider
+    // hängt selbst an `SupabaseConfig.isConfigured`.
     if (!ref.watch(identityEnabledProvider)) return const SizedBox.shrink();
 
     final identity = ref.watch(deviceIdentityProvider).value;
