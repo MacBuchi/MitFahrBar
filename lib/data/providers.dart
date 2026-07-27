@@ -408,27 +408,35 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
     }
   }
 
-  /// Ein Tap im Raster: kann nicht → dabei → nur eine Richtung → kann nicht.
-  Future<void> cycleRide(DateTime date, String personId) {
+  /// Verfügbarkeit direkt setzen; `null` heißt „kann nicht".
+  ///
+  /// Der Tipp im Raster schaltet weiter ([cycleRide]), die Rückfrage bei einer
+  /// fremden Zeile (#121) setzt direkt — beide landen hier. Eine zweite
+  /// Schreibstelle hieße zwei Fassungen der optimistischen Einrechnung samt
+  /// `invalidateSelf` im Fehlerfall, und die driften.
+  Future<void> setRide(DateTime date, String personId, PlanRide? ride) {
     final day = _day(date);
     final rides = {...(_availability[day] ?? const <String, PlanRide>{})};
-    final next = switch (rides[personId]) {
-      null => PlanRide.full,
-      PlanRide.full => PlanRide.oneWay,
-      PlanRide.oneWay => null,
-    };
     return _apply(
       () {
-        if (next == null) {
+        if (ride == null) {
           rides.remove(personId);
         } else {
-          rides[personId] = next;
+          rides[personId] = ride;
         }
         _availability[day] = rides;
       },
-      ref.read(carpoolRepositoryProvider).setAvailability(date, personId, next),
+      ref.read(carpoolRepositoryProvider).setAvailability(date, personId, ride),
     );
   }
+
+  /// Ein Tap im Raster: kann nicht → dabei → nur eine Richtung → kann nicht.
+  Future<void> cycleRide(DateTime date, String personId) =>
+      setRide(date, personId, switch (_availability[_day(date)]?[personId]) {
+        null => PlanRide.full,
+        PlanRide.full => PlanRide.oneWay,
+        PlanRide.oneWay => null,
+      });
 
   /// Fahrer-Menge übersteuern (Issue #62); leer kehrt zum Vorschlag zurück.
   Future<void> setDrivers(DateTime date, Set<String> driverIds) {

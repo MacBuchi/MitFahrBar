@@ -16,6 +16,7 @@ import '../../core/widgets/mood_face.dart';
 import '../../data/providers.dart';
 import '../../models/app_settings.dart';
 import '../../models/person.dart';
+import '../../models/plan_ride.dart';
 import '../../models/trip.dart';
 import '../trip_editor/trip_editor_seed.dart';
 
@@ -251,6 +252,43 @@ class _AvailabilityGrid extends ConsumerWidget {
     }
   }
 
+  /// Bei einer fremden Zeile wird gefragt, statt weiterzuschalten (#121).
+  ///
+  /// **Eine Vertipper-Bremse, keine Sperre**: Wer bewusst für jemand anderen
+  /// einträgt — Pärchen tun das —, kommt in zwei Tipps durch, oft schneller
+  /// als das Durchschalten der eigenen Zeile. Wer daraus je ein „geht nicht"
+  /// macht, nimmt der Gruppe genau den Fall, für den sie das wollte.
+  Future<void> _ask(
+    BuildContext context,
+    WidgetRef ref,
+    PlannedDay day,
+    Person person,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final current = !day.availableIds.contains(person.id)
+        ? null
+        : day.oneWayIds.contains(person.id)
+        ? PlanRide.oneWay
+        : PlanRide.full;
+
+    final picked = await showDialog<_RideChoice>(
+      context: context,
+      builder: (_) =>
+          _RidePickerDialog(person: person, date: day.date, current: current),
+    );
+    if (picked == null) return;
+
+    try {
+      await ref
+          .read(weekPlanProvider.notifier)
+          .setRide(day.date, person.id, picked.ride);
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final weekday = DateFormat('E', 'de');
@@ -259,6 +297,8 @@ class _AvailabilityGrid extends ConsumerWidget {
     // im Minus steht, ist als Nächstes dran (zugesagt in Issue #38).
     final stats = ref.watch(statsProvider).value;
     final pointsFormat = NumberFormat('#,##0.#', 'de');
+    // Wer an diesem Gerät sitzt (#121) — `null`, solange niemand gewählt ist.
+    final me = ref.watch(myPersonProvider);
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
       child: Padding(
@@ -370,8 +410,16 @@ class _AvailabilityGrid extends ConsumerWidget {
                         // Bereits eingetragene Tage sind Geschichte, keine
                         // Planung mehr.
                         enabled: !day.confirmed,
-                        onTap: () =>
-                            unawaited(_cycle(context, ref, day, person.id)),
+                        // Die eigene Zeile schaltet weiter wie immer; bei
+                        // einer fremden wird gefragt (#121). Ohne gewählte
+                        // Person bleibt alles wie vorher — wer die
+                        // Startabfrage überspringt, soll nicht schlechter
+                        // dastehen als vor dem Release.
+                        onTap: () => unawaited(
+                          me == null || person.id == me.id
+                              ? _cycle(context, ref, day, person.id)
+                              : _ask(context, ref, day, person),
+                        ),
                       ),
                     ),
                 ],
@@ -379,6 +427,76 @@ class _AvailabilityGrid extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Die drei Zustände einer Zelle, wie sie `_Cell` zeichnet — Wortlaut, Symbol
+/// und Farbe an EINER Stelle. Zwei Stellen, die dasselbe verschieden benennen,
+/// sind eine zu viel.
+enum _RideChoice {
+  full(PlanRide.full, 'dabei', Icons.check_circle),
+  oneWay(PlanRide.oneWay, 'nur eine Richtung', Icons.call_made),
+  none(null, 'kann nicht', Icons.circle_outlined);
+
+  const _RideChoice(this.ride, this.label, this.icon);
+
+  final PlanRide? ride;
+  final String label;
+  final IconData icon;
+
+  Color color(ColorScheme scheme) => switch (this) {
+    _RideChoice.full => scheme.primary,
+    _RideChoice.oneWay => AppColors.oneWay,
+    _RideChoice.none => scheme.outlineVariant,
+  };
+}
+
+/// „Für jemand anderen eintragen?" — die Rückfrage aus #121.
+///
+/// Sie fragt nicht nur, sie erledigt es gleich: Ein Tipp öffnet, ein zweiter
+/// setzt. Eine reine Ja/Nein-Rückfrage hätte bei jedem Weiterschalten noch
+/// einmal gefragt.
+class _RidePickerDialog extends StatelessWidget {
+  const _RidePickerDialog({
+    required this.person,
+    required this.date,
+    required this.current,
+  });
+
+  final Person person;
+  final DateTime date;
+  final PlanRide? current;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text(
+        '${person.name} · ${DateFormat('EEEE, d.M.', 'de').format(date)}',
+      ),
+      contentPadding: const EdgeInsets.only(top: AppSpacing.s),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final choice in _RideChoice.values)
+            ListTile(
+              leading: Icon(choice.icon, color: choice.color(scheme)),
+              title: Text(choice.label),
+              selected: choice.ride == current,
+              trailing: choice.ride == current
+                  ? Icon(Icons.done, color: scheme.primary)
+                  : null,
+              onTap: () => Navigator.of(context).pop(choice),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Abbrechen'),
+        ),
+      ],
     );
   }
 }

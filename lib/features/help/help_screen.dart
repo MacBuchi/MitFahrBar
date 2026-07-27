@@ -172,9 +172,17 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 text:
                     'Tippt an, wer wann kann — gleiche Tipp-Folge wie beim '
-                    'Eintragen, zweimal heißt nur eine Richtung. Jeder darf '
-                    'für jeden eintragen. Oben links steht zur Orientierung '
-                    'die Kalenderwoche mit ihrem Zeitraum.',
+                    'Eintragen, zweimal heißt nur eine Richtung. Oben links '
+                    'steht zur Orientierung die Kalenderwoche mit ihrem '
+                    'Zeitraum.',
+              ),
+              _Line(
+                leading: Icon(Icons.badge_outlined),
+                text:
+                    'Deine eigene Zeile tippst du direkt durch. Bei allen '
+                    'anderen fragt die App kurz nach — damit niemand aus '
+                    'Versehen bei jemandem dreht. Eintragen darfst du '
+                    'weiterhin für jeden.',
               ),
               _Line(
                 text:
