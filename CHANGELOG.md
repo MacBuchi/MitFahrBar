@@ -4,6 +4,24 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.42.0] – 2026-07-27
+
+### Neu
+
+- **Die nächste Fahrt steht jetzt ganz oben auf der Übersicht.** Wer die App
+  öffnet, sieht sofort, um welchen Tag es geht, wer fährt und wer dabei ist —
+  dasselbe, was abends aufs Handy kommt, nur ohne Benachrichtigung. Ein Tipp
+  darauf führt direkt in die Woche. Ist für den Tag schon eine Fahrt
+  eingetragen, rückt der Hinweis auf den nächsten offenen Tag; am Freitag und
+  Samstag steht dort bereits der kommende Montag.
+
+### Behoben
+
+- **Exportierte Dateien heißen wieder richtig.** Eine Sicherung hieß seit der
+  Umbenennung weiterhin `ridebuddy-fahrten-….csv` — jetzt
+  `mitfahrbar-fahrten-….csv`. Ältere Dateien lassen sich unverändert weiter
+  importieren; der Import liest den Inhalt, nicht den Namen.
+
 ## [0.41.0] – 2026-07-26
 
 ### Behoben

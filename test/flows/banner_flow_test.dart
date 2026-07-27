@@ -1,8 +1,10 @@
-/// banner_flow_test.dart – Update-Hinweis und Feedback über die echte App.
+/// banner_flow_test.dart – Nächste Fahrt, Update-Hinweis und Feedback über
+/// die echte App.
 library;
 
 import 'package:mitfahrbar/core/update_check.dart';
 import 'package:mitfahrbar/models/person.dart';
+import 'package:mitfahrbar/models/plan_ride.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,7 +31,76 @@ FakeBackend _backend() {
   return backend;
 }
 
+/// Wie [_backend], aber mit zwei Personen, die für den Testtag eingetragen
+/// sind — die Zutat, aus der eine „nächste Fahrt" wird.
+Future<FakeBackend> _rideBackend() async {
+  final backend = FakeBackend();
+  final id = backend.addGroup(
+    handle: 'daciaracing',
+    password: 'geheim123',
+    name: 'Dacia Racing',
+  );
+  final data = backend.dataFor(id);
+  for (final name in ['Anna', 'Bert']) {
+    final person = await data.createPerson(
+      Person(id: '', name: name, active: true),
+    );
+    await data.setAvailability(testToday, person.id, PlanRide.full);
+  }
+  return backend;
+}
+
 void main() {
+  // Das Banner „nächste Fahrt" (#122): der Inhalt der Abend-Meldung, aber
+  // ohne Handy.
+  group('Nächste Fahrt', () {
+    testWidgets('nennt Tag, Fahrer und Mitfahrer', (tester) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      // testToday ist Mittwoch, der 22.07.2026 — heute ist noch nichts
+      // eingetragen, also ist heute die nächste Fahrt.
+      expect(find.text('Heute (Mi, 22.07.)'), findsOneWidget);
+      expect(find.textContaining('fährt · dabei: '), findsOneWidget);
+    });
+
+    testWidgets('führt angetippt in die Woche', (tester) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      // Tippen, nicht nur finden: Ein Knopf, der sichtbar ist und nichts
+      // tut, war schon einmal der Ausfall (Update-Schirm 0.37.0).
+      await tester.tap(find.text('Heute (Mi, 22.07.)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Wochenplan'), findsOneWidget);
+    });
+
+    testWidgets('lässt sich nicht ausblenden', (tester) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      expect(find.text('Heute (Mi, 22.07.)'), findsOneWidget);
+      expect(
+        find.byTooltip('Ausblenden'),
+        findsOneWidget,
+        reason:
+            'Nur der Feedback-Hinweis darf weggetippt werden. Bekäme die '
+            'nächste Fahrt auch einen Knopf, wären es zwei — und „alles auf '
+            'einen Blick" (#122) erfüllt kein weggetipptes Banner.',
+      );
+    });
+
+    testWidgets('bleibt weg, solange niemand eingetragen ist', (tester) async {
+      // _backend() legt Anna an, aber keine Verfügbarkeit.
+      await pumpApp(tester, _backend());
+      await _login(tester);
+
+      expect(find.textContaining('dabei: '), findsNothing);
+      expect(find.textContaining('Kein Fahrer'), findsNothing);
+    });
+  });
+
   testWidgets('ohne neue Version erscheint kein Update-Hinweis', (
     tester,
   ) async {

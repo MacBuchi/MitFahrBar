@@ -1,5 +1,5 @@
-/// app_banners.dart – Hinweisleisten über der Übersicht:
-/// neue App-Version und Feedback (Wunsch/Fehler).
+/// app_banners.dart – Hinweisleisten über der Übersicht: die nächste Fahrt,
+/// eine neue App-Version und Feedback (Wunsch/Fehler).
 library;
 
 import 'dart:async';
@@ -11,8 +11,11 @@ import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/log.dart';
+import '../../core/push_digest.dart';
+import '../../core/push_messaging.dart';
 import '../../core/release_notes.dart';
 import '../../core/reload_app.dart';
+import '../../core/router.dart';
 import '../../core/tokens.dart';
 import '../../core/update_check.dart';
 import '../../data/feedback_repository.dart';
@@ -34,6 +37,9 @@ class AppBanners extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Steht zuoberst und bleibt: Es ist das einzige dauerhafte der drei.
+        // Läge es unten, spränge es, sobald ein Update-Hinweis kommt und geht.
+        const _NextRideBanner(),
         if (update != null && !updateDismissed)
           _Banner(
             icon: Icons.system_update,
@@ -59,6 +65,42 @@ class AppBanners extends ConsumerWidget {
   }
 }
 
+/// „Wer fährt als Nächstes, wer ist dabei" — der Inhalt der Abend-Meldung,
+/// aber ohne Handy (#122).
+///
+/// Bewusst **nicht** ausblendbar: Gewünscht war „alles auf einen Blick", und
+/// das erfüllt ein weggetipptes Banner nicht.
+///
+/// Der Wortlaut kommt aus `push_digest.dart` und nicht von hier — was das
+/// Handy meldet und was die App zeigt, darf nicht auseinanderlaufen.
+class _NextRideBanner extends ConsumerWidget {
+  const _NextRideBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final day = ref.watch(nextRideProvider).value;
+    final persons = ref.watch(personsProvider).value;
+
+    // Beim Laden und im Fehlerfall bleibt der Streifen weg: Ein ergänzender
+    // Hinweis, der nichts weiß, sagt besser nichts, statt etwas Halbes zu
+    // behaupten. Die Übersicht meldet Ladefehler ohnehin an ihrer Stelle.
+    if (day == null || persons == null) return const SizedBox.shrink();
+
+    final byId = {for (final person in persons) person.id: person};
+    final scheme = Theme.of(context).colorScheme;
+
+    return _Banner(
+      icon: Icons.directions_car,
+      text: dayLabel(day.date, ref.watch(nowProvider)()),
+      subtitle: composeGroupBody(day, byId),
+      background: scheme.tertiaryContainer,
+      foreground: scheme.onTertiaryContainer,
+      // Dieselbe Adresse, die auch eine angetippte Benachrichtigung ansteuert.
+      onTap: () => ref.read(routerProvider).go(pushTapRoute),
+    );
+  }
+}
+
 class _Banner extends StatelessWidget {
   const _Banner({
     required this.icon,
@@ -66,15 +108,21 @@ class _Banner extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.onTap,
-    required this.onDismiss,
+    this.subtitle,
+    this.onDismiss,
   });
 
   final IconData icon;
   final String text;
+
+  /// Zweite Zeile; ohne sie bleibt das Banner einzeilig wie bisher.
+  final String? subtitle;
   final Color background;
   final Color foreground;
   final VoidCallback onTap;
-  final VoidCallback onDismiss;
+
+  /// Ohne Rückruf gibt es keinen „Ausblenden"-Knopf — das Banner bleibt.
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -101,14 +149,33 @@ class _Banner extends StatelessWidget {
                 Icon(icon, size: 20, color: foreground),
                 const SizedBox(width: AppSpacing.s),
                 Expanded(
-                  child: Text(text, style: TextStyle(color: foreground)),
+                  child: subtitle == null
+                      ? Text(text, style: TextStyle(color: foreground))
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              text,
+                              style: TextStyle(
+                                color: foreground,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              subtitle!,
+                              style: TextStyle(color: foreground),
+                            ),
+                          ],
+                        ),
                 ),
-                IconButton(
-                  tooltip: 'Ausblenden',
-                  icon: Icon(Icons.close, size: 18, color: foreground),
-                  onPressed: onDismiss,
-                  visualDensity: VisualDensity.compact,
-                ),
+                if (onDismiss != null)
+                  IconButton(
+                    tooltip: 'Ausblenden',
+                    icon: Icon(Icons.close, size: 18, color: foreground),
+                    onPressed: onDismiss,
+                    visualDensity: VisualDensity.compact,
+                  ),
               ],
             ),
           ),

@@ -889,6 +889,31 @@ List<DateTime> planningWeek([DateTime? today]) {
   return [for (var i = 0; i < 5; i++) monday.add(Duration(days: i))];
 }
 
+/// Der Tag, um den es als Nächstes geht — für das Banner auf der Übersicht
+/// (#122).
+///
+/// Der erste Tag ab heute, an dem überhaupt jemand verfügbar ist und für den
+/// noch **keine** Fahrt eingetragen ist. Ist die heutige Fahrt eingetragen,
+/// rückt das Banner damit auf den Folgetag, ohne dass irgendwo eine Uhrzeit
+/// entscheiden müsste, wann ein Tag „vorbei" ist — `confirmed` ist die
+/// Auskunft, die die Gruppe selbst gegeben hat.
+///
+/// Weil [planningWeek] nur Montag bis Freitag liefert, steht am Freitag und
+/// Samstag schon der Montag hier. Das ist gewollt: gefragt war die nächste
+/// Fahrt, nicht „morgen" — sonst bliebe das Banner an zwei Tagen der Woche
+/// leer.
+PlannedDay? nextRide(List<PlannedDay> week, DateTime now) {
+  final today = DateTime(now.year, now.month, now.day);
+  for (final day in week) {
+    final date = DateTime(day.date.year, day.date.month, day.date.day);
+    if (date.isBefore(today)) continue;
+    if (day.confirmed) continue;
+    if (day.availableIds.isEmpty) continue;
+    return day;
+  }
+  return null;
+}
+
 /// Kalenderwoche nach ISO 8601 — Woche 1 ist die mit dem ersten Donnerstag
 /// des Jahres (#84, Orientierung im Planer-Kopf).
 ///
