@@ -125,6 +125,29 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   `duplicate key value violates unique constraint "persons_name_key"`.
 - In Screens keine rohen Farb-/Pixelwerte — `core/tokens.dart` bzw.
   `Theme.of(context)` verwenden.
+- **Die Banner haben seit v0.47.0 eine eigene Palette neben dem
+  `ColorScheme`** (`AppBannerTones`, `AppAccents`, `AppPush` in
+  `core/tokens.dart`), übernommen aus `assets/fahrmitbar-design-set/`
+  Kapitel 07 und 07b. Das trägt nur, weil die Untergründe der App ohnehin
+  die des Design-Sets sind (hell 1,01:1, dunkel 1,03:1 auseinander).
+  **Kapitel 06 (Theme-Tokens) ist bewusst NICHT übernommen** — es gibt ein
+  anderes `primary` vor als der Seed, dem zu folgen wäre ein Umbau des
+  ganzen Erscheinungsbilds. Wer die Palette anfasst, fasst nicht das Theme
+  an, und umgekehrt.
+  - **Der Verlauf der nächsten Fahrt läuft hell → dunkel, gespiegelt zur
+    Vorlage.** Rechts sitzt der Anmerkungs-Zähler; auf dem hellen Teal ist
+    der Magenta-Chip mit 1,61:1 unsichtbar. Das Design-Set nennt die Regel
+    selbst („nie zwei Akzente im selben Banner") und ist genau daran zu
+    spiegeln, nicht zu befolgen. Ebenso entfällt sein heller Endpunkt
+    `#22D3EE`: Weiß darauf trägt 1,81:1.
+  - **Jedes Paar wird gemessen, nicht geschätzt** —
+    `test/banner_contrast_test.dart`, WCAG 4,5:1 für Text und 3,0:1 für
+    Grafik. Bei einem Verlauf **jeder Stopp**, nie ein Mittelwert; genau
+    das ließe den hellen Endpunkt wieder durch. Zwei Vorschläge sind an
+    dieser Rechnung schon gescheitert, obwohl sie im Bild gut aussahen.
+  - Zwei Flächen (`#FFE3D3`, `#3A1608`) stehen **nicht** im Design-Set und
+    sind im Code als abgeleitet gekennzeichnet — wer sie dort sucht, sucht
+    vergeblich.
 - Sicherheit serverseitig (RLS), Auth-Guard im Router (`redirect` +
   `refreshListenable`), nicht nur in der UI.
 - **`app_config` ist die einzige Tabelle ohne `group_id`** — und muss die
