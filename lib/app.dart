@@ -88,6 +88,12 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Der Ausgangskorb (#132) hängt hier oben und nicht an einem Schirm:
+    // Geändert wird der Plan im Wochenplaner, gebraucht wird der Korb für
+    // Benachrichtigungen — hinge er an der Übersicht, hörte er beim
+    // Weiterblättern auf zu hören. Er liefert nichts zurück, löst also auch
+    // keinen Neubau aus.
+    ref.watch(pushOutboxSyncProvider);
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'MitFahrBar',

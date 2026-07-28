@@ -269,4 +269,105 @@ void main() {
     },
     skip: e2eConfigured ? false : e2eSkipReason,
   );
+
+  // Der Ausgangskorb (#132). Hier hängt mehr am echten Postgres als sonst:
+  // Der Weg „Tabellenrechte plus Policies" wurde ausprobiert und scheitert
+  // — Postgres verlangt für `on conflict do update` das SELECT-Recht, und
+  // mit Recht, aber ohne SELECT-Policy scheitert der Upsert an „new row
+  // violates row-level security policy". Das kann kein Fake zeigen.
+  group('Ausgangskorb', () {
+    Future<Map<String, dynamic>?> row(String groupId) async => service
+        .from('push_outbox')
+        .select()
+        .eq('group_id', groupId)
+        .maybeSingle();
+
+    Future<void> publish(GroupAccount group, String personId, String digest) =>
+        group.client.rpc<void>(
+          'publish_push_outbox',
+          params: {
+            'entries': [
+              {
+                'person_id': personId,
+                'plan_date': '2026-07-30',
+                'digest': digest,
+                'body': 'Anna fährt · dabei: Bert',
+                'title_evening': 'Morgen (Do, 30.07.)',
+                'title_change': 'Änderung · Morgen (Do, 30.07.)',
+              },
+            ],
+            'keep_from': '2026-07-27',
+          },
+        );
+
+    test('schreiben geht, lesen nicht', () async {
+      final (group, personId) = await groupWithPerson('outa');
+      await publish(group, personId, 'd1');
+
+      expect(
+        (await row(group.id))?['body'],
+        'Anna fährt · dabei: Bert',
+        reason: 'Mit dem service_role-Key ist die Zeile da.',
+      );
+      await expectLater(
+        group.client.from('push_outbox').select(),
+        throwsA(isA<PostgrestException>()),
+        reason:
+            'Im Korb steht der vorgeschlagene Fahrer im Klartext. Könnte '
+            'der Client ihn lesen, stünde neben fairness.dart eine zweite '
+            'Wahrheit darüber, wer fährt — genau das verhindert die '
+            'fehlende Policy samt zurückgenommenem Grant.',
+      );
+    }, skip: e2eConfigured ? false : e2eSkipReason);
+
+    test(
+      'gleicher Inhalt verschiebt die Fälligkeit nicht',
+      () async {
+        final (group, personId) = await groupWithPerson('outb');
+        await publish(group, personId, 'd1');
+        final first = (await row(group.id))?['due_at'] as String?;
+        expect(first, isNotNull, reason: 'Neu angelegt heißt fällig.');
+
+        await publish(group, personId, 'd1');
+        expect(
+          (await row(group.id))?['due_at'],
+          first,
+          reason:
+              'So schreibt der stündliche Reparatur-Job: immer wieder '
+              'dasselbe. Schöbe das die Fälligkeit jedes Mal nach hinten, '
+              'würde NIE etwas gesendet — und im Log stünde kein Fehler.',
+        );
+
+        await publish(group, personId, 'd2');
+        expect(
+          DateTime.parse(
+            (await row(group.id))!['due_at'] as String,
+          ).isAfter(DateTime.parse(first!)),
+          isTrue,
+          reason:
+              'Geänderter Inhalt entprellt: Wer weiterklickt, schiebt die '
+              'Meldung weiter — fünf Taps ergeben eine Nachricht, nicht fünf.',
+        );
+      },
+      skip: e2eConfigured ? false : e2eSkipReason,
+    );
+
+    test(
+      'eine fremde Person landet nicht im eigenen Korb',
+      () async {
+        final (mine, _) = await groupWithPerson('outc');
+        final (_, foreignPerson) = await groupWithPerson('outd');
+        await publish(mine, foreignPerson, 'd1');
+        expect(
+          await row(mine.id),
+          isNull,
+          reason:
+              'Der Fremdschlüssel auf persons prüft nur, dass es die Person '
+              'GIBT, nicht wem sie gehört. Ohne den Join auf group_id hinge '
+              'eine Zeile an einer gruppenfremden person_id.',
+        );
+      },
+      skip: e2eConfigured ? false : e2eSkipReason,
+    );
+  });
 }

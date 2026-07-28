@@ -113,6 +113,80 @@ void main() {
       );
     });
 
+    test('der Ausgangskorb ist für Clients weder les- noch schreibbar', () {
+      expect(
+        RegExp(r'create policy \w+ on public\.push_outbox').hasMatch(schema),
+        isFalse,
+        reason:
+            'Im Korb steht der vorgeschlagene Fahrer im Klartext — die '
+            'einzige Ausnahme von „wird nie gespeichert" (#132). Sie hängt '
+            'daran, dass der Client ihn nicht zurücklesen kann: Sonst '
+            'entstünde neben fairness.dart eine zweite Wahrheit darüber, wer '
+            'fährt. Geschrieben wird über publish_push_outbox.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('revoke all on public.push_outbox from anon, authenticated'),
+        reason:
+            'Der Sammel-Grant weiter oben gibt Rechte auf JEDE Tabelle. Ohne '
+            'die Rücknahme hinge der Riegel allein daran, dass niemand '
+            'später eine Policy ergänzt.',
+      );
+    });
+
+    test('der Korb-Schlüssel trägt die group_id', () {
+      expect(
+        primaryKeyOf('push_outbox').replaceAll(' ', ''),
+        'group_id,person_id,plan_date',
+        reason:
+            'Fachlicher Schlüssel: Ohne group_id wäre (person_id, plan_date) '
+            'über alle Gruppen eindeutig, und die zweite Gruppe liefe beim '
+            'Schreiben in eine Unique-Verletzung auf einer Zeile, die sie '
+            'nicht einmal sehen darf.',
+      );
+    });
+
+    test('das Entprellen schiebt nur bei geändertem Inhalt', () {
+      final function = RegExp(
+        r'create or replace function public\.push_outbox_debounce.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        function,
+        contains('is distinct from'),
+        reason:
+            'Der stündliche Reparatur-Job schreibt dieselben Zeilen immer '
+            'wieder. Ohne den Vergleich setzte der Trigger die Fälligkeit '
+            'auch dann neu und schöbe sie stündlich vor sich her — es würde '
+            'NIE etwas gesendet, und im Log stünde kein Fehler.',
+      );
+    });
+
+    test('der Schreibweg kann nur in den eigenen Korb schreiben', () {
+      final function = RegExp(
+        r'create or replace function public\.publish_push_outbox.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        function,
+        contains('gid uuid := auth.uid()'),
+        reason:
+            'Die group_id muss aus der Sitzung kommen und nie aus der '
+            'Nutzlast — sonst schriebe ein gebastelter Aufruf in fremde '
+            'Körbe, und `authenticated` hat EXECUTE auf jede Funktion.',
+      );
+      expect(
+        function,
+        contains('person.group_id = gid'),
+        reason:
+            'Ohne den Join hinge eine Zeile an einer gruppenfremden '
+            'person_id. Der Fremdschlüssel auf persons prüft nur, dass es '
+            'die Person GIBT, nicht wem sie gehört.',
+      );
+    });
+
     test('register_push_device prüft die Gruppe der Person', () {
       final function = RegExp(
         r'create or replace function public\.register_push_device.*?end \$\$;',

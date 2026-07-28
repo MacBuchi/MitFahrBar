@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.48.0] – 2026-07-29
+
+### Verbessert
+
+- **Vorbereitung: Benachrichtigungen sollen bald in einer Minute ankommen
+  statt erst nach Stunden.** Bisher fragt ein Dienst alle zehn Minuten nach,
+  ob es etwas zu melden gibt — tatsächlich kommt er oft nur stündlich dazu.
+  Wer morgens um 7:05 den Plan umstellt, dessen Meldung erreicht die anderen
+  deshalb manchmal erst nach der Abfahrt. Diese Version legt dafür die
+  Grundlage: Die App hinterlegt beim Ändern schon, was zu melden wäre.
+  **Für euch ändert sich noch nichts** — verschickt wird weiter wie bisher.
+  Die Umstellung kommt mit der nächsten Version.
+
 ## [0.47.0] – 2026-07-28
 
 ### Verbessert
