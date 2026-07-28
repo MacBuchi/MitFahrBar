@@ -4,6 +4,31 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.47.0] – 2026-07-28
+
+### Verbessert
+
+- **Im Monats-Diagramm seht ihr jetzt, wo ein Jahr endet.** An jedem
+  Jahreswechsel steht eine senkrechte Linie mit der Jahreszahl daneben —
+  vorher folgte auf „Dez" ein „Jan", das genauso aussah wie das vorige.
+- **Eure eigene Zeile im Wochenplan ist zart hinterlegt** und der Name etwas
+  kräftiger, sobald ihr unter „Ich bin" jemanden ausgewählt habt. Das ist nur
+  Orientierung: Eintragen dürft ihr weiterhin für jeden.
+- **Die Banner über der Übersicht sind neu eingefärbt** — nach den Vorlagen
+  aus dem Design-Set der App. Die Kachel mit der nächsten Fahrt trägt jetzt
+  einen Farbverlauf im Türkis der Marke; der fliederfarbene Ton, der aus der
+  Reihe fiel, ist weg.
+- **Der Hinweis auf eine neue Version fällt bewusst heraus**: Er ist der
+  einzige in einem warmen Orange. Er kommt und geht — auffallen ist sein
+  Zweck.
+- **Der Zähler an der Sprechblase hat eine eigene Farbe.** Liegt eine
+  Anmerkung für den Tag vor, ist sie am Banner nicht mehr zu übersehen.
+- **Benachrichtigungen sind farbig.** Auf Android trägt das kleine Symbol in
+  der Leiste jetzt die Farbe der App statt eines Graus, und was ankommt,
+  während ihr die App gerade offen habt, sieht genauso aus wie draußen.
+
+Alle Farbpaare sind auf Lesbarkeit nachgerechnet — auch die auf dem Verlauf.
+
 ## [0.46.0] – 2026-07-27
 
 ### Neu

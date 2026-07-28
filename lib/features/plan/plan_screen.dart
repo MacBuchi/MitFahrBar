@@ -339,90 +339,112 @@ class _AvailabilityGrid extends ConsumerWidget {
             ),
             const Divider(height: AppSpacing.m),
             for (final person in persons)
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Row(
-                      children: [
-                        if (stats != null) ...[
-                          SizedBox(
-                            // Feste Breite, rechtsbündig: Die Zahlen stehen
-                            // wie in einer Tabelle, die Namen fluchten.
-                            width: 34,
+              DecoratedBox(
+                // Die eigene Zeile dezent unterlegen (#121-Nachtrag): Im
+                // Raster sucht man zuerst sich selbst. Sehr blass, damit die
+                // Zeilenstruktur nicht zerfällt — und aus der Markenfamilie,
+                // nicht aus einer neuen Farbe.
+                //
+                // Ohne gewählte Person passiert gar nichts: Wer die
+                // Startabfrage überspringt, sieht das Raster wie vorher.
+                decoration: BoxDecoration(
+                  color: me != null && person.id == me.id
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withValues(alpha: 0.35)
+                      : null,
+                  borderRadius: BorderRadius.circular(AppRadius.s),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Row(
+                        children: [
+                          if (stats != null) ...[
+                            SizedBox(
+                              // Feste Breite, rechtsbündig: Die Zahlen stehen
+                              // wie in einer Tabelle, die Namen fluchten.
+                              width: 34,
+                              child: Text(
+                                signedPoints(
+                                  stats[person.id]?.points ?? 0,
+                                  pointsFormat,
+                                ),
+                                textAlign: TextAlign.right,
+                                // Der Screenreader liest die Richtung, nicht
+                                // das Vorzeichen: „schuldet 2" statt „minus 2".
+                                semanticsLabel: balanceLabel(
+                                  stats[person.id]?.points ?? 0,
+                                  pointsFormat,
+                                ),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                      fontFeatures: const [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.s),
+                          ],
+                          Flexible(
                             child: Text(
-                              signedPoints(
-                                stats[person.id]?.points ?? 0,
-                                pointsFormat,
-                              ),
-                              textAlign: TextAlign.right,
-                              // Der Screenreader liest die Richtung, nicht
-                              // das Vorzeichen: „schuldet 2" statt „minus 2".
-                              semanticsLabel: balanceLabel(
-                                stats[person.id]?.points ?? 0,
-                                pointsFormat,
-                              ),
-                              style: Theme.of(context).textTheme.labelSmall
+                              person.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
+                                    fontWeight: me != null && person.id == me.id
+                                        ? FontWeight.w600
+                                        : null,
                                   ),
                             ),
                           ),
-                          const SizedBox(width: AppSpacing.s),
+                          if (celebratedIds.contains(person.id)) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            const MoodFace(
+                              mood: Mood.celebrating,
+                              size: 18,
+                              semanticLabel:
+                                  'Hajo! Fährt das vollste Auto der Woche',
+                            ),
+                          ],
                         ],
-                        Flexible(
-                          child: Text(
-                            person.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                        if (celebratedIds.contains(person.id)) ...[
-                          const SizedBox(width: AppSpacing.xs),
-                          const MoodFace(
-                            mood: Mood.celebrating,
-                            size: 18,
-                            semanticLabel:
-                                'Hajo! Fährt das vollste Auto der Woche',
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  for (final day in days)
-                    Expanded(
-                      child: _Cell(
-                        // Ein reines Icon-Raster sagt einem Screenreader
-                        // nichts — erst die Beschriftung macht die Zelle
-                        // unterscheidbar. Der Zustand gehört mit hinein:
-                        // Bei drei Möglichkeiten reicht „angehakt" nicht.
-                        label: '${person.name}, ${weekday.format(day.date)}',
-                        available: day.availableIds.contains(person.id),
-                        oneWay: day.oneWayIds.contains(person.id),
-                        // Ein Tag kann mehrere Autos haben (Issue #62) —
-                        // jeder Fahrer bekommt sein Auto-Symbol.
-                        isDriver: day.driverIds.contains(person.id),
-                        // Bereits eingetragene Tage sind Geschichte, keine
-                        // Planung mehr.
-                        enabled: !day.confirmed,
-                        // Die eigene Zeile schaltet weiter wie immer; bei
-                        // einer fremden wird gefragt (#121). Ohne gewählte
-                        // Person bleibt alles wie vorher — wer die
-                        // Startabfrage überspringt, soll nicht schlechter
-                        // dastehen als vor dem Release.
-                        onTap: () => unawaited(
-                          me == null || person.id == me.id
-                              ? _cycle(context, ref, day, person.id)
-                              : _ask(context, ref, day, person),
-                        ),
                       ),
                     ),
-                ],
+                    for (final day in days)
+                      Expanded(
+                        child: _Cell(
+                          // Ein reines Icon-Raster sagt einem Screenreader
+                          // nichts — erst die Beschriftung macht die Zelle
+                          // unterscheidbar. Der Zustand gehört mit hinein:
+                          // Bei drei Möglichkeiten reicht „angehakt" nicht.
+                          label: '${person.name}, ${weekday.format(day.date)}',
+                          available: day.availableIds.contains(person.id),
+                          oneWay: day.oneWayIds.contains(person.id),
+                          // Ein Tag kann mehrere Autos haben (Issue #62) —
+                          // jeder Fahrer bekommt sein Auto-Symbol.
+                          isDriver: day.driverIds.contains(person.id),
+                          // Bereits eingetragene Tage sind Geschichte, keine
+                          // Planung mehr.
+                          enabled: !day.confirmed,
+                          // Die eigene Zeile schaltet weiter wie immer; bei
+                          // einer fremden wird gefragt (#121). Ohne gewählte
+                          // Person bleibt alles wie vorher — wer die
+                          // Startabfrage überspringt, soll nicht schlechter
+                          // dastehen als vor dem Release.
+                          onTap: () => unawaited(
+                            me == null || person.id == me.id
+                                ? _cycle(context, ref, day, person.id)
+                                : _ask(context, ref, day, person),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
           ],
         ),

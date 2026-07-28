@@ -126,12 +126,25 @@ class _Empty extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.l),
-      child: Text(
-        'Noch keine Anmerkung.\nZum Beispiel: „Komme erst um 9."',
-        textAlign: TextAlign.center,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Derselbe Akzent, den der Zähler am Banner trägt — damit sichtbar
+          // zusammengehört, was zusammengehört.
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 32,
+            color: AppAccents.notes(Theme.of(context).brightness),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'Noch keine Anmerkung.\nZum Beispiel: „Komme erst um 9."',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+          ),
+        ],
       ),
     ),
   );
@@ -309,6 +322,19 @@ class _ComposerState extends ConsumerState<_Composer> {
                     onPressed: _busy || authorId == null
                         ? null
                         : () => _send(authorId),
+                    // Nur die Farben des bereiten Zustands: `styleFrom` löst
+                    // ohne `disabledBackgroundColor` im gesperrten Zustand
+                    // auf `null` auf und fällt damit auf den gedämpften
+                    // Standard des Themes zurück — nachgemessen im Browser
+                    // (#707578 dunkel, #AEB3B6 hell).
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppAccents.notes(
+                        Theme.of(context).brightness,
+                      ),
+                      foregroundColor: AppAccents.notesInk(
+                        Theme.of(context).brightness,
+                      ),
+                    ),
                     icon: const Icon(Icons.send, size: 20),
                   ),
                 ],

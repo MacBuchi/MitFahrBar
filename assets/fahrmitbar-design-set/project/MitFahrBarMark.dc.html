@@ -7,7 +7,7 @@
 </head>
 <body>
 <x-dc>
-<svg viewBox="0 0 120 100" width="100%" height="100%" style="display:block" aria-label="RideBuddy">
+<svg viewBox="0 0 120 100" width="100%" height="100%" style="display:block" aria-label="MitFahrBar">
   <defs>
     <linearGradient id="rbg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0891b2"></stop>
@@ -42,7 +42,7 @@ class Component extends DCLogic {
   renderVals() {
     const v = this.props.variant ?? 'gradient';
     const sets = {
-      gradient: { bodyColor: 'url(#rbg)', windowColor: '#ffffff', headColor: '#0891b2', wheelColor: '#1a1030', hubColor: '#67e8f9', streakColor: '#22d3ee' },
+      gradient: { bodyColor: 'url(#rbg)', windowColor: '#ffffff', headColor: '#0891b2', wheelColor: '#062028', hubColor: '#67e8f9', streakColor: '#22d3ee' },
       ink:      { bodyColor: '#0c3038', windowColor: '#ecfeff', headColor: '#0891b2', wheelColor: '#04161b', hubColor: '#0e5661', streakColor: '#0891b2' },
       white:    { bodyColor: '#ffffff', windowColor: '#0891b2', headColor: '#ffffff', wheelColor: '#ffffff', hubColor: '#0891b2', streakColor: 'rgba(255,255,255,0.55)' },
     };

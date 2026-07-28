@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Die Farbe, in die Android das kleine Icon und die App-Zeile einer
+     Benachrichtigung färbt (`default_notification_color` im Manifest).
+     Ohne die Angabe bleibt beides grau — die Meldung sah aus wie die einer
+     beliebigen fremden App.
+
+     Der Wert ist das `primary` des hellen Themes aus dem Design-Set
+     (assets/fahrmitbar-design-set/, Kapitel 06) und derselbe Ton, mit dem
+     die Vordergrund-Meldung in der App beginnt (`AppPush` in
+     lib/core/tokens.dart). Die dunkle Entsprechung steht in
+     values-night/colors.xml — im dunklen Schatten wäre dieser Ton zu
+     dunkel. -->
+<resources>
+    <color name="notification_accent">#0F7F98</color>
+</resources>
