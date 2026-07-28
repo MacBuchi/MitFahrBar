@@ -1,23 +1,25 @@
 name: Push-Benachrichtigungen
 
-# Verschickt den Abend-Blick auf den nächsten Tag und meldet Änderungen am
-# Wochenplan (Issue #101). Ruht, solange die Secrets nicht gesetzt sind.
+# Hält den Ausgangskorb in Ordnung (Issues #101, #132). **Verschickt seit
+# #132 nichts mehr** — das tut die Datenbank (pg_cron → `flush-push`). Ruht,
+# solange die Secrets nicht gesetzt sind.
 on:
   schedule:
-    # Der Minuten-Offset ist Absicht: GitHub verzögert Läufe zur vollen
-    # Stunde regelmäßig um 5 bis 30 Minuten, nahe der halben Stunde deutlich
-    # weniger. Der Job sendet ohnehin „sobald fällig" statt „um genau", ein
-    # verspäteter Lauf holt also nach — bis zur eingestellten Abfahrtszeit,
-    # danach nie.
+    # Stündlich statt sechsmal je Stunde: Dieser Lauf ist nur noch der
+    # Boden unter dem schnellen Weg. Er rechnet den Korb neu und repariert,
+    # was ein Gerät ohne Netz oder ein geschlossener Tab hinterlassen hat —
+    # verschickt wird binnen einer Minute nach der Änderung, nicht hier.
     #
-    # Fenster in UTC ≈ 16:00–11:00 Berlin und damit weit genug für jede
-    # sinnvolle Abend- und Abfahrtszeit. Ganztägig zu laufen wäre doppelt so
-    # viel Lärm in der Actions-Liste ohne Gewinn.
-    - cron: "3,13,23,33,43,53 14-23,0-9 * * *"
+    # Der Minuten-Offset bleibt: GitHub verzögert Läufe zur vollen Stunde
+    # regelmäßig um 5 bis 30 Minuten, nahe der halben Stunde deutlich
+    # weniger. Und das Fenster bleibt (UTC ≈ 16:00–11:00 Berlin) — außerhalb
+    # gibt es nichts zu reparieren, was nicht bis zum Abend Zeit hätte.
+    - cron: "23 14-23,0-9 * * *"
   workflow_dispatch:
 
-# Zwei gleichzeitige Läufe würden dieselbe Nachricht zweimal verschicken:
-# Beide läsen `push_log`, bevor der andere hineinschreibt.
+# Zwei gleichzeitige Läufe schrieben dieselben Korb-Zeilen. Harmlos, aber der
+# Trigger auf `push_outbox` vergliche dabei gegen einen halb geschriebenen
+# Stand — und könnte eine Fälligkeit setzen, die es nicht gibt.
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
@@ -48,13 +50,12 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      - name: Send notifications
+      - name: Refresh push outbox
         env:
           SUPABASE_URL: https://azrlhlcxhpwmxcinjovp.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PUSH_JOB_SECRET: ${{ secrets.PUSH_JOB_SECRET }}
         run: |
-          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$PUSH_JOB_SECRET" ]; then
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
             echo "::notice::Secrets are not configured — skipping."
             exit 0
           fi

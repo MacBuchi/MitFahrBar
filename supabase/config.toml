@@ -87,3 +87,11 @@ verify_jwt = true
 # Rumpf von index.ts.
 [functions.send-push]
 verify_jwt = false
+
+# Ebenfalls ohne JWT-Prüfung, und aus demselben Grund: Der Aufruf kommt aus
+# der Datenbank (pg_cron → pg_net) und hat keines. Ausweis ist derselbe
+# Header `x-push-secret`. Ohne den Eintrag hier deployt die
+# GitHub-Integration die Function nicht — und dann bleibt der Ausgangskorb
+# stehen, ohne dass irgendwo ein Fehler auftaucht.
+[functions.flush-push]
+verify_jwt = false

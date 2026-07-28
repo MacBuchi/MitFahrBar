@@ -187,6 +187,75 @@ void main() {
       );
     });
 
+    test('die Auswahl rechnet das Fenster in deutscher Zeit', () {
+      final function = RegExp(
+        r'create or replace function public\.push_due.*?\$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        function,
+        contains("at time zone 'Europe/Berlin'"),
+        reason:
+            'Postgres läuft in UTC, die Zeiten in notification_prefs sind '
+            'Ortszeit. Ohne die Umrechnung feuerte der Abend-Blick im Sommer '
+            'zwei Stunden zu spät — und zweimal im Jahr eine Stunde daneben, '
+            'ohne dass irgendwo ein Fehler auftaucht.',
+      );
+    });
+
+    test('der Digest des Ausgetragenen heißt in SQL wie in Dart', () {
+      final dart = File('lib/core/push_digest.dart').readAsStringSync();
+      final value = RegExp(
+        r"const String removedDigest = '([^']+)'",
+      ).firstMatch(dart)?.group(1);
+      expect(value, isNotNull);
+      expect(
+        RegExp(
+          r'create or replace function public\.push_due.*?\$\$;',
+          dotAll: true,
+        ).firstMatch(schema),
+        isNotNull,
+      );
+      expect(
+        schema,
+        contains("box.digest <> '$value'"),
+        reason:
+            'Der Wert steht in SQL ein zweites Mal. Driftete er, bekäme ein '
+            'Ausgetragener entweder gar keine Meldung mehr oder bei jedem '
+            'Lauf eine neue — je nachdem, in welche Richtung.',
+      );
+    });
+
+    test('der Abholer holt seine Zugangsdaten aus dem Vault', () {
+      final function = RegExp(
+        r'create or replace function public\.flush_due_push.*?\$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        function,
+        contains('vault.decrypted_secrets'),
+        reason:
+            'Eine Tabellenspalte mit dem Job-Geheimnis stünde für jeden mit '
+            'service_role-Zugang im Klartext und läge in jedem '
+            'Datenbank-Abzug.',
+      );
+      expect(
+        function,
+        contains('return;'),
+        reason:
+            'Fehlen die Einträge, muss die Funktion NICHTS tun — sonst '
+            'scheiterte jeder Minutentakt auf dem Teststack und in jeder '
+            'Frischinstallation.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains("cron.schedule("),
+        reason: 'Ohne den Eintrag weckt niemand den Abholer.',
+      );
+    });
+
     test('register_push_device prüft die Gruppe der Person', () {
       final function = RegExp(
         r'create or replace function public\.register_push_device.*?end \$\$;',

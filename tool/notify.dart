@@ -1,16 +1,28 @@
-/// notify.dart – Verschickt die Wochenplan-Benachrichtigungen (Issue #101).
+/// notify.dart – Hält den Push-Ausgangskorb in Ordnung (Issues #101, #132).
 ///
-/// Läuft alle zehn Minuten auf GitHub Actions (`.github/workflows/notify.yml`),
+/// Läuft stündlich auf GitHub Actions (`.github/workflows/notify.yml`),
 /// Muster und Selbstabschaltung wie beim Feedback-Bot.
+///
+/// **Dieser Job verschickt seit #132 nichts mehr.** Das tut die Datenbank:
+/// Der Client legt beim Ändern in `push_outbox` ab, was zu sagen wäre, ein
+/// Trigger macht die Zeile 60 Sekunden später fällig, pg_cron ruft
+/// `flush-push`. Damit kommt eine Änderung binnen einer Minute an statt
+/// erst beim nächsten Actions-Lauf — der real oft erst nach einer Stunde
+/// kam (#115).
+///
+/// **Wozu es ihn trotzdem gibt: Er ist der Boden.** Rechnen beim Schreiben
+/// ist schnell, aber nicht selbstheilend — ein Gerät ohne Netz, ein
+/// geschlossener Tab, ein künftig vergessener Schreibpfad, und der Korb
+/// stünde falsch da. Dieser Lauf rechnet ihn neu. Der Ereignis-Weg ist
+/// damit ein Beschleuniger und keine Zusage: Schlägt er fehl, kommt die
+/// Meldung eine Stunde später — also genau so spät wie vor der Umstellung.
 ///
 /// **Warum Dart und nicht eine Edge Function:** Der Text nennt, wer morgen
 /// fährt — und das ist eine berechnete Kennzahl aus `planWeek`. In
 /// TypeScript nachgebaut wäre es die zweite Wahrheit über die Fairness-Regel,
 /// und niemand merkte es, solange beide zufällig gleich rechnen. `fairness.dart`
 /// und die Modelle sind reines Dart ohne Flutter-Import, also importiert
-/// dieser Job den **echten** Code. Verschickt wird über die Edge Function
-/// `send-push`, damit das FCM-Dienstkonto bei den übrigen Server-Geheimnissen
-/// bleibt.
+/// dieser Job den **echten** Code — genau wie die App.
 ///
 /// Aufruf:
 ///   dart run tool/notify.dart [--dry-run] [--now 2026-07-27T21:05]
@@ -21,9 +33,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:mitfahrbar/core/fairness.dart';
-import 'package:mitfahrbar/core/push_digest.dart';
+import 'package:mitfahrbar/core/push_outbox.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
-import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
@@ -37,14 +48,9 @@ Future<void> main(List<String> args) async {
 
   final url = Platform.environment['SUPABASE_URL'];
   final key = Platform.environment['SUPABASE_SERVICE_ROLE_KEY'];
-  final jobSecret = Platform.environment['PUSH_JOB_SECRET'];
   if (url == null || url.isEmpty || key == null || key.isEmpty) {
     // Wie der Feedback-Bot: ohne Zugang ruhen statt rot werden.
     stdout.writeln('SUPABASE_* fehlt – nichts zu tun.');
-    return;
-  }
-  if (!dryRun && (jobSecret == null || jobSecret.isEmpty)) {
-    stdout.writeln('PUSH_JOB_SECRET fehlt – nichts zu tun.');
     return;
   }
 
@@ -53,19 +59,16 @@ Future<void> main(List<String> args) async {
     'status': 'eq.active',
     'select': 'id',
   });
-  var sentTotal = 0;
+  var rowsTotal = 0;
 
   for (final group in groups) {
     final groupId = group['id'] as String;
     try {
-      sentTotal += await _handleGroup(
+      rowsTotal += await _handleGroup(
         api: api,
         groupId: groupId,
         now: now,
         dryRun: dryRun,
-        jobSecret: jobSecret ?? '',
-        functionsUrl: '$url/functions/v1/send-push',
-        anonOrServiceKey: key,
       );
     } catch (error) {
       // Eine Gruppe darf den Lauf nicht abbrechen. Bewusst ohne Details:
@@ -73,9 +76,7 @@ Future<void> main(List<String> args) async {
       stderr.writeln('Gruppe übersprungen: ${error.runtimeType}');
     }
   }
-  stdout.writeln(
-    '$sentTotal Benachrichtigung(en)${dryRun ? ' (Probelauf)' : ''}.',
-  );
+  stdout.writeln('$rowsTotal Korb-Zeile(n)${dryRun ? ' (Probelauf)' : ''}.');
 }
 
 Future<int> _handleGroup({
@@ -83,9 +84,6 @@ Future<int> _handleGroup({
   required String groupId,
   required DateTime now,
   required bool dryRun,
-  required String jobSecret,
-  required String functionsUrl,
-  required String anonOrServiceKey,
 }) async {
   final scope = {'group_id': 'eq.$groupId'};
 
@@ -97,30 +95,15 @@ Future<int> _handleGroup({
   };
   if (active.isEmpty) return 0;
 
+  // Keine Einstellungen heißt: Diese Gruppe will nichts. Dann sparen wir uns
+  // das Laden von Fahrten und Plan. Die Zeilen selbst braucht dieser Job
+  // nicht mehr — welche Nachricht fällig ist, entscheidet `push_due()` beim
+  // Senden aus denselben Einstellungen.
   final prefRows = await api.rows('notification_prefs', {
     ...scope,
-    'select': '*',
+    'select': 'person_id',
   });
-  final prefs = <String, NotificationPrefs>{
-    for (final row in prefRows)
-      if (active.containsKey(row['person_id']))
-        row['person_id'] as String: NotificationPrefs.fromJson(row),
-  };
-  // Keine Einstellungen heißt: Diese Gruppe will nichts. Dann sparen wir uns
-  // das Laden von Fahrten und Plan.
-  if (prefs.isEmpty) return 0;
-
-  final deviceRows = await api.rows('push_devices', {
-    ...scope,
-    'select': 'token, person_id',
-  });
-  final devices = <String, List<String>>{};
-  for (final row in deviceRows) {
-    final personId = row['person_id'] as String?;
-    if (personId == null) continue;
-    devices.putIfAbsent(personId, () => []).add(row['token'] as String);
-  }
-  if (devices.isEmpty) return 0;
+  if (!prefRows.any((row) => active.containsKey(row['person_id']))) return 0;
 
   final week = planningWeek(now);
   final planned = await _plan(api, scope, week, active);
@@ -143,75 +126,43 @@ Future<int> _handleGroup({
         PlanNote.fromJson(row.cast<String, dynamic>()),
   ];
 
-  final logRows = await api.rows('push_log', {
-    ...scope,
-    'plan_date': 'gte.${_isoDay(week.first)}',
-    'select': '*',
-  });
-  final sent = [
-    for (final row in logRows)
-      SentPush(
-        personId: row['person_id'] as String,
-        planDate: DateTime.parse(row['plan_date'] as String),
-        kind: row['kind'] == 'evening' ? PushKind.evening : PushKind.change,
-        digest: row['digest'] as String,
-        sentAt: DateTime.parse(row['sent_at'] as String).toLocal(),
-      ),
-  ];
-
-  final due = dueMessages(
+  // Ab #132 rechnet dieser Job nicht mehr aus, WAS verschickt wird — das
+  // steht schon im Ausgangskorb, den die App beim Ändern schreibt. Er
+  // rechnet ihn nur neu und repariert damit, was ein verpasster Schreibpfad
+  // oder eine abgestürzte App hinterlassen hat. Verschickt wird aus der
+  // Datenbank heraus (pg_cron → `flush-push`).
+  //
+  // **Das ist der Boden, auf dem der schnelle Weg steht.** Ohne diesen Lauf
+  // wäre „der Client schreibt beim Ändern" eine Zusage, die niemand
+  // einhalten kann: Ein Gerät ohne Netz, ein geschlossener Tab, ein
+  // vergessener Aufruf — und die Meldung käme nie. So kommt sie eine Stunde
+  // später, also genau so spät wie vor dieser Umstellung.
+  final entries = outboxEntries(
     week: planned,
-    prefs: prefs,
-    sent: sent,
     persons: active,
     now: now,
     notes: notes,
   );
-  if (due.isEmpty) return 0;
-
-  var count = 0;
-  for (final message in due) {
-    final tokens = devices[message.personId] ?? const [];
-    if (tokens.isEmpty) continue;
-    if (dryRun) {
-      // Im Probelauf keine Namen ins Protokoll: Der Actions-Log ist
-      // öffentlich. Nur, was verschickt würde.
-      stdout.writeln(
-        '  ${message.kind.name} → ${tokens.length} Gerät(e), '
-        '${_isoDay(message.planDate)}',
-      );
-      count += 1;
-      continue;
-    }
-
-    final results = await _send(
-      functionsUrl: functionsUrl,
-      apiKey: anonOrServiceKey,
-      jobSecret: jobSecret,
-      messages: [
-        for (final token in tokens)
-          {'token': token, 'title': message.title, 'body': message.body},
-      ],
-    );
-    final delivered = results.where((r) => r['status'] == 'ok').length;
-    // Abgelaufene Registrierungen wegräumen, sonst wächst die Tabelle mit
-    // deinstallierten Apps zu.
-    for (final result in results.where((r) => r['status'] == 'unregistered')) {
-      await api.delete('push_devices', {'token': 'eq.${result['token']}'});
-    }
-    if (delivered == 0) continue;
-
-    await api.upsert('push_log', {
-      'group_id': groupId,
-      'person_id': message.personId,
-      'plan_date': _isoDay(message.planDate),
-      'kind': message.kind.name,
-      'digest': message.digest,
-      'sent_at': now.toUtc().toIso8601String(),
-    }, onConflict: 'group_id,person_id,plan_date,kind');
-    count += 1;
+  if (dryRun) {
+    // Im Probelauf keine Namen ins Protokoll: Der Actions-Log ist
+    // öffentlich. Nur, wie viele Zeilen entstünden.
+    stdout.writeln('  ${entries.length} Korb-Zeile(n)');
+    return entries.length;
   }
-  return count;
+  if (entries.isEmpty) return 0;
+
+  // Vergangene Tage wegräumen, sonst wächst der Korb mit jedem Tag — dieselbe
+  // Aufgabe, die `publish_push_outbox` für den Client erledigt. Der Job
+  // schreibt mit dem service_role-Key und damit an der Funktion vorbei: Die
+  // leitet die Gruppe aus `auth.uid()` ab, und die hat er nicht.
+  await api.delete('push_outbox', {
+    ...scope,
+    'plan_date': 'lt.${_isoDay(week.first)}',
+  });
+  await api.upsert('push_outbox', [
+    for (final entry in entries) {'group_id': groupId, ...entry.toJson()},
+  ], onConflict: 'group_id,person_id,plan_date');
+  return entries.length;
 }
 
 /// Der Wochenplan dieser Gruppe — mit der echten Fairness-Rechnung.
@@ -294,29 +245,6 @@ Future<List<PlannedDay>> _plan(
   );
 }
 
-Future<List<Map<String, Object?>>> _send({
-  required String functionsUrl,
-  required String apiKey,
-  required String jobSecret,
-  required List<Map<String, String>> messages,
-}) async {
-  final response = await http.post(
-    Uri.parse(functionsUrl),
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': apiKey,
-      'x-push-secret': jobSecret,
-    },
-    body: jsonEncode({'messages': messages}),
-  );
-  if (response.statusCode != 200) {
-    throw HttpException('send-push ${response.statusCode}');
-  }
-  final payload = jsonDecode(response.body) as Map<String, Object?>;
-  return (payload['results'] as List).cast<Map<String, Object?>>();
-}
-
-/// Der schmale PostgREST-Zugang. Bewusst ohne SDK — wie `feedback_bot.py`.
 class _Api {
   _Api(String url, this.key)
     : base = '${url.replaceAll(RegExp(r'/$'), '')}/rest/v1';
@@ -347,7 +275,7 @@ class _Api {
 
   Future<void> upsert(
     String table,
-    Map<String, Object?> row, {
+    Object row, {
     required String onConflict,
   }) async {
     final uri = Uri.parse(
