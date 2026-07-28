@@ -55,6 +55,164 @@ abstract final class AppColors {
   static const oneWay = Color(0xFFB45309);
 }
 
+/// Ein Bannerton: Fläche (oder Verlauf) plus alles, was darauf steht.
+///
+/// Ein Werttyp statt zweier loser Farben, weil Fläche und Vordergrund nur
+/// zusammen etwas bedeuten — getrennt übergeben landet früher oder später
+/// heller Text auf heller Fläche. `test/banner_contrast_test.dart` misst
+/// jedes Paar, das hier entsteht.
+class BannerTone {
+  const BannerTone({
+    required this.surface,
+    required this.foreground,
+    this.gradient,
+  });
+
+  /// Fläche, wenn kein Verlauf gesetzt ist.
+  final Color surface;
+
+  /// Text, Icons und der „Ausblenden"-Knopf darauf.
+  final Color foreground;
+
+  /// Gesetzt: ersetzt [surface]. [surface] bleibt trotzdem gefüllt — als der
+  /// Ton, gegen den der Kontrast im schlechtesten Punkt gemessen wird.
+  final Gradient? gradient;
+}
+
+/// Farben der Hinweisleisten über der Übersicht (`features/banners/`).
+///
+/// Quelle ist das Design-Set unter `assets/fahrmitbar-design-set/`, Kapitel
+/// 07 („Banner-Farbkombinationen") und 07b („Pep-Akzente"). Das ist bewusst
+/// eine **eigene Palette neben** dem `ColorScheme` und kein Ersatz dafür:
+/// Kapitel 06 des Design-Sets gibt ein anderes `primary` vor als der Seed,
+/// dem zu folgen wäre ein Umbau des ganzen Erscheinungsbilds und keine
+/// Bannerfrage. Die Übernahme trägt hier, weil die Untergründe der App
+/// ohnehin die des Design-Sets sind (hell 1,01:1, dunkel 1,03:1).
+abstract final class AppBannerTones {
+  AppBannerTones._();
+
+  /// „Deep Teal Flow" für die Kachel der nächsten Fahrt — das dauerhafte
+  /// Banner, und im Design-Set genau mit dieser Überschrift gezeichnet.
+  ///
+  /// Zwei Abweichungen von der Vorlage, beide gemessen und beide nicht
+  /// kosmetisch:
+  ///
+  /// - **Der helle Endpunkt `#22D3EE` entfällt.** Weiß darauf trägt nur
+  ///   1,81:1. Im Design-Set steht der Text auf der dunklen Seite eines
+  ///   großen Heros; über einen schmalen Streifen läuft er über die ganze
+  ///   Breite. Bei `#0F7F98` gekappt hält Weiß durchgehend ≥4,66:1.
+  /// - **Der Verlauf läuft hell → dunkel, nicht andersherum.** Rechts im
+  ///   Banner sitzt der Zähler der Anmerkungen. Auf dem hellen Teal ist der
+  ///   Magenta-Chip unsichtbar (1,61:1); auf dem dunklen Ende trennt er sich
+  ///   mit 4,06:1. Wer die Richtung „zurück aufs Design-Set" dreht, macht
+  ///   den Zähler unlesbar — das ist genau der Fall, den das Set mit „nie
+  ///   zwei Akzente im selben Banner" benennt.
+  ///
+  /// In hell und dunkel derselbe Ton: Der Streifen ist in beiden Fällen die
+  /// dunkle, farbige Fläche, die alles andere überstrahlt.
+  static BannerTone nextRide(Brightness brightness) => const BannerTone(
+    surface: Color(0xFF0F7F98),
+    foreground: Color(0xFFFFFFFF),
+    gradient: LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [Color(0xFF0F7F98), Color(0xFF053E49)],
+    ),
+  );
+
+  /// „Sunset Coral" für den Hinweis auf eine neue Version — der einzige Ton
+  /// außerhalb der Teal-Familie, und das ist der Zweck: Der Hinweis kommt
+  /// und geht, Herausfallen ist erwünscht. Das Design-Set weist die Farbe
+  /// ausdrücklich „Neues Update, Release-News" zu.
+  ///
+  /// Die **Flächen** `#FFE3D3` und `#3A1608` stehen so **nicht** im
+  /// Design-Set — dort gibt es zu den Pep-Akzenten nur das Paar
+  /// `#E0561F / #FF8A4C` und Verlaufs-Heros. Sie sind daraus abgeleitet;
+  /// wer sie im Set sucht, sucht vergeblich.
+  static BannerTone update(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const BannerTone(
+          surface: Color(0xFF3A1608),
+          foreground: Color(0xFFFF8A4C),
+        )
+      : const BannerTone(
+          surface: Color(0xFFFFE3D3),
+          foreground: Color(0xFFB8300E),
+        );
+
+  /// „Light Air" bzw. „Night Glow" für die ruhigen Banner: die offene
+  /// Einrichtung („Niemand ausgewählt") und das Feedback-Angebot.
+  ///
+  /// Beide tragen bewusst **denselben** Ton — sie tun es heute schon, und
+  /// ein eigener Akzent für die Einrichtung hätte im Design-Set keine
+  /// Entsprechung (Signal Amber ist dort für Auszeichnungen vergeben).
+  static BannerTone quiet(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const BannerTone(
+          surface: Color(0xFF12414E),
+          foreground: Color(0xFF8EDFEF),
+        )
+      : const BannerTone(
+          surface: Color(0xFFC9EAF4),
+          foreground: Color(0xFF0B5D71),
+        );
+
+  /// Haarlinie um die **flächigen** Banner.
+  ///
+  /// Sie heben sich nur mit 1,13–1,21:1 vom Untergrund ab — als Fläche
+  /// allein sind sie kaum ein Streifen. Der Rahmen kommt aus der eigenen
+  /// Vordergrundfarbe: Die neutralen Rahmentöne des Design-Sets (`#DBE4E8`)
+  /// liegen auf `#C9EAF4` bei 1,02:1 und wären unsichtbar.
+  static Color hairlineOf(BannerTone tone) =>
+      tone.foreground.withValues(alpha: 0.24);
+}
+
+/// Pep-Akzente aus Kapitel 07b des Design-Sets.
+///
+/// Die Regel dort lautet „sparsam einsetzen: nie zwei Akzente im selben
+/// Banner" — sie ist der Grund, warum der Anmerkungs-Akzent ausschließlich
+/// auf dem Zähler sitzt, der seine eigene Fläche mitbringt, und nicht frei
+/// auf dem Verlauf des Fahrt-Banners.
+abstract final class AppAccents {
+  AppAccents._();
+
+  /// „Hot Magenta" — im Design-Set „Chat, neue Nachricht" zugewiesen. Für
+  /// die Anmerkungen an einem Plantag (#127), die ausdrücklich **kein**
+  /// Chat sind: Die Farbe markiert, dass jemand etwas geschrieben hat,
+  /// nicht einen Gesprächsfaden.
+  ///
+  /// Hell ist gegenüber dem Set (`#E01F6B`) nachgedunkelt: auf weißem Blatt
+  /// trägt das Original nur 4,59:1 und fiele unter jeder Tönung durch.
+  static Color notes(Brightness brightness) => brightness == Brightness.dark
+      ? const Color(0xFFFF5C9E)
+      : const Color(0xFFB8155A);
+
+  /// Der Zähler an der Sprechblase. Eigene Fläche, deshalb in hell wie
+  /// dunkel gleich — er sitzt in beiden Fällen auf dem dunklen Ende des
+  /// Fahrt-Banners.
+  static const notesChip = Color(0xFFFF5C9E);
+  static const notesChipInk = Color(0xFF3D0018);
+
+  /// Was auf einer mit [notes] gefüllten Fläche steht (Absende-Knopf).
+  static Color notesInk(Brightness brightness) =>
+      brightness == Brightness.dark ? notesChipInk : const Color(0xFFFFFFFF);
+}
+
+/// Die Benachrichtigung, während die App im Vordergrund ist (`app.dart`).
+///
+/// Bis v0.39.0 zeigte sie niemand an und Meldungen verschwanden spurlos;
+/// seitdem ist sie eine SnackBar. Sie trägt das dunkle Ende des
+/// Fahrt-Banners — derselbe Ton, in den Android das Icon im
+/// Benachrichtigungs-Schatten färbt (`res/values/colors.xml`), damit
+/// dieselbe Nachricht drinnen wie draußen gleich aussieht.
+abstract final class AppPush {
+  AppPush._();
+
+  static const surface = Color(0xFF053E49);
+  static const ink = Color(0xFFFFFFFF);
+  static const action = Color(0xFF8EDFEF);
+}
+
 /// Farben der Stimmungs-Gesichter aus dem Design-Set „MitFahrBar Smiley Set".
 ///
 /// Die Vorlage ist in oklch notiert, was Flutter nicht kennt; die Werte hier

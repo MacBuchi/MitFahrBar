@@ -54,13 +54,10 @@ class AppBanners extends ConsumerWidget {
           _Banner(
             icon: Icons.system_update,
             text: 'Version ${update.latestVersion} ist verfügbar',
-            // Der einzige Ton außerhalb der Cyan-Familie — Material 3 dreht
-            // für `tertiary` den Farbton. Genau hier ist das richtig: Der
-            // Update-Hinweis kommt und geht, und dass er aus der Reihe fällt,
-            // ist der Zweck. Bis v0.46.0 trug ihn die nächste Fahrt, wo er
-            // als Fremdkörper auffiel (Rückmeldung aus der Gruppe).
-            background: Theme.of(context).colorScheme.tertiaryContainer,
-            foreground: Theme.of(context).colorScheme.onTertiaryContainer,
+            // „Sunset Coral" — der einzige Ton außerhalb der Teal-Familie,
+            // und das Design-Set weist ihn ausdrücklich den Release-News zu.
+            // Der Hinweis kommt und geht, Herausfallen ist hier der Zweck.
+            tone: AppBannerTones.update(Theme.of(context).brightness),
             onTap: () => showUpdateDialog(context, update),
             onDismiss: () =>
                 ref.read(updateBannerDismissedProvider.notifier).state = true,
@@ -69,8 +66,7 @@ class AppBanners extends ConsumerWidget {
           _Banner(
             icon: Icons.lightbulb_outline,
             text: 'Wunsch oder Fehler melden',
-            background: Theme.of(context).colorScheme.secondaryContainer,
-            foreground: Theme.of(context).colorScheme.onSecondaryContainer,
+            tone: AppBannerTones.quiet(Theme.of(context).brightness),
             onTap: () => showFeedbackDialog(context),
             onDismiss: () =>
                 ref.read(feedbackBannerDismissedProvider.notifier).state = true,
@@ -102,15 +98,13 @@ class _IdentityBanner extends ConsumerWidget {
     if (identity == null || !identity.asked) return const SizedBox.shrink();
     if (ref.watch(myPersonProvider) != null) return const SizedBox.shrink();
 
-    final scheme = Theme.of(context).colorScheme;
     return _Banner(
       icon: Icons.badge_outlined,
       text: 'Niemand ausgewählt',
       subtitle:
           'Tippen, um festzulegen, wer du bist — sonst gibt es hier '
           'keine Benachrichtigungen.',
-      background: scheme.secondaryContainer,
-      foreground: scheme.onSecondaryContainer,
+      tone: AppBannerTones.quiet(Theme.of(context).brightness),
       onTap: () => unawaited(showIdentityDialog(context)),
     );
   }
@@ -138,7 +132,7 @@ class _NextRideBanner extends ConsumerWidget {
     if (day == null || persons == null) return const SizedBox.shrink();
 
     final byId = {for (final person in persons) person.id: person};
-    final scheme = Theme.of(context).colorScheme;
+    final tone = AppBannerTones.nextRide(Theme.of(context).brightness);
     // Anmerkungen des Tages (#127) — aus der Wochenladung, die der Planer
     // ohnehin braucht; das Banner kostet dadurch keine eigene Anfrage.
     final notes = ref.watch(weekNotesProvider).value?[day.date] ?? const [];
@@ -151,13 +145,10 @@ class _NextRideBanner extends ConsumerWidget {
       icon: Icons.directions_car,
       text: dayLabel(day.date, ref.watch(nowProvider)()),
       subtitle: composeGroupBody(day, byId, notes: notes),
-      // Dieselbe Cyan-Familie wie Marke, Logo und Balken. Vorher stand hier
-      // `tertiaryContainer`, das Material 3 aus einem Cyan-Seed als Lavendel
-      // ableitet — der einzige fremde Ton der ganzen Oberfläche, und genau
-      // so kam er in der Gruppe auch an. Der Update-Hinweis hat ihn
-      // übernommen, wo das Herausfallen erwünscht ist.
-      background: scheme.primaryContainer,
-      foreground: scheme.onPrimaryContainer,
+      // „Deep Teal Flow" aus dem Design-Set — dort mit genau dieser
+      // Überschrift gezeichnet. Der Verlauf läuft hell nach dunkel, weil
+      // rechts der Zähler sitzt; die Begründung steht am Token.
+      tone: tone,
       // Dieselbe Adresse, die auch eine angetippte Benachrichtigung ansteuert.
       onTap: () => ref.read(routerProvider).go(pushTapRoute),
       // Eigener Knopf statt eines zweiten Tap-Ziels auf derselben Fläche:
@@ -168,15 +159,21 @@ class _NextRideBanner extends ConsumerWidget {
         tooltip: 'Anmerkungen',
         onPressed: () => ref.read(routerProvider).push('/notes/$iso'),
         visualDensity: VisualDensity.compact,
+        // Den Akzent trägt allein der Zähler, nicht die Sprechblase: Er
+        // bringt seine eigene Fläche mit, und „nie zwei Akzente im selben
+        // Banner" ist die Regel des Design-Sets. Frei auf dem Verlauf wäre
+        // Magenta ohnehin unlesbar.
         icon: Badge(
           isLabelVisible: notes.isNotEmpty,
+          backgroundColor: AppAccents.notesChip,
+          textColor: AppAccents.notesChipInk,
           label: Text('${notes.length}'),
           child: Icon(
             notes.isEmpty
                 ? Icons.chat_bubble_outline
                 : Icons.chat_bubble_rounded,
             size: 18,
-            color: scheme.onPrimaryContainer,
+            color: tone.foreground,
           ),
         ),
       ),
@@ -188,8 +185,7 @@ class _Banner extends StatelessWidget {
   const _Banner({
     required this.icon,
     required this.text,
-    required this.background,
-    required this.foreground,
+    required this.tone,
     required this.onTap,
     this.subtitle,
     this.onDismiss,
@@ -201,8 +197,9 @@ class _Banner extends StatelessWidget {
 
   /// Zweite Zeile; ohne sie bleibt das Banner einzeilig wie bisher.
   final String? subtitle;
-  final Color background;
-  final Color foreground;
+
+  /// Fläche und Vordergrund als Paar — siehe `core/tokens.dart`.
+  final BannerTone tone;
   final VoidCallback onTap;
 
   /// Ohne Rückruf gibt es keinen „Ausblenden"-Knopf — das Banner bleibt.
@@ -225,51 +222,64 @@ class _Banner extends StatelessWidget {
         AppSpacing.m,
         0,
       ),
+      // Die Fläche liegt in `Ink` statt in `Material.color`: Nur so trägt
+      // sie einen Verlauf, und der Ripple des InkWell bleibt erhalten. Der
+      // Rahmen ist keine Zierde — die flächigen Töne heben sich nur mit
+      // rund 1,2:1 vom Untergrund ab und wären sonst kaum ein Streifen.
       child: Material(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.m),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.m),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.m,
-              vertical: AppSpacing.s,
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 20, color: foreground),
-                const SizedBox(width: AppSpacing.s),
-                Expanded(
-                  child: subtitle == null
-                      ? Text(text, style: TextStyle(color: foreground))
-                      : Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              text,
-                              style: TextStyle(
-                                color: foreground,
-                                fontWeight: FontWeight.bold,
+        type: MaterialType.transparency,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: tone.gradient == null ? tone.surface : null,
+            gradient: tone.gradient,
+            border: tone.gradient == null
+                ? Border.all(color: AppBannerTones.hairlineOf(tone))
+                : null,
+            borderRadius: BorderRadius.circular(AppRadius.m),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.m),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.m,
+                vertical: AppSpacing.s,
+              ),
+              child: Row(
+                children: [
+                  Icon(icon, size: 20, color: tone.foreground),
+                  const SizedBox(width: AppSpacing.s),
+                  Expanded(
+                    child: subtitle == null
+                        ? Text(text, style: TextStyle(color: tone.foreground))
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                text,
+                                style: TextStyle(
+                                  color: tone.foreground,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            Text(
-                              subtitle!,
-                              style: TextStyle(color: foreground),
-                            ),
-                          ],
-                        ),
-                ),
-                ?action,
-                if (onDismiss != null)
-                  IconButton(
-                    tooltip: 'Ausblenden',
-                    icon: Icon(Icons.close, size: 18, color: foreground),
-                    onPressed: onDismiss,
-                    visualDensity: VisualDensity.compact,
+                              Text(
+                                subtitle!,
+                                style: TextStyle(color: tone.foreground),
+                              ),
+                            ],
+                          ),
                   ),
-              ],
+                  ?action,
+                  if (onDismiss != null)
+                    IconButton(
+                      tooltip: 'Ausblenden',
+                      icon: Icon(Icons.close, size: 18, color: tone.foreground),
+                      onPressed: onDismiss,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
             ),
           ),
         ),

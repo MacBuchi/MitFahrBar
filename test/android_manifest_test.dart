@@ -192,6 +192,37 @@ void main() {
             'Ohne eigenes Icon nimmt Android das farbige Launcher-Icon und '
             'zeigt daraus eine weiße Fläche.',
       );
+      expect(
+        content,
+        contains('com.google.firebase.messaging.default_notification_color'),
+        reason:
+            'Ohne die Angabe färbt Android das kleine Icon und die App-Zeile '
+            'grau — die Meldung sähe aus wie die einer beliebigen fremden '
+            'App. Nur im Benachrichtigungs-Schatten eines echten Geräts zu '
+            'sehen, nie im Web und nie im Debug-Lauf.',
+      );
+    });
+
+    // Der Verweis oben löst nur auf, wenn es die Ressource gibt: Fehlt sie,
+    // bricht der Android-Build ab — und zwar erst er, nicht `flutter test`.
+    // Die dunkle Fassung ist keine Zierde, sondern der Grund, warum der Ton
+    // im dunklen Schatten überhaupt zu sehen ist; die Kontraste misst
+    // `test/banner_contrast_test.dart`.
+    test('die Akzentfarbe existiert in beiden Fassungen', () {
+      for (final path in const [
+        'android/app/src/main/res/values/colors.xml',
+        'android/app/src/main/res/values-night/colors.xml',
+      ]) {
+        final colors = File(path);
+        expect(colors.existsSync(), isTrue, reason: '$path fehlt.');
+        expect(
+          colors.readAsStringSync(),
+          contains('name="notification_accent"'),
+          reason:
+              'In $path fehlt die Farbe, auf die das Manifest mit '
+              '@color/notification_accent zeigt.',
+        );
+      }
     });
 
     test('legt den Kanal auch wirklich an', () {

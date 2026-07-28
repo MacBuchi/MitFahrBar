@@ -75,6 +75,14 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher_foreground" />
+        <!-- Ohne diese Angabe färbt Android das kleine Icon und die
+             App-Zeile grau. Der Wert steht in res/values/colors.xml und
+             res/values-night/colors.xml — hell und dunkel brauchen
+             verschiedene Töne, weil der Schatten die Helligkeit des Systems
+             hat und nicht die der App. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

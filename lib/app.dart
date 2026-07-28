@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/push_messaging.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'core/tokens.dart';
 import 'data/providers.dart';
 import 'features/banners/update_required_screen.dart';
 import 'features/splash/splash_overlay.dart';
@@ -55,19 +56,28 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
           ..showSnackBar(
             SnackBar(
               duration: const Duration(seconds: 8),
+              // Derselbe Ton, in den Android das Icon im
+              // Benachrichtigungs-Schatten färbt: Dieselbe Nachricht sieht
+              // drinnen aus wie draußen.
+              backgroundColor: AppPush.surface,
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: AppPush.ink,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  if (body.isNotEmpty) Text(body),
+                  if (body.isNotEmpty)
+                    Text(body, style: const TextStyle(color: AppPush.ink)),
                 ],
               ),
               action: SnackBarAction(
                 label: 'Woche',
+                textColor: AppPush.action,
                 onPressed: () => ref.read(routerProvider).go(pushTapRoute),
               ),
             ),

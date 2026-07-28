@@ -4,7 +4,7 @@
     "start_url": ".",
     "display": "standalone",
     "background_color": "#06171C",
-    "theme_color": "#0891B2",
+    "theme_color": "#0F7F98",
     "description": "Die faire App für eure Fahrgemeinschaft — Fahrten dokumentieren, Punkte zählen, wissen wer als Nächstes dran ist.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,

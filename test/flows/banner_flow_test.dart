@@ -2,6 +2,7 @@
 /// die echte App.
 library;
 
+import 'package:mitfahrbar/core/tokens.dart';
 import 'package:mitfahrbar/core/update_check.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
@@ -124,7 +125,9 @@ void main() {
       );
     });
 
-    testWidgets('trägt die Markenfarbe, nicht den Fremdton', (tester) async {
+    testWidgets('trägt die Töne des Design-Sets, nicht die des Schemas', (
+      tester,
+    ) async {
       final backend = await _rideBackend();
       backend.update = const UpdateInfo(
         latestVersion: '9.9.9',
@@ -134,32 +137,69 @@ void main() {
       await _login(tester);
 
       final context = tester.element(find.text('Heute (Mi, 22.07.)'));
-      final scheme = Theme.of(context).colorScheme;
+      final brightness = Theme.of(context).brightness;
 
-      Color colorOf(String text) => tester
-          .widget<Material>(
-            find
-                .ancestor(of: find.text(text), matching: find.byType(Material))
-                .first,
-          )
-          .color!;
+      // Die Fläche liegt seit v0.47.0 in `Ink` und nicht mehr in
+      // `Material.color` — anders trägt sie keinen Verlauf.
+      BoxDecoration decorationOf(String text) =>
+          tester
+                  .widget<Ink>(
+                    find
+                        .ancestor(
+                          of: find.text(text),
+                          matching: find.byType(Ink),
+                        )
+                        .first,
+                  )
+                  .decoration!
+              as BoxDecoration;
 
       expect(
-        colorOf('Heute (Mi, 22.07.)'),
-        scheme.primaryContainer,
+        decorationOf('Heute (Mi, 22.07.)').gradient,
+        AppBannerTones.nextRide(brightness).gradient,
         reason:
-            'Material 3 leitet `tertiary` aus einem Cyan-Seed als Lavendel '
-            'ab — der einzige fremde Ton der Oberfläche. Auf dem dauerhaften '
-            'Banner fiel er in der Gruppe als Stilbruch auf (v0.47.0).',
+            'Das dauerhafte Banner trägt den Verlauf „Deep Teal Flow" aus '
+            'dem Design-Set. Vorher stand hier der aus dem Cyan-Seed '
+            'abgeleitete Lavendel, der in der Gruppe als Stilbruch auffiel.',
       );
       expect(
-        colorOf('Version 9.9.9 ist verfügbar'),
-        scheme.tertiaryContainer,
+        decorationOf('Version 9.9.9 ist verfügbar').color,
+        AppBannerTones.update(brightness).surface,
         reason:
-            'Dorthin ist der Fremdton gewandert: Der Update-Hinweis kommt '
-            'und geht, da ist Herausfallen der Zweck. Tauschte man beide '
-            'zurück, stünden nach dieser Änderung zwei gleichfarbige '
-            'Streifen übereinander.',
+            'Der Update-Hinweis kommt und geht — da ist Herausfallen der '
+            'Zweck, und das Design-Set weist „Sunset Coral" ausdrücklich '
+            'den Release-News zu. Er ist flächig, nicht verlaufend: Zwei '
+            'farbige Verläufe übereinander wären ein Streifenmuster.',
+      );
+      expect(
+        decorationOf('Version 9.9.9 ist verfügbar').gradient,
+        isNull,
+        reason: 'Nur das dauerhafte Banner trägt einen Verlauf.',
+      );
+      expect(
+        decorationOf('Wunsch oder Fehler melden').color,
+        isNot(AppBannerTones.update(brightness).surface),
+        reason:
+            'Feedback-Angebot und Update-Hinweis stehen übereinander und '
+            'dürfen nicht derselbe Streifen sein.',
+      );
+    });
+
+    testWidgets('der Anmerkungs-Zähler trägt den eigenen Akzent', (
+      tester,
+    ) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      final badge = tester.widget<Badge>(find.byType(Badge).first);
+      expect(
+        badge.backgroundColor,
+        AppAccents.notesChip,
+        reason:
+            'Der Akzent sitzt allein auf dem Zähler, der seine eigene '
+            'Fläche mitbringt. Frei auf dem Verlauf wäre Magenta unlesbar '
+            '(1,61:1 auf dem hellen Teal) — das Design-Set nennt die Regel '
+            '„nie zwei Akzente im selben Banner".',
       );
     });
 

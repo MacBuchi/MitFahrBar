@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dunkles Gegenstück zu values/colors.xml: das `primary` des dunklen
+     Themes aus dem Design-Set. Der helle Wert (#0F7F98) trägt im dunklen
+     Benachrichtigungs-Schatten zu wenig; dieser steht dort bei 8,4:1. -->
+<resources>
+    <color name="notification_accent">#35C6DE</color>
+</resources>
