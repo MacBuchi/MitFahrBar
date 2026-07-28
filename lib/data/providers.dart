@@ -1,13 +1,17 @@
 /// providers.dart – Zentrale Provider-Registry des Data-Layers.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/export_file.dart';
 import '../core/import_file.dart';
 import '../core/fairness.dart';
+import '../core/log.dart';
 import '../core/push_messaging.dart';
+import '../core/push_outbox.dart';
 import '../core/share_text.dart';
 import '../core/supabase_config.dart';
 import '../core/update_check.dart';
@@ -25,6 +29,7 @@ import 'device_identity.dart';
 import 'fake_repository.dart';
 import 'feedback_repository.dart';
 import 'group_repository.dart';
+import 'push_outbox_repository.dart';
 import 'push_repository.dart';
 import 'supabase_repository.dart';
 
@@ -90,6 +95,12 @@ final pushRepositoryProvider = Provider<PushRepository>(
   (ref) => SupabaseConfig.isConfigured
       ? SupabasePushRepository(ref.watch(supabaseClientProvider))
       : NoopPushRepository(),
+);
+
+final pushOutboxRepositoryProvider = Provider<PushOutboxRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabasePushOutboxRepository(ref.watch(supabaseClientProvider))
+      : NoopPushOutboxRepository(),
 );
 
 /// Wo die Geräte-Zuordnung liegt. Im Demo-Modus und in Tests flüchtig — dort
@@ -488,6 +499,62 @@ final weekNotesProvider = FutureProvider<Map<DateTime, List<PlanNote>>>((
     (byDay[day] ??= <PlanNote>[]).add(note);
   }
   return byDay;
+});
+
+/// Hält den Ausgangskorb (#132) am Stand der Dinge.
+///
+/// **Warum ein Zuhörer und keine Aufrufe an den Mutationsstellen.** Der Text
+/// hängt an Plan, Personen und Anmerkungen — und der Plan wiederum an
+/// Fahrten, Parametern und Sitzplätzen. Eine eingetragene Fahrt verschiebt
+/// über die Vorwärtssimulation die Fahrer *späterer* Tage. Wer das an jeder
+/// Schreibstelle von Hand nachzieht, vergisst irgendwann eine, und niemand
+/// findet es je. Hier hört einer auf das fertige Ergebnis; alles, was den
+/// Plan ändert, läuft ohnehin durch [weekPlanProvider].
+///
+/// **Und wenn er doch einmal nicht feuert**, ist das kein Ausfall: Der
+/// stündliche Job rechnet den Korb neu. Der Ereignis-Weg ist ein
+/// Beschleuniger, keine Zusage — schlechter als der bisherige 10-Minuten-Takt
+/// kann es dadurch nie werden.
+///
+/// Geschrieben wird für die ganze Woche, nie nur für den bearbeiteten Tag:
+/// „ausrechnen, was betroffen ist" ist genau der Fehler, den man später nicht
+/// mehr sieht. Vierzig Zeilen kosten nichts.
+final pushOutboxSyncProvider = Provider<void>((ref) {
+  // Ohne Anmeldung gibt es keine Gruppe, in deren Korb geschrieben würde.
+  if (ref.watch(currentUserIdProvider) == null) return;
+
+  final week = ref.watch(weekPlanProvider).valueOrNull;
+  final persons = ref.watch(personsProvider).valueOrNull;
+  final notes = ref.watch(weekNotesProvider).valueOrNull;
+  // Ein halb geladener Stand schriebe einen halben Text. Lieber gar nichts —
+  // der stündliche Job holt es nach.
+  if (week == null || persons == null || notes == null) return;
+
+  final active = {
+    for (final person in persons)
+      if (person.active) person.id: person,
+  };
+  if (active.isEmpty) return;
+
+  final now = ref.read(nowProvider)();
+  final entries = outboxEntries(
+    week: week,
+    persons: active,
+    now: now,
+    notes: [for (final day in notes.values) ...day],
+  );
+  unawaited(
+    ref
+        .read(pushOutboxRepositoryProvider)
+        .publish(entries, keepFrom: planningWeek(now).first)
+        // Scheitert das Schreiben, ist das kein Fall für die Nutzerin: Sie
+        // hat nichts falsch gemacht und kann nichts tun. **Ohne Fehlertext**
+        // — der könnte die Nutzlast mitführen, und darin stehen Namen.
+        // Dieselbe Regel wie beim Einladungstext.
+        .catchError((Object error) {
+          log.w('Ausgangskorb nicht geschrieben (${error.runtimeType})');
+        }),
+  );
 });
 
 /// Die Anmerkungen EINES Tages, älteste zuerst — für den Anmerkungs-Schirm.

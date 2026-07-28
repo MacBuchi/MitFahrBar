@@ -8,6 +8,7 @@ library;
 
 import 'dart:async';
 
+import 'package:mitfahrbar/core/push_outbox.dart';
 import 'package:mitfahrbar/core/update_check.dart';
 import 'package:mitfahrbar/data/admin_repository.dart';
 import 'package:mitfahrbar/data/app_config_repository.dart';
@@ -15,6 +16,7 @@ import 'package:mitfahrbar/data/carpool_repository.dart';
 import 'package:mitfahrbar/data/fake_repository.dart';
 import 'package:mitfahrbar/data/feedback_repository.dart';
 import 'package:mitfahrbar/data/group_repository.dart';
+import 'package:mitfahrbar/data/push_outbox_repository.dart';
 import 'package:mitfahrbar/data/push_repository.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
@@ -59,6 +61,12 @@ class FakeBackend {
   /// Stellt eine Nachricht zu, als käme sie gerade von FCM.
   void deliverPush(String title, String body) =>
       pushMessageSink?.call(title, body);
+
+  /// Was der Client zuletzt in den Ausgangskorb geschrieben hat (#132), je
+  /// Gruppe — die Fake-Entsprechung von `publish_push_outbox`. Damit kann
+  /// ein Flow-Test prüfen, dass eine Änderung im Planer wirklich bis dorthin
+  /// durchschlägt, statt nur zu glauben, dass der Zuhörer feuert.
+  final Map<String, List<OutboxEntry>> outbox = {};
 
   /// Adressen, für die ein Passwort-Reset angefordert wurde — die Fake-
   /// Entsprechung der Mail, die in Produktion rausgeht. Enthält auch
@@ -353,6 +361,28 @@ class FakePushRepository implements PushRepository {
   Future<bool> sendTest(String token) async {
     tests.add(token);
     return testAccepted;
+  }
+}
+
+/// Bildet `publish_push_outbox` nach: Der Korb wird ersetzt, und was vor
+/// `keepFrom` liegt, fällt weg — sonst prüfte ein Test eine Zusage
+/// („beschränkt auf Personen × Planwoche"), die der Fake gar nicht einhält.
+class FakePushOutboxRepository implements PushOutboxRepository {
+  FakePushOutboxRepository(this.backend);
+
+  final FakeBackend backend;
+
+  @override
+  Future<void> publish(
+    List<OutboxEntry> entries, {
+    required DateTime keepFrom,
+  }) async {
+    final group = backend.currentGroupId;
+    if (group == null) return;
+    backend.outbox[group] = [
+      for (final entry in entries)
+        if (!entry.date.isBefore(keepFrom)) entry,
+    ];
   }
 }
 

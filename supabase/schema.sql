@@ -253,10 +253,43 @@ create table public.push_log (
   primary key (group_id, person_id, plan_date, kind)
 );
 
+-- Ausgangskorb (#132): was gesagt WÜRDE. Der Client rechnet den Text mit dem
+-- echten `planWeek`/`composeBody` aus und legt ihn hier ab; ein Trigger macht
+-- die Zeile 60 Sekunden später fällig, pg_cron holt sie ab. So bleibt die
+-- Fairness-Regel in Dart, obwohl der Versand ereignisgetrieben ist.
+--
+-- Hier steht der vorgeschlagene Fahrer im Klartext — die einzige Ausnahme von
+-- „wird nie gespeichert", und sie hängt an einem Riegel: **null Policies und
+-- keine Client-Rechte**, wie bei `push_log`. Geschrieben wird ausschließlich
+-- über `publish_push_outbox`, gelesen nur mit dem service_role-Key. Was der
+-- Client nicht lesen kann, kann keine zweite Wahrheit werden.
+--
+-- Die Uhrzeiten stehen NICHT hier, sondern in `notification_prefs` — sonst
+-- wirkte eine geänderte Weckzeit erst nach dem nächsten Schreiben.
+create table public.push_outbox (
+  group_id uuid not null
+    references public.groups(id) on delete cascade,
+  person_id uuid not null references public.persons(id) on delete cascade,
+  plan_date date not null,
+  digest text not null,
+  body text not null,
+  -- Zwei Kopfzeilen: Welche Art die Meldung ist, entscheidet `push_log`, und
+  -- das darf der Client nicht lesen. Er legt beide ab, der Versand wählt —
+  -- so wandert kein deutsches Wort nach TypeScript.
+  title_evening text not null,
+  title_change text not null,
+  -- NULL = nichts offen. Der Versand quittiert damit.
+  due_at timestamptz,
+  updated_at timestamptz not null default now(),
+  primary key (group_id, person_id, plan_date)
+);
+
 create index push_devices_group_idx on public.push_devices (group_id);
 create index push_devices_person_idx
   on public.push_devices (group_id, person_id);
 create index push_log_date_idx on public.push_log (plan_date);
+create index push_outbox_due_idx on public.push_outbox (due_at)
+  where due_at is not null;
 
 -- Verknüpfung Verwalter-Konto ↔ Gruppe. Ein Konto trägt bis zu 5 Gruppen
 -- (Deckel im Trigger unten), deshalb der zusammengesetzte Schlüssel.
@@ -353,6 +386,83 @@ end $$;
 create trigger group_admins_released
   after delete on public.group_admins
   for each row execute function public.mark_group_released();
+
+-- Entprellen des Ausgangskorbs (#132): Fünf Taps im Planer sind fünf Upserts
+-- auf dieselben Zeilen und sollen EINE Meldung ergeben. Jede Inhaltsänderung
+-- schiebt die Fälligkeit 60 Sekunden nach hinten.
+--
+-- Der `is distinct from`-Vergleich ist der Kern: Der stündliche Reparatur-Job
+-- schreibt dieselben Zeilen immer wieder. Setzte der Trigger die Fälligkeit
+-- auch bei unverändertem Inhalt neu, schöbe er sie stündlich vor sich her und
+-- es würde **nie** etwas gesendet. Und weil `new.due_at` bei unverändertem
+-- Inhalt unangetastet bleibt, kann der Versand mit `due_at = null`
+-- quittieren, ohne dass die Zeile sofort wieder fällig wird.
+create or replace function public.push_outbox_debounce()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.updated_at := now();
+  if tg_op = 'INSERT'
+    or new.digest is distinct from old.digest
+    or new.body is distinct from old.body
+    or new.title_evening is distinct from old.title_evening
+    or new.title_change is distinct from old.title_change
+  then
+    new.due_at := now() + interval '60 seconds';
+  end if;
+  return new;
+end $$;
+
+create trigger push_outbox_debounce_trg
+  before insert or update on public.push_outbox
+  for each row execute function public.push_outbox_debounce();
+
+-- Der einzige Schreibweg in den Ausgangskorb (#132). SECURITY DEFINER wie
+-- `register_push_device`, und aus einem harten Grund: „schreiben ja, lesen
+-- nein" ist an der Tabelle nicht zu haben — Postgres verlangt für
+-- `on conflict do update` das SELECT-Recht, und mit Recht, aber ohne
+-- SELECT-Policy scheitert der Upsert daran, dass die bestehende Zeile für
+-- den Aufrufer unsichtbar ist.
+--
+-- Die Funktion kann keine Zugehörigkeit verändern: Die `group_id` kommt aus
+-- `auth.uid()` und nie aus der Nutzlast, und Einträge zu gruppenfremden
+-- Personen fallen im Join heraus. `keep_from` räumt vergangene Tage weg,
+-- damit die Tabelle auf Personen × Planwoche beschränkt bleibt.
+create or replace function public.publish_push_outbox(
+  entries jsonb,
+  keep_from date
+)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  gid uuid := auth.uid();
+begin
+  if gid is null or not public.my_group_active() then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+
+  delete from public.push_outbox
+    where group_id = gid and plan_date < keep_from;
+
+  insert into public.push_outbox (
+    group_id, person_id, plan_date, digest, body, title_evening, title_change
+  )
+  select
+    gid,
+    person.id,
+    (entry->>'plan_date')::date,
+    entry->>'digest',
+    entry->>'body',
+    entry->>'title_evening',
+    entry->>'title_change'
+  from jsonb_array_elements(coalesce(entries, '[]'::jsonb)) as entry
+  join public.persons person
+    on person.id = (entry->>'person_id')::uuid
+   and person.group_id = gid
+  on conflict (group_id, person_id, plan_date) do update
+    set digest = excluded.digest,
+        body = excluded.body,
+        title_evening = excluded.title_evening,
+        title_change = excluded.title_change;
+end $$;
 
 -- Übernimmt eine BESTEHENDE Gruppe: für Gruppen von vor #106 und für die
 -- Übergabe an eine Nachfolgerin. Beweis ist das Gruppen-Login (Handle +
@@ -608,6 +718,14 @@ create policy notification_prefs_isolated on public.notification_prefs
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 
+-- Ausgangskorb (#132): null Policies, wie `push_log` und `group_admins`.
+-- „Schreiben ja, lesen nein" ist an der Tabelle selbst nicht zu haben —
+-- `insert ... on conflict do update` verlangt das SELECT-Recht, und mit
+-- Recht, aber ohne SELECT-Policy scheitert es an „new row violates row-level
+-- security policy". Deshalb läuft der Schreibpfad über
+-- `publish_push_outbox` (SECURITY DEFINER, siehe oben).
+alter table public.push_outbox enable row level security;
+
 -- Konfiguration: nur lesen. Bewusst keine Schreib-Policy — sonst könnte ein
 -- Client die Mindestversion hochsetzen und damit alle aussperren. `anon`
 -- darf lesen, damit der Sperr-Schirm schon vor dem Login greift.
@@ -633,6 +751,14 @@ grant usage on schema public to anon, authenticated, service_role;
 grant select, insert, update, delete
   on all tables in schema public to anon, authenticated;
 grant all on all tables in schema public to service_role;
+
+-- Und sofort wieder weg für den Ausgangskorb (#132). Der Sammel-Grant oben
+-- gibt Rechte auf JEDE Tabelle — ohne diese Rücknahme stünde dem Client der
+-- direkte Weg an `publish_push_outbox` vorbei offen, und der Riegel hinge
+-- allein daran, dass niemand später eine Policy ergänzt.
+-- `test/e2e/rls_e2e_test.dart` beweist am echten Postgres, dass ein Client
+-- hier weder lesen noch schreiben kann.
+revoke all on public.push_outbox from anon, authenticated;
 grant usage, select on all sequences in schema public
   to anon, authenticated, service_role;
 grant execute on all functions in schema public

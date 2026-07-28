@@ -160,6 +160,45 @@ void main() {
     handle.dispose();
   });
 
+  // Der Ausgangskorb (#132) ist der Weg, auf dem eine Änderung binnen einer
+  // Minute aufs Handy kommt statt erst nach Stunden. Er hängt an einem
+  // Zuhörer auf dem fertigen Plan — dass der wirklich feuert, sieht man weder
+  // am Analyzer noch an einem Test, der nur den Rechenteil prüft.
+  testWidgets('ein Tap im Planer schreibt den Ausgangskorb', (tester) async {
+    final handle = tester.ensureSemantics();
+    final backend = await _backend(['Anna', 'Bert']);
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await _openPlan(tester);
+
+    final group = backend.currentGroupId!;
+    final monday = planningWeek(testToday).first;
+    await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    await tester.tap(_cell('Bert', monday));
+    await tester.pumpAndSettle();
+
+    final box = backend.outbox[group] ?? const [];
+    final annasMonday = box.firstWhere(
+      (entry) => entry.date == monday && entry.body.contains('Du fährst'),
+      orElse: () => throw StateError('keine Zeile mit Fahrer-Text'),
+    );
+    expect(
+      annasMonday.titleEvening,
+      contains('Mo,'),
+      reason: 'Die Kopfzeile nennt den Tag, um den es geht.',
+    );
+    expect(
+      box.where((entry) => entry.date == monday).length,
+      2,
+      reason:
+          'Für JEDE aktive Person eine Zeile, nicht nur für die Anwesenden: '
+          'Wer später herausfällt, soll davon erfahren, und ob er schon eine '
+          'Abend-Meldung hat, weiß nur der Versender.',
+    );
+    handle.dispose();
+  });
+
   // Ohne Vorwärts-Simulation stünde an beiden Tagen derselbe Name.
   testWidgets('über zwei Tage wechselt der vorgeschlagene Fahrer', (
     tester,
