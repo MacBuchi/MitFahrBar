@@ -267,6 +267,22 @@ void main() {
       );
     });
 
+    test('beide Extensions des Versands werden ausdrücklich angelegt', () {
+      for (final extension in ['pg_cron', 'pg_net']) {
+        expect(
+          sqlOnly(schema),
+          contains('create extension if not exists $extension'),
+          reason:
+              'Der lokale CLI-Stack bringt pg_net vorinstalliert mit, '
+              'Produktion nicht — genau diese Differenz hat am 29.07.2026 '
+              'den Versand still stehen lassen: flush_due_push() scheiterte '
+              'jede Minute, sichtbar nur in cron.job_run_details, und kein '
+              'Test auf dem Teststack konnte es zeigen. Wer sich hier auf '
+              '„ist doch eh da" verlässt, wiederholt das.',
+        );
+      }
+    });
+
     test('register_push_device prüft die Gruppe der Person', () {
       final function = RegExp(
         r'create or replace function public\.register_push_device.*?end \$\$;',

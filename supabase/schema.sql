@@ -27,11 +27,14 @@
 
 -- crypt()/gen_salt() für die Passwortprüfungen der Konsolen-Funktionen.
 create extension if not exists pgcrypto;
--- Der Minutentakt, der den Ausgangskorb abholt (#132). pg_net ist auf
--- Supabase schon installiert; pg_cron nicht, steht aber in
--- `shared_preload_libraries` und lässt sich anlegen (auf dem CLI-Stack
--- geprüft, bevor dieser Weg gewählt wurde).
+-- Der Minutentakt, der den Ausgangskorb abholt (#132), und der HTTP-Ruf,
+-- mit dem er die Edge Function weckt. **Beide ausdrücklich anlegen** — der
+-- lokale CLI-Stack bringt pg_net vorinstalliert mit, Produktion nicht.
+-- Genau diese Differenz hat am 29.07.2026 den Versand still stehen lassen:
+-- `flush_due_push()` scheiterte jede Minute, sichtbar nur in
+-- `cron.job_run_details`, und kein Test auf dem Teststack konnte es zeigen.
 create extension if not exists pg_cron;
+create extension if not exists pg_net;
 
 -- ---------------------------------------------------------------- Tabellen
 
