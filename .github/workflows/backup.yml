@@ -1,0 +1,164 @@
+name: Database Backup
+
+# Wöchentliches verschlüsseltes Backup der Live-Datenbank ins private
+# Backup-Repo, mit anschließendem Restore-Drill (#135). Der Free Plan hat
+# kein Point-in-Time-Recovery und keine automatischen Dumps — ohne diesen
+# Job gibt es keinen Weg zurück aus einer kaputten Migration.
+#
+# Vor jeder größeren Migration von Hand starten (workflow_dispatch).
+# `dry_run` zieht, prüft, verschlüsselt und drillt, ohne hochzuladen —
+# damit lässt sich der Job selbst testen, ohne die Ablage anzufassen.
+#
+# Reihenfolge mit Absicht: erst hochladen, DANN drillen. Scheitert der
+# Drill, ist der Lauf rot, die Datei existiert aber — eine kaputte
+# Wiederherstellbarkeit ist genau der Moment, in dem man den Dump am
+# dringendsten behalten will.
+on:
+  schedule:
+    # Montags, bewusst neben der vollen Stunde (GitHub verzögert Läufe zur
+    # vollen Stunde regelmäßig) und neben PilzBuddys 03:17.
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dump ziehen, prüfen, drillen — aber nichts hochladen"
+        type: boolean
+        default: false
+
+# Zwei gleichzeitige Dumps wären nur Last ohne Nutzen. Nicht abbrechen:
+# Ein halb hochgeladenes Backup ist die schlechtere Variante.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Backup & Restore-Drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # Solange die Secrets fehlen, ruht der Job still statt rot — sonst
+      # steht der Workflow dauerhaft auf Fehler und niemand schaut mehr
+      # hin, wenn es wirklich brennt (dasselbe Muster wie notify.yml).
+      - name: Secrets prüfen
+        id: gate
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          if [ -z "$DB_URL" ] || [ -z "$REPO_TOKEN" ]; then
+            echo "::notice::SUPABASE_DB_URL oder BACKUP_REPO_TOKEN fehlt — Backup ruht."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Der Runner bringt einen älteren Client mit; ist pg_dump älter als
+      # der Server (17), bricht es mit "server version mismatch" ab.
+      - name: PostgreSQL-Client 17 und age installieren
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 age
+          # Das Paket zu installieren genügt nicht: /usr/bin/pg_dump zeigt
+          # weiter auf den vorinstallierten Client des Runners. Die
+          # versionierten Binaries müssen vorn auf den PATH.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      # Eigener Schritt, weil $GITHUB_PATH erst ab dem nächsten Schritt
+      # wirkt. Passt die Hauptversion nicht zum Server, soll das hier
+      # auffallen und nicht erst mitten im Dump.
+      - name: Client-Versionen prüfen
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          pg_dump --version
+          age --version
+          case "$(pg_dump --version)" in
+            *"PostgreSQL) 17."*) ;;
+            *) echo "::error::pg_dump ist nicht Version 17 — der Dump würde am Server-Versionsvergleich scheitern."; exit 1 ;;
+          esac
+
+      # Wegwerf-Schlüsselpaar für den Drill: Das Backup wird zusätzlich an
+      # diesen Empfänger verschlüsselt, damit der Drill die hochgeladene
+      # Datei öffnen kann — der private Betreiber-Schlüssel bleibt, wo er
+      # ist: außerhalb von GitHub. Der Wegwerf-Schlüssel stirbt mit dem
+      # Runner.
+      - name: Drill-Schlüssel erzeugen
+        if: steps.gate.outputs.ready == 'true'
+        id: drillkey
+        run: |
+          set -euo pipefail
+          age-keygen -o "$RUNNER_TEMP/drill.agekey" 2>/dev/null
+          echo "recipient=$(age-keygen -y "$RUNNER_TEMP/drill.agekey")" >> "$GITHUB_OUTPUT"
+
+      - name: Dump ziehen, prüfen, verschlüsseln und ablegen
+        if: steps.gate.outputs.ready == 'true'
+        id: backup
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          # Fein granulares PAT, nur contents:write auf das Backup-Repo.
+          # Bewusst NICHT der GITHUB_TOKEN: der gilt nur für dieses Repo.
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          BACKUP_EXTRA_RECIPIENT: ${{ steps.drillkey.outputs.recipient }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            bash tool/db_backup.sh --no-upload
+          else
+            bash tool/db_backup.sh
+          fi
+
+      # CLI-Version gepinnt wie in ci.yml — ein CLI-Upgrade ändert den
+      # lokalen Stack und gehört bewusst zusammen getestet.
+      - uses: supabase/setup-cli@v1
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          version: "2.109.1"
+
+      - name: Lokalen Stack für den Drill starten
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          supabase start
+          supabase db reset
+
+      # Gedrillt wird die HOCHGELADENE Datei, nicht ihre lokale Schwester:
+      # Nur so ist bewiesen, dass genau das Artefakt in der Ablage
+      # wiederherstellbar ist. Im dry_run gibt es keinen Upload — dann
+      # nimmt der Drill die lokale Kopie.
+      - name: Backup für den Drill beschaffen
+        if: steps.gate.outputs.ready == 'true'
+        id: fetch
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          TAG: ${{ steps.backup.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "$TAG" ]; then
+            gh release download "$TAG" --repo MacBuchi/mitfahrbar-backups \
+              -p '*.age' -D "$RUNNER_TEMP/fetched" --clobber
+            echo "file=$(ls "$RUNNER_TEMP"/fetched/*.age)" >> "$GITHUB_OUTPUT"
+          else
+            echo "file=$(ls ./mitfahrbar-*.sql.age)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore-Drill
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          EXPECTED_GROUPS: ${{ steps.backup.outputs.groups }}
+          EXPECTED_TRIPS: ${{ steps.backup.outputs.trips }}
+          EXPECTED_USERS: ${{ steps.backup.outputs.users }}
+        run: |
+          bash tool/db_restore_drill.sh \
+            "${{ steps.fetch.outputs.file }}" "$RUNNER_TEMP/drill.agekey"
