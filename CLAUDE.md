@@ -479,6 +479,19 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Bestätigung erzeugt eine Zeile in `trips`, deren Existenz am Tag *ist* die
   Bestätigung. Dadurch sieht `computeStats` ausschließlich gefahrene Fahrten.
   Wer hier ein Statusfeld ergänzt, baut sich zwei Wahrheiten.
+  - **Eine Ausnahme, seit v0.49.0 und mit Riegel: `push_outbox`** (#132).
+    Dort steht der vorgeschlagene Fahrer im Klartext — als fertiger
+    Nachrichtentext, damit der Versand ihn nicht ausrechnen muss und
+    `planWeek` nicht nach TypeScript wandert. Die Ausnahme ist nur haltbar,
+    weil sie **erzwungen** ist und nicht versprochen: Die Tabelle hat **null
+    Policies**, ausdrücklich `revoke all` für `anon`/`authenticated` (der
+    Sammel-Grant gäbe sonst Rechte auf jede neue Tabelle), und geschrieben
+    wird allein über `publish_push_outbox` (SECURITY DEFINER). Der Client
+    kann nichts zurücklesen, also kann daraus keine zweite Wahrheit werden;
+    `fairness.dart` und `computeStats` sehen die Tabelle nie.
+    Wer hier eine SELECT-Policy ergänzt — und sei es „nur zum Debuggen" —,
+    macht aus dem Riegel eine Absichtserklärung. `test/schema_test.dart` und
+    `test/e2e/push_e2e_test.dart` prüfen beide Hälften.
 - **Der Wochenvorschlag simuliert vorwärts** (`planWeek` in
   `core/fairness.dart`): Jeder Tag wird gegen die Statistik *inklusive* der
   bereits vorgeschlagenen Vortage gerechnet. Ohne das ändert sich nichts, bis
@@ -537,13 +550,31 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Die alte Zeile liegt unter fremder `group_id`, die RLS zeigt sie nicht,
     ein blanker Upsert liefe in eine Unique-Verletzung auf einer
     unsichtbaren Zeile. `push_log` hat wie `group_admins` **null Policies**.
-  - **Gepollt, nicht getriggert** (entschieden 2026-07-26). Ein Database
-    Webhook auf `plan_availability` wäre schneller, feuerte aber mitten in
-    der Bearbeitung — fünf Taps sind fünf Aufrufe, und Entprellen heißt
-    warten und später nachsehen, also genau das, was der 10-Minuten-Takt
-    ohnehin tut. Zudem müsste die Function `planWeek` rechnen. Trigger →
-    `pg_net` → GitHub `repository_dispatch` legte ein Repo-Token in die
-    Datenbank: **nicht bauen.**
+  - **Ereignisgetrieben, nicht gepollt** (revidiert 2026-07-29, #132 —
+    ersetzt „Gepollt, nicht getriggert" vom 26.07.). Die alte Entscheidung
+    hatte drei Gründe; zwei sind beantwortet, einer gilt weiter:
+    - „Feuert mitten in der Bearbeitung, fünf Taps sind fünf Aufrufe" →
+      gelöst durch das Entprellen in der DB (`due_at = now() + 60s`, bei
+      jeder Inhaltsänderung neu). **Nicht in der App entprellen:** Ein
+      Timer dort stirbt mit dem Tab, und die Änderung wäre still verloren.
+    - „Die Function müsste `planWeek` rechnen" → beruhte darauf, *auslösen*,
+      *entscheiden* und *senden* für dasselbe zu halten. Den **Text** rechnet
+      der Client mit dem echten `planWeek` und legt ihn in `push_outbox` ab;
+      die DB entscheidet nur noch *ob* und *wann* (`push_due()` — Fenster,
+      Digest, Sperre). Die Fairness-Regel verlässt Dart nie.
+    - **Kein Repo-Token in der Datenbank** — gilt unverändert und wird nie
+      berührt: Dieser Weg ruft GitHub nicht, sondern `flush-push`.
+    Der Auslöser war #115: GitHub verwirft geplante Läufe unter Last und holt
+    sie nicht nach (gemessen 15:14, 16:27, 17:38 UTC statt alle zehn
+    Minuten). Für den Abend-Blick belanglos, für eine Änderung um 7:05
+    fatal — die Meldung kam nach der Abfahrt, also nie.
+  - **`tool/notify.dart` verschickt seit #132 nichts mehr, es ist der
+    Boden.** Stündlich rechnet es den Korb neu und repariert, was ein Gerät
+    ohne Netz oder ein geschlossener Tab hinterlassen hat. **Das ist die
+    Zusage, die den schnellen Weg trägt:** Der Ereignis-Weg ist ein
+    Beschleuniger, keine Garantie — fällt er aus, kommt die Meldung eine
+    Stunde später, also genau so spät wie vor der Umstellung. Wer diesen Job
+    abschafft, macht aus „schneller" ein „vielleicht".
   - **Zustellen ist nicht Anzeigen** (v0.40.0, teuer gelernt). Android und
     der Web-Service-Worker zeigen eine `notification`-Payload **nur an,
     solange die App nicht im Vordergrund ist**. Ist sie vorne, liefert FCM
@@ -608,9 +639,12 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     `identityEnabledProvider` im Demo-Modus **aus** ist, stellte sie den
     Schirm genau dort tot, wo die README-Screenshots entstehen. Löschen darf
     jeder — Vertipper-Schutz, keine Zugriffskontrolle.
-  - **Der Text steht im Push, nicht nur ein Zähler.** Zugestellt wird über
-    den vorhandenen Job (real ~70 min, #115); eine späte Meldung, die nur
-    „1 Anmerkung" sagt, wäre zweimal wertlos. Gekürzt wie die Namensliste.
+  - **Der Text steht im Push, nicht nur ein Zähler.** Als das entschieden
+    wurde, kam die Meldung real erst nach ~70 Minuten (#115) — eine späte
+    Meldung, die nur „1 Anmerkung" sagt, wäre zweimal wertlos gewesen. Seit
+    #132 ist sie binnen einer Minute da; die Begründung trägt trotzdem
+    weiter, denn ein Zähler ohne Text zwingt immer zum Nachsehen. Gekürzt
+    wie die Namensliste.
     Der Text darf **nie** ins Log — dieselbe Regel wie beim Einladungstext,
     auch im Fehlerpfad (Meldungen ohne Fehlertext).
   Festgenagelt in `test/push_digest_test.dart`, `test/schema_test.dart`,

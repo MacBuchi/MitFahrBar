@@ -352,6 +352,122 @@ void main() {
       skip: e2eConfigured ? false : e2eSkipReason,
     );
 
+    // Die Auswahl beim Versand (#132, Teil 2). Sie bildet `dueMessages` in
+    // SQL nach — Zeitfenster, Digest-Vergleich, Entprell-Riegel. Genau die
+    // Zeitrechnung kann kein Fake zeigen: Das Fenster geht über zwei
+    // Kalendertage, in Europe/Berlin, während Postgres in UTC läuft.
+    group('was fällig ist', () {
+      Future<List<String>> kindsAt(String groupId, String at) async {
+        final rows = await service.rpc<List<dynamic>>(
+          'push_due',
+          params: {'at': at},
+        );
+        return [
+          for (final row in rows.cast<Map<String, dynamic>>())
+            if (row['group_id'] == groupId) row['kind'] as String,
+        ];
+      }
+
+      /// Gruppe mit Person, Einstellungen (21:00 / 07:30), Gerät und einer
+      /// Korb-Zeile für Donnerstag, den 30.07.2026.
+      Future<(GroupAccount, String)> ready(String label) async {
+        final (group, personId) = await groupWithPerson(label);
+        await group.client.from('notification_prefs').upsert({
+          'group_id': group.id,
+          'person_id': personId,
+          'evening_enabled': true,
+          'evening_time': '21:00',
+          'departure_time': '07:30',
+          'changes_enabled': true,
+        }, onConflict: 'group_id,person_id');
+        await group.client.rpc<void>(
+          'register_push_device',
+          params: {
+            'device_token': uniqueName('token'),
+            'person': personId,
+            'device_platform': 'android',
+          },
+        );
+        await publish(group, personId, 'd1');
+        return (group, personId);
+      }
+
+      test(
+        'das Fenster geht vom Abend davor bis zur Abfahrt',
+        () async {
+          final (group, _) = await ready('oute');
+          expect(
+            await kindsAt(group.id, '2026-07-29 20:00+02'),
+            isEmpty,
+            reason: 'Vor der eingestellten Abendzeit kommt nichts.',
+          );
+          expect(
+            await kindsAt(group.id, '2026-07-29 21:30+02'),
+            ['evening'],
+            reason: 'Ab 21:00 am Vortag ist der Abend-Blick fällig.',
+          );
+          expect(
+            await kindsAt(group.id, '2026-07-30 08:00+02'),
+            isEmpty,
+            reason:
+                'Nach der Abfahrt nützt keine Meldung mehr — und ein '
+                'nachgeholter Lauf darf niemanden nachts wecken.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+
+      test(
+        'nach dem Abend-Blick zählt nur noch die Änderung',
+        () async {
+          final (group, personId) = await ready('outf');
+          await service.from('push_log').insert({
+            'group_id': group.id,
+            'person_id': personId,
+            'plan_date': '2026-07-30',
+            'kind': 'evening',
+            'digest': 'd1',
+          });
+
+          expect(
+            await kindsAt(group.id, '2026-07-29 22:00+02'),
+            isEmpty,
+            reason: 'Unveränderter Digest heißt: nichts zu melden.',
+          );
+
+          await publish(group, personId, 'd2');
+          // Die Fälligkeit setzt der Trigger auf „jetzt + 60 s" — und `jetzt`
+          // ist die echte Uhr, nicht die des Tests. Für den Riegel wird sie
+          // deshalb ausdrücklich gesetzt: einmal hinter, einmal vor dem
+          // Zeitpunkt der Abfrage. Dass der Trigger überhaupt schiebt, prüft
+          // „gleicher Inhalt verschiebt die Fälligkeit nicht" weiter oben.
+          await service
+              .from('push_outbox')
+              .update({'due_at': '2026-07-29 22:00:30+02'})
+              .eq('group_id', group.id);
+          expect(
+            await kindsAt(group.id, '2026-07-29 22:00+02'),
+            isEmpty,
+            reason:
+                'Das Entprellen aus Teil 1 greift auch hier: Wer im Planer '
+                'weiterklickt, schiebt die Meldung vor sich her. Ohne diesen '
+                'Riegel ginge die erste Zwischenversion raus und der '
+                'Endzustand wäre danach 30 Minuten gesperrt.',
+          );
+          await service
+              .from('push_outbox')
+              .update({'due_at': '2026-07-29 21:59+02'})
+              .eq('group_id', group.id);
+          expect(
+            await kindsAt(group.id, '2026-07-29 22:00+02'),
+            ['change'],
+            reason: 'Ist die Frist um, geht die Änderung raus.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+    });
+
     test(
       'eine fremde Person landet nicht im eigenen Korb',
       () async {

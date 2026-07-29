@@ -33,15 +33,16 @@ void main() {
       workflow,
       contains('concurrency:'),
       reason:
-          'Ohne concurrency lesen zwei gleichzeitige Läufe denselben Stand '
-          'aus push_log — und verschicken dieselbe Nachricht zweimal.',
+          'Zwei gleichzeitige Läufe schrieben dieselben Korb-Zeilen. Der '
+          'Trigger auf push_outbox vergliche dabei gegen einen halb '
+          'geschriebenen Stand und setzte womöglich eine Fälligkeit, die es '
+          'nicht gibt.',
     );
     expect(workflow, contains('cancel-in-progress: false'));
   });
 
   test('der Job ruht, solange die Secrets fehlen', () {
     expect(workflow, contains(r'secrets.SUPABASE_SERVICE_ROLE_KEY'));
-    expect(workflow, contains(r'secrets.PUSH_JOB_SECRET'));
     expect(
       workflow,
       contains('::notice::'),
@@ -107,10 +108,10 @@ void main() {
     );
   });
 
-  test('das Konfliktziel des Protokolls nennt den vollen Schlüssel', () {
+  test('das Konfliktziel des Korbs nennt den vollen Schlüssel', () {
     final schema = File('supabase/schema.sql').readAsStringSync();
     final key = RegExp(
-      r'create table public\.push_log \((.*?)\n\);',
+      r'create table public\.push_outbox \((.*?)\n\);',
       dotAll: true,
     ).firstMatch(schema)!.group(1)!;
     final primary = RegExp(
@@ -120,8 +121,29 @@ void main() {
       job,
       contains("onConflict: '$primary'"),
       reason:
-          'Weicht es ab, scheitert das Fortschreiben still — und dieselbe '
-          'Nachricht ginge bei jedem Lauf erneut raus.',
+          'Weicht es ab, meldet Postgres „no unique or exclusion constraint '
+          'matching the ON CONFLICT specification" — und der Korb bliebe '
+          'stehen, ohne dass jemand eine Meldung vermisst, bis der Abend '
+          'kommt.',
+    );
+  });
+
+  // Seit #132 rechnet dieser Job nur noch den Korb neu. Verschickt wird aus
+  // der Datenbank heraus (pg_cron → flush-push). Bliebe der alte Versandweg
+  // daneben stehen, gäbe es zwei Absender für dieselbe Nachricht — und der
+  // Digest-Vergleich in push_log entschiede per Wettlauf, welcher gewinnt.
+  test('der Job verschickt nichts mehr', () {
+    expect(
+      job,
+      isNot(contains('send-push')),
+      reason:
+          'Der Versand gehört seit #132 der Datenbank. Ein zweiter Absender '
+          'hier wäre ein Wettlauf um push_log.',
+    );
+    expect(
+      job,
+      contains('outboxEntries('),
+      reason: 'Stattdessen schreibt er den Ausgangskorb.',
     );
   });
 }

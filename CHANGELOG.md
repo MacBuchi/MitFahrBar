@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.49.0] – 2026-07-29
+
+### Verbessert
+
+- **Änderungen am Wochenplan kommen jetzt binnen einer Minute aufs Handy.**
+  Bisher fragte ein Dienst in Abständen nach, ob es etwas zu melden gibt —
+  und kam dabei oft erst nach einer Stunde dazu. Wer morgens um 7:05 umplante,
+  dessen Meldung erreichte die anderen manchmal erst nach der Abfahrt.
+  Jetzt meldet sich die Datenbank selbst, sobald sich etwas geändert hat.
+- **Wer im Planer mehrmals hintereinander tippt, löst trotzdem nur eine
+  Meldung aus.** Nach der letzten Änderung wird eine Minute gewartet — so
+  bekommt die Gruppe den fertigen Stand und nicht jeden Zwischenschritt.
+- Am Abend-Blick ändert sich nichts: Er kommt wie gewohnt zur eingestellten
+  Zeit, und wer ihn abgeschaltet hat, bekommt weiterhin nichts.
+
 ## [0.48.0] – 2026-07-29
 
 ### Verbessert
