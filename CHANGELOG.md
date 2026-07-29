@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.49.1] – 2026-07-29
+
+### Behoben
+
+- **Die Minuten-Zustellung aus 0.49.0 lief auf dem Server noch nicht an** —
+  eine benötigte Datenbank-Erweiterung war dort nicht eingeschaltet (auf dem
+  Teststack ist sie es immer, deshalb fiel es erst in Produktion auf).
+  Verpasst wurde nichts: Die Meldungen lagen bereit und der stündliche
+  Auffang-Weg lief weiter. An der App selbst ändert sich nichts.
+
 ## [0.49.0] – 2026-07-29
 
 ### Verbessert

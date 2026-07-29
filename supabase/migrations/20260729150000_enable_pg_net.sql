@@ -1,0 +1,17 @@
+-- pg_net aktivieren — die Lücke aus 20260729140000 (#132).
+--
+-- Die Versand-Migration legt pg_cron an, pg_net aber nicht: Auf dem lokalen
+-- CLI-Stack ist pg_net VORINSTALLIERT, in Produktion nur verfügbar. Genau
+-- diese Differenz kann kein Test auf dem Teststack zeigen — dort ist die
+-- Extension immer da. Gefunden am 29.07.2026, weil `flush_due_push()` in
+-- Produktion jede Minute an `net.http_post` scheiterte: still, nur in
+-- `cron.job_run_details` als 'failed' sichtbar, und der Ausgangskorb wurde
+-- nie abgeholt.
+--
+-- Der Zeitstempel liegt bewusst NACH 20260729140000, obwohl die Funktion
+-- dort pg_net ruft: Eine rückdatierte Migration lehnt die Supabase-
+-- Integration als „out of order" ab, sobald spätere schon eingespielt sind.
+-- Die Reihenfolge ist trotzdem unkritisch — plpgsql löst `net.http_post`
+-- erst beim AUFRUF auf, nicht beim Anlegen, und auf einem frischen Stack
+-- läuft zwischen beiden Migrationen keine Minute pg_cron.
+create extension if not exists pg_net;
