@@ -766,12 +766,15 @@ set search_path = public, vault, net as $$
 declare
   base_url text;
   job_secret text;
+  service_key text;
 begin
   select decrypted_secret into base_url
     from vault.decrypted_secrets where name = 'push_functions_url';
   select decrypted_secret into job_secret
     from vault.decrypted_secrets where name = 'push_job_secret';
-  if base_url is null or job_secret is null then
+  select decrypted_secret into service_key
+    from vault.decrypted_secrets where name = 'push_service_key';
+  if base_url is null or job_secret is null or service_key is null then
     return;
   end if;
 
@@ -785,8 +788,13 @@ begin
     url := base_url || '/flush-push',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-push-secret', job_secret
-    ),
+      'x-push-secret', job_secret,
+      'apikey', service_key
+    ) || case
+      when service_key like 'eyJ%'
+        then jsonb_build_object('Authorization', 'Bearer ' || service_key)
+      else '{}'::jsonb
+    end,
     body := '{}'::jsonb
   );
 end;

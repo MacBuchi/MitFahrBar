@@ -250,6 +250,17 @@ void main() {
             'Frischinstallation.',
       );
       expect(
+        function,
+        contains("'apikey', service_key"),
+        reason:
+            'Das API-Gateway weist einen Aufruf ohne apikey ab, BEVOR die '
+            'Function läuft — und pg_net schickt asynchron, die Antwort '
+            'landet in net._http_response und sonst nirgends. Das Symptom '
+            'wäre „es kommt nichts an, und nirgends steht ein Fehler". Jeder '
+            'andere Aufrufer im Repo schickt den Header (tool/notify.dart '
+            'kommentiert sogar die Regel dazu).',
+      );
+      expect(
         sqlOnly(schema),
         contains("cron.schedule("),
         reason: 'Ohne den Eintrag weckt niemand den Abholer.',

@@ -129,22 +129,33 @@ revoke all on function public.push_due(timestamptz) from anon, authenticated;
 -- **nichts** — so bleibt der lokale Teststack und jede Frischinstallation
 -- lauffähig, ohne dass jemand Geheimnisse anlegen muss.
 --
+-- **Der `apikey`-Header ist Pflicht, nicht Beiwerk.** Das API-Gateway von
+-- Supabase weist einen Aufruf ohne ihn ab, **bevor** die Function läuft —
+-- und `pg_net` schickt asynchron: Die Antwort landet in `net._http_response`
+-- und sonst nirgends. Das Symptom wäre „es kommt nichts an, und nirgends
+-- steht ein Fehler". `Authorization` nur bei JWT-artigen Schlüsseln, genau
+-- wie in `tool/notify.dart` — neue `sb_secret_*`-Keys sind keine JWTs mehr.
+--
 -- Einmalig einzurichten (Betreiber, nicht im Repo):
 --   select vault.create_secret('https://<ref>.supabase.co/functions/v1',
 --                              'push_functions_url');
 --   select vault.create_secret('<PUSH_JOB_SECRET>', 'push_job_secret');
+--   select vault.create_secret('<SERVICE_ROLE_KEY>', 'push_service_key');
 create or replace function public.flush_due_push()
 returns void language plpgsql security definer
 set search_path = public, vault, net as $$
 declare
   base_url text;
   job_secret text;
+  service_key text;
 begin
   select decrypted_secret into base_url
     from vault.decrypted_secrets where name = 'push_functions_url';
   select decrypted_secret into job_secret
     from vault.decrypted_secrets where name = 'push_job_secret';
-  if base_url is null or job_secret is null then
+  select decrypted_secret into service_key
+    from vault.decrypted_secrets where name = 'push_service_key';
+  if base_url is null or job_secret is null or service_key is null then
     return;
   end if;
 
@@ -158,8 +169,13 @@ begin
     url := base_url || '/flush-push',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-push-secret', job_secret
-    ),
+      'x-push-secret', job_secret,
+      'apikey', service_key
+    ) || case
+      when service_key like 'eyJ%'
+        then jsonb_build_object('Authorization', 'Bearer ' || service_key)
+      else '{}'::jsonb
+    end,
     body := '{}'::jsonb
   );
 end;
