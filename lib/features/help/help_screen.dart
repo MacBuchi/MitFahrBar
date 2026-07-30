@@ -147,6 +147,14 @@ class HelpScreen extends StatelessWidget {
                     'dort vorausgewählt — Antippen ändert es wie gewohnt.',
               ),
               _Line(
+                leading: Icon(Icons.event_repeat),
+                text:
+                    'Wer an dem Tag schon in einer Fahrt steht, ist blass '
+                    'und nicht wählbar — doppelt zählte doppelte Punkte. '
+                    'Ausnahme: Wer nur eine Richtung dabei war, dem kann '
+                    'die Rückfahrt noch fehlen.',
+              ),
+              _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
                 text:
                     'Den Fahrer setzt MitFahrBar automatisch — wer laut '
