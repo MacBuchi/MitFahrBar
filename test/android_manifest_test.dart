@@ -318,4 +318,53 @@ void main() {
       );
     });
   });
+
+  // Issue #144: Der Weg von Androids Beendigungs-Historie in die
+  // Fehler-Senke hängt an Kotlin-Code, den kein Flutter-Test ausführt —
+  // dieselbe Klasse Release-only-Falle wie der FCM-Kanal.
+  group('Beendigungsgründe (#144)', () {
+    final mainActivity = File(
+      'android/app/src/main/kotlin/de/macbuchi/mitfahrbar/MainActivity.kt',
+    ).readAsStringSync();
+
+    test('MainActivity fragt Androids Historie ab', () {
+      expect(
+        mainActivity,
+        contains('getHistoricalProcessExitReasons'),
+        reason:
+            'Ohne den Aufruf liefert der Kanal still eine leere Liste — '
+            'ANRs und Abstürze blieben wieder unsichtbar, und niemand '
+            'merkte es, weil genau dann nichts gemeldet wird.',
+      );
+      expect(
+        mainActivity,
+        contains('makeBackgroundTaskQueue'),
+        reason:
+            'Der ANR-Dump ist bis zu 4 MB groß und gzip-gepackt. Auf dem '
+            'Platform-Thread gelesen wäre die Diagnose selbst ein '
+            'ANR-Kandidat — genau beim Start, wo ohnehin am meisten läuft.',
+      );
+    });
+
+    test('Kanalname in Kotlin und Dart ist derselbe', () {
+      final kotlinChannel = RegExp(
+        r'const val CHANNEL = "([^"]+)"',
+      ).firstMatch(mainActivity)?.group(1);
+      final dartChannel = RegExp(r"channelName = '([^']+)'")
+          .firstMatch(
+            File('lib/data/exit_info_repository.dart').readAsStringSync(),
+          )
+          ?.group(1);
+      expect(kotlinChannel, isNotNull);
+      expect(
+        dartChannel,
+        kotlinChannel,
+        reason:
+            'Driften die Namen, wirft invokeMethod MissingPluginException, '
+            'der catch macht daraus eine leere Liste — und die Meldungen '
+            'fallen lautlos aus. Kompiliert fehlerfrei, fällt nur auf dem '
+            'Gerät auf.',
+      );
+    });
+  });
 }

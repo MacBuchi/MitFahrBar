@@ -235,6 +235,31 @@ void main() {
           .eq('context', 'E2E anon');
       expect(rows.single['group_id'], isNull);
     });
+
+    test(
+      'created_at darf der Client setzen — der Todeszeitpunkt (#144)',
+      () async {
+        // Beendigungsgründe werden erst beim NÄCHSTEN Start gemeldet; ohne
+        // den Override stünden alle Tode auf dem Meldedatum und landeten im
+        // falschen Wochen-Digest. Ein künftig verengter Grant oder ein
+        // Härtungs-Trigger bräche das still — deshalb der Beweis am echten
+        // Postgres.
+        await a.client.from('error_reports').insert({
+          'context': 'E2E App-Ende',
+          'error_type': 'CRASH',
+          'created_at': '2026-01-01T00:00:00.000Z',
+        });
+
+        final rows = await service
+            .from('error_reports')
+            .select()
+            .eq('context', 'E2E App-Ende');
+        expect(
+          DateTime.parse(rows.single['created_at'] as String).toUtc(),
+          DateTime.utc(2026),
+        );
+      },
+    );
   });
 
   test('anon: keine Gruppendaten, aber app_config lesbar', () async {

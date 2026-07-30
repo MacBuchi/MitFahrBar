@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.52.0] – 2026-07-30
+
+### Neu
+
+- **Auch Abstürze und Einfrieren melden sich jetzt von selbst** (Wunsch
+  #144, Ausbau der Fehler-Meldung aus 0.50.0). Bisher blieb unsichtbar,
+  wenn die App hart beendet wurde — eingefroren, abgestürzt oder vom
+  System wegen Speichermangel beendet: So etwas überlebt keine App, also
+  konnte sie es auch nicht melden. Jetzt fragt die App beim nächsten
+  Start das Android-System, warum sie zuletzt beendet wurde (ab
+  Android 11), und meldet es mit dem Zeitpunkt des Vorfalls. Normales
+  Schließen wird selbstverständlich nicht gemeldet, und es gilt dieselbe
+  Zusage wie bisher: **nie Namen, nie Fahrten**, automatische Löschung
+  nach 90 Tagen. Im Browser ändert sich nichts.
+
 ## [0.51.0] – 2026-07-30
 
 ### Neu

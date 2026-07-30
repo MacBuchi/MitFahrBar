@@ -75,6 +75,34 @@ Map<String, Object?> buildErrorReportRow({
   };
 }
 
+/// Wie [buildErrorReportRow], aber für Beendigungsgründe aus Androids
+/// Historie (#144). Eigener Schlüsselsatz, weil zwei Dinge anders sind:
+/// `error_type` trägt Androids Reason statt eines Dart-Typs, und
+/// `created_at` wird mit dem TODESZEITPUNKT überschrieben — sonst stünden
+/// alle Tode auf dem Datum des nächsten Starts und landeten im falschen
+/// Wochen-Digest. Das Schema erlaubt das: Der Insert-Grant ist tabellenweit,
+/// die RLS prüft nur `group_id`.
+Map<String, Object?> buildExitReportRow({
+  required String reason,
+  required String summary,
+  required DateTime when,
+  String? trace,
+  String? appVersion,
+  required String platform,
+}) {
+  return {
+    'context': 'App-Ende',
+    // `error_type` ist NOT NULL — ein leerer Reason darf den Bericht nicht
+    // kosten.
+    'error_type': _clip(reason, 100) ?? 'UNKNOWN',
+    'message': _clip(summary, 1000),
+    'stack': _clip(trace, 4000),
+    'app_version': _clip(appVersion, 40),
+    'platform': _clip(platform, 20),
+    'created_at': when.toUtc().toIso8601String(),
+  };
+}
+
 class ErrorReportRepository {
   ErrorReportRepository(this._client);
 
@@ -112,6 +140,34 @@ class ErrorReportRepository {
           ),
         );
   }
+
+  /// Meldet einen Beendigungsgrund (#144) — am selben [maxPerRun]-Zähler
+  /// wie [report]: EIN Deckel je App-Lauf, egal aus welchem Pfad.
+  Future<void> reportExit({
+    required String reason,
+    required String summary,
+    required DateTime when,
+    String? trace,
+  }) async {
+    if (_sent >= maxPerRun) return;
+    _sent++;
+    final version = await PackageInfo.fromPlatform()
+        .then<String?>((info) => info.version)
+        .catchError((Object _) => null);
+
+    await _client
+        .from('error_reports')
+        .insert(
+          buildExitReportRow(
+            reason: reason,
+            summary: summary,
+            when: when,
+            trace: trace,
+            appVersion: version,
+            platform: _platform,
+          ),
+        );
+  }
 }
 
 /// Meldet Provider-Fehler — die Lücke, die kein globaler Handler sieht:
@@ -140,9 +196,10 @@ class ErrorReportObserver extends ProviderObserver {
 
 /// Verdrahtet die Senke hinter Logger und Providern. Wird NUR in `main()`
 /// gerufen, wenn Supabase konfiguriert ist — in Tests und im Demo-Modus
-/// bleibt der Sink leer und `flutter test` netzfrei.
-ErrorReportObserver wireErrorReporting(SupabaseClient client) {
-  final repository = ErrorReportRepository(client);
+/// bleibt der Sink leer und `flutter test` netzfrei. Das Repository kommt
+/// von außen, weil `main()` dieselbe Instanz auch dem `ExitReporter`
+/// (#144) gibt — ein gemeinsamer `maxPerRun`-Deckel für beide Wege.
+ErrorReportObserver wireErrorReporting(ErrorReportRepository repository) {
   void forward(String context, Object? error, StackTrace? stack) {
     if (!worthReporting(error)) return;
     unawaited(
