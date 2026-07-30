@@ -878,12 +878,21 @@ List<PlannedDay> planWeek({
 
 /// Montag bis Freitag der Woche, die geplant werden soll.
 ///
-/// Am Wochenende zeigt der Planer die **kommende** Woche: Die laufende ist
-/// gefahren, ein Plan dafür wäre nur noch Rückschau.
+/// Ab Freitag 12 Uhr und am Wochenende zeigt der Planer die **kommende**
+/// Woche: Die laufende ist gefahren, ein Plan dafür wäre nur noch Rückschau.
+/// Der Freitagmittag-Wechsel kam mit #131 und hält den Planer konsistent
+/// zum „Nächste Fahrt"-Banner, das ab mittags nach vorn blickt ([nextRide]).
+/// Nachtragen geht danach weiter über den Eintragen-Knopf und die Historie —
+/// wie bisher am Wochenende.
 List<DateTime> planningWeek([DateTime? today]) {
   final now = today ?? DateTime.now();
   final base = DateTime(now.year, now.month, now.day);
-  final monday = base.weekday >= DateTime.saturday
+  // `now.hour` VOR der Tages-Normalisierung lesen — `base` trägt keine
+  // Uhrzeit mehr.
+  final nextWeek =
+      base.weekday >= DateTime.saturday ||
+      (base.weekday == DateTime.friday && now.hour >= 12);
+  final monday = nextWeek
       ? base.add(Duration(days: DateTime.monday + 7 - base.weekday))
       : base.subtract(Duration(days: base.weekday - DateTime.monday));
   return [for (var i = 0; i < 5; i++) monday.add(Duration(days: i))];
@@ -894,19 +903,23 @@ List<DateTime> planningWeek([DateTime? today]) {
 ///
 /// Der erste Tag ab heute, an dem überhaupt jemand verfügbar ist und für den
 /// noch **keine** Fahrt eingetragen ist. Ist die heutige Fahrt eingetragen,
-/// rückt das Banner damit auf den Folgetag, ohne dass irgendwo eine Uhrzeit
-/// entscheiden müsste, wann ein Tag „vorbei" ist — `confirmed` ist die
-/// Auskunft, die die Gruppe selbst gegeben hat.
+/// rückt das Banner auf den Folgetag — `confirmed` bleibt das primäre
+/// Signal, die Auskunft der Gruppe selbst. Seit #131 blickt das Banner
+/// zusätzlich **ab 12 Uhr** nach vorn: Der Vormittag gehört der heutigen
+/// Fahrt, der Nachmittag der morgigen. Der Wechsel greift beim nächsten
+/// Rebuild (App-Start, Reload), nicht live im offenen Tab — bewusst kein
+/// Timer.
 ///
-/// Weil [planningWeek] nur Montag bis Freitag liefert, steht am Freitag und
-/// Samstag schon der Montag hier. Das ist gewollt: gefragt war die nächste
-/// Fahrt, nicht „morgen" — sonst bliebe das Banner an zwei Tagen der Woche
-/// leer.
+/// Weil [planningWeek] ab Freitagmittag die kommende Woche liefert, steht
+/// dann schon der Montag hier. Das ist gewollt: gefragt war die nächste
+/// Fahrt, nicht „morgen" — sonst bliebe das Banner am Wochenende leer.
 PlannedDay? nextRide(List<PlannedDay> week, DateTime now) {
   final today = DateTime(now.year, now.month, now.day);
   for (final day in week) {
     final date = DateTime(day.date.year, day.date.month, day.date.day);
     if (date.isBefore(today)) continue;
+    // Ab mittags gilt der Blick dem nächsten Tag (#131).
+    if (date == today && now.hour >= 12) continue;
     if (day.confirmed) continue;
     if (day.availableIds.isEmpty) continue;
     return day;

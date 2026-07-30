@@ -90,9 +90,10 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 text:
                     'Ganz oben steht die nächste Fahrt: welcher Tag, wer '
-                    'fährt und wer dabei ist. Ein Tipp darauf führt in die '
-                    'Woche — die Sprechblase rechts in die Anmerkungen des '
-                    'Tages.',
+                    'fährt und wer dabei ist. Ab 12 Uhr blickt sie auf '
+                    'morgen — der Vormittag gehört der heutigen Fahrt. Ein '
+                    'Tipp darauf führt in die Woche — die Sprechblase rechts '
+                    'in die Anmerkungen des Tages.',
               ),
               _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
@@ -247,7 +248,8 @@ class HelpScreen extends StatelessWidget {
                     'bekommt sie mit dem Abend-Blick oder der '
                     'Änderungs-Meldung aufs Handy; das kann aber dauern. '
                     'Was sofort ankommen muss, gehört weiter in WhatsApp '
-                    'oder ans Telefon.',
+                    'oder ans Telefon. Am Tag danach räumen sich '
+                    'Anmerkungen von selbst weg — sie gelten nur ihrem Tag.',
               ),
               _Line(
                 leading: Icon(Icons.tune),

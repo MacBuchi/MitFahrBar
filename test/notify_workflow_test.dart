@@ -108,6 +108,29 @@ void main() {
     );
   });
 
+  test('der Job räumt Anmerkungen vergangener Tage weg (#131)', () {
+    final purge = job
+        .split("deleteCounted('plan_notes'")
+        .last
+        .split('});')
+        .first;
+    expect(
+      job,
+      contains("deleteCounted('plan_notes'"),
+      reason:
+          'Die Aufräum-Hälfte von #131 lebt nur in diesem Job — fällt die '
+          'Zeile weg, wachsen die Anmerkungen (mit Personennamen) für immer, '
+          'und niemand sieht einen roten Lauf.',
+    );
+    expect(
+      purge,
+      contains("'plan_date': 'lt."),
+      reason:
+          'Gelöscht wird ausschließlich Vergangenes — ein anderer Filter '
+          'nähme der Gruppe die Anmerkungen des laufenden Tages.',
+    );
+  });
+
   test('das Konfliktziel des Korbs nennt den vollen Schlüssel', () {
     final schema = File('supabase/schema.sql').readAsStringSync();
     final key = RegExp(
