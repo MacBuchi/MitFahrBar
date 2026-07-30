@@ -153,6 +153,24 @@ void main() {
     );
   });
 
+  test('der Bericht trägt die Trend-Charts', () {
+    expect(
+      job,
+      contains('xychart-beta'),
+      reason:
+          'Die Mermaid-Charts sind Marcus\' Wunsch vom 30.07. — GitHub '
+          'rendert sie nativ im Issue. Ohne den Pin verschwände die '
+          'Chart-Hälfte lautlos bei einem „Aufräumen" des Bodys.',
+    );
+    expect(
+      job,
+      contains('plotColorPalette'),
+      reason:
+          'Ohne die Farb-Angabe fällt Mermaid auf sein Standard-Blau '
+          'zurück — der Bericht soll das App-Teal tragen.',
+    );
+  });
+
   test('der Bericht landet als ops-Issue mit Mail-Kommentar', () {
     expect(job, contains("'ops'"));
     expect(
