@@ -642,4 +642,261 @@ void main() {
     );
     expect(find.text('–'), findsOneWidget); // Clara bleibt draußen
   });
+
+  // Issue #143: Wer am Tag schon voll in einer Fahrt steht, darf nicht noch
+  // einmal eingetragen werden — eine Doppel-Teilnahme zählte die Punkte
+  // doppelt. Die Kachel bleibt sichtbar (man sieht, wer schon fährt), ist
+  // aber blass und tot.
+  testWidgets('wer am Tag schon in einer Fahrt steht, ist gesperrt', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    await data.createTrip(DateTime(now.year, now.month, now.day), {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    // Anna und Bert stehen schon in der Fahrt — beide gesperrt, Clara frei.
+    expect(find.text('eingetragen'), findsNWidgets(2));
+    expect(find.text('–'), findsOneWidget);
+
+    // Der Tap auf eine gesperrte Kachel tut nichts.
+    await tester.tap(find.text('Anna'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mindestens 1 Person auswählen'), findsOneWidget);
+    expect(find.text('eingetragen'), findsNWidgets(2));
+
+    // Clara lässt sich normal eintragen — als zweites Auto des Tages.
+    await tester.tap(find.text('Clara'));
+    await tester.pumpAndSettle();
+    expect(find.text('Speichern – Clara fährt'), findsOneWidget);
+  });
+
+  // Die Ausnahme aus #143: Wer nur eine Richtung dabei war, dem kann die
+  // Rückfahrt noch fehlen — 1-way sperrt nicht.
+  testWidgets('wer nur 1-way eingetragen ist, bleibt wählbar', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    await data.createTrip(DateTime(now.year, now.month, now.day), {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.oneWay,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('eingetragen'), findsOneWidget); // nur Anna
+    await tester.tap(find.text('Bert'));
+    await tester.pumpAndSettle();
+    expect(find.text('Speichern – Bert fährt'), findsOneWidget);
+  });
+
+  // Der eigentliche Auslöser von #143: Auf einem Tag mit bestehender Fahrt
+  // wählte die Plan-Vorbelegung genau die schon Eingetragenen vor — ein
+  // schnelles „Speichern" legte dieselben Leute ein zweites Mal an.
+  testWidgets('die Vorbelegung überspringt schon Eingetragene', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await data.setAvailability(today, ids['Anna']!, PlanRide.full);
+    await data.setAvailability(today, ids['Bert']!, PlanRide.full);
+    await data.createTrip(today, {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Clara']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    // Nur Bert wird vorbelegt — Anna und Clara stehen schon in der Fahrt.
+    expect(find.text('Speichern – Bert fährt'), findsOneWidget);
+    expect(find.text('eingetragen'), findsNWidgets(2));
+  });
+
+  // Beim Bearbeiten sind die eigenen Teilnehmer selbstverständlich weiter
+  // bedienbar — gesperrt ist nur, wer in der ANDEREN Fahrt des Tages steht.
+  testWidgets('Bearbeiten zeigt die eigenen Teilnehmer weiter bedienbar', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert', 'Clara', 'Doris']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    await data.createTrip(yesterday, {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+    await data.createTrip(yesterday, {
+      ids['Clara']!: ParticipationStatus.driver,
+      ids['Doris']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(find.text('Historie'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.ancestor(
+        of: find.textContaining('Fahrer: Anna'),
+        matching: find.byType(ListTile),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Anna fährt, Bert ist dabei — beide bedienbar; Clara und Doris aus der
+    // anderen Fahrt sind gesperrt.
+    expect(find.text('Speichern – Anna fährt'), findsOneWidget);
+    expect(find.text('dabei'), findsOneWidget);
+    expect(find.text('eingetragen'), findsNWidgets(2));
+
+    await tester.tap(find.text('Clara'));
+    await tester.pumpAndSettle();
+    expect(find.text('Speichern – Anna fährt'), findsOneWidget);
+    expect(find.text('eingetragen'), findsNWidgets(2));
+  });
+
+  testWidgets('der Datumswechsel gibt die Person wieder frei', (tester) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    await data.createTrip(yesterday, {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    // Heute ist frei — gestern sind beide in der Fahrt.
+    expect(find.text('eingetragen'), findsNothing);
+    await tester.tap(find.text('Gestern'));
+    await tester.pumpAndSettle();
+    expect(find.text('eingetragen'), findsNWidgets(2));
+
+    await tester.tap(find.text('Heute'));
+    await tester.pumpAndSettle();
+    expect(find.text('eingetragen'), findsNothing);
+    await tester.tap(find.text('Anna'));
+    await tester.pumpAndSettle();
+    expect(find.text('Speichern – Anna fährt'), findsOneWidget);
+  });
+
+  // Die Auswahl fällt nie still weg: Wer erst gewählt und dann auf einen Tag
+  // gewechselt wird, an dem er schon fährt, bleibt gewählt — aber die Maske
+  // sagt es namentlich, denn die Speichern-Rückfrage nennt keine Namen.
+  testWidgets('Gewählte, die anderswo schon fahren, werden angemerkt', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    for (final name in ['Anna', 'Bert']) {
+      await data.createPerson(Person(id: '', name: name, active: true));
+    }
+    final ids = {for (final p in await data.loadPersons()) p.name: p.id};
+    final now = DateTime.now();
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    await data.createTrip(yesterday, {
+      ids['Anna']!: ParticipationStatus.driver,
+      ids['Bert']!: ParticipationStatus.passenger,
+    });
+
+    await pumpApp(tester, backend);
+    await _login(tester);
+    await tester.tap(
+      find.widgetWithText(FloatingActionButton, 'Fahrt eintragen'),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Anna')); // heute gewählt → Handarbeit
+    await tester.pumpAndSettle();
+    expect(find.textContaining('schon in einer anderen Fahrt'), findsNothing);
+
+    await tester.tap(find.text('Gestern'));
+    await tester.pumpAndSettle();
+
+    // Anna bleibt gewählt und bedienbar, aber das Banner nennt sie.
+    expect(find.text('Speichern – Anna fährt'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Anna steht an diesem Tag schon in einer anderen Fahrt',
+      ),
+      findsOneWidget,
+    );
+    // Bert ist nicht gewählt und daher normal gesperrt.
+    expect(find.text('eingetragen'), findsOneWidget);
+  });
 }

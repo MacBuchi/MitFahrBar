@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.50.1] – 2026-07-30
+
+### Behoben
+
+- **Wer am Tag schon in einer Fahrt steht, lässt sich nicht mehr doppelt
+  eintragen** (Rückmeldung #143). Die Kachel bleibt sichtbar, ist aber blass
+  und zeigt „eingetragen" — so sieht man beim zweiten Auto sofort, wer schon
+  versorgt ist, und niemand bekommt aus Versehen doppelte Punkte. Ausnahme:
+  Wer nur eine Richtung (1-way) dabei war, bleibt wählbar — die Rückfahrt
+  kann ja noch fehlen. Auch die Vorauswahl aus dem Wochenplan überspringt
+  jetzt, wer schon in einer Fahrt steht. Und wer erst gewählt und dann auf
+  einen Tag gewechselt wird, an dem er schon fährt, wird namentlich
+  angemerkt statt still mitgespeichert.
+
 ## [0.50.0] – 2026-07-30
 
 ### Neu

@@ -248,6 +248,27 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
   static bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
+  /// Wer am Tag [day] schon in einer ANDEREN Fahrt voll drinsteht (Fahrer
+  /// oder Mitfahrer), ist hier nicht mehr wählbar — eine Doppel-Teilnahme
+  /// zählte die Punkte doppelt (#143). 1-way sperrt bewusst nicht: Wer nur
+  /// eine Richtung mitgefahren ist, dem kann der Rückweg noch fehlen.
+  static Set<String> _bookedElsewhere(
+    List<Trip> trips,
+    DateTime day,
+    String? ownTripId,
+  ) => {
+    for (final t in trips)
+      if (t.id != ownTripId && _sameDay(t.date, day))
+        for (final e in t.participations.entries)
+          if (e.value != ParticipationStatus.oneWay) e.key,
+  };
+
+  /// „Anna", „Anna und Bernd", „Anna, Bernd und Clara" — für Meldungen,
+  /// die Personen aufzählen.
+  static String _joinNames(List<String> names) => names.length == 1
+      ? names.single
+      : '${names.sublist(0, names.length - 1).join(', ')} und ${names.last}';
+
   /// Hinweis, wenn mehr Leute dabei sind als ins Auto des Fahrers passen —
   /// `null`, solange alles passt.
   ///
@@ -283,6 +304,10 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       _initialized = true;
     }
 
+    // Vor dem Prefill-Block berechnen: Der mutiert _full/_oneWay, und
+    // Belegte dürfen gar nicht erst in die Vorauswahl geraten.
+    final booked = _bookedElsewhere(trips, _date, widget.tripId);
+
     // Neue Fahrt: Teilnehmer aus dem Wochenplan des gewählten Tages
     // vorbelegen (Issue #65). Mutation im Build wie bei _initFromTrip —
     // der restliche Build rechnet direkt mit der frischen Auswahl
@@ -297,6 +322,10 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
         _oneWay.clear();
         if (rides != null) {
           for (final e in rides.entries) {
+            // Auf einem Tag mit bestehender Fahrt wählte der Prefill sonst
+            // genau die schon Eingetragenen vor — ein schnelles „Speichern"
+            // legte dieselben Leute ein zweites Mal an (#143).
+            if (booked.contains(e.key)) continue;
             (e.value == PlanRide.full ? _full : _oneWay).add(e.key);
           }
           _prefilledFor = _date;
@@ -320,6 +349,20 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
       for (final p in persons)
         if (p.active || _full.contains(p.id) || _oneWay.contains(p.id)) p,
     ]..sort((a, b) => a.name.compareTo(b.name));
+
+    // Ausgewählt bleibt immer bedienbar — eine Auswahl (Bearbeiten,
+    // Planner-Seed, Datumswechsel) fällt nie still weg. Wer trotzdem
+    // anderswo belegt ist, wird stattdessen unten namentlich gemeldet.
+    bool tileEnabled(Person p) =>
+        !booked.contains(p.id) ||
+        _full.contains(p.id) ||
+        _oneWay.contains(p.id);
+    final doubleBooked = [
+      for (final p in visible)
+        if (booked.contains(p.id) &&
+            (_full.contains(p.id) || _oneWay.contains(p.id)))
+          p.name,
+    ];
 
     // Stammgäste zuerst. In einer rein alphabetischen Liste stehen Leute, die
     // seit Monaten nicht mehr mitfahren, gleichberechtigt zwischen denen, die
@@ -367,7 +410,25 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
           ),
           if (_seatWarning(byId[driverId]) case final warning?) ...[
             const SizedBox(height: AppSpacing.s),
-            _SeatWarning(text: warning),
+            _EditorWarning(
+              icon: Icons.airline_seat_recline_normal_outlined,
+              text: warning,
+            ),
+          ],
+          // Die Speichern-Rückfrage („Weitere Fahrt an diesem Tag?") nennt
+          // keine Namen — dieses Banner schließt die Lücke, wenn Gewählte
+          // anderswo belegt sind (Datumswechsel, Doppel-Eintrag von einem
+          // zweiten Gerät).
+          if (doubleBooked.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s),
+            _EditorWarning(
+              icon: Icons.event_repeat,
+              text:
+                  '${_joinNames(doubleBooked)} '
+                  '${doubleBooked.length == 1 ? 'steht' : 'stehen'} an diesem '
+                  'Tag schon in einer anderen Fahrt — nochmal gespeichert '
+                  'zählen die Punkte doppelt.',
+            ),
           ],
           const SizedBox(height: AppSpacing.m),
           Text(
@@ -401,6 +462,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
                   isDriver: person.id == driverId,
                   isFull: _full.contains(person.id),
                   isOneWay: _oneWay.contains(person.id),
+                  enabled: tileEnabled(person),
                   onTap: () => _cycle(person.id),
                 ),
             ],
@@ -422,6 +484,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
                     isDriver: person.id == driverId,
                     isFull: _full.contains(person.id),
                     isOneWay: _oneWay.contains(person.id),
+                    enabled: tileEnabled(person),
                     onTap: () => _cycle(person.id),
                   ),
               ],
@@ -455,10 +518,13 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
 
 /// Bewusst ein Hinweis und keine Sperre: Zur Not rückt man zusammen oder es
 /// fahren zwei Autos. Eine harte Grenze würde jemanden daran hindern, eine
-/// Fahrt einzutragen, die tatsächlich so stattgefunden hat.
-class _SeatWarning extends StatelessWidget {
-  const _SeatWarning({required this.text});
+/// Fahrt einzutragen, die tatsächlich so stattgefunden hat. Gleiche Linie
+/// beim Doppel-Belegt-Hinweis: Die Auswahl bleibt bedienbar, gemeldet wird
+/// namentlich.
+class _EditorWarning extends StatelessWidget {
+  const _EditorWarning({required this.icon, required this.text});
 
+  final IconData icon;
   final String text;
 
   @override
@@ -472,11 +538,7 @@ class _SeatWarning extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.airline_seat_recline_normal_outlined,
-            size: 18,
-            color: scheme.onErrorContainer,
-          ),
+          Icon(icon, size: 18, color: scheme.onErrorContainer),
           const SizedBox(width: AppSpacing.s),
           Expanded(
             child: Text(
@@ -644,6 +706,7 @@ class _PersonTile extends StatelessWidget {
     required this.isDriver,
     required this.isFull,
     required this.isOneWay,
+    required this.enabled,
     required this.onTap,
   });
 
@@ -651,12 +714,18 @@ class _PersonTile extends StatelessWidget {
   final bool isDriver;
   final bool isFull;
   final bool isOneWay;
+
+  /// `false`, wenn die Person am gewählten Tag schon in einer anderen Fahrt
+  /// steht (#143) — dann blass und nicht antippbar, wie die gesperrte
+  /// Plantag-Kachel im Wochenplaner.
+  final bool enabled;
+
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final tile = _buildTile(context);
-    if (!isFull) return tile;
+    if (!isFull || !enabled) return tile;
     // Nur volle Teilnehmer können Fahrer sein — nur sie sind ziehbar.
     return LongPressDraggable<String>(
       data: person.id,
@@ -687,12 +756,18 @@ class _PersonTile extends StatelessWidget {
         AppColors.oneWay,
         '1-way',
       ),
-      _ => (scheme.surfaceContainerLow, scheme.outlineVariant, '–'),
+      // Das sichtbare „eingetragen" erklärt die blasse Kachel — ein stummes
+      // „–" läse sich nur als „nicht ausgewählt", und der Tap täte nichts.
+      _ => (
+        scheme.surfaceContainerLow,
+        scheme.outlineVariant,
+        enabled ? '–' : 'eingetragen',
+      ),
     };
     final selected = isFull || isOneWay;
 
-    return InkWell(
-      onTap: onTap,
+    final tile = InkWell(
+      onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(AppRadius.m),
       child: Container(
         width: 104,
@@ -720,6 +795,15 @@ class _PersonTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (enabled) return tile;
+    // Muster der gesperrten Plantag-Kachel im Wochenplaner: blass, Tap tot,
+    // der Grund steht für Screenreader in den Semantics.
+    return Semantics(
+      label: '${person.name}, an diesem Tag schon in einer Fahrt eingetragen',
+      enabled: false,
+      button: false,
+      child: Opacity(opacity: 0.38, child: tile),
     );
   }
 }
