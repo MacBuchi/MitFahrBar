@@ -322,24 +322,36 @@ Future<void> _deliver({required String weekBlock, required String body}) async {
 
   // Der Kommentar trägt die Mail: GitHub verschickt neue Kommentare mit
   // vollem Text und Link, das Umschreiben des Issue-Texts nicht.
+  //
+  // Über die REST-API, nicht `gh issue comment`: Dessen GraphQL-Mutation
+  // scheiterte mit dem Actions-GITHUB_TOKEN an „Resource not accessible by
+  // integration" (beobachtet 30.07.2026, Lauf 30560898790) — obwohl list,
+  // create und edit mit demselben Token laufen. Der REST-Endpunkt nimmt
+  // `issues: write` anstandslos.
+  final repo = Platform.environment['GITHUB_REPOSITORY'] ?? _fallbackRepo;
   await _gh([
-    'issue',
-    'comment',
-    number,
-    '--body',
-    '$weekBlock\n\ncc @MacBuchi',
+    'api',
+    'repos/$repo/issues/$number/comments',
+    '-f',
+    'body=$weekBlock\n\ncc @MacBuchi',
   ]);
 }
+
+/// Außerhalb von Actions fehlt GITHUB_REPOSITORY — dann gilt das Prod-Repo,
+/// dieselbe Linie wie die fest verdrahtete SUPABASE_URL im Workflow.
+const _fallbackRepo = 'MacBuchi/MitFahrBar';
 
 /// `gh` mit Argumentliste (kein Shell, kein Quoting-Risiko). Ein Fehler
 /// macht den Lauf rot — anders als fehlende Secrets: Wer den Bericht
 /// bestellt hat, soll einen stillen Ausfall im Actions-Tab sehen.
+/// gh's stderr darf mit ins Log: Der Bericht ist namensfrei gebaut, und
+/// ohne die Meldung ist ein Montag-früh-Ausfall nicht diagnostizierbar.
 Future<String> _gh(List<String> args) async {
   final result = await Process.run('gh', args);
   if (result.exitCode != 0) {
     stderr.writeln(
       '::error::gh ${args.take(2).join(' ')} failed '
-      '(exit ${result.exitCode}).',
+      '(exit ${result.exitCode}): ${result.stderr}',
     );
     throw ProcessException('gh', args, '', result.exitCode);
   }
