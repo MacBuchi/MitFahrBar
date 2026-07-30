@@ -55,10 +55,24 @@ class LogRing {
 
 final logRing = LogRing();
 
+/// Zusätzlicher Abnehmer für Fehler-Meldungen (`log.e`/`log.f`) — die Senke
+/// aus Issue #136. Als Callback statt Import, damit `core/` nicht von
+/// `data/` abhängt; verdrahtet wird in `main()`, in Tests und im Demo-Modus
+/// bleibt er `null` und alles verhält sich wie zuvor.
+typedef LogErrorSink =
+    void Function(String context, Object? error, StackTrace? stackTrace);
+
+LogErrorSink? _errorSink;
+bool _inErrorSink = false;
+
+void setLogErrorSink(LogErrorSink? sink) => _errorSink = sink;
+
 /// Schreibt weiter auf die Konsole und zusätzlich in den Ringpuffer. Als
 /// [LogOutput] eingehängt, damit jede Meldung automatisch mitgeschnitten wird
 /// — die globalen Fehler-Handler in `main.dart` laufen bereits über `log.e`,
-/// es muss also keine einzige Aufrufstelle angefasst werden.
+/// es muss also keine einzige Aufrufstelle angefasst werden. Derselbe Griff
+/// trägt die Fehler-Senke: Jeder `log.e` im Code meldet mit, ohne dass eine
+/// Aufrufstelle davon weiß.
 class _RingOutput extends LogOutput {
   final _console = ConsoleOutput();
 
@@ -68,6 +82,20 @@ class _RingOutput extends LogOutput {
       logRing.add(line);
     }
     _console.output(event);
+    final origin = event.origin;
+    final isError = origin.level == Level.error || origin.level == Level.fatal;
+    // Reentranz-Riegel: Loggte die Senke selbst, meldete sich ihr
+    // Fehlschlag in einer Schleife immer wieder.
+    if (isError && _errorSink != null && !_inErrorSink) {
+      _inErrorSink = true;
+      try {
+        _errorSink!(origin.message.toString(), origin.error, origin.stackTrace);
+      } catch (_) {
+        // Die Senke darf das Loggen nie zum Absturz machen.
+      } finally {
+        _inErrorSink = false;
+      }
+    }
   }
 }
 

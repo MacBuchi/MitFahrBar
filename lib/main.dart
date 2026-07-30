@@ -12,6 +12,7 @@ import 'core/licenses.dart';
 import 'core/log.dart';
 import 'core/push_messaging.dart';
 import 'core/supabase_config.dart';
+import 'data/error_report_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,12 +32,19 @@ Future<void> main() async {
   // heraus ankommt. Schluckt jeden Fehler: Ein kaputtes Firebase-Projekt darf
   // die App nicht am Starten hindern (Issue #101).
   await initPushMessaging();
+  // Fehler-Senke (#136): Logger- und Provider-Fehler melden nach
+  // `error_reports` — nur im echten Betrieb; im Demo-Modus und in Tests
+  // bleibt der Sink leer und die App netzfrei.
+  final observers = <ProviderObserver>[];
   if (SupabaseConfig.isConfigured) {
     await Supabase.initialize(
       url: SupabaseConfig.url,
       publishableKey: SupabaseConfig.publishableKey,
     );
+    observers.add(wireErrorReporting(Supabase.instance.client));
   }
 
-  runApp(const ProviderScope(child: FahrgemeinschaftApp()));
+  runApp(
+    ProviderScope(observers: observers, child: const FahrgemeinschaftApp()),
+  );
 }

@@ -81,6 +81,7 @@ void main() {
       ('Sitzplätze', find.textContaining('inklusive Fahrer')),
       ('Nie löschen', find.textContaining('Gelöscht wird niemand')),
       ('Gut zu wissen', find.text('Gut zu wissen')),
+      ('Fehlerberichte', find.textContaining('nie Namen oder Fahrten')),
     ];
     for (final (label, finder) in expectations) {
       await tester.scrollUntilVisible(

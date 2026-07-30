@@ -385,6 +385,14 @@ class HelpScreen extends StatelessWidget {
                     'nichts.',
               ),
               _Line(
+                leading: Icon(Icons.bug_report_outlined),
+                text:
+                    'Geht technisch etwas schief, meldet die App das von '
+                    'selbst an die Entwicklung — nur Fehlertyp, App-Version '
+                    'und Plattform, nie Namen oder Fahrten. Nach 90 Tagen '
+                    'wird das automatisch gelöscht.',
+              ),
+              _Line(
                 leading: Icon(Icons.system_update),
                 text:
                     'Meldet die App eine neue Version, lohnt das Update. '

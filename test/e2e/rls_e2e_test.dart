@@ -149,6 +149,94 @@ void main() {
     );
   });
 
+  group('Fehlerberichte (#136)', () {
+    test('einwerfen ja, zurücklesen nein', () async {
+      await a.client.from('error_reports').insert({
+        'context': 'E2E eigene Gruppe',
+        'error_type': 'TestError',
+      });
+
+      // Die group_id hat die Datenbank selbst gesetzt (Default) — der
+      // Client hat sie nie geschickt.
+      final rows = await service
+          .from('error_reports')
+          .select()
+          .eq('context', 'E2E eigene Gruppe');
+      expect(rows.single['group_id'], a.id);
+
+      // Zurücklesen scheitert hart am fehlenden Grant (permission denied),
+      // nicht bloß leise an einer leeren Policy.
+      await expectLater(
+        a.client.from('error_reports').select(),
+        throwsA(
+          isA<PostgrestException>().having((e) => e.code, 'code', '42501'),
+        ),
+      );
+    });
+
+    test('eine fremde group_id wird neutralisiert, nicht übernommen', () async {
+      // Der Insert scheitert NICHT: Der resolve-Trigger läuft vor dem
+      // WITH CHECK und löst die fremde Kennung unter der RLS des
+      // Aufrufers auf — die fremde Gruppe ist unsichtbar, also wird der
+      // Bericht gruppenlos. Kein Bericht geht verloren, und auf das Konto
+      // einer anderen Gruppe schreiben lässt sich trotzdem nichts.
+      // (Das WITH CHECK bleibt als zweiter Riegel darunter: Fiele der
+      // Trigger je weg, lehnte es fremde Kennungen hart ab.)
+      await a.client.from('error_reports').insert({
+        'group_id': b.id,
+        'context': 'E2E fremd',
+        'error_type': 'TestError',
+      });
+
+      final rows = await service
+          .from('error_reports')
+          .select()
+          .eq('context', 'E2E fremd');
+      expect(
+        rows.single['group_id'],
+        isNull,
+        reason:
+            'Stünde hier b.id, könnte eine Gruppe Berichte auf das Konto '
+            'einer anderen schreiben.',
+      );
+    });
+
+    test('ein Verwalter-Konto meldet gruppenlos statt gar nicht', () async {
+      final admin = await registerAdmin();
+      await admin.client.from('error_reports').insert({
+        'context': 'E2E Verwalter',
+        'error_type': 'TestError',
+      });
+
+      final rows = await service
+          .from('error_reports')
+          .select()
+          .eq('context', 'E2E Verwalter');
+      expect(
+        rows.single['group_id'],
+        isNull,
+        reason:
+            'auth.uid() eines Verwalter-Kontos hat keine groups-Zeile — '
+            'ohne den resolve-Trigger liefe der Default in den '
+            'Fremdschlüssel und der Bericht ginge verloren.',
+      );
+    });
+
+    test('anon darf einwerfen — Fehler vor dem Login', () async {
+      final anon = newAnonClient();
+      await anon.from('error_reports').insert({
+        'context': 'E2E anon',
+        'error_type': 'TestError',
+      });
+
+      final rows = await service
+          .from('error_reports')
+          .select()
+          .eq('context', 'E2E anon');
+      expect(rows.single['group_id'], isNull);
+    });
+  });
+
   test('anon: keine Gruppendaten, aber app_config lesbar', () async {
     final anon = newAnonClient();
     final persons = await anon.from('persons').select();

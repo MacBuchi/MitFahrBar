@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.50.0] – 2026-07-30
+
+### Neu
+
+- **Technische Fehler melden sich jetzt von selbst bei der Entwicklung**
+  (Wunsch #136). Bisher blieb ein Fehler unsichtbar, wenn ihn niemand von
+  Hand als Rückmeldung schickte — und wer einen Absturz erlebt, schreibt
+  selten noch eine. Übertragen wird bewusst wenig: Fehlertyp, App-Version
+  und Plattform — **nie Namen, nie Fahrten**, und nach 90 Tagen wird alles
+  automatisch gelöscht. Funklöcher und ähnliches Alltagsrauschen werden
+  gar nicht erst gemeldet. Die Bedienungsanleitung erklärt das im
+  Abschnitt „Gut zu wissen"; an der Rückmeldung von Hand ändert sich
+  nichts.
+
 ## [0.49.1] – 2026-07-29
 
 ### Behoben
