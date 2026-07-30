@@ -164,11 +164,14 @@ void main() {
     );
     expect(
       job,
-      contains("'comment'"),
+      contains('/comments'),
       reason:
           'Der Kommentar ist der Mail-Auslöser: GitHub verschickt neue '
           'Kommentare mit vollem Text und Link, das Umschreiben des '
-          'Issue-Texts nicht (Entscheidung Marcus, #134).',
+          'Issue-Texts nicht (Entscheidung Marcus, #134). Er geht über die '
+          'REST-API — `gh issue comment` scheiterte mit dem '
+          'Actions-GITHUB_TOKEN an „Resource not accessible by integration" '
+          '(30.07.2026).',
     );
   });
 }
