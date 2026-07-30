@@ -1,0 +1,67 @@
+name: Usage Report
+
+# Wöchentlicher anonymisierter Nutzungsbericht (#134): pflegt EIN dauerhaftes
+# ops-Issue „Usage report" und postet den Wochenblock als Kommentar — der
+# Kommentar ist die Mail an den Betreiber. Ruht, solange die Secrets fehlen.
+on:
+  schedule:
+    # Montag früh, wenn die ISO-Woche abgeschlossen ist. Minute abseits der
+    # vollen Stunde (GitHub verzögert dort um 5–30 Minuten) und abseits der
+    # Nachbar-Jobs: Backup Mo 03:23, Config-Drift 05:17, PilzBuddy 03:17.
+    - cron: "43 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Nur Zahlen ins Log, kein Issue und kein Kommentar"
+        type: boolean
+        default: false
+
+# Zwei gleichzeitige Läufe bearbeiteten dasselbe Issue und posteten den
+# Kommentar doppelt — zwei Mails über dieselbe Woche.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  FLUTTER_VERSION: "3.41.2"
+  # Der Wochenschnitt (Montag) muss in deutscher Zeit fallen, nicht in UTC —
+  # sonst zählt eine Sonntagsfahrt kurz vor Mitternacht zur falschen Woche.
+  TZ: Europe/Berlin
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # Flutter statt nur Dart, weil die pubspec am Flutter-SDK hängt. Der
+      # Job importiert ausschließlich flutterfreien Code (fairness.dart,
+      # models/) und läuft mit `dart run` — dieselbe Begründung wie bei
+      # notify.yml: Die Ersparnis rechnet der echte `savedCosts`, kein
+      # Nachbau.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Publish usage report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: https://azrlhlcxhpwmxcinjovp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::notice::SUPABASE_SERVICE_ROLE_KEY is not configured — skipping."
+            exit 0
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            dart run tool/usage_report.dart --dry-run
+          else
+            dart run tool/usage_report.dart
+          fi
