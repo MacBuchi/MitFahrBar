@@ -95,7 +95,7 @@ for table in \
   public.settings public.feedback public.app_config \
   public.plan_availability public.plan_overrides public.plan_notes \
   public.push_devices public.notification_prefs public.push_log \
-  public.push_outbox public.group_admins \
+  public.push_outbox public.group_admins public.error_reports \
   auth.users supabase_migrations.schema_migrations; do
   schema=${table%%.*}
   name=${table#*.}

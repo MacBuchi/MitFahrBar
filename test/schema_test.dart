@@ -328,6 +328,62 @@ void main() {
   // Eine Schreib-Policy dort wäre der Weg, sich selbst auszusperren: Ein
   // Client könnte den Wert hochsetzen und käme nie wieder in die App. Der
   // Wert gehört ausschließlich in Migrationen.
+  group('Fehlerberichte (#136)', () {
+    test('error_reports: nur einwerfen, nie zurücklesen', () {
+      final policies = RegExp(
+        r'create policy \w+ on public\.error_reports for (\w+)',
+      ).allMatches(schema).map((m) => m.group(1)).toList();
+      expect(
+        policies,
+        ['insert'],
+        reason:
+            'Ein Fehlertext kann in Ausnahmefällen Serverdetails tragen, '
+            'und die Berichte aller Gruppen gehen keinen Client etwas an. '
+            'Eine select-Policy — und sei es „nur zum Debuggen" — machte '
+            'aus dem Riegel eine Absichtserklärung; gelesen wird allein '
+            'mit dem service_role-Key im Feedback-Bot.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('revoke all on public.error_reports from anon, authenticated'),
+        reason:
+            'Der Sammel-Grant gibt select/update/delete auf JEDE Tabelle — '
+            'ohne die Rücknahme hinge insert-only allein an der fehlenden '
+            'Policy (dasselbe Muster wie push_outbox).',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('grant insert on public.error_reports to anon'),
+        reason:
+            'Auch anon darf einwerfen — sonst fehlen genau die Fehler aus '
+            'dem Login, und die sind die wertvollsten.',
+      );
+    });
+
+    test('der Gruppen-Trigger nimmt Nicht-Gruppen-Kennungen zurück', () {
+      expect(
+        schema,
+        contains('error_reports_resolve_group'),
+        reason:
+            'Ein Verwalter-Konto trägt auth.uid() ohne groups-Zeile — der '
+            'Default liefe in den Fremdschlüssel und der Bericht ginge '
+            'verloren. Der Trigger löst unter der RLS des Aufrufers auf '
+            'und meldet notfalls gruppenlos.',
+      );
+      expect(
+        RegExp(
+          r'group_id uuid default auth\.uid\(\)\s*\n?\s*references public\.groups\(id\) on delete cascade',
+        ).hasMatch(schema),
+        isTrue,
+        reason:
+            'Die Kaskade hält das Löschversprechen: admin_delete_group '
+            'nimmt die Berichte der Gruppe mit — ohne Fremdschlüssel '
+            'überlebte eine gelöschte Gruppe bis zu 90 Tage in den '
+            'Berichten.',
+      );
+    });
+  });
+
   test('app_config ist für Clients nur lesbar', () {
     final policies = RegExp(
       r'create policy \w+ on public\.app_config\s+for (\w+)',
