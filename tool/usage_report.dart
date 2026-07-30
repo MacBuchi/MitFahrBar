@@ -244,7 +244,51 @@ String _weekBlock(_WeekStats week, Map<String, int> statusCounts) {
 Groups total: $status.''';
 }
 
+/// Wie viele Wochen die Trend-Charts zeigen. Weniger als die Tabelle:
+/// 26 Achsen-Labels quetschen sich in Mermaid unlesbar zusammen — die
+/// Tabelle bleibt die exakte Zahlenbasis für die volle Historie.
+const chartWeeks = 12;
+
+/// Ein Trend-Chart als Mermaid `xychart-beta` — GitHub rendert das nativ
+/// im Issue, null zusätzliche Infrastruktur.
+///
+/// EINE Serie und EINE Achse je Chart: Fahrten und Ersparnis sind
+/// verschieden skalierte Größen — die gehören in zwei Charts, nie an eine
+/// Doppelachse. Balken beginnen bei 0 (abgeschnittene Balken lügen).
+/// Die Farbe ist das Banner-Teal, minimal chroma-angehoben (#0787A6),
+/// damit die Marke auf GitHubs heller UND dunkler Fläche weder grau
+/// liest noch den Kontrast reißt — mit dem Palette-Validator gerechnet,
+/// nicht geschätzt.
+String _chart({
+  required String title,
+  required String yLabel,
+  required List<_WeekStats> oldestFirst,
+  required int Function(_WeekStats) value,
+  required String mark,
+}) {
+  final values = [for (final w in oldestFirst) value(w)];
+  var top = 1;
+  for (final v in values) {
+    if (v >= top) top = v + 1;
+  }
+  final labels = [
+    for (final w in oldestFirst)
+      'W${isoWeekNumber(w.monday).toString().padLeft(2, '0')}',
+  ];
+  return '''
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"xyChart": {"plotColorPalette": "#0787A6"}}}}%%
+xychart-beta
+    title "$title"
+    x-axis [${labels.join(', ')}]
+    y-axis "$yLabel" 0 --> $top
+    $mark [${values.join(', ')}]
+```''';
+}
+
 String _issueBody(List<_WeekStats> weeks, String weekBlock) {
+  // `weeks` kommt neueste zuerst; die Charts lesen sich links → rechts.
+  final trend = weeks.take(chartWeeks).toList().reversed.toList();
   final rows = [
     for (final w in weeks)
       '| ${_weekLabel(w.monday)} | ${w.groups} | ${w.trips} | '
@@ -252,6 +296,12 @@ String _issueBody(List<_WeekStats> weeks, String weekBlock) {
   ].join('\n');
   return '''
 $weekBlock
+
+## Trend (last ${trend.length} weeks)
+
+${_chart(title: 'Trips per week', yLabel: 'Trips', oldestFirst: trend, value: (w) => w.trips, mark: 'bar')}
+
+${_chart(title: 'Savings per week (EUR)', yLabel: 'EUR', oldestFirst: trend, value: (w) => w.saved.round(), mark: 'line')}
 
 ## History (last $historyWeeks completed weeks)
 
@@ -261,7 +311,8 @@ $rows
 
 Savings and km exclude solo trips (issue #61) and persons without vehicle
 data — same rules as in the app. History is recomputed on every run; late
-entries update past rows.
+entries update past rows. Exact values live in the table; the charts show
+the shape.
 
 _Automatically maintained by the usage report job (issue #134)._''';
 }
