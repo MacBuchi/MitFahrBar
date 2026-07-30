@@ -1,6 +1,8 @@
 /// main.dart – Bootstrap: Error-Handler, Supabase-Init, runApp.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +15,8 @@ import 'core/log.dart';
 import 'core/push_messaging.dart';
 import 'core/supabase_config.dart';
 import 'data/error_report_repository.dart';
+import 'data/exit_info_repository.dart';
+import 'data/exit_reporting.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,7 +45,19 @@ Future<void> main() async {
       url: SupabaseConfig.url,
       publishableKey: SupabaseConfig.publishableKey,
     );
-    observers.add(wireErrorReporting(Supabase.instance.client));
+    // Dieselbe Instanz für Sink und Exit-Reporter: ein gemeinsamer
+    // maxPerRun-Deckel je App-Lauf.
+    final reports = ErrorReportRepository(Supabase.instance.client);
+    observers.add(wireErrorReporting(reports));
+    // #144: Warum die App beim letzten Mal starb (ANR, Crash,
+    // Speicher-Kill) — bewusst ohne await: Der Start darf darauf nicht
+    // warten, und scheitern darf es sowieso. Auf Web/iOS ein No-Op.
+    unawaited(
+      ExitReporter(
+        exits: ExitInfoRepository(),
+        reports: reports,
+      ).reportPending(),
+    );
   }
 
   runApp(

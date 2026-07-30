@@ -89,6 +89,70 @@ void main() {
     });
   });
 
+  group('buildExitReportRow (#144)', () {
+    test('trägt genau die Felder des Schemas — plus den Todeszeitpunkt', () {
+      final when = DateTime(2026, 7, 30, 6, 45);
+      final row = buildExitReportRow(
+        reason: 'ANR',
+        summary: 'RSS 1900 MB',
+        when: when,
+        trace: '"main" prio=5',
+        appVersion: '0.52.0',
+        platform: 'android',
+      );
+      expect(
+        row.keys.toSet(),
+        {
+          'context',
+          'error_type',
+          'message',
+          'stack',
+          'app_version',
+          'platform',
+          'created_at',
+        },
+        reason:
+            'Dieselbe PII-Zusage wie bei buildErrorReportRow — kein Feld '
+            'kann einen Personennamen tragen. created_at kommt dazu, weil '
+            'hier der TODESZEITPUNKT zählt, nicht der Meldezeitpunkt.',
+      );
+      expect(row['context'], 'App-Ende');
+      expect(
+        row['created_at'],
+        when.toUtc().toIso8601String(),
+        reason:
+            'Sonst stünden alle Tode auf dem Datum des nächsten Starts und '
+            'landeten im falschen Wochen-Digest.',
+      );
+      expect(
+        (row['created_at'] as String).endsWith('Z'),
+        isTrue,
+        reason: 'UTC, damit der Digest-Vergleich nicht an der Zone hängt.',
+      );
+    });
+
+    test('kürzt den Thread-Dump auf die Schema-Grenze', () {
+      final row = buildExitReportRow(
+        reason: 'ANR',
+        summary: 's',
+        when: DateTime(2026, 7, 30),
+        trace: 'x' * 9000,
+        platform: 'android',
+      );
+      expect((row['stack'] as String).length, 4000);
+    });
+
+    test('ein leerer Reason fällt nicht am NOT-NULL-Check', () {
+      final row = buildExitReportRow(
+        reason: '  ',
+        summary: 's',
+        when: DateTime(2026, 7, 30),
+        platform: 'android',
+      );
+      expect(row['error_type'], 'UNKNOWN');
+    });
+  });
+
   group('worthReporting', () {
     test('Funkloch und Zeitüberschreitung sind Normalbetrieb', () {
       expect(worthReporting(TimeoutException('langsam')), isFalse);
