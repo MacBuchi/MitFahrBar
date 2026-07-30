@@ -4,6 +4,7 @@ library;
 
 import 'package:mitfahrbar/core/tokens.dart';
 import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
 import 'package:flutter/material.dart';
@@ -33,8 +34,9 @@ FakeBackend _backend() {
 }
 
 /// Wie [_backend], aber mit zwei Personen, die für den Testtag eingetragen
-/// sind — die Zutat, aus der eine „nächste Fahrt" wird.
-Future<FakeBackend> _rideBackend() async {
+/// sind — die Zutat, aus der eine „nächste Fahrt" wird. Über [days] lassen
+/// sich weitere Tage besetzen (z. B. der Folgetag für den 12-Uhr-Wechsel).
+Future<FakeBackend> _rideBackend({List<DateTime>? days}) async {
   final backend = FakeBackend();
   final id = backend.addGroup(
     handle: 'daciaracing',
@@ -46,7 +48,9 @@ Future<FakeBackend> _rideBackend() async {
     final person = await data.createPerson(
       Person(id: '', name: name, active: true),
     );
-    await data.setAvailability(testToday, person.id, PlanRide.full);
+    for (final day in days ?? [testToday]) {
+      await data.setAvailability(day, person.id, PlanRide.full);
+    }
   }
   return backend;
 }
@@ -63,6 +67,26 @@ void main() {
       // eingetragen, also ist heute die nächste Fahrt.
       expect(find.text('Heute (Mi, 22.07.)'), findsOneWidget);
       expect(find.textContaining('fährt · dabei: '), findsOneWidget);
+    });
+
+    // #131: Ab 12 Uhr gehört die Übersicht der morgigen Fahrt — der
+    // Vormittag der heutigen. Beide Tage sind besetzt, damit der Wechsel
+    // wirklich an der Uhrzeit hängt und nicht am leeren Heute.
+    testWidgets('ab 12 Uhr zeigt das Banner morgen', (tester) async {
+      final backend = await _rideBackend(
+        days: [testToday, testToday.add(const Duration(days: 1))],
+      );
+      await pumpApp(
+        tester,
+        backend,
+        overrides: [
+          nowProvider.overrideWithValue(() => DateTime(2026, 7, 22, 12)),
+        ],
+      );
+      await _login(tester);
+
+      expect(find.text('Morgen (Do, 23.07.)'), findsOneWidget);
+      expect(find.text('Heute (Mi, 22.07.)'), findsNothing);
     });
 
     testWidgets('führt angetippt in die Woche', (tester) async {

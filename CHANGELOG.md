@@ -4,6 +4,24 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.51.0] – 2026-07-30
+
+### Neu
+
+- **Ab 12 Uhr blickt die Übersicht auf morgen** (Wunsch #131). Der
+  Vormittag gehört der heutigen Fahrt, der Nachmittag der morgigen — das
+  „Nächste Fahrt"-Banner wechselt jetzt mittags, nicht erst wenn die
+  heutige Fahrt eingetragen ist. Der Wochenplaner zieht mit: Ab
+  Freitagmittag zeigt er die kommende Woche, so wie bisher erst am
+  Wochenende. Nachtragen geht wie gewohnt über den Eintragen-Knopf und
+  die Historie.
+- **Anmerkungen räumen sich am Folgetag von selbst weg** (ebenfalls #131).
+  Eine Anmerkung wie „Komme erst um 9" gilt ihrem Tag — danach ist sie
+  erledigt und wird automatisch gelöscht. Nebeneffekt: Namen bleiben
+  nicht länger gespeichert als nötig. Anmerkungen für die weiteren
+  Plantage gab es übrigens schon — die Übersicht zeigt immer die des
+  Tages, um den es als Nächstes geht.
+
 ## [0.50.1] – 2026-07-30
 
 ### Behoben

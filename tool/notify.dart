@@ -55,6 +55,27 @@ Future<void> main(List<String> args) async {
   }
 
   final api = _Api(url, key);
+
+  // Anmerkungen vergangener Tage entfernen (#131): Am Folgetag sind sie
+  // nicht mehr relevant, und sie tragen Namen — je kürzer sie liegen
+  // bleiben, desto besser. Gruppenübergreifend (service_role) und VOR der
+  // Gruppen-Schleife, damit auch stille Gruppen aufgeräumt werden — hinter
+  // deren Early-Exits käme der Schritt nie an. Push-sicher: Für vergangene
+  // Tage sendet `push_due()` nie (das Fenster schließt mit der Abfahrt),
+  // und Tage vor dem Wochen-Montag haben gar keine Korb-Zeile mehr.
+  if (!dryRun) {
+    try {
+      final purged = await api.deleteCounted('plan_notes', {
+        'plan_date': 'lt.${_isoDay(now)}',
+      });
+      stdout.writeln('$purged Anmerkung(en) vergangener Tage entfernt.');
+    } catch (error) {
+      // Aufräumen darf den Versand nie verhindern; Details bleiben draußen,
+      // das Actions-Protokoll ist öffentlich.
+      stderr.writeln('Anmerkungs-Aufräumen übersprungen: ${error.runtimeType}');
+    }
+  }
+
   final groups = await api.rows('groups', {
     'status': 'eq.active',
     'select': 'id',
@@ -294,6 +315,22 @@ class _Api {
   Future<void> delete(String table, Map<String, String> query) async {
     final uri = Uri.parse('$base/$table').replace(queryParameters: query);
     await http.delete(uri, headers: _headers);
+  }
+
+  /// Löscht und liefert die Zeilenzahl — fürs Protokoll, das nur Zahlen
+  /// nennen darf.
+  Future<int> deleteCounted(String table, Map<String, String> query) async {
+    final uri = Uri.parse('$base/$table').replace(queryParameters: query);
+    final response = await http.delete(
+      uri,
+      headers: {..._headers, 'Prefer': 'count=exact'},
+    );
+    if (response.statusCode >= 400) {
+      throw HttpException('$table ${response.statusCode}');
+    }
+    // PostgREST meldet die Zahl im Content-Range-Header als `*/N`.
+    final range = response.headers['content-range'];
+    return int.tryParse(range?.split('/').last ?? '') ?? 0;
   }
 }
 

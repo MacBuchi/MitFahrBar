@@ -288,6 +288,19 @@ void main() {
       final days = planningWeek(sunday);
       expect(days.first, DateTime(2026, 3, 9));
     });
+
+    // #131: Ab Freitagmittag ist die Woche gedanklich vorbei — Planer und
+    // Banner blicken gemeinsam auf die kommende Woche.
+    test('der Freitagvormittag gehört noch zur laufenden Woche', () {
+      final fridayMorning = DateTime(2026, 3, 6, 11, 59);
+      expect(fridayMorning.weekday, DateTime.friday);
+      expect(planningWeek(fridayMorning).first, DateTime(2026, 3, 2));
+    });
+
+    test('ab Freitag 12 Uhr wird die kommende Woche geplant', () {
+      final fridayNoon = DateTime(2026, 3, 6, 12);
+      expect(planningWeek(fridayNoon).first, DateTime(2026, 3, 9));
+    });
   });
 
   // Der Tag, den das Banner auf der Übersicht zeigt (#122).
@@ -315,6 +328,18 @@ void main() {
     test('mitten in der Woche steht der laufende Tag vorn', () {
       final wednesday = DateTime(2026, 3, 4);
       expect(nextRide(plan(), wednesday)?.date, wednesday);
+    });
+
+    // #131: Der Vormittag gehört der heutigen Fahrt, der Nachmittag der
+    // morgigen — gewechselt wird exakt um 12:00.
+    test('um 11:59 bleibt der heutige Tag stehen', () {
+      final beforeNoon = DateTime(2026, 3, 4, 11, 59);
+      expect(nextRide(plan(), beforeNoon)?.date, DateTime(2026, 3, 4));
+    });
+
+    test('ab 12 Uhr blickt das Banner auf morgen', () {
+      final noon = DateTime(2026, 3, 4, 12);
+      expect(nextRide(plan(), noon)?.date, DateTime(2026, 3, 5));
     });
 
     // Ohne diesen Riegel bliebe das Banner den ganzen Abend auf einem Tag
@@ -350,12 +375,13 @@ void main() {
       expect(nextRide(const [], friday), isNull);
     });
 
-    // Freitag und Samstag hat „morgen" keinen Eintrag in planningWeek — dort
-    // zeigt das Banner deshalb bereits den Montag, statt leer zu bleiben.
-    test('am Freitag zeigt der Planer der neuen Woche deren Montag', () {
-      final saturday = DateTime(2026, 3, 7);
+    // Ab Freitagmittag liefert planningWeek die kommende Woche — das Banner
+    // zeigt dann deren Montag, statt leer zu bleiben (#131). Am Samstag und
+    // Sonntag gilt derselbe Weg.
+    test('ab Freitagmittag zeigt das Banner den Montag der neuen Woche', () {
+      final fridayNoon = DateTime(2026, 3, 6, 12);
       final nextWeek = [
-        for (final day in planningWeek(saturday))
+        for (final day in planningWeek(fridayNoon))
           PlannedDay(
             date: day,
             availableIds: const ['a', 'b'],
@@ -368,7 +394,7 @@ void main() {
           ),
       ];
 
-      expect(nextRide(nextWeek, saturday)?.date, DateTime(2026, 3, 9));
+      expect(nextRide(nextWeek, fridayNoon)?.date, DateTime(2026, 3, 9));
     });
   });
 
