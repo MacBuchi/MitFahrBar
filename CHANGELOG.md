@@ -27,8 +27,11 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   bisher gab es je einen gemeinsamen Wert. Eure bisherigen Angaben
   bleiben; E10 startet zehn Cent unter E5, die Ladesäule mit 0,59 €.
 
-Preisdaten: Tankerkönig-Spritpreis-API (CC BY 4.0), Daten der
-Markttransparenzstelle für Kraftstoffe.
+- **Unter „Über MitFahrBar" steht jetzt, woher die Daten kommen** —
+  Spritpreise von der Tankerkönig-Spritpreis-API (CC BY 4.0, Daten der
+  Markttransparenzstelle für Kraftstoffe), Ortssuche über OpenStreetMap.
+  Beide Lizenzen verlangen die Nennung; sie gehört dorthin, wo man nach
+  Herkunft sucht, und nicht nur auf den Screen, der die Daten zeigt.
 
 ## [0.52.0] – 2026-07-30
 
