@@ -81,7 +81,7 @@ void main() {
     expect(find.textContaining('Umkreis 20 km'), findsOneWidget);
   });
 
-  testWidgets('eine Woche ohne Messung ist als Parameterwert gekennzeichnet', (
+  testWidgets('ohne jede Messung ist die Linie als ungemessen gekennzeichnet', (
     tester,
   ) async {
     final (:backend, :group) = _backend();
@@ -102,7 +102,13 @@ void main() {
     await _login(tester);
     await _open(tester);
 
-    expect(find.text('aus den Parametern'), findsWidgets);
+    // „nicht gemessen" statt „aus den Parametern": Gestrichelt bedeutet
+    // seit dem Nachfüll-Lauf überwiegend eine überbrückte Woche zwischen
+    // zwei Messungen. Die Konstante steckt zwar hinter genau diesem Fall
+    // hier, aber die Legende steht über allen — sie darf keine Herkunft
+    // behaupten, die für den Großteil der Striche nicht stimmt.
+    expect(find.text('nicht gemessen'), findsWidgets);
+    expect(find.text('aus den Parametern'), findsNothing);
     expect(find.text('Kraftstoff'), findsOneWidget);
     // Zwei Diagramme, weil €/l und €/kWh nicht auf eine Achse gehören.
     expect(find.text('Strom'), findsOneWidget);

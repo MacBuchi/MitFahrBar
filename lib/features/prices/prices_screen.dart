@@ -176,8 +176,14 @@ class _PriceOverview extends ConsumerStatefulWidget {
 class _PriceOverviewState extends ConsumerState<_PriceOverview> {
   bool _busy = false;
 
-  /// Wie viele Wochen das Diagramm zeigt.
-  static const _weeks = 26;
+  /// Kleinstes Fenster des Diagramms. Nach hinten wächst es bis zur
+  /// ältesten Woche, für die es Werte gibt — ein Nachfüll-Lauf
+  /// (`tool/import_fuel_history.py`) trägt Jahre ein, und ein festes
+  /// Fenster hätte sie unsichtbar gemacht: Der Import wäre gelaufen und
+  /// man hätte nichts davon gesehen. Nach unten bleibt die Grenze stehen,
+  /// damit eine frisch eingerichtete Gruppe eine Kurve sieht und nicht
+  /// einen Punkt.
+  static const _minWeeks = 26;
 
   Future<void> _sampleNow() async {
     setState(() => _busy = true);
@@ -261,8 +267,14 @@ class _PriceOverviewState extends ConsumerState<_PriceOverview> {
     final theme = Theme.of(context);
     final to = IsoWeek.of(DateTime.now());
     var from = to;
-    for (var i = 1; i < _weeks; i++) {
+    for (var i = 1; i < _minWeeks; i++) {
       from = IsoWeek.of(from.monday.subtract(const Duration(days: 7)));
+    }
+    // Bis zur ältesten gespeicherten Woche zurück. `stored` hält alle
+    // Sorten; die älteste über alle hinweg spannt die gemeinsame Achse, so
+    // dass Kraftstoff- und Strom-Diagramm denselben Zeitraum zeigen.
+    for (final point in stored) {
+      if (point.week.monday.isBefore(from.monday)) from = point.week;
     }
 
     Map<PriceSeries, List<PricePoint>> build(List<PriceSeries> series) => {

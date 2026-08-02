@@ -4,6 +4,33 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.54.0] – 2026-08-02
+
+### Neu
+
+- **Das Preisdiagramm reicht jetzt so weit zurück, wie es Daten gibt.**
+  Bisher zeigte es immer nur die letzten 26 Wochen. Inzwischen sind die
+  Preise seit Anfang 2023 nachgetragen — dreieinhalb Jahre, von denen ihr
+  fünf Monate gesehen hättet. Das Fenster wächst nun von selbst mit; eine
+  frisch eingerichtete Gruppe sieht weiterhin ein halbes Jahr.
+
+### Geändert
+
+- **Wochen ohne Fahrt reißen das Diagramm nicht mehr nach unten.** Für
+  solche Wochen gibt es keinen Preis, und bisher setzte die App dort den
+  Wert aus euren *Parametern* ein. Der liegt aber deutlich unter dem, was
+  Sprit tatsächlich kostet — die Kurve stürzte also jedes Mal ab und stieg
+  danach wieder, obwohl gar nichts passiert war. Jetzt wird zwischen den
+  beiden benachbarten Messungen durchgezogen, weiter gestrichelt. Die
+  Zahlen aus den Parametern erscheinen nur noch, solange überhaupt nichts
+  gemessen wurde.
+- Die Zeitachse nennt die Jahreszahl, sobald das Diagramm über einen
+  Jahreswechsel geht. „05.06." bis „27.07." las sich wie sieben Wochen,
+  gemeint waren dreieinhalb Jahre.
+- Unter *Über MitFahrBar* steht jetzt auch, woher die **zurückliegenden**
+  Preise stammen: aus dem historischen Preisarchiv von Tankerkönig, das
+  unter einer anderen Lizenz steht als die tagesaktuelle Abfrage.
+
 ## [0.53.0] – 2026-08-02
 
 ### Neu

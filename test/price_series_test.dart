@@ -160,7 +160,7 @@ void main() {
   group('weeklySeries', () {
     const settings = AppSettings();
 
-    test('füllt Lücken aus der Konstante und markiert sie', () {
+    test('hält den gemessenen Wert an den Rändern, statt abzustürzen', () {
       final points = weeklySeries(
         series: PriceSeries.e5,
         from: const IsoWeek(2026, 1),
@@ -179,13 +179,73 @@ void main() {
       );
 
       expect(points.length, 3);
-      expect(points[0].origin, PriceOrigin.constant);
-      expect(points[0].value, settings.petrolPricePerLiter);
-      expect(points[0].isConstant, isTrue);
+      // Sobald EINE Woche gemessen ist, kommt die Konstante nicht mehr vor:
+      // Sie liegt weit unter dem realen Niveau, und jede fahrfreie Woche
+      // zeichnete damit einen Preissturz, den es nie gab.
+      expect(points[0].origin, PriceOrigin.interpolated);
+      expect(points[0].value, closeTo(1.812, 1e-9));
+      expect(points[0].isEstimate, isTrue);
       expect(points[1].origin, PriceOrigin.measured);
       expect(points[1].value, closeTo(1.812, 1e-9));
-      expect(points[1].isConstant, isFalse);
-      expect(points[2].origin, PriceOrigin.constant);
+      expect(points[1].isEstimate, isFalse);
+      expect(points[2].origin, PriceOrigin.interpolated);
+      expect(points[2].value, closeTo(1.812, 1e-9));
+    });
+
+    test('überbrückt eine Lücke linear zwischen zwei Messungen', () {
+      final points = weeklySeries(
+        series: PriceSeries.diesel,
+        from: const IsoWeek(2026, 1),
+        to: const IsoWeek(2026, 5),
+        stored: const [
+          PricePoint(
+            week: IsoWeek(2026, 1),
+            series: PriceSeries.diesel,
+            value: 1.700,
+            origin: PriceOrigin.imported,
+          ),
+          PricePoint(
+            week: IsoWeek(2026, 5),
+            series: PriceSeries.diesel,
+            value: 2.100,
+            origin: PriceOrigin.measured,
+          ),
+        ],
+        settings: settings,
+      );
+
+      expect(points.length, 5);
+      expect(points.map((p) => p.origin), [
+        PriceOrigin.imported,
+        PriceOrigin.interpolated,
+        PriceOrigin.interpolated,
+        PriceOrigin.interpolated,
+        PriceOrigin.measured,
+      ]);
+      // Gleichmäßig von 1,70 auf 2,10 — die überbrückten Werte bleiben
+      // zwischen den Messungen und können deshalb keinen Sturz erfinden.
+      expect(points[1].value, closeTo(1.800, 1e-9));
+      expect(points[2].value, closeTo(1.900, 1e-9));
+      expect(points[3].value, closeTo(2.000, 1e-9));
+    });
+
+    test('die Zeitachse nennt das Jahr, sobald sie eines überschreitet', () {
+      // Der Fall, der den Fehler ausgelöst hat: Das Fenster reicht seit dem
+      // Nachfüll-Lauf bis 2023 zurück, die Achse las sich aber wie sieben
+      // Wochen. Geprüft wird hier und nicht im Flow-Test, weil auf Canvas
+      // gezeichneter Text in keinem Widget-Finder auftaucht.
+      final long = axisLabels(const IsoWeek(2023, 23), const IsoWeek(2026, 31));
+      expect(long.$1, '06.2023');
+      expect(long.$2, '07.2026');
+
+      // Innerhalb eines Jahres bleibt der Tag stehen — über wenige Wochen
+      // wäre „06.2026" bis „07.2026" keine Auskunft.
+      final short = axisLabels(
+        const IsoWeek(2026, 23),
+        const IsoWeek(2026, 31),
+      );
+      expect(short.$1, '01.06.');
+      expect(short.$2, '27.07.');
     });
 
     test('nimmt nur Punkte der eigenen Reihe', () {
@@ -224,7 +284,8 @@ void main() {
         settings: settings,
       );
 
-      expect(haus.every((p) => p.isConstant), isTrue);
+      expect(haus.every((p) => p.origin == PriceOrigin.constant), isTrue);
+      expect(haus.every((p) => p.isEstimate), isTrue);
       expect(haus.first.value, settings.electricityPricePerKwh);
       expect(saeule.first.value, settings.chargingPricePerKwh);
       // Öffentliches Laden ist teurer als die eigene Steckdose — wären die

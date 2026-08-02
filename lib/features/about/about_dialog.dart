@@ -92,6 +92,11 @@ class _AboutDialog extends ConsumerWidget {
               'Spritpreise: Tankerkönig-Spritpreis-API '
               '(creativecommons.tankerkoenig.de), CC BY 4.0 — Daten der '
               'Markttransparenzstelle für Kraftstoffe.\n'
+              // Zwei Quellen, zwei Lizenzen: Die zurückliegenden Wochen
+              // stammen aus dem historischen Archiv, und das steht NICHT
+              // unter der CC BY 4.0 der Live-API.
+              'Zurückliegende Wochen: Tankerkönig-Preisarchiv, '
+              'CC BY-NC-SA 4.0.\n'
               'Ortssuche: OpenStreetMap (© OpenStreetMap-Mitwirkende, ODbL) '
               'über Nominatim.\n'
               'Fahrten, Punkte und Statistik entstehen ausschließlich aus '

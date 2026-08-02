@@ -49,8 +49,19 @@ enum PriceSeries {
 /// Woher ein Wochenwert stammt — im Diagramm sichtbar zu machen.
 ///
 /// [mixed] entsteht an der Naht zwischen importierter Vergangenheit und
-/// gemessener Gegenwart, [constant] überall dort, wo keine Messung vorliegt.
-enum PriceOrigin { measured, imported, mixed, constant }
+/// gemessener Gegenwart.
+///
+/// [interpolated] und [constant] sind beide „nicht gemessen", aber nicht
+/// dasselbe, und die Unterscheidung ist der Kern: [interpolated] überbrückt
+/// eine Woche zwischen zwei Messungen, [constant] ist die Konstante aus den
+/// Gruppensettings. Die Konstante darf nur erscheinen, wenn es **gar keine**
+/// Messung gibt — sonst zeichnet sie einen Preissturz, den es nie gab: Sie
+/// liegt in der Größenordnung 0,40 € unter dem realen Niveau, und in einer
+/// Gruppe fällt gut ein Drittel der Kalenderwochen fahrfrei aus. Über ein
+/// halbes Jahr sieht das nach Zacken aus, über dreieinhalb Jahre nach einem
+/// Kamm, der den eigentlichen Verlauf begräbt (gesehen am 02.08.2026, direkt
+/// nach dem ersten Nachfüll-Lauf).
+enum PriceOrigin { measured, imported, mixed, interpolated, constant }
 
 /// Eine Kalenderwoche nach ISO 8601 (Montag beginnt, Woche 1 enthält den
 /// ersten Donnerstag).
@@ -248,9 +259,11 @@ class PricePoint {
   final int sampleCount;
   final int stationCount;
 
-  /// Gestrichelt und heller zu zeichnen: kein gemessener Wert, sondern die
-  /// Konstante aus den Gruppensettings.
-  bool get isConstant => origin == PriceOrigin.constant;
+  /// Gestrichelt und heller zu zeichnen: kein gemessener Wert — entweder
+  /// zwischen zwei Messungen überbrückt oder die Konstante aus den
+  /// Gruppensettings.
+  bool get isEstimate =>
+      origin == PriceOrigin.interpolated || origin == PriceOrigin.constant;
 }
 
 /// Die Konstante, mit der eine Reihe gefüllt wird, wenn nichts gemessen ist.
@@ -281,16 +294,90 @@ List<PricePoint> weeklySeries({
     for (final point in stored)
       if (point.series == series) point.week: point,
   };
-  final fallback = constantFor(series, settings);
+  final weeks = weeksBetween(from, to);
+
+  // Gar nichts gemessen: Dann — und nur dann — trägt die Konstante das
+  // ganze Fenster. Das ist der Zustand einer frisch eingerichteten Gruppe.
+  if (known.isEmpty) {
+    final fallback = constantFor(series, settings);
+    return [
+      for (final week in weeks)
+        PricePoint(
+          week: week,
+          series: series,
+          value: fallback,
+          origin: PriceOrigin.constant,
+        ),
+    ];
+  }
+
+  // Sobald irgendetwas gemessen ist, wird alles Übrige aus Messungen
+  // abgeleitet: dazwischen linear überbrückt, an den Rändern der nächste
+  // bekannte Wert gehalten. Die Zeitachse bleibt dabei vollständig — der
+  // Painter setzt die Punkte über ihren Index, eine ausgelassene Woche
+  // stauchte also den Zeitraum, statt eine Lücke zu zeigen.
+  final anchors = [
+    for (var i = 0; i < weeks.length; i++)
+      if (known.containsKey(weeks[i])) i,
+  ];
 
   return [
-    for (final week in weeksBetween(from, to))
-      known[week] ??
+    for (var i = 0; i < weeks.length; i++)
+      known[weeks[i]] ??
           PricePoint(
-            week: week,
+            week: weeks[i],
             series: series,
-            value: fallback,
-            origin: PriceOrigin.constant,
+            value: _bridge(weeks, known, anchors, i),
+            origin: PriceOrigin.interpolated,
           ),
   ];
+}
+
+/// Die beiden Enden der Zeitachse als Text.
+///
+/// Steht hier und nicht im Painter, damit es prüfbar ist: Auf Canvas
+/// gezeichneter Text taucht in keinem Widget-Finder auf — ein Flow-Test
+/// könnte eine falsche Achse nicht sehen. Dieselbe Trennung wie zwischen
+/// `chart_data.dart` und `charts.dart`.
+///
+/// Über einen Jahreswechsel hinweg MUSS die Jahreszahl mit: „05.06." bis
+/// „27.07." liest sich wie sieben Wochen, auch wenn dreieinhalb Jahre
+/// dazwischenliegen. Seit das Fenster bis zur ältesten importierten Woche
+/// zurückreicht, ist das der Normalfall. Der Tag entfällt dafür — er ist
+/// über Jahre hinweg belanglos, und beides zusammen wäre zu breit.
+(String, String) axisLabels(IsoWeek first, IsoWeek last) {
+  final withYear = first.year != last.year;
+  String format(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    if (withYear) return '$month.${date.year}';
+    return '${date.day.toString().padLeft(2, '0')}.$month.';
+  }
+
+  return (format(first.monday), format(last.monday));
+}
+
+/// Wert für eine Woche ohne Messung: linear zwischen den benachbarten
+/// Messungen, am Rand der nächstgelegene Wert.
+double _bridge(
+  List<IsoWeek> weeks,
+  Map<IsoWeek, PricePoint> known,
+  List<int> anchors,
+  int index,
+) {
+  var before = -1;
+  var after = -1;
+  for (final anchor in anchors) {
+    if (anchor < index) {
+      before = anchor;
+    } else {
+      after = anchor;
+      break;
+    }
+  }
+  final low = before >= 0 ? known[weeks[before]]!.value : null;
+  final high = after >= 0 ? known[weeks[after]]!.value : null;
+  if (low == null) return high!;
+  if (high == null) return low;
+  final t = (index - before) / (after - before);
+  return low + (high - low) * t;
 }
