@@ -87,7 +87,8 @@ StatsInsight? distanceInsight(
   return StatsInsight(
     kind: StatsInsightKind.distance,
     title: 'Strecken-Meilenstein',
-    value: '${km.format(totalKm)} km seid ihr zusammen gefahren — '
+    value:
+        '${km.format(totalKm)} km seid ihr zusammen gefahren — '
         '$comparison.',
   );
 }
@@ -155,7 +156,9 @@ StatsInsight? kmHeroInsight(
     if (driven.isEmpty) return null;
     final hero = driven.keys.reduce((a, b) {
       final byCount = driven[b]!.compareTo(driven[a]!);
-      return byCount != 0 ? (byCount < 0 ? a : b) : (a.compareTo(b) < 0 ? a : b);
+      return byCount != 0
+          ? (byCount < 0 ? a : b)
+          : (a.compareTo(b) < 0 ? a : b);
     });
     final name = names[hero];
     if (name == null) return null;
@@ -223,7 +226,6 @@ List<StatsInsight> rotateInsights(
   final week = IsoWeek.of(now);
   final offset = (week.year * 100 + week.week) % available.length;
   return [
-    for (var i = 0; i < count; i++)
-      available[(offset + i) % available.length],
+    for (var i = 0; i < count; i++) available[(offset + i) % available.length],
   ];
 }

@@ -156,9 +156,7 @@ void main() {
     });
 
     test('Solo-Fahrten machen niemanden zum Helden', () {
-      final trips = [
-        rideOn(DateTime(2026, 7, 6), 'anna', []),
-      ];
+      final trips = [rideOn(DateTime(2026, 7, 6), 'anna', [])];
       expect(kmHeroInsight(trips, settings, names, now: monday30), isNull);
     });
   });
@@ -245,10 +243,7 @@ void main() {
 
     test('die nächste Woche rückt weiter', () {
       final thisWeek = rotateInsights(available(4), now: monday30);
-      final nextWeek = rotateInsights(
-        available(4),
-        now: DateTime(2026, 7, 27),
-      );
+      final nextWeek = rotateInsights(available(4), now: DateTime(2026, 7, 27));
 
       expect(
         [for (final i in nextWeek) i.title],

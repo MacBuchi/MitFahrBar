@@ -127,12 +127,7 @@ void main() {
       };
       for (final entry in tones.entries) {
         for (final surface in _surfacesOf(entry.value)) {
-          _expectContrast(
-            entry.value.foreground,
-            surface,
-            _text,
-            entry.key,
-          );
+          _expectContrast(entry.value.foreground, surface, _text, entry.key);
         }
       }
     });

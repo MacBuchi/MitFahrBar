@@ -249,7 +249,8 @@ abstract final class AppStatsColors {
   /// Text eines positiven Saldos („+5") — Grün, das auf der Karte lesbar ist.
   static Color saldoPositive(Brightness brightness) =>
       brightness == Brightness.dark
-      ? AppColors.eco // 9,28:1 auf der dunklen Karte
+      ? AppColors
+            .eco // 9,28:1 auf der dunklen Karte
       : const Color(0xFF047857); // 4,95:1 auf der hellen
 
   /// Text eines negativen Saldos („−6") — warm, aber kein Alarm-Rot: Ein

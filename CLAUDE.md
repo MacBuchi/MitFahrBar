@@ -766,6 +766,39 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Aggregationsfunktionen, `core/widgets/charts.dart` = CustomPainter) —
   keine Chart-Library als Dependency. Aggregation bleibt testbar getrennt
   vom Zeichnen (`test/chart_data_test.dart`).
+- **Die Statistik-Seite ist seit v0.56.0 die Chart-Seite** (Design-Konzept
+  „MitFahrBar Statistik Konzept" im Claude-Design-Projekt
+  `63ffe2c1-977d-4d77-acc3-50cc83e3a57a`; das Dashboard blieb bewusst
+  unverändert — Übersicht kompakt, Statistik tief). Pure Schicht in
+  `core/stats_data.dart` + `core/stats_insights.dart`. Vier Entscheidungen
+  daran sind nicht beliebig:
+  - **Der Rekord bleibt ehrlich:** `weeklyTripBars` rechnet die Rekordwoche
+    über die ganze Historie. Liegt sie vor dem 12-Wochen-Fenster, wird KEIN
+    Balken markiert — der höchste Balken im Ausschnitt wäre nicht der
+    Rekord, ihn einzufärben behauptete es; der Untertitel nennt sie. Und
+    Zukunfts-Fahrten zählen nicht (dieselbe Lehre wie #160).
+  - **CO₂ nur aus echten Angaben** (entschieden 2026-08-03): je Person
+    Verbrauch × kg/l ihrer Spritart (Diesel 2,65, Benzin 2,37), E-Autos
+    zählen 0 — exakt die Form von `savedCostsFor`, keine kg/km-Pauschale.
+    Konstanten beim Lesen eingesetzt, nie gespeichert.
+  - **Der Ersparnis-Ring summiert sichtbar zur Kachel-Zahl:** Die Mitte ist
+    `chart.total` (dieselbe Quelle wie die Übersicht), ein Übertrag bekommt
+    ein eigenes neutrales Segment in `outline` — `outlineVariant` sähe
+    besser aus, trägt gemessen aber nur 1,53:1 und wäre unsichtbar; der
+    Ring summierte dann sichtbar falsch. Personen-Farben kommen aus
+    `personLineColor` über `savingsOrder` — dieselbe Person trägt in Linie
+    und Ring EINE Farbe.
+  - **„Fahrten pro Woche" und CO₂ hängen NICHT am Preisarchiv**
+    (`weeklyTripBarsProvider` bzw. reine `stats`-Rechnung): Sie dürfen
+    nicht mit dem Preisabruf verschwinden — genau dafür sind sie eigene
+    Aggregationen statt Ableger von `SavingsChart`.
+  Alle neuen Farbpaare sind gemessen (`test/stats_contrast_test.dart`): Die
+  Insight-Karten holen den einst abgelehnten Verlaufs-Endpunkt `#22D3EE`
+  legal zurück (dunkle Marken-Tinte statt Weiß darauf), und die
+  Heatmap-Skala endet bei VOLLER Deckung (Restdeckung 0,9 fiele hell mit
+  2,94:1 durch). Die Preis-Verläufe stehen als Sektion auf `/stats` über
+  das geteilte Widget `PriceHistoryCharts`; die Verwaltung (Region, Abruf)
+  bleibt auf `/prices`.
 
 ## Workflow
 

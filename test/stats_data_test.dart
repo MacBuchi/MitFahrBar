@@ -352,11 +352,10 @@ void main() {
       ])!;
 
       expect(matrix.weekdays, [1, 2, 3, 4, 5]);
-      expect(
-        matrix.personIds,
-        ['anna', 'ben'],
-        reason: 'absteigend nach Fahr-Tagen',
-      );
+      expect(matrix.personIds, [
+        'anna',
+        'ben',
+      ], reason: 'absteigend nach Fahr-Tagen');
       expect(matrix.counts[0][0], 2, reason: 'Anna montags');
       expect(matrix.counts[1][2], 1, reason: 'Ben mittwochs');
       expect(matrix.max, 2);
@@ -371,7 +370,8 @@ void main() {
       expect(
         matrix.weekdays,
         [1, 2, 3, 4, 5, 6],
-        reason: 'keine dauerhaft leere Spalte, aber auch keine versteckte Fahrt',
+        reason:
+            'keine dauerhaft leere Spalte, aber auch keine versteckte Fahrt',
       );
     });
 
