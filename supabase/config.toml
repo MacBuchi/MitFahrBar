@@ -105,3 +105,11 @@ verify_jwt = false
 # Leere, ohne dass irgendwo ein Fehler auftaucht.
 [functions.fuel-sample]
 verify_jwt = false
+
+# Hier dagegen MIT JWT-Prüfung: Es gibt keinen Aufrufer aus der Datenbank,
+# und der Endpunkt befragt einen Fremddienst (Nominatim). Ohne die Prüfung
+# wäre er ein offener Geokodierer auf fremde Kosten. Dass der anon-Key selbst
+# ein gültiges JWT ist, wiegt hier leicht — es geht um öffentliche
+# Ortsdaten, nicht um Gruppendaten.
+[functions.geocode-place]
+verify_jwt = true

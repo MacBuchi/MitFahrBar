@@ -545,6 +545,34 @@ void main() {
       );
     });
 
+    test('die Ortssuche verlangt ein JWT, das Abtasten nicht', () {
+      final config = File('supabase/config.toml').readAsStringSync();
+      final geocode = RegExp(
+        r'\[functions\.geocode-place\]\s*\nverify_jwt = (\w+)',
+      ).firstMatch(config);
+      expect(
+        geocode?.group(1),
+        'true',
+        reason:
+            'Für die Ortssuche gibt es keinen Aufrufer aus der Datenbank, '
+            'und sie befragt einen Fremddienst auf fremde Kosten. Ohne '
+            'Prüfung wäre sie ein offener Geokodierer.',
+      );
+
+      final sample = RegExp(
+        r'\[functions\.fuel-sample\]\s*\nverify_jwt = (\w+)',
+      ).firstMatch(config);
+      expect(
+        sample?.group(1),
+        'false',
+        reason:
+            'Der Abtast-Takt kommt aus der Datenbank (pg_cron → pg_net) '
+            'und hat kein JWT. Auf true stünde er still, ohne dass '
+            'irgendwo ein Fehler auftaucht — die Antwort landet nur in '
+            'net._http_response.',
+      );
+    });
+
     test('die Function ist in config.toml deklariert', () {
       final config = File('supabase/config.toml').readAsStringSync();
       expect(

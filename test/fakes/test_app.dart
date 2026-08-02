@@ -79,6 +79,10 @@ Future<void> pumpApp(
         // initialisiertes Firebase zu — der Fehler landete im Log und der
         // Screen zeigte sich dauerhaft als „nicht eingerichtet".
         pushRepositoryProvider.overrideWithValue(FakePushRepository(backend)),
+        // Preisarchiv: Ohne Override liefe jeder Screen, der den Bereich
+        // liest, gegen das echte Netz — `SupabaseConfig.isConfigured` ist im
+        // Test `true`.
+        priceRepositoryProvider.overrideWithValue(FakePriceRepository(backend)),
         // Der Ausgangskorb (#132) hängt an der App-Wurzel und liefe sonst in
         // jedem Flow-Test gegen das echte Netz — `SupabaseConfig.isConfigured`
         // ist im Test `true`. Was er schreibt, steht in `backend.outbox`.

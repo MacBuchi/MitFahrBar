@@ -11,6 +11,7 @@ import '../core/import_file.dart';
 import '../core/fairness.dart';
 import '../core/log.dart';
 import '../core/push_messaging.dart';
+import '../core/price_series.dart';
 import '../core/push_outbox.dart';
 import '../core/share_text.dart';
 import '../core/supabase_config.dart';
@@ -20,6 +21,7 @@ import '../models/group.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
+import '../models/price_area.dart';
 import '../models/trip.dart';
 import 'admin_repository.dart';
 import 'app_config_repository.dart';
@@ -29,6 +31,7 @@ import 'device_identity.dart';
 import 'fake_repository.dart';
 import 'feedback_repository.dart';
 import 'group_repository.dart';
+import 'price_repository.dart';
 import 'push_outbox_repository.dart';
 import 'push_repository.dart';
 import 'supabase_repository.dart';
@@ -102,6 +105,28 @@ final pushOutboxRepositoryProvider = Provider<PushOutboxRepository>(
       ? SupabasePushOutboxRepository(ref.watch(supabaseClientProvider))
       : NoopPushOutboxRepository(),
 );
+
+final priceRepositoryProvider = Provider<PriceRepository>(
+  (ref) => SupabaseConfig.isConfigured
+      ? SupabasePriceRepository(ref.watch(supabaseClientProvider))
+      : const NoopPriceRepository(),
+);
+
+/// Der Bereich dieser Gruppe. `null` heißt: noch nicht eingerichtet.
+///
+/// Hängt an `currentUserIdProvider` und nicht am Auth-Ereignisstrom — sonst
+/// lüde jedes Ereignis, auch ein Token-Refresh, alles neu.
+final priceAreaProvider = FutureProvider<PriceArea?>((ref) {
+  ref.watch(currentUserIdProvider);
+  return ref.watch(priceRepositoryProvider).loadArea();
+});
+
+/// Die gemessenen Wochenwerte. Die Lücken füllt erst `weeklySeries` beim
+/// Zeichnen aus den Gruppensettings — gespeichert wird eine Konstante nie.
+final priceWeeksProvider = FutureProvider<List<PricePoint>>((ref) {
+  ref.watch(currentUserIdProvider);
+  return ref.watch(priceRepositoryProvider).loadWeeks();
+});
 
 /// Wo die Geräte-Zuordnung liegt. Im Demo-Modus und in Tests flüchtig — dort
 /// gibt es nichts zu behalten.
