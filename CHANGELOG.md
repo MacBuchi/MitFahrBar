@@ -4,6 +4,37 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.55.0] – 2026-08-02
+
+### Neu
+
+- **Fahrten und Ersparnis in einem Diagramm auf der Übersicht.** Ihr seht
+  jetzt, was das Mitfahren über die Jahre gespart hat — als Kurve je
+  Person und für die ganze Gruppe zusammen, gerechnet mit dem Spritpreis
+  der jeweiligen Woche aus dem Preisarchiv statt mit einem Pauschalwert.
+  Die Fahrten je Woche liegen als blasse Säulen dahinter, auf derselben
+  Zeitachse.
+- **Das Diagramm lässt sich bedienen:** Zwei Finger zoomen die Zeitachse,
+  ein Finger schiebt den Ausschnitt, Doppeltipp zeigt wieder alles. Ein
+  Tipp auf einen Namen in der Legende blendet dessen Linie aus.
+
+### Geändert
+
+- **„Kraftstoff gespart" ist jetzt eine ehrlichere Zahl.** Die Kachel
+  rechnet mit denselben Wochenpreisen wie das Diagramm darunter — beide
+  nennen immer dieselbe Summe. Weil die echten Preise über weite Strecken
+  höher lagen als der Pauschalwert aus den Parametern, fällt die Zahl
+  spürbar höher aus als bisher; sie war vorher zu niedrig, nicht falsch
+  gerechnet.
+- **„Fahrten pro Monat" ist in das neue Diagramm umgezogen.** Die Säulen
+  zeigen weiter, wann gefahren wurde — jetzt je Woche und im selben Bild
+  wie die Ersparnis. Die Jahresmarken bleiben. Die genaue Zahl je Monat
+  zeigt das Bild nicht mehr; dafür gibt es Zoom und eine gemeinsame
+  Zeitachse.
+- Wo eine Woche keinen gemessenen Spritpreis hat, ist die Kurve ab dort
+  gestrichelt („Preis geschätzt"). Strom zählt dabei nicht als Schätzung:
+  Der Preis kommt bewusst aus euren Parametern.
+
 ## [0.54.0] – 2026-08-02
 
 ### Neu

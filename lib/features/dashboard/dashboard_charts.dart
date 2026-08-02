@@ -12,6 +12,7 @@ import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 import '../../core/chart_data.dart';
 import '../../core/tokens.dart';
 import '../../core/widgets/charts.dart';
+import '../../core/widgets/savings_chart.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 
@@ -30,7 +31,6 @@ class GroupAchievementsCard extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    final byId = {for (final p in persons) p.id: p};
     final euro = NumberFormat.currency(
       locale: 'de',
       symbol: '€',
@@ -38,14 +38,17 @@ class GroupAchievementsCard extends ConsumerWidget {
     );
     final number = NumberFormat('#,##0', 'de');
 
-    var totalSaved = 0.0;
+    // Die Ersparnis kommt aus **derselben** Rechnung wie die Kurve darunter
+    // (`weeklySavings`), nicht aus `savedCosts` über die Gesamtzahlen. Sonst
+    // stünde hier eine Summe und im Diagramm eine andere — zwei Wahrheiten
+    // über dieselbe Zahl, sichtbar nebeneinander auf einer Seite.
+    final totalSaved = ref.watch(savingsChartProvider)?.total ?? 0;
     var totalKm = 0.0;
     for (final s in stats.values) {
-      final person = byId[s.personId];
-      if (person != null) totalSaved += s.savedCosts(settings, person);
       totalKm += s.kilometers(settings);
     }
 
+    final byId = {for (final p in persons) p.id: p};
     final kmRanked = stats.values.toList()
       ..sort(
         (a, b) => b.kilometers(settings).compareTo(a.kilometers(settings)),
@@ -95,33 +98,59 @@ class GroupAchievementsCard extends ConsumerWidget {
   }
 }
 
-/// Fahrten je Monat – zeigt den Rhythmus der Gruppe über ein Jahr.
-class MonthlyTripsCard extends ConsumerWidget {
-  const MonthlyTripsCard({super.key});
+/// Fahrten und Ersparnis über die Wochen — EINE Karte, EINE Zeitachse
+/// (entschieden 02.08.2026, ersetzt „Fahrten pro Monat" + eine getrennte
+/// Ersparnis-Karte). Die Fahrten liegen als blasse Säulen hinter den
+/// Kurven; der ausgesprochene Preis: „20 Fahrten im Dezember" ist nicht
+/// mehr exakt ablesbar, dafür zeigen Fahren und Sparen ein Bild.
+///
+/// **Jede Woche rechnet mit dem Preis dieser Woche** (Preisarchiv, seit
+/// v0.53.0). Über dreieinhalb Jahre lag Diesel zwischen 1,46 € und 2,26 €;
+/// eine einzige Konstante über den ganzen Zeitraum verteilte die Ersparnis
+/// auf die falschen Wochen. Wo kein Preis vorliegt, trägt die Kurve die
+/// Konstante aus den Parametern — und ist ab dort gestrichelt.
+class SavingsCard extends ConsumerWidget {
+  const SavingsCard({super.key, required this.persons});
+
+  final List<Person> persons;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final trips = ref.watch(tripsProvider).value;
-    if (trips == null || trips.isEmpty) return const SizedBox.shrink();
-
-    // Das Fenster reicht bis zur ersten Fahrt (#119) — eine Gruppe, die seit
-    // Jahren fährt, sah vorher nur ihr letztes Jahr. Passt das nicht in die
-    // Breite, scrollt das Diagramm.
-    final now = ref.watch(nowProvider)();
-    final buckets = tripsPerMonth(
-      trips,
-      months: monthsToCover(trips, now),
-      now: now,
-    );
-    if (buckets.every((b) => b.trips == 0)) return const SizedBox.shrink();
+    final chart = ref.watch(savingsChartProvider);
+    // Ohne zwei Wochen gibt es keine Kurve; ganz ohne Fahrten keine Karte.
+    if (chart == null || chart.weeks.length < 2) {
+      return const SizedBox.shrink();
+    }
+    if (chart.tripCounts.every((count) => count == 0)) {
+      return const SizedBox.shrink();
+    }
 
     final range = DateFormat('MMM yyyy', 'de');
+    final euro = NumberFormat.currency(
+      locale: 'de',
+      symbol: '€',
+      decimalDigits: 0,
+    );
+
     return _ChartCard(
-      title: 'Fahrten pro Monat',
-      subtitle:
-          '${range.format(buckets.first.date)} – '
-          '${range.format(buckets.last.date)}',
-      child: MonthlyTripsChart(data: buckets),
+      title: 'Fahrten und Ersparnis',
+      // Auch ohne Ersparnis (kein Fahrzeug trägt Verbrauch) bleibt die
+      // Karte: Die Säulen beantworten weiterhin, wann gefahren wurde.
+      subtitle: chart.total > 0
+          ? '${euro.format(chart.total)} seit '
+                '${range.format(chart.weeks.first.monday)} — '
+                'Kraftstoff, den ihr durchs Mitfahren nicht gebraucht habt'
+          : 'Fahrten je Woche seit '
+                '${range.format(chart.weeks.first.monday)}. Die Ersparnis '
+                'erscheint, sobald Fahrzeuge Antrieb und Verbrauch tragen.',
+      child: SavingsTrendChart(
+        chart: chart,
+        names: {for (final person in persons) person.id: person.name},
+        // Wer an diesem Gerät „ich" ist (#121). Das ist eine
+        // Geräte-Einstellung und keine Zugriffskontrolle — sie hebt hier
+        // nur eine Linie hervor, alle anderen bleiben sichtbar.
+        highlightPersonId: ref.watch(myPersonProvider)?.id,
+      ),
     );
   }
 }

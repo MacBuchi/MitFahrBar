@@ -115,10 +115,16 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
-                    'Darunter: was ihr gemeinsam erreicht habt, Fahrten pro '
-                    'Monat und wie jede und jeder unterwegs war. Das '
-                    'Monats-Diagramm lässt sich nach rechts wischen — '
-                    'dahinter liegt eure ganze Historie.',
+                    'Darunter: was ihr gemeinsam erreicht habt, Fahrten und '
+                    'Ersparnis über die Zeit und wie jede und jeder '
+                    'unterwegs war.',
+              ),
+              _Line(
+                text:
+                    'Im Fahrten-und-Ersparnis-Diagramm zoomen zwei Finger '
+                    'die Zeitachse, ein Finger schiebt den Ausschnitt, '
+                    'Doppeltipp zeigt wieder alles. Ein Tipp auf einen '
+                    'Namen in der Legende blendet dessen Linie aus.',
               ),
             ],
           ),

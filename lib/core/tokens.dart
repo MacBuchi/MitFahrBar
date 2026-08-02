@@ -273,23 +273,6 @@ abstract final class AppChart {
   /// Grundlinie und Achsen.
   static const hairline = 1.0;
 
-  /// Höhe der Zeichenfläche des Monats-Diagramms.
-  static const columnPlotHeight = 104.0;
-
-  /// Schmalstes Raster je Säule, bevor das Monats-Diagramm waagerecht
-  /// scrollt (#119): Balken plus Luft. Darunter wird aus einer Säule ein
-  /// Strich — die Gruppe hat Jahre an Historie, die ohne Scrollen alle in
-  /// eine Handybreite müssten.
-  static const columnMinSlot = 16.0;
-
-  /// Streifen unter den Monatskürzeln, den die Scrollleiste bekommt.
-  ///
-  /// Sie sitzt am unteren Rand des Sichtfensters — ohne diesen Platz läge
-  /// sie **auf** den Kürzeln und machte sie unleserlich (im Demo-Build
-  /// gesehen). Beide Maler ziehen ihn ab, sonst stünde die Grundlinie der
-  /// Wertachse woanders als die der Säulen.
-  static const columnScrollbarStrip = 12.0;
-
   /// Zeilenhöhe eines gestapelten Balkens.
   static const stackedBarThickness = 14.0;
 }

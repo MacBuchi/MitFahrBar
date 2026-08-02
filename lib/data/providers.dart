@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/chart_data.dart';
 import '../core/export_file.dart';
 import '../core/import_file.dart';
 import '../core/fairness.dart';
@@ -126,6 +127,39 @@ final priceAreaProvider = FutureProvider<PriceArea?>((ref) {
 final priceWeeksProvider = FutureProvider<List<PricePoint>>((ref) {
   ref.watch(currentUserIdProvider);
   return ref.watch(priceRepositoryProvider).loadWeeks();
+});
+
+/// Die Ersparnis-Kurve der Startseite — `null`, solange etwas fehlt.
+///
+/// **Eine Quelle für Kachel und Diagramm.** Die Zahl „Kraftstoff gespart"
+/// und die Kurve darunter stehen auf derselben Seite; würde die Kachel über
+/// `savedCosts` mit der Konstante rechnen und die Kurve je Woche mit dem
+/// gemessenen Preis, stünden dort zwei verschiedene Summen für dasselbe.
+///
+/// Bewusst **erst mit** den Preisen: Mit `?? const []` rechnete die Karte
+/// beim Aufbau kurz mit den Konstanten und spränge dann sichtbar auf die
+/// echte Summe. Fehlen die Preise dauerhaft (Fehler), bleibt die Karte weg —
+/// dieselbe Linie wie bei den anderen Diagrammen: Eine Karte, die nichts
+/// weiß, sagt besser nichts.
+final savingsChartProvider = Provider<SavingsChart?>((ref) {
+  final trips = ref.watch(tripsProvider).value;
+  final persons = ref.watch(personsProvider).value;
+  final settings = ref.watch(settingsProvider).value;
+  final weeks = ref.watch(priceWeeksProvider);
+  if (trips == null || persons == null || settings == null) return null;
+  if (!weeks.hasValue) return null;
+
+  final window = savingsWindow(trips);
+  if (window == null) return null;
+  final (from, to) = window;
+  return weeklySavings(
+    trips: trips,
+    persons: persons,
+    settings: settings,
+    storedPrices: weeks.requireValue,
+    from: from,
+    to: to,
+  );
 });
 
 /// Wo die Geräte-Zuordnung liegt. Im Demo-Modus und in Tests flüchtig — dort
