@@ -11,6 +11,7 @@ import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 
 import '../../core/chart_data.dart';
 import '../../core/tokens.dart';
+import '../../core/widgets/chart_card.dart';
 import '../../core/widgets/charts.dart';
 import '../../core/widgets/savings_chart.dart';
 import '../../data/providers.dart';
@@ -64,7 +65,7 @@ class GroupAchievementsCard extends ConsumerWidget {
     final now = ref.watch(nowProvider)();
     final thisYear = trips.where((t) => t.date.year == now.year).length;
 
-    return _ChartCard(
+    return ChartCard(
       title: 'Gemeinsam erreicht',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,7 +133,7 @@ class SavingsCard extends ConsumerWidget {
       decimalDigits: 0,
     );
 
-    return _ChartCard(
+    return ChartCard(
       title: 'Fahrten und Ersparnis',
       // Auch ohne Ersparnis (kein Fahrzeug trägt Verbrauch) bleibt die
       // Karte: Die Säulen beantworten weiterhin, wann gefahren wurde.
@@ -182,46 +183,10 @@ class ParticipationMixCard extends ConsumerWidget {
     if (rows.isEmpty) return const SizedBox.shrink();
 
     rows.sort((a, b) => b.total.compareTo(a.total));
-    return _ChartCard(
+    return ChartCard(
       title: 'Wie ihr unterwegs seid',
       subtitle: 'Tage je Person, aufgeteilt nach Art der Teilnahme',
       child: ParticipationMixChart(rows: rows),
-    );
-  }
-}
-
-/// Gemeinsamer Rahmen: Überschrift, optionale Erläuterung, Inhalt.
-class _ChartCard extends StatelessWidget {
-  const _ChartCard({required this.title, required this.child, this.subtitle});
-
-  final String title;
-  final String? subtitle;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.m),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: theme.textTheme.titleMedium),
-            if (subtitle case final String text) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                text,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.m),
-            child,
-          ],
-        ),
-      ),
     );
   }
 }

@@ -48,7 +48,7 @@ class ParticipationMixChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _MixLegend(),
+        const MixLegend(),
         const SizedBox(height: AppSpacing.m),
         for (final row in rows)
           Padding(
@@ -71,20 +71,7 @@ class ParticipationMixChart extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.s),
                   Expanded(
-                    child: SizedBox(
-                      height: AppChart.stackedBarThickness,
-                      child: CustomPaint(
-                        painter: _StackedBarPainter(
-                          segments: [
-                            (value: row.driven, color: AppColors.driver),
-                            (value: row.oneWay, color: AppColors.oneWay),
-                            (value: row.ridden, color: AppColors.passenger),
-                          ],
-                          maxTotal: maxTotal,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
-                    ),
+                    child: StackedMixBar(row: row, maxTotal: maxTotal),
                   ),
                   const SizedBox(width: AppSpacing.s),
                   // Wert an der Spitze; die Aufteilung trägt die Legende.
@@ -114,8 +101,41 @@ class ParticipationMixChart extends StatelessWidget {
   }
 }
 
-class _MixLegend extends StatelessWidget {
-  const _MixLegend();
+/// Der Balken einer Person allein — öffentlich, weil die Statistik-Seite ihn
+/// in einem zweizeiligen Layout (Kopfzeile mit Saldo, darunter der Balken)
+/// wiederverwendet. Farben und Stapelreihenfolge bleiben an genau einer
+/// Stelle: hier.
+class StackedMixBar extends StatelessWidget {
+  const StackedMixBar({super.key, required this.row, required this.maxTotal});
+
+  final ParticipationRow row;
+
+  /// Größte Zeilensumme der Karte — gemeinsame Skala aller Balken.
+  final double maxTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: AppChart.stackedBarThickness,
+      child: CustomPaint(
+        painter: _StackedBarPainter(
+          segments: [
+            (value: row.driven, color: AppColors.driver),
+            (value: row.oneWay, color: AppColors.oneWay),
+            (value: row.ridden, color: AppColors.passenger),
+          ],
+          maxTotal: maxTotal,
+        ),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
+}
+
+/// Die Legende zu [StackedMixBar] — Startseite und Statistik-Seite zeigen
+/// dieselben drei Begriffe, sonst hießen dieselben Farben zweierlei.
+class MixLegend extends StatelessWidget {
+  const MixLegend({super.key});
 
   @override
   Widget build(BuildContext context) {

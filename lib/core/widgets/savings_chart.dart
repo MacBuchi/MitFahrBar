@@ -229,7 +229,6 @@ class _SavingsTrendChartState extends State<SavingsTrendChart> {
     ];
     return parts.join(', ');
   }
-
 }
 
 class _Legend extends StatelessWidget {
