@@ -200,7 +200,11 @@ class _PriceTrendPainter extends CustomPainter {
   final Color gridColor;
   final TextStyle textStyle;
 
-  static const _leftPad = 52.0;
+  /// Der linke Rand wird gemessen, nicht geschätzt: „0.59 €/kWh" ist
+  /// breiter als „2.17 €/l", und ein fester Wert schnitt die Strom-Achse
+  /// ab. Aufgefallen erst im Demo-Build — die Flow-Tests sahen es nicht,
+  /// weil auf Canvas gezeichneter Text keinem Finder auffällt.
+  static const _labelGap = 6.0;
   static const _bottomPad = 18.0;
 
   TextPainter _text(String value) => TextPainter(
@@ -210,7 +214,14 @@ class _PriceTrendPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final plotWidth = size.width - _leftPad;
+    final labels = [
+      for (var i = 0; i <= 2; i++)
+        _text('${(min + (max - min) * i / 2).toStringAsFixed(2)} $unit'),
+    ];
+    final leftPad =
+        labels.map((l) => l.width).reduce((a, b) => a > b ? a : b) + _labelGap;
+
+    final plotWidth = size.width - leftPad;
     final plotHeight = size.height - _bottomPad;
     if (plotWidth <= 0 || plotHeight <= 0) return;
 
@@ -223,18 +234,32 @@ class _PriceTrendPainter extends CustomPainter {
       ..color = gridColor
       ..strokeWidth = 1;
     for (var i = 0; i <= 2; i++) {
-      final value = min + (max - min) * i / 2;
-      final position = y(value);
+      final position = y(min + (max - min) * i / 2);
       canvas.drawLine(
-        Offset(_leftPad, position),
+        Offset(leftPad, position),
         Offset(size.width, position),
         grid,
       );
-      final label = _text('${value.toStringAsFixed(2)} $unit');
+      final label = labels[i];
       label.paint(
         canvas,
-        Offset(_leftPad - label.width - 6, position - label.height / 2),
+        Offset(leftPad - label.width - _labelGap, position - label.height / 2),
       );
+    }
+
+    // Zeitachse: erste und letzte Woche. Ohne sie zeigt das Bild einen
+    // Verlauf, aber über keinen erkennbaren Zeitraum — und je nach Fenster
+    // sind das drei Monate oder ein halbes Jahr.
+    final span = lines.values.firstWhere(
+      (points) => points.length >= 2,
+      orElse: () => const [],
+    );
+    if (span.length >= 2) {
+      final first = _text(_day(span.first.week.monday));
+      final last = _text(_day(span.last.week.monday));
+      final baseline = size.height - first.height;
+      first.paint(canvas, Offset(leftPad, baseline));
+      last.paint(canvas, Offset(size.width - last.width, baseline));
     }
 
     for (final entry in lines.entries) {
@@ -248,8 +273,8 @@ class _PriceTrendPainter extends CustomPainter {
         ..style = PaintingStyle.stroke;
 
       for (var i = 0; i < points.length - 1; i++) {
-        final from = Offset(_leftPad + i * step, y(points[i].value));
-        final to = Offset(_leftPad + (i + 1) * step, y(points[i + 1].value));
+        final from = Offset(leftPad + i * step, y(points[i].value));
+        final to = Offset(leftPad + (i + 1) * step, y(points[i + 1].value));
         // Ein Abschnitt gilt als „nicht gemessen", sobald einer seiner
         // beiden Enden aus der Konstante stammt: Die Linie dorthin ist
         // erfunden, auch wenn sie an einem echten Wert beginnt.
@@ -268,6 +293,11 @@ class _PriceTrendPainter extends CustomPainter {
       }
     }
   }
+
+  /// „16.02." — kurz genug, dass beide Enden nebeneinander passen.
+  static String _day(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}.'
+      '${date.month.toString().padLeft(2, '0')}.';
 
   void _dashed(Canvas canvas, Offset from, Offset to, Paint paint) {
     final delta = to - from;
