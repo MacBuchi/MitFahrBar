@@ -10,11 +10,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/price_series.dart';
-import '../../core/widgets/price_chart.dart';
 import '../../data/providers.dart';
-import '../../models/app_settings.dart';
 import '../../models/price_area.dart';
+import 'price_history_charts.dart';
 
 class PricesScreen extends ConsumerWidget {
   const PricesScreen({super.key});
@@ -176,15 +174,6 @@ class _PriceOverview extends ConsumerStatefulWidget {
 class _PriceOverviewState extends ConsumerState<_PriceOverview> {
   bool _busy = false;
 
-  /// Kleinstes Fenster des Diagramms. Nach hinten wächst es bis zur
-  /// ältesten Woche, für die es Werte gibt — ein Nachfüll-Lauf
-  /// (`tool/import_fuel_history.py`) trägt Jahre ein, und ein festes
-  /// Fenster hätte sie unsichtbar gemacht: Der Import wäre gelaufen und
-  /// man hätte nichts davon gesehen. Nach unten bleibt die Grenze stehen,
-  /// damit eine frisch eingerichtete Gruppe eine Kurve sieht und nicht
-  /// einen Punkt.
-  static const _minWeeks = 26;
-
   Future<void> _sampleNow() async {
     setState(() => _busy = true);
     // Der Knopf meldet keinen Erfolg, den er nicht geprüft hat: Die Function
@@ -208,8 +197,6 @@ class _PriceOverviewState extends ConsumerState<_PriceOverview> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final weeks = ref.watch(priceWeeksProvider);
-    final settings = ref.watch(settingsProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -233,75 +220,10 @@ class _PriceOverviewState extends ConsumerState<_PriceOverview> {
           label: const Text('Jetzt abfragen'),
         ),
         const SizedBox(height: 24),
-        if (weeks.hasError || settings.hasError)
-          const _Message(text: 'Die Wochenwerte konnten nicht geladen werden.')
-        else if (weeks.isLoading || settings.isLoading)
-          const Center(child: CircularProgressIndicator())
-        else
-          ..._charts(
-            context,
-            stored: weeks.value ?? const [],
-            settingsValue: settings.value!,
-          ),
-        const SizedBox(height: 24),
-        // Pflichtangabe der Quelle, nicht Höflichkeit: Die Daten stehen unter
-        // CC BY 4.0 und stammen aus der Markttransparenzstelle für
-        // Kraftstoffe.
-        Text(
-          'Preise: Tankerkönig-Spritpreis-API (CC BY 4.0), Daten der '
-          'Markttransparenzstelle für Kraftstoffe. Strompreise kommen aus '
-          'euren Parametern, nicht aus dem Netz.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
+        // Verläufe + Quellenangabe: dasselbe Widget wie die Sektion
+        // „Spritpreise" der Statistik-Seite.
+        const PriceHistoryCharts(),
       ],
     );
-  }
-
-  List<Widget> _charts(
-    BuildContext context, {
-    required List<PricePoint> stored,
-    required AppSettings settingsValue,
-  }) {
-    final theme = Theme.of(context);
-    // Beide Enden richten sich nach den Daten — Begründung steht bei
-    // `chartWindow`, und dort ist sie auch geprüft.
-    final (from, to) = chartWindow(
-      stored: stored,
-      now: DateTime.now(),
-      minWeeks: _minWeeks,
-    );
-
-    Map<PriceSeries, List<PricePoint>> build(List<PriceSeries> series) => {
-      for (final entry in series)
-        entry: weeklySeries(
-          series: entry,
-          from: from,
-          to: to,
-          stored: stored,
-          settings: settingsValue,
-        ),
-    };
-
-    return [
-      Text('Kraftstoff', style: theme.textTheme.titleSmall),
-      const SizedBox(height: 8),
-      PriceTrendChart(
-        lines: build(const [
-          PriceSeries.diesel,
-          PriceSeries.e5,
-          PriceSeries.e10,
-        ]),
-        unit: '€/l',
-      ),
-      const SizedBox(height: 24),
-      Text('Strom', style: theme.textTheme.titleSmall),
-      const SizedBox(height: 8),
-      PriceTrendChart(
-        lines: build(const [PriceSeries.housePower, PriceSeries.chargingPower]),
-        unit: '€/kWh',
-      ),
-    ];
   }
 }

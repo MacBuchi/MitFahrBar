@@ -15,6 +15,8 @@ import '../core/push_messaging.dart';
 import '../core/price_series.dart';
 import '../core/push_outbox.dart';
 import '../core/share_text.dart';
+import '../core/stats_data.dart';
+import '../core/stats_insights.dart';
 import '../core/supabase_config.dart';
 import '../core/update_check.dart';
 import '../models/app_settings.dart';
@@ -392,6 +394,43 @@ final activeRankingProvider = FutureProvider<List<RankedCandidate>>((
       if (p.active) p.id,
   ];
   return rankPresent(activeIds, stats, settings);
+});
+
+/// Fahrten je Woche für die Statistik-Seite — bewusst OHNE das Preisarchiv:
+/// `savingsChartProvider` ist `null`, solange Preise fehlen; die Frage „wann
+/// wurde gefahren" braucht keinen Preis, also darf ihre Karte nicht mit dem
+/// Preisabruf verschwinden.
+final weeklyTripBarsProvider = Provider<WeeklyTripBars?>((ref) {
+  final trips = ref.watch(tripsProvider).value;
+  if (trips == null) return null;
+  return weeklyTripBars(trips, now: ref.watch(nowProvider)());
+});
+
+/// Die rotierten Insight-Karten der Statistik-Seite — leer, solange etwas
+/// lädt. Jede Karte erscheint nur, wenn ihre Zahl berechenbar ist; die
+/// „Sparsamste Woche" fehlt ohne Preise schlicht, wie alles am Preisarchiv.
+final statsInsightsProvider = Provider<List<StatsInsight>>((ref) {
+  final trips = ref.watch(tripsProvider).value;
+  final persons = ref.watch(personsProvider).value;
+  final settings = ref.watch(settingsProvider).value;
+  final stats = ref.watch(statsProvider).value;
+  if (trips == null || persons == null || settings == null || stats == null) {
+    return const [];
+  }
+  final chart = ref.watch(savingsChartProvider);
+  final now = ref.watch(nowProvider)();
+  final names = {for (final person in persons) person.id: person.name};
+
+  final available = <StatsInsight>[];
+  void add(StatsInsight? insight) {
+    if (insight != null) available.add(insight);
+  }
+
+  add(distanceInsight(stats, settings));
+  if (chart != null) add(bestWeekInsight(chart));
+  add(kmHeroInsight(trips, settings, names, now: now));
+  add(streakInsight(trips));
+  return rotateInsights(available, now: now);
 });
 
 /// Wochenplan der zu planenden Woche, inklusive Fahrer-Vorschlägen.

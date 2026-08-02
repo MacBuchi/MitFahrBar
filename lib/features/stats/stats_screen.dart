@@ -1,4 +1,8 @@
-/// stats_screen.dart – Kennzahlen pro Person (Punkte, Quote, km, Ersparnis).
+/// stats_screen.dart – Die Statistik als Chart-Seite (seit v0.56.0, nach dem
+/// Design-Konzept „MitFahrBar Statistik Konzept"): Insight-Karten zuoberst
+/// („Kleine Karten ÜBER der Statistik", sagt das Konzept wörtlich), dann
+/// Fahrten & Ersparnis, Ringe, Spritpreise, Unterwegs-Balken + Heatmap —
+/// und am Ende unverändert die Zahlen-Karten je Person.
 library;
 
 import 'package:flutter/material.dart';
@@ -10,6 +14,8 @@ import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/app_settings.dart';
 import '../../models/person.dart';
+import 'insight_cards.dart';
+import 'stats_cards.dart';
 
 class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
@@ -71,8 +77,30 @@ class _StatsList extends StatelessWidget {
       });
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: AppSpacing.l),
+      padding: const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.l),
       children: [
+        const InsightRow(),
+        const WeeklyTripsCard(),
+        const GroupSavingsCard(),
+        const SavingsDonutCard(),
+        const Co2Card(),
+        // Die Preishistorie erklärt die Ersparnis-Zahlen darüber; die
+        // Verwaltung bleibt auf /prices (Einstellungen → Spritpreise).
+        const PricesSectionCard(),
+        const ParticipationDetailCard(),
+        const WeekdayHeatmapCard(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.xs,
+          ),
+          child: Text(
+            'Alle Zahlen je Person',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ),
         for (final person in sorted)
           if (stats[person.id] case final PersonStats s)
             _PersonCard(
