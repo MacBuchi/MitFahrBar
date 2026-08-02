@@ -237,6 +237,74 @@ abstract final class AppPush {
   static const action = Color(0xFF8EDFEF);
 }
 
+/// Farben der Statistik-Seite — jedes Paar ist gemessen, nicht geschätzt
+/// (`test/stats_contrast_test.dart`; Text 4,5:1, Grafik 3,0:1 gegen die
+/// Kartenfläche `surfaceContainerLow` des jeweiligen Themes).
+///
+/// Bewusst NICHT `AppColors.eco` auf hellen Karten: Das Eco-Grün trägt dort
+/// nur 1,85:1 — hell übernimmt der dunklere Mitfahr-Ton `passenger`.
+abstract final class AppStatsColors {
+  AppStatsColors._();
+
+  /// Text eines positiven Saldos („+5") — Grün, das auf der Karte lesbar ist.
+  static Color saldoPositive(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? AppColors.eco // 9,28:1 auf der dunklen Karte
+      : const Color(0xFF047857); // 4,95:1 auf der hellen
+
+  /// Text eines negativen Saldos („−6") — warm, aber kein Alarm-Rot: Ein
+  /// Minus ist hier „ist bald dran", kein Fehler.
+  static Color saldoNegative(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFFFF8A4C) // 7,36:1 — der Ton des Update-Banners
+      : AppColors.oneWay; // 4,53:1
+
+  /// Der Rekord-Balken im Wochen-Diagramm (Grafik, Markenfamilie).
+  static Color record(Brightness brightness) =>
+      brightness == Brightness.dark ? AppColors.brandBright : AppColors.brand;
+
+  /// Grün als Grafikton: aktuelle Wochen-Balken, CO₂-Ring, Ersparnis-Kurve.
+  static Color eco(Brightness brightness) =>
+      brightness == Brightness.dark ? AppColors.eco : AppColors.passenger;
+}
+
+/// Töne der Insight-Karten („Überraschende Insights", `features/stats/`).
+///
+/// Zwei Verläufe im [BannerTone]-Muster, je Karte EIN Akzent (die Regel des
+/// Design-Sets). Wie [AppPush] in hell und dunkel derselbe Ton: Die Karten
+/// SIND die Farbfläche, sie liegen nicht auf einer.
+///
+/// [bright] holt den einst abgelehnten Endpunkt `#22D3EE` legal zurück:
+/// Abgelehnt war WEISS darauf (1,81:1) — die dunkle Marken-Tinte trägt
+/// 9,33:1. [deep] ist bewusst nicht derselbe Verlauf wie das Fahrt-Banner,
+/// sonst läse sich eine Insight-Karte als „nächste Fahrt".
+abstract final class AppInsightTones {
+  AppInsightTones._();
+
+  static const bright = BannerTone(
+    surface: AppColors.brandBright, // der schlechteste Stopp
+    foreground: AppColors.ink, // 9,33:1 dort, 11,64:1 am hellen Stopp
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [AppColors.accent, AppColors.brandBright],
+    ),
+  );
+
+  static const deep = BannerTone(
+    surface: Color(0xFF0E7490), // der schlechteste Stopp: Weiß 5,36:1
+    foreground: Color(0xFFFFFFFF),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF0E7490), Color(0xFF164E63)],
+    ),
+  );
+
+  /// Ton nach Karten-Index — deterministisch alternierend, kein Zufall.
+  static BannerTone byIndex(int index) => index.isEven ? deep : bright;
+}
+
 /// Farben der Stimmungs-Gesichter aus dem Design-Set „MitFahrBar Smiley Set".
 ///
 /// Die Vorlage ist in oklch notiert, was Flutter nicht kennt; die Werte hier
