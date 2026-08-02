@@ -495,6 +495,56 @@ void main() {
       );
     });
 
+    test('das Perzentil heißt in SQL wie in Dart', () {
+      final dart = File('lib/core/price_series.dart').readAsStringSync();
+      final constant = RegExp(
+        r'const double defaultPercentile = ([0-9.]+);',
+      ).firstMatch(dart);
+      expect(constant, isNotNull, reason: 'defaultPercentile fehlt in Dart.');
+      final fraction = double.parse(constant!.group(1)!);
+      expect(fraction, 0.10);
+
+      expect(
+        sqlOnly(schema),
+        contains(
+          'percentile_cont(${fraction.toStringAsFixed(2)}) within group',
+        ),
+        reason:
+            'Der Verdichtungslauf rechnet in SQL, der spätere Import der '
+            'Vergangenheit in Python, das Zusammenführen in Dart — EINE '
+            'Implementierung ist nicht zu haben, EINE Definition schon. '
+            'Driften die Zahlen auseinander, entsteht an der Naht zwischen '
+            'importierter und gemessener Woche eine Stufe, die keine '
+            'Preisänderung ist, und niemand könnte sie erklären. Dasselbe '
+            'Muster wie beim Push-Digest.',
+      );
+    });
+
+    test('die Verdichtung rechnet die Woche in deutscher Zeit', () {
+      final function = RegExp(
+        r'create or replace function public\.rollup_fuel_weeks\(\)(.*?)\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(function, isNotNull, reason: 'rollup_fuel_weeks fehlt.');
+      final body = sqlOnly(function!.group(1)!);
+      expect(
+        RegExp(r'isoyear from .*Europe/Berlin').hasMatch(body),
+        isTrue,
+        reason:
+            'Eine Messung Sonntag 23:30 UTC ist in Deutschland schon Montag '
+            'und gehört in die Folgewoche. In UTC gerechnet landete sie in '
+            'der falschen — und die Abtastzeiten sind eine Cron-Zeile, die '
+            'irgendwann jemand ändert.',
+      );
+      expect(
+        body,
+        contains('delete from public.price_sample'),
+        reason:
+            'Die Rohschicht ist Zwischenprodukt, kein Archiv — ohne das '
+            'Aufräumen wächst sie unbegrenzt weiter.',
+      );
+    });
+
     test('die Function ist in config.toml deklariert', () {
       final config = File('supabase/config.toml').readAsStringSync();
       expect(

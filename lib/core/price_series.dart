@@ -146,6 +146,15 @@ class PriceSample {
 /// Perzentil mit linearer Interpolation zwischen den Rangwerten.
 ///
 /// [fraction] 0.1 heißt: der Wert, den 10 % der Stichproben unterbieten.
+///
+/// **Hat bewusst keinen Aufrufer in `lib/`.** Verdichtet wird in SQL
+/// (`rollup_fuel_weeks`), weil `percentile_cont` genau dies rechnet und der
+/// Lauf neben den Daten sitzt; der spätere Import der Vergangenheit läuft in
+/// Python. Eine einzige Implementierung ist damit gar nicht zu haben — eine
+/// einzige *Definition* schon, und die steht hier: [defaultPercentile] ist
+/// die Zahl, an die `test/schema_test.dart` das SQL festnagelt, und die
+/// Tests dieser Funktion sind die ausführbare Beschreibung dessen, was
+/// `percentile_cont` tun muss. Wer sie löscht, nimmt der Zahl ihr Zuhause.
 double percentile(List<double> values, double fraction) {
   if (values.isEmpty) {
     throw ArgumentError.value(values, 'values', 'darf nicht leer sein');
