@@ -1,0 +1,60 @@
+name: Fuel History Backfill
+
+# Fills past weeks in `price_week` from the Tankerkönig price archive, for
+# every region that has driven weeks without a price row.
+#
+# Deliberately manual (`workflow_dispatch`) and not scheduled: a backfill is
+# needed when a group is set up or imports its past trips by CSV — a rare,
+# operator-driven event. A nightly schedule would need a marker table for
+# weeks the archive will never have, otherwise it would re-download the same
+# seven files forever. That machinery gets built when a second group makes it
+# real, not before.
+#
+# The run is bounded by `max_weeks`. Nothing is lost when it stops early: the
+# work list is derived from the database (driven week without a price row),
+# so the next run simply continues. Inactive until the secrets exist.
+on:
+  workflow_dispatch:
+    inputs:
+      max_weeks:
+        description: "Wochen pro Lauf (jede Woche = 7 Tagesdateien à ~30 MB)"
+        required: false
+        default: "100"
+      dry_run:
+        description: "Nur die Lücke anzeigen, nichts laden"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # 100 Wochen sind ~700 Dateien à 30 MB. Gemessen ~30 MB/s beim Archiv,
+    # das Parsen dominiert — rund 25 Minuten. Das Dreifache als Reserve.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - name: Backfill fuel price history
+        env:
+          # Der Job entscheidet über abgeschlossene Wochen — in deutscher
+          # Zeit, wie rollup_fuel_weeks() auch.
+          TZ: Europe/Berlin
+          SUPABASE_URL: https://azrlhlcxhpwmxcinjovp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TANKERKOENIG_ARCHIVE_USER: ${{ secrets.TANKERKOENIG_ARCHIVE_USER }}
+          TANKERKOENIG_ARCHIVE_PASSWORD: ${{ secrets.TANKERKOENIG_ARCHIVE_PASSWORD }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$TANKERKOENIG_ARCHIVE_PASSWORD" ]; then
+            echo "::notice::Secrets für den Archivzugang fehlen — übersprungen."
+            exit 0
+          fi
+          python3 tool/import_fuel_history.py \
+            --max-weeks "${{ inputs.max_weeks }}" \
+            ${{ inputs.dry_run && '--dry-run' || '' }}

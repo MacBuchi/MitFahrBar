@@ -81,13 +81,63 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   der Screen beide Werte über `AppSettings.copyWith` unverändert durch —
   `test/flows/settings_flow_test.dart` nagelt genau das fest. Wer dort ein
   Feld ergänzt, prüft zuerst, ob es die Punkte berührt.
-- **Spritpreise holt die App bewusst nicht aus dem Netz** (entschieden
-  2026-07-24, Teil 3 von #91). Ein Preisdienst (Tankerkönig) braucht einen
-  API-Schlüssel, der nicht in einen offenen Client darf — also eine
-  weitere Edge Function samt Secret und Cache, für eine Kennzahl, die
-  ausdrücklich „ganz grob" sein soll. Dieselbe Linie wie „kein Sentry"
-  und „kein Captcha-Dienst". Der Screen sagt das dem Nutzer auch. Wird es
-  je gebaut, ist die Function der Ort — nie der Client.
+- **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
+  wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
+  „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von
+  damals endete mit „Wird es je gebaut, ist die Function der Ort — nie der
+  Client", und dabei bleibt es: Der API-Schlüssel liegt in
+  `supabase secrets` und wird von `supabase/functions/fuel-sample/`
+  benutzt. Im Client stünde er in `main.dart.js` lesbar, verstieße gegen
+  die Nutzungsbedingungen (die GitHub ausdrücklich nennen) und stürbe am
+  Minutenlimit, sobald ein zweites Gerät fragt — das Limit hängt am
+  Schlüssel, nicht am Gerät. Was die Absage trug, war die Kosten-Kennzahl
+  („ganz grob"); die ist weiterhin **nicht** umgestellt. Gebaut ist die
+  Ablage, nicht die Umrechnung.
+  - **Ein Wochenwert je Gruppe und Sorte, und das ist das 10. Perzentil.**
+    Nicht das Minimum — man tankt nie beim billigsten Anbieter zum
+    billigsten Zeitpunkt; im 20-km-Umkreis um Bad Rappenau wandert das
+    Minimum um 11 ct, sobald der Kreis wächst, das Perzentil steht still.
+    Die Zahl steht an **drei** Stellen (`defaultPercentile` in
+    `core/price_series.dart`, `percentile_cont(0.10)` in
+    `rollup_fuel_weeks()`, `PERCENTILE` in `tool/import_fuel_history.py`) —
+    eine Implementierung ist bei Dart + SQL + Python nicht zu haben, eine
+    Definition schon. `test/schema_test.dart` und
+    `test/fuel_history_workflow_test.dart` halten alle drei zusammen.
+  - **Die Stichzeiten sind UTC, nicht Ortszeit.** `pg_cron` rechnet in UTC
+    (`5 5,11,17 * * *`), der Live-Takt tastet im Winter also eine Stunde
+    früher ab. Wer den Nachfüll-Lauf auf feste Ortszeiten stellt — der
+    naheliegende Griff —, stellt im Winterhalbjahr eine andere Frage als
+    die gemessene und baut genau die Stufe an der Naht ein, die das ganze
+    Vorgehen vermeiden soll. Festgenagelt gegen die Cron-Zeile.
+  - **Konstanten werden nie gespeichert, nur beim Lesen eingesetzt und
+    markiert.** Sonst schriebe eine Parameteränderung die Vergangenheit um.
+    Dieselbe Linie wie bei Punkten und Quote.
+  - **Der Nachfüll-Lauf nimmt die Datenbank als Warteschlange**
+    (`tool/import_fuel_history.py` + `.github/workflows/fuel-history.yml`).
+    Der Auftrag ist „Woche mit Fahrt, ohne Zeile in `price_week`" — kein
+    Flag, keine Zustandsdatei, dasselbe Muster wie „die Existenz einer
+    Zeile in `trips` am Tag *ist* die Bestätigung". Deshalb ist der Deckel
+    `--max-weeks` unbedenklich und ein zweiter Lauf automatisch die
+    Fortsetzung. Geschrieben wird mit `resolution=ignore-duplicates`: Ein
+    Nachfüllen kann einen **gemessenen** Wert nie überschreiben, und der
+    ist die genauere Wahrheit über seine Woche.
+    Es gibt bewusst **keinen** `schedule:` — der bräuchte zuerst einen
+    Merker für Wochen, die das Archiv nie haben wird, sonst zöge der Job
+    jede Nacht dieselben sieben Dateien vergeblich. Und die App stößt ihn
+    **nicht** an: Das hieße ein Repo-Token in der Datenbank, und das bleibt
+    ausgeschlossen.
+  - **Zwei Quellen, zwei Lizenzen.** Die Live-API steht unter CC BY 4.0,
+    das historische Archiv unter **CC BY-NC-SA 4.0** — nicht dasselbe.
+    Nicht-kommerziell passt, SA greift nicht (die Wochenwerte bleiben in
+    der Gruppendatenbank), BY steht in README und „Über MitFahrBar". Der
+    Archivzugang ist **persönlich** und sein Passwort ist derselbe Wert wie
+    der API-Schlüssel: ein Leck öffnet beides.
+  - Am Vorgehen ist gemessen, nicht geraten: **alle sieben Tage** einer
+    Woche (nur Mo–Do zöge systematisch bis 1 ct nach unten — Fr/Sa sind die
+    teuren Tage), **nicht ein Tag je Woche** (±2 ct Rauschen in beide
+    Richtungen), **Öffnungszeiten egal** (identische Werte mit und ohne
+    Filter). Wer eine dieser drei Abkürzungen nimmt, spart Bandbreite und
+    zahlt mit einer Stufe im Diagramm.
 - **Personen werden nie gelöscht, nur inaktiv gesetzt.** `person_id` in
   `trip_participations` hängt an `ON DELETE CASCADE` — ein Löschen entfernt
   also stillschweigend alle Teilnahmen dieser Person und verändert damit

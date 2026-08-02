@@ -165,6 +165,12 @@ Bedingungen mit, und die verlangen eine Nennung:
 - **Spritpreise:** [Tankerkönig-Spritpreis-API](https://creativecommons.tankerkoenig.de/),
   lizenziert unter [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) —
   Daten der Markttransparenzstelle für Kraftstoffe (MTS-K).
+- **Spritpreise der Vergangenheit:** das historische Preisarchiv von
+  Tankerkönig, lizenziert unter
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) — also
+  ausdrücklich *nicht* dieselbe Lizenz wie die Live-API. MitFahrBar ist
+  nicht-kommerziell, und die daraus errechneten Wochenwerte bleiben in der
+  Datenbank der jeweiligen Gruppe.
 - **Ortssuche:** [OpenStreetMap](https://www.openstreetmap.org/copyright)
   (© OpenStreetMap-Mitwirkende, ODbL) über Nominatim.
 
