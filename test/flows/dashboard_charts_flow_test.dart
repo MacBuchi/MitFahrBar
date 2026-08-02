@@ -157,7 +157,14 @@ void main() {
       );
       ids.add(person.id);
     }
-    await data.createTrip(DateTime.now(), {
+    // An [testToday], NICHT an DateTime.now(): Die App läuft in Flow-Tests an
+    // einer festen Uhr, und `tripsPerMonth` zählt bewusst nie über den
+    // laufenden Monat hinaus. Sobald der echte Kalender den Monat von
+    // [testToday] verlässt, liegt eine „heutige" Fahrt aus Sicht der App in
+    // der Zukunft, alle Säulen stehen auf 0 und die Karte blendet sich aus.
+    // Genau so ist dieser Test am 01.08.2026 von selbst rot geworden, ohne
+    // dass jemand Code angefasst hatte.
+    await data.createTrip(testToday, {
       ids[0]: ParticipationStatus.driver,
       ids[1]: ParticipationStatus.passenger,
     });
