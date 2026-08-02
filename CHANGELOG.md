@@ -4,6 +4,35 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.53.0] – 2026-08-02
+
+### Neu
+
+- **Die App schaut sich jetzt selbst an, was Sprit kostet** — noch in
+  Arbeit, und bewusst ohne Wirkung auf eure Zahlen. Unter *Parameter*
+  gibt es den neuen Weg „Spritpreise ansehen": Ihr sagt einmal, wo ihr
+  tankt, und die App sieht sich dreimal täglich die Tankstellen im
+  Umkreis von 20 Kilometern an. Daraus entsteht je Woche **ein** Preis
+  für Diesel, Super E5 und Super E10 — nicht der billigste, den man
+  ohnehin nie erwischt, sondern ein günstiger: der Wert, den zehn
+  Prozent aller Messungen unterbieten.
+- **Warum das noch nichts kostet oder spart:** Die Ersparnis in der
+  Statistik rechnet weiter mit den Preisen, die ihr von Hand pflegt.
+  Umgestellt wird erst, wenn für **jede** gefahrene Woche ein Preis
+  vorliegt — vorher wäre es eine Rechnung mit Löchern. Im Diagramm seht
+  ihr genau das: Wochen ohne Messung sind gestrichelt und heller
+  gezeichnet, mit dem Hinweis „aus den Parametern".
+- **Strom bleibt vorerst Handarbeit.** Neu ist, dass ihr Hausstrom und
+  Ladesäule getrennt eintragen könnt, ebenso Super E5 und Super E10 —
+  bisher gab es je einen gemeinsamen Wert. Eure bisherigen Angaben
+  bleiben; E10 startet zehn Cent unter E5, die Ladesäule mit 0,59 €.
+
+- **Unter „Über MitFahrBar" steht jetzt, woher die Daten kommen** —
+  Spritpreise von der Tankerkönig-Spritpreis-API (CC BY 4.0, Daten der
+  Markttransparenzstelle für Kraftstoffe), Ortssuche über OpenStreetMap.
+  Beide Lizenzen verlangen die Nennung; sie gehört dorthin, wo man nach
+  Herkunft sucht, und nicht nur auf den Screen, der die Daten zeigt.
+
 ## [0.52.0] – 2026-07-30
 
 ### Neu

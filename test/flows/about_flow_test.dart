@@ -107,4 +107,21 @@ void main() {
     expect(find.text('Version 1.0.0'), findsNothing);
     expect(find.text('Version 2.0.0 verfügbar'), findsOneWidget);
   });
+  testWidgets('die Datenquellen sind genannt — das ist Lizenzpflicht', (
+    tester,
+  ) async {
+    await pumpApp(tester, _backend());
+    await _login(tester);
+    await _openAbout(tester);
+
+    // Beide Quellen verlangen eine Nennung: CC BY 4.0 bei den Spritpreisen,
+    // ODbL bei OpenStreetMap. Verschwindet sie still, ist das kein
+    // Schönheitsfehler, sondern ein Lizenzverstoß — und niemandem fiele es
+    // auf, weil nichts kaputtgeht.
+    expect(find.text('Woher die Daten kommen'), findsOneWidget);
+    expect(find.textContaining('Tankerkönig'), findsOneWidget);
+    expect(find.textContaining('CC BY 4.0'), findsOneWidget);
+    expect(find.textContaining('OpenStreetMap'), findsOneWidget);
+    expect(find.textContaining('ODbL'), findsOneWidget);
+  });
 }

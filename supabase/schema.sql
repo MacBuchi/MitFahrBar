@@ -350,6 +350,88 @@ create table public.group_admins (
   primary key (user_id, group_id)
 );
 
+-- Preisarchiv: EIN Wert je Gruppe und ISO-Woche für Diesel, E5, E10,
+-- Hausstrom und Tankstellenstrom. Die drei Kraftstoffe werden gemessen, die
+-- beiden Strom-Reihen sind vorerst Konstanten aus `settings`.
+--
+-- Die Kosten-/Ersparnisrechnung rührt das nicht an: `fairness.dart` und
+-- `computeStats` sehen diese Tabellen nie. Solange nicht für JEDE gefahrene
+-- Woche ein Wert vorliegt, wäre eine Umstellung eine Rechnung mit Löchern.
+
+-- Wo diese Gruppe tankt. Kein Eintrag = Feature aus. `region_key` fasst nahe
+-- beieinander liegende Gruppen zusammen (zwei Nachkommastellen ≈ 1 km): Zwei
+-- Gruppen derselben Gegend teilen sich eine Abfrage statt zwei.
+create table public.price_area (
+  group_id uuid primary key default auth.uid()
+    references public.groups(id) on delete cascade,
+  label text not null check (char_length(label) between 1 and 200),
+  lat numeric(9, 6) not null check (lat between -90 and 90),
+  lng numeric(9, 6) not null check (lng between -180 and 180),
+  -- Tankerkönig deckelt die Umkreissuche bei 25 km.
+  radius_km numeric(4, 1) not null default 20
+    check (radius_km between 1 and 25),
+  region_key text generated always as (
+    round(lat, 2)::text || ',' || round(lng, 2)::text || ',' ||
+    round(radius_km, 1)::text
+  ) stored,
+  updated_at timestamptz not null default now()
+);
+
+create index price_area_region_idx on public.price_area (region_key);
+
+-- Rohschicht: was die API zu einem Zeitpunkt gemeldet hat. Bewusst OHNE
+-- group_id — hier stehen keine Gruppendaten, sondern öffentliche Marktdaten,
+-- die zufällig für eine Gruppe abgefragt wurden. Der Riegel ist derselbe wie
+-- bei push_outbox: null Policies, revoke all. Kein Client liest sie je.
+--
+-- Die Werte sind Zwischenprodukt, kein Archiv: Sobald eine Woche verdichtet
+-- ist, werden sie weggeräumt. Dieselben sieben Tage wären zugleich die
+-- Grundlage eines späteren „Tankdaumens" (aktueller Preis gegen das
+-- Perzentil der Region) — deshalb hängt die Tabelle an der Region.
+create table public.price_sample (
+  region_key text not null,
+  captured_at timestamptz not null,
+  station_id uuid not null,
+  -- Nullable je Sorte: Nicht jede Station führt alle drei. Ein fehlender
+  -- Wert darf nicht als 0 in ein Perzentil laufen.
+  e5 numeric(5, 3) check (e5 > 0),
+  e10 numeric(5, 3) check (e10 > 0),
+  diesel numeric(5, 3) check (diesel > 0),
+  primary key (region_key, captured_at, station_id)
+);
+
+create index price_sample_sweep_idx
+  on public.price_sample (region_key, captured_at);
+
+-- Die Wochenschicht — der Vertrag, in dem später gerechnet wird. Der Wert
+-- ist das 10. Perzentil aller Stichproben der Woche, nicht das Minimum: Man
+-- tankt nie genau beim billigsten Anbieter zum billigsten Zeitpunkt. Es ist
+-- zudem die einzige Definition, die für gemessene UND später importierte
+-- Daten dieselbe Frage beantwortet — sonst entstünde an der Naht zwischen
+-- Import und Messung eine Stufe, die keine Preisänderung ist.
+--
+-- Hausstrom und Tankstellenstrom stehen hier NICHT: Konstanten werden nicht
+-- gespeichert, sonst müsste eine Parameteränderung die Historie umschreiben
+-- und eine abgelegte Konstante sähe später aus wie eine Messung. Der
+-- Lesepfad (core/price_series.dart) füllt und markiert sie.
+create table public.price_week (
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  iso_year int not null check (iso_year between 2014 and 2100),
+  iso_week int not null check (iso_week between 1 and 53),
+  series text not null check (series in ('e5', 'e10', 'diesel')),
+  value numeric(6, 3) not null check (value > 0),
+  -- Bei wenigen Stationen ist ein 10-%-Perzentil faktisch „der günstigste
+  -- von dreien"; das soll die Oberfläche sagen können.
+  sample_count int not null check (sample_count > 0),
+  station_count int not null check (station_count > 0),
+  -- `mixed` entsteht genau einmal: an der Naht zwischen importierter
+  -- Vergangenheit und gemessener Gegenwart.
+  origin text not null check (origin in ('measured', 'imported', 'mixed')),
+  computed_at timestamptz not null default now(),
+  primary key (group_id, iso_year, iso_week, series)
+);
+
 -- --------------------------------------------------------------- Funktionen
 
 -- SECURITY-DEFINER-Helfer: liest groups ohne RLS-Rekursion. Hieran hängt
@@ -850,6 +932,155 @@ select cron.schedule(
   $$select public.flush_due_push()$$
 );
 
+-- Abtast-Takt fürs Preisarchiv: dreimal am Tag eine Umkreisabfrage je
+-- Region. Feste Uhrzeiten statt „alle acht Stunden", weil der Tagesgang der
+-- Spritpreise ausgeprägt ist (früh teuer, abends billig) und weil nur feste
+-- Zeitpunkte sich später aus dem Preiswechsel-Archiv rekonstruieren lassen.
+-- pg_cron rechnet in UTC: 05:05/11:05/17:05 sind im Sommer 07:05/13:05/19:05,
+-- im Winter eine Stunde früher — die Verschiebung ist in Kauf genommen. Die
+-- Minute 5 statt 0, weil die Nutzungsbedingungen um versetzte Zeiten bitten.
+--
+-- `push_functions_url` und `push_service_key` werden mitbenutzt: Beides ist
+-- Infrastruktur und kein Push-Detail. Das Job-Geheimnis ist dagegen eigen —
+-- ein Leck im Push-Weg soll nicht auch diesen öffnen.
+--   select vault.create_secret('<FUEL_JOB_SECRET>', 'fuel_job_secret');
+create or replace function public.sample_fuel_prices()
+returns void language plpgsql security definer
+set search_path = public, vault, net as $$
+declare
+  base_url text;
+  job_secret text;
+  service_key text;
+begin
+  select decrypted_secret into base_url
+    from vault.decrypted_secrets where name = 'push_functions_url';
+  select decrypted_secret into job_secret
+    from vault.decrypted_secrets where name = 'fuel_job_secret';
+  select decrypted_secret into service_key
+    from vault.decrypted_secrets where name = 'push_service_key';
+  if base_url is null or job_secret is null or service_key is null then
+    return;
+  end if;
+
+  -- Keine Region hinterlegt heißt: nicht anklopfen. Solange keine Gruppe das
+  -- Feature eingerichtet hat, wird kein fremder Dienst befragt.
+  if not exists (select 1 from public.price_area) then
+    return;
+  end if;
+
+  perform net.http_post(
+    url := base_url || '/fuel-sample',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-fuel-secret', job_secret,
+      'apikey', service_key
+    ) || case
+      when service_key like 'eyJ%'
+        then jsonb_build_object('Authorization', 'Bearer ' || service_key)
+      else '{}'::jsonb
+    end,
+    body := '{}'::jsonb
+  );
+end;
+$$;
+
+revoke all on function public.sample_fuel_prices() from anon, authenticated;
+
+select cron.schedule(
+  'sample-fuel-prices',
+  '5 5,11,17 * * *',
+  $$select public.sample_fuel_prices()$$
+);
+
+-- Verdichtung: aus den Stichproben wird je Gruppe, ISO-Woche und Sorte EIN
+-- Wert — das 10. Perzentil, nicht das Minimum (man tankt nie genau beim
+-- billigsten Anbieter zum billigsten Zeitpunkt).
+--
+-- Hier in SQL statt in Dart, weil `percentile_cont` zeichengenau dieselbe
+-- Definition ist wie `percentile` in lib/core/price_series.dart und der
+-- spätere Import der Vergangenheit ohnehin in Python läuft: EINE
+-- Implementierung ist nicht zu haben, EINE Definition schon.
+-- test/schema_test.dart hält den Anteil mit `defaultPercentile` zusammen.
+--
+-- Gerechnet wird in deutscher Zeit: Eine Messung Sonntag 23:30 UTC ist in
+-- Deutschland schon Montag und gehört in die Folgewoche.
+create or replace function public.rollup_fuel_weeks()
+returns void language plpgsql security definer
+set search_path = public as $$
+declare
+  -- Ab Montag der VORwoche: die laufende wächst noch, die abgeschlossene
+  -- wird einmal mehr gerechnet, damit eine späte Sonntagsstichprobe zählt.
+  from_local timestamp := date_trunc(
+    'week', (now() at time zone 'Europe/Berlin') - interval '7 days'
+  );
+begin
+  with unpivoted as (
+    -- Eine Zeile je (Stichprobe, Sorte); fehlende Sorten fallen raus statt
+    -- als 0 mitzuzählen — eine Null zöge das Perzentil gegen den Boden.
+    select s.region_key,
+           extract(
+             isoyear from s.captured_at at time zone 'Europe/Berlin'
+           )::int as iso_year,
+           extract(
+             week from s.captured_at at time zone 'Europe/Berlin'
+           )::int as iso_week,
+           s.station_id,
+           x.series,
+           x.price
+      from public.price_sample s
+      cross join lateral (values
+        ('e5', s.e5), ('e10', s.e10), ('diesel', s.diesel)
+      ) as x(series, price)
+     where s.captured_at >= (from_local at time zone 'Europe/Berlin')
+       and x.price is not null
+  )
+  insert into public.price_week as w (
+    group_id, iso_year, iso_week, series,
+    value, sample_count, station_count, origin
+  )
+  -- Der Join über `region_key` ist der Grund, warum die Rohschicht an der
+  -- Region hängt: Zwei Gruppen derselben Gegend bekommen eigene
+  -- Wochenzeilen aus EINER Abfrage.
+  select a.group_id, u.iso_year, u.iso_week, u.series,
+         (percentile_cont(0.10) within group (order by u.price))::numeric,
+         count(*),
+         count(distinct u.station_id),
+         'measured'
+    from unpivoted u
+    join public.price_area a on a.region_key = u.region_key
+   group by a.group_id, u.iso_year, u.iso_week, u.series
+  on conflict (group_id, iso_year, iso_week, series) do update
+     set value = excluded.value,
+         sample_count = excluded.sample_count,
+         station_count = excluded.station_count,
+         -- Eine importierte Woche mit zusätzlichen Messungen wird `mixed`
+         -- statt still `measured` — an der Naht soll das Diagramm den
+         -- Übergang zeigen können, statt ihn zu verschweigen.
+         origin = case
+           when w.origin in ('imported', 'mixed') then 'mixed'
+           else excluded.origin
+         end,
+         computed_at = now();
+
+  -- Rohwerte sind Zwischenprodukt, kein Archiv. 21 Tage Abstand: verdichtet
+  -- wird höchstens die Vorwoche, gelöscht erst drei Wochen zurück, damit ein
+  -- ausgefallener Lauf nichts kostet. Die letzten 7 Tage stehen damit immer
+  -- bereit — sie wären die Grundlage eines späteren „Tankdaumens".
+  delete from public.price_sample
+   where captured_at < now() - interval '21 days';
+end;
+$$;
+
+revoke all on function public.rollup_fuel_weeks() from anon, authenticated;
+
+-- Zwanzig Minuten nach dem Abtasten: pg_net schickt asynchron, die
+-- Stichproben treffen erst Sekunden später ein.
+select cron.schedule(
+  'rollup-fuel-weeks',
+  '25 5,11,17 * * *',
+  $$select public.rollup_fuel_weeks()$$
+);
+
 -- --------------------------------------------------------------------- RLS
 
 alter table public.groups              enable row level security;
@@ -942,6 +1173,24 @@ alter table public.error_reports enable row level security;
 create policy error_reports_insert on public.error_reports for insert
   with check (group_id is null or group_id = auth.uid());
 
+-- Preisarchiv: Der Bereich gehört der Gruppe. Die Wochenwerte darf sie nur
+-- LESEN — geschrieben wird allein vom Verdichtungslauf mit service_role,
+-- denn eine gefälschte Preiskurve fiele niemandem auf. Die Rohschicht sieht
+-- niemand: null Policies wie bei push_outbox, Rücknahme des Sammel-Grants
+-- steht unten.
+alter table public.price_area   enable row level security;
+alter table public.price_sample enable row level security;
+alter table public.price_week   enable row level security;
+
+create policy price_area_isolated on public.price_area
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+
+create policy price_week_read on public.price_week
+  for select to authenticated
+  using (group_id = auth.uid() and public.my_group_active());
+
 -- ------------------------------------------------------------------ Grants
 -- Explizit statt Plattform-Default: Neuere Stacks (lokaler CLI-Stack,
 -- Postgres-17-Image) sind „secure by default" und geben Client-Rollen ohne
@@ -968,6 +1217,13 @@ revoke all on public.push_outbox from anon, authenticated;
 -- gehen keinen Client etwas an.
 revoke all on public.error_reports from anon, authenticated;
 grant insert on public.error_reports to anon, authenticated;
+-- Preisarchiv: Die Rohschicht bekommt gar nichts — sie ist Zwischenprodukt
+-- und trägt keine Gruppendaten, es gibt für einen Client nichts darin zu
+-- suchen. Die Wochenwerte nur lesen: Schreiben ist Sache des
+-- Verdichtungslaufs, sonst könnte ein Gerät die Historie fälschen.
+revoke all on public.price_sample from anon, authenticated;
+revoke all on public.price_week from anon, authenticated;
+grant select on public.price_week to authenticated;
 grant usage, select on all sequences in schema public
   to anon, authenticated, service_role;
 grant execute on all functions in schema public

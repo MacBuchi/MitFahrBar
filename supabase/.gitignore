@@ -1,3 +1,11 @@
 # Laufzeit-Artefakte des lokalen Supabase-CLI-Stacks (supabase start).
 .branches
 .temp
+
+# Geheimnisse der Edge Functions für den lokalen Stack: `supabase start` und
+# `supabase functions serve` laden `functions/.env` von selbst. Die Datei
+# gehört NIE ins Repo — der Tankerkönig-API-Key etwa darf laut dessen
+# Nutzungsbedingungen ausdrücklich nicht auf GitHub landen, und in
+# Production steht dasselbe Geheimnis in `supabase secrets`.
+.env
+.env.*

@@ -29,6 +29,9 @@ Beispieldaten.</sub>
   „Kilometerheld".
 - **Dokumentation, kein Chat** – die Absprache bleibt in WhatsApp, die App
   hält fest, was tatsächlich gefahren wurde.
+- **Spritpreise** *(in Arbeit)* – die App merkt sich je Woche einen Preis für
+  Diesel, E5 und E10 aus dem eigenen Umkreis. Sie zeigt ihn nur; die
+  Ersparnis-Rechnung nutzt weiter die selbst gepflegten Werte.
 
 ## Bedienung
 
@@ -150,3 +153,22 @@ App-Icons entstehen aus der Marke mit `tool/brand/build_icons.sh`.
 Datenbank-Schema und Migrationen liegen unter [supabase/](supabase/) und
 werden bei Push auf `main` automatisch eingespielt. Ein Release entsteht durch
 Erhöhen von `version:` in `pubspec.yaml`.
+
+## Lizenz und Datenquellen
+
+Der Code steht unter der [MIT-Lizenz](LICENSE). Nicht daran hängen die
+gebündelten Schriften und die verwendeten Fremddaten — beide bringen eigene
+Bedingungen mit, und die verlangen eine Nennung:
+
+- **Schriften:** Space Grotesk und Manrope stehen unter der SIL Open Font
+  License; ihr Lizenztext wird mitgeliefert.
+- **Spritpreise:** [Tankerkönig-Spritpreis-API](https://creativecommons.tankerkoenig.de/),
+  lizenziert unter [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) —
+  Daten der Markttransparenzstelle für Kraftstoffe (MTS-K).
+- **Ortssuche:** [OpenStreetMap](https://www.openstreetmap.org/copyright)
+  (© OpenStreetMap-Mitwirkende, ODbL) über Nominatim.
+
+Fahrten, Punkte und Statistik entstehen ausschließlich aus den Einträgen der
+Gruppe. Dieselbe Nennung steht in der App unter „Über MitFahrBar" — die
+Lizenzen verlangen sie dort, wo die Daten benutzt werden, nicht nur im Repo.
+

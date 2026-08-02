@@ -16,7 +16,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/supabase_config.dart';
 import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/app_settings.dart';
@@ -199,11 +201,30 @@ class _FormState extends ConsumerState<_Form> {
         ),
         const SizedBox(height: AppSpacing.l),
         Text(
-          'Die Preise pflegt ihr selbst — MitFahrBar holt sie bewusst nicht '
-          'aus dem Netz. Für die Ersparnis reicht ein grober Wert, und ein '
-          'Preisdienst wäre ein Fremdzugang mehr.',
+          'Diese Werte pflegt ihr selbst — sie gehen in Kilometer und '
+          'Ersparnis ein. Für die Ersparnis reicht ein grober Wert.',
           style: theme.textTheme.bodySmall,
         ),
+        // Der Weg zum Preisarchiv sitzt hier und nicht im Hauptmenü: Er
+        // gehört neben die Werte, die er eines Tages ablösen soll — und das
+        // Menü ist ohnehin lang genug. Nur mit echtem Backend, denn im
+        // Demo-Modus gibt es nichts abzufragen (dort entstehen auch die
+        // README-Screenshots).
+        if (SupabaseConfig.isConfigured) ...[
+          const SizedBox(height: AppSpacing.m),
+          OutlinedButton.icon(
+            onPressed: () => unawaited(context.push('/prices')),
+            icon: const Icon(Icons.local_gas_station_outlined),
+            label: const Text('Spritpreise ansehen'),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'MitFahrBar merkt sich seit Kurzem selbst, was Diesel und Benzin '
+            'in eurem Umkreis kosten. Das ist noch in Arbeit und zählt hier '
+            'nicht mit.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
       ],
     );
   }

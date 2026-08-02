@@ -79,6 +79,25 @@ class _AboutDialog extends ConsumerWidget {
               const SizedBox(height: AppSpacing.xs),
               Text(notes, style: theme.textTheme.bodySmall),
             ],
+            const SizedBox(height: AppSpacing.l),
+            // Pflichtangabe, nicht Höflichkeit: Beide Quellen stehen unter
+            // Lizenzen, die eine Nennung verlangen — CC BY 4.0 bei den
+            // Spritpreisen, ODbL bei OpenStreetMap. Sie gehört an die
+            // Stelle, an der man nach Herkunft sucht, und nicht nur auf den
+            // Screen, der die Daten gerade zeigt: Wer den nie öffnet, hat
+            // die Nennung sonst nie gesehen.
+            Text('Woher die Daten kommen', style: theme.textTheme.titleSmall),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Spritpreise: Tankerkönig-Spritpreis-API '
+              '(creativecommons.tankerkoenig.de), CC BY 4.0 — Daten der '
+              'Markttransparenzstelle für Kraftstoffe.\n'
+              'Ortssuche: OpenStreetMap (© OpenStreetMap-Mitwirkende, ODbL) '
+              'über Nominatim.\n'
+              'Fahrten, Punkte und Statistik entstehen ausschließlich aus '
+              'euren eigenen Einträgen.',
+              style: theme.textTheme.bodySmall,
+            ),
           ],
         ),
       ),

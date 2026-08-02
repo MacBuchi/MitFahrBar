@@ -61,6 +61,7 @@ void main() {
     'plan_overrides',
     'notification_prefs',
     'push_log',
+    'price_week',
   ]) {
     test('$table hat group_id im Primärschlüssel', () {
       expect(
@@ -380,6 +381,207 @@ void main() {
             'nimmt die Berichte der Gruppe mit — ohne Fremdschlüssel '
             'überlebte eine gelöschte Gruppe bis zu 90 Tage in den '
             'Berichten.',
+      );
+    });
+  });
+
+  // Preisarchiv. Zwei Riegel und eine bewusste Ausnahme von der
+  // group_id-Regel, die ohne Test wie ein Versehen aussieht.
+  group('Preisarchiv', () {
+    test('die Rohschicht hängt an der Region, nicht an der Gruppe', () {
+      expect(
+        primaryKeyOf('price_sample').replaceAll(RegExp(r'\s'), ''),
+        'region_key,captured_at,station_id',
+        reason:
+            'Bewusste Ausnahme von der group_id-Regel: In price_sample '
+            'stehen keine Gruppendaten, sondern öffentliche Marktdaten. '
+            'An der Region statt an der Gruppe hängt sie, damit zwei '
+            'Gruppen derselben Gegend EINE Abfrage teilen — und damit ein '
+            'späterer Tankdaumen eine Abfrage bleibt statt eines Umbaus.',
+      );
+    });
+
+    test('die Rohschicht hat RLS an und bewusst keine einzige Policy', () {
+      expect(
+        schema,
+        contains('alter table public.price_sample enable row level security'),
+        reason: 'Ohne RLS läse jeder authenticated die Rohschicht.',
+      );
+      expect(
+        RegExp(r'create policy \w+ on public\.price_sample').hasMatch(schema),
+        isFalse,
+        reason:
+            'Kein Client liest die Rohschicht je — gruppensichtbar ist '
+            'allein price_week. Eine SELECT-Policy hier, und sei es „nur '
+            'zum Debuggen", macht aus dem Riegel eine Absichtserklärung.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('revoke all on public.price_sample from anon, authenticated'),
+        reason:
+            'Der Sammel-Grant gibt Rechte auf JEDE Tabelle. Ohne die '
+            'Rücknahme hinge der Riegel allein daran, dass niemand später '
+            'eine Policy ergänzt — dieselbe Begründung wie bei push_outbox.',
+      );
+    });
+
+    test('die Wochenwerte darf ein Client nur lesen', () {
+      final policies = RegExp(
+        r'create policy (\w+) on public\.price_week\s+for (\w+)',
+      ).allMatches(schema).map((m) => '${m.group(1)}:${m.group(2)}').toList();
+      expect(
+        policies,
+        ['price_week_read:select'],
+        reason:
+            'Geschrieben wird allein vom Verdichtungslauf mit service_role. '
+            'Mit einer Schreib-Policy könnte ein Gerät die Preiskurve '
+            'fälschen — und eine gefälschte Kurve fiele niemandem auf, weil '
+            'niemand die Vergangenheit im Kopf hat.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('revoke all on public.price_week from anon, authenticated'),
+        reason: 'Der Sammel-Grant gäbe insert/update/delete.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('grant select on public.price_week to authenticated'),
+        reason: 'Nach der Rücknahme muss das Lesen ausdrücklich zurück.',
+      );
+    });
+
+    test('die Konstanten stehen NICHT in der Wochenschicht', () {
+      final block = RegExp(
+        r'create table public\.price_week \((.*?)\n\);',
+        dotAll: true,
+      ).firstMatch(schema)!.group(1)!;
+      expect(
+        sqlOnly(block),
+        isNot(anyOf(contains('house_power'), contains('charging_power'))),
+        reason:
+            'Hausstrom und Tankstellenstrom sind vorerst Konstanten aus '
+            'settings, und Konstanten werden nicht gespeichert: Eine '
+            'Parameteränderung müsste sonst die Historie umschreiben, und '
+            'eine abgelegte Konstante sähe später aus wie eine Messung. '
+            'Der Lesepfad in core/price_series.dart füllt und markiert sie.',
+      );
+    });
+
+    test('der Abtast-Takt hat ein eigenes Job-Geheimnis', () {
+      final function = RegExp(
+        r'create or replace function public\.sample_fuel_prices\(\)(.*?)\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(function, isNotNull, reason: 'sample_fuel_prices fehlt.');
+      final body = sqlOnly(function!.group(1)!);
+      expect(
+        body,
+        contains("name = 'fuel_job_secret'"),
+        reason:
+            'Eigenes Geheimnis statt push_job_secret: Ein Leck im Push-Weg '
+            'soll nicht auch den Abtast-Endpunkt öffnen.',
+      );
+      expect(
+        body,
+        isNot(contains('push_job_secret')),
+        reason: 'Sonst hängen beide Wege an einem Wert.',
+      );
+      expect(
+        body,
+        contains('vault.decrypted_secrets'),
+        reason:
+            'Zugangsdaten aus dem Vault, nicht aus einer Tabelle — sonst '
+            'stehen sie in jedem Datenbank-Abzug im Klartext.',
+      );
+    });
+
+    test('das Perzentil heißt in SQL wie in Dart', () {
+      final dart = File('lib/core/price_series.dart').readAsStringSync();
+      final constant = RegExp(
+        r'const double defaultPercentile = ([0-9.]+);',
+      ).firstMatch(dart);
+      expect(constant, isNotNull, reason: 'defaultPercentile fehlt in Dart.');
+      final fraction = double.parse(constant!.group(1)!);
+      expect(fraction, 0.10);
+
+      expect(
+        sqlOnly(schema),
+        contains(
+          'percentile_cont(${fraction.toStringAsFixed(2)}) within group',
+        ),
+        reason:
+            'Der Verdichtungslauf rechnet in SQL, der spätere Import der '
+            'Vergangenheit in Python, das Zusammenführen in Dart — EINE '
+            'Implementierung ist nicht zu haben, EINE Definition schon. '
+            'Driften die Zahlen auseinander, entsteht an der Naht zwischen '
+            'importierter und gemessener Woche eine Stufe, die keine '
+            'Preisänderung ist, und niemand könnte sie erklären. Dasselbe '
+            'Muster wie beim Push-Digest.',
+      );
+    });
+
+    test('die Verdichtung rechnet die Woche in deutscher Zeit', () {
+      final function = RegExp(
+        r'create or replace function public\.rollup_fuel_weeks\(\)(.*?)\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(function, isNotNull, reason: 'rollup_fuel_weeks fehlt.');
+      final body = sqlOnly(function!.group(1)!);
+      expect(
+        RegExp(r'isoyear from .*Europe/Berlin').hasMatch(body),
+        isTrue,
+        reason:
+            'Eine Messung Sonntag 23:30 UTC ist in Deutschland schon Montag '
+            'und gehört in die Folgewoche. In UTC gerechnet landete sie in '
+            'der falschen — und die Abtastzeiten sind eine Cron-Zeile, die '
+            'irgendwann jemand ändert.',
+      );
+      expect(
+        body,
+        contains('delete from public.price_sample'),
+        reason:
+            'Die Rohschicht ist Zwischenprodukt, kein Archiv — ohne das '
+            'Aufräumen wächst sie unbegrenzt weiter.',
+      );
+    });
+
+    test('die Ortssuche verlangt ein JWT, das Abtasten nicht', () {
+      final config = File('supabase/config.toml').readAsStringSync();
+      final geocode = RegExp(
+        r'\[functions\.geocode-place\]\s*\nverify_jwt = (\w+)',
+      ).firstMatch(config);
+      expect(
+        geocode?.group(1),
+        'true',
+        reason:
+            'Für die Ortssuche gibt es keinen Aufrufer aus der Datenbank, '
+            'und sie befragt einen Fremddienst auf fremde Kosten. Ohne '
+            'Prüfung wäre sie ein offener Geokodierer.',
+      );
+
+      final sample = RegExp(
+        r'\[functions\.fuel-sample\]\s*\nverify_jwt = (\w+)',
+      ).firstMatch(config);
+      expect(
+        sample?.group(1),
+        'false',
+        reason:
+            'Der Abtast-Takt kommt aus der Datenbank (pg_cron → pg_net) '
+            'und hat kein JWT. Auf true stünde er still, ohne dass '
+            'irgendwo ein Fehler auftaucht — die Antwort landet nur in '
+            'net._http_response.',
+      );
+    });
+
+    test('die Function ist in config.toml deklariert', () {
+      final config = File('supabase/config.toml').readAsStringSync();
+      expect(
+        config,
+        contains('[functions.fuel-sample]'),
+        reason:
+            'Die GitHub-Integration deployt die in config.toml deklarierten '
+            'Functions. Ohne den Eintrag liefe der Takt ins Leere, ohne dass '
+            'irgendwo ein Fehler auftaucht.',
       );
     });
   });

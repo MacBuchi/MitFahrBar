@@ -8,6 +8,7 @@ library;
 
 import 'dart:async';
 
+import 'package:mitfahrbar/core/price_series.dart';
 import 'package:mitfahrbar/core/push_outbox.dart';
 import 'package:mitfahrbar/core/update_check.dart';
 import 'package:mitfahrbar/data/admin_repository.dart';
@@ -16,6 +17,8 @@ import 'package:mitfahrbar/data/carpool_repository.dart';
 import 'package:mitfahrbar/data/fake_repository.dart';
 import 'package:mitfahrbar/data/feedback_repository.dart';
 import 'package:mitfahrbar/data/group_repository.dart';
+import 'package:mitfahrbar/data/price_repository.dart';
+import 'package:mitfahrbar/models/price_area.dart';
 import 'package:mitfahrbar/data/push_outbox_repository.dart';
 import 'package:mitfahrbar/data/push_repository.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
@@ -393,4 +396,54 @@ class FakeGroupRepository implements GroupRepository {
 
   @override
   Future<Group?> myGroup() async => backend.currentGroup;
+}
+
+/// Preisarchiv, mandantengetrennt wie die echten Tabellen: Bereich und
+/// Wochenwerte hängen an der Gruppe, die gerade angemeldet ist.
+///
+/// Die Rohschicht gibt es hier bewusst nicht — sie ist für den Client
+/// unsichtbar, ein Fake dafür prüfte einen Weg, den es nicht gibt.
+class FakePriceRepository implements PriceRepository {
+  FakePriceRepository(this.backend);
+
+  final FakeBackend backend;
+
+  /// group_id → Bereich, wie `price_area`.
+  final Map<String, PriceArea> areas = {};
+
+  /// group_id → Wochenwerte, wie `price_week`. Tests füllen das direkt;
+  /// geschrieben wird es in der echten App nur vom Verdichtungslauf.
+  final Map<String, List<PricePoint>> weeks = {};
+
+  /// Was die Ortssuche liefern soll.
+  List<GeoPlace> places = const [];
+
+  /// Was ein „Jetzt aktualisieren" ergeben soll.
+  SampleResult next = const SampleResult(stored: 12, failed: false);
+
+  /// Wie oft abgetastet wurde — damit ein Test den Knopf nachweisen kann.
+  int samples = 0;
+
+  @override
+  Future<PriceArea?> loadArea() async => areas[backend.currentGroupId];
+
+  @override
+  Future<void> saveArea(PriceArea area) async {
+    final group = backend.currentGroupId;
+    if (group == null) return;
+    areas[group] = area;
+  }
+
+  @override
+  Future<List<PricePoint>> loadWeeks() async =>
+      weeks[backend.currentGroupId] ?? const [];
+
+  @override
+  Future<List<GeoPlace>> searchPlace(String query) async => places;
+
+  @override
+  Future<SampleResult> sampleNow() async {
+    samples++;
+    return next;
+  }
 }
