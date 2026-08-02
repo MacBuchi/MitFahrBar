@@ -359,7 +359,7 @@ class _Content extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.m),
         GroupAchievementsCard(persons: persons),
-        const MonthlyTripsCard(),
+        SavingsCard(persons: persons),
         ParticipationMixCard(persons: persons),
       ],
     );

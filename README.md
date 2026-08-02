@@ -12,7 +12,7 @@ normale App installieren (PWA).
 | | |
 | --- | --- |
 | <img src="doc/screenshots/uebersicht.png" width="260" alt="Übersicht: Wer ist dran?"> | <img src="doc/screenshots/wochenplan.png" width="260" alt="Wochenplan mit Fahrer-Vorschlag"> |
-| **Übersicht** – wer als Nächstes fahren sollte, dazu Kilometer, gesparte Kosten und Fahrten pro Monat. | **Woche** – antippen, wer wann kann; die App schlägt die Fahrer für die ganze Woche vor. |
+| **Übersicht** – wer als Nächstes fahren sollte, dazu Kilometer, gesparte Kosten und der Verlauf von Fahrten und Ersparnis. | **Woche** – antippen, wer wann kann; die App schlägt die Fahrer für die ganze Woche vor. |
 | <img src="doc/screenshots/fahrt-eintragen.png" width="260" alt="Fahrt eintragen"> | <img src="doc/screenshots/statistik.png" width="260" alt="Statistik je Person"> |
 | **Fahrt eintragen** – Kacheln antippen, Fahrer steht automatisch, speichern. | **Statistik** – Punkte, Fahranteil, Kilometer und gesparte Kraftstoffkosten je Person. |
 

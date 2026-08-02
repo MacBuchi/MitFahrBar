@@ -71,19 +71,50 @@ class PersonStats {
 
   /// Gesparte Kraftstoffkosten: eigene Fahrzeugkosten für die Tage,
   /// an denen man mitgefahren ist statt selbst zu fahren.
-  double savedCosts(AppSettings s, Person person) {
-    final consumption = person.consumptionPer100km;
-    final energy = person.energyType;
-    if (consumption == null || energy == null) return 0;
-    final pricePerUnit = switch (energy) {
-      EnergyType.electric => s.electricityPricePerKwh,
-      EnergyType.diesel => s.dieselPricePerLiter,
-      EnergyType.petrol => s.petrolPricePerLiter,
-    };
-    final costPer100km = consumption * pricePerUnit;
-    return costPer100km * (ridden + oneWay) * s.commuteKm * 2 / 100;
-  }
+  ///
+  /// Rechnet mit **einem** Preis für die ganze Historie — der Konstante aus
+  /// den Parametern. Wer die Ersparnis je Woche mit dem Preis *dieser* Woche
+  /// will, nimmt `weeklySavings` in `chart_data.dart`; beide teilen sich
+  /// [savedCostsFor], damit es die Formel nur einmal gibt.
+  double savedCosts(AppSettings s, Person person) => savedCostsFor(
+    person: person,
+    pricePerUnit: priceForEnergy(person.energyType, s),
+    days: (ridden + oneWay).toDouble(),
+    commuteKm: s.commuteKm,
+  );
 }
+
+/// Die Ersparnis-Formel, an genau einer Stelle.
+///
+/// [days] ist die Zahl der Tage, an denen die Person mitgefahren ist statt
+/// selbst zu fahren; [pricePerUnit] der dafür anzusetzende Preis (Liter oder
+/// kWh). Ohne Verbrauch oder Energieart der Person ist die Ersparnis 0 —
+/// nicht geschätzt: Ein angenommener Verbrauch stünde später in der
+/// Gesamtsumme, ohne dass jemand ihn eingetragen hätte.
+double savedCostsFor({
+  required Person person,
+  required double pricePerUnit,
+  required double days,
+  required double commuteKm,
+}) {
+  final consumption = person.consumptionPer100km;
+  if (consumption == null || person.energyType == null) return 0;
+  return consumption * pricePerUnit * days * commuteKm * 2 / 100;
+}
+
+/// Der Preis, mit dem eine Energieart gerechnet wird — die Konstante aus den
+/// Parametern.
+///
+/// Steht hier und nicht im Aufrufer, weil `constantFor` in
+/// `price_series.dart` dieselbe Zuordnung führt (Benzin → E5) und beide
+/// nicht auseinanderlaufen dürfen: Sonst rechnete die Kachel mit einem
+/// anderen Preis als das Diagramm darunter.
+double priceForEnergy(EnergyType? energy, AppSettings s) => switch (energy) {
+  EnergyType.electric => s.electricityPricePerKwh,
+  EnergyType.diesel => s.dieselPricePerLiter,
+  EnergyType.petrol => s.petrolPricePerLiter,
+  null => 0,
+};
 
 /// Eine Solo-Fahrt: nur eine Person beteiligt, niemand wurde mitgenommen.
 ///

@@ -1,12 +1,14 @@
 /// dashboard_charts_flow_test.dart – Die Auswertungen auf der Startseite.
 library;
 
-import 'package:mitfahrbar/core/widgets/charts.dart';
+import 'package:mitfahrbar/core/price_series.dart';
+import 'package:mitfahrbar/core/widgets/savings_chart.dart';
+import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/trip.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 
 import '../fakes/fake_backend.dart';
 import '../fakes/test_app.dart';
@@ -33,115 +35,7 @@ void _useTallSurface(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-/// Legt zwei Personen an und für jedes Element von [monthsAgo] eine Fahrt
-/// so viele Monate vor dem Testtag.
-Future<void> _seed(FakeBackend backend, List<int> monthsAgo) async {
-  final data = backend.dataFor(_setUpGroup(backend));
-  final ids = <String>[];
-  for (final name in ['Anna', 'Bert']) {
-    final person = await data.createPerson(
-      Person(id: '', name: name, active: true),
-    );
-    ids.add(person.id);
-  }
-  for (final back in monthsAgo) {
-    await data.createTrip(
-      DateTime(testToday.year, testToday.month - back, 10),
-      {
-        ids[0]: ParticipationStatus.driver,
-        ids[1]: ParticipationStatus.passenger,
-      },
-    );
-  }
-}
-
-/// Der waagerechte Scroll-Zustand des Monats-Diagramms.
-ScrollPosition _plotScroll(WidgetTester tester) => tester
-    .state<ScrollableState>(
-      find.descendant(
-        of: find.byType(MonthlyTripsChart),
-        matching: find.byType(Scrollable),
-      ),
-    )
-    .position;
-
 void main() {
-  // Das Zeitfenster reicht seit #119 bis zur ersten Fahrt. Passt das nicht in
-  // die Breite, wird gewischt statt die Säulen zu Strichen zu quetschen.
-  group('Monats-Diagramm', () {
-    testWidgets('lange Historie macht das Diagramm scrollbar', (tester) async {
-      _useTallSurface(tester);
-      final backend = FakeBackend();
-      // Knapp drei Jahre — mehr, als in eine Handybreite passt.
-      await _seed(backend, [0, 6, 12, 24, 34]);
-
-      await pumpApp(tester, backend);
-      await _login(tester);
-
-      expect(
-        _plotScroll(tester).maxScrollExtent,
-        greaterThan(0),
-        reason:
-            'Eine Scrollleiste, an der es nichts zu scrollen gibt, macht die '
-            'Historie nicht erreichbar.',
-      );
-      // Der Untertitel nennt den abgedeckten Zeitraum — hier reicht er ins
-      // Jahr der ersten Fahrt zurück.
-      expect(find.textContaining('Sept. 2023'), findsOneWidget);
-    });
-
-    // Im Browser gibt es keinen Finger. Flutters Standardverhalten lässt auf
-    // Web und Desktop nur Finger ziehen — ohne die eigene ScrollBehavior
-    // käme man dort nur mit dem Mausrad an die Historie, und auf dem
-    // Testgerät (Android) fiele das nie auf.
-    testWidgets('auch die Maus darf ziehen', (tester) async {
-      _useTallSurface(tester);
-      final backend = FakeBackend();
-      await _seed(backend, [0, 6, 12, 24, 34]);
-
-      await pumpApp(tester, backend);
-      await _login(tester);
-
-      final before = _plotScroll(tester).pixels;
-      await tester.drag(
-        find.byType(MonthlyTripsChart),
-        const Offset(120, 0),
-        kind: PointerDeviceKind.mouse,
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        _plotScroll(tester).pixels,
-        greaterThan(before),
-        reason: 'Ziehen nach rechts holt die älteren Monate herein.',
-      );
-    });
-
-    testWidgets('kurze Historie passt ohne Wischen', (tester) async {
-      _useTallSurface(tester);
-      final backend = FakeBackend();
-      await _seed(backend, [0, 1, 2]);
-
-      await pumpApp(tester, backend);
-      await _login(tester);
-
-      expect(
-        _plotScroll(tester).maxScrollExtent,
-        0,
-        reason:
-            'Zwölf Monate passen in die Breite — dann darf nichts wackeln, '
-            'was nach mehr Inhalt aussieht.',
-      );
-    });
-  });
-
-  // Nicht hier geprüft: dass die Zahlen über den Säulen weg sind und die
-  // Hilfslinien auf ihren Achsenwerten liegen. Beides ist auf Canvas gemalt,
-  // ein Widget-Test sähe davon nichts — ein `find`-Test darauf wäre auch vor
-  // der Änderung grün gewesen. Das entscheidet der Blick auf den Demo-Build
-  // (.claude/skills/run-web), die Skala selbst hängt an `axisTicks` in
-  // test/chart_data_test.dart.
-
   testWidgets('mit Fahrten zeigt die Startseite die Auswertungen', (
     tester,
   ) async {
@@ -157,29 +51,33 @@ void main() {
       );
       ids.add(person.id);
     }
-    // An [testToday], NICHT an DateTime.now(): Die App läuft in Flow-Tests an
-    // einer festen Uhr, und `tripsPerMonth` zählt bewusst nie über den
-    // laufenden Monat hinaus. Sobald der echte Kalender den Monat von
-    // [testToday] verlässt, liegt eine „heutige" Fahrt aus Sicht der App in
-    // der Zukunft, alle Säulen stehen auf 0 und die Karte blendet sich aus.
-    // Genau so ist dieser Test am 01.08.2026 von selbst rot geworden, ohne
-    // dass jemand Code angefasst hatte.
+    // An [testToday], NICHT an DateTime.now(): Die App läuft in Flow-Tests
+    // an einer festen Uhr. Eine Fahrt an der echten Wanduhr läge, sobald
+    // der Kalender weiterzieht, aus Sicht der App in der Zukunft — genau
+    // so ist ein Vorgänger dieses Tests am 01.08.2026 von selbst rot
+    // geworden, ohne dass jemand Code angefasst hatte.
     await data.createTrip(testToday, {
       ids[0]: ParticipationStatus.driver,
       ids[1]: ParticipationStatus.passenger,
+    });
+    await data.createTrip(testToday.subtract(const Duration(days: 7)), {
+      ids[1]: ParticipationStatus.driver,
+      ids[0]: ParticipationStatus.passenger,
     });
 
     await pumpApp(tester, backend);
     await _login(tester);
 
     expect(find.text('Gemeinsam erreicht'), findsOneWidget);
-    expect(find.text('Fahrten pro Monat'), findsOneWidget);
+    expect(find.text('Fahrten und Ersparnis'), findsOneWidget);
     expect(find.text('Wie ihr unterwegs seid'), findsOneWidget);
     // Die Legende benennt die Kategorien – Farbe allein trägt die Zuordnung
-    // nie allein.
+    // nie allein. Die Säulen brauchen die Nennung doppelt: Sie haben keine
+    // Achse, die sie erklärt.
     expect(find.text('gefahren'), findsOneWidget);
     expect(find.text('mitgefahren'), findsOneWidget);
     expect(find.text('1-way'), findsOneWidget);
+    expect(find.text('Fahrten je Woche'), findsOneWidget);
   });
 
   testWidgets('ohne Fahrten bleiben die Diagramme aus', (tester) async {
@@ -194,7 +92,160 @@ void main() {
     await _login(tester);
 
     // Eine leere Achse sagt weniger als gar keine Karte.
-    expect(find.text('Fahrten pro Monat'), findsNothing);
+    expect(find.text('Fahrten und Ersparnis'), findsNothing);
     expect(find.text('Wie ihr unterwegs seid'), findsNothing);
+  });
+
+  group('Ersparnis-Diagramm', () {
+    /// Zwei Personen mit Fahrzeug — ohne Verbrauch gibt es keine Ersparnis,
+    /// und die Karte hätte nichts zu zeigen.
+    Future<(String, List<String>)> seedDrivers(FakeBackend backend) async {
+      final groupId = _setUpGroup(backend);
+      final data = backend.dataFor(groupId);
+      final ids = <String>[];
+      for (final name in ['Anna', 'Bert']) {
+        final person = await data.createPerson(
+          Person(
+            id: '',
+            name: name,
+            active: true,
+            energyType: EnergyType.diesel,
+            consumptionPer100km: 6,
+          ),
+        );
+        ids.add(person.id);
+      }
+      // Zwei Fahrten in verschiedenen Wochen, Rollen getauscht: So hat jede
+      // Person eine eigene Linie.
+      await data.createTrip(testToday, {
+        ids[0]: ParticipationStatus.driver,
+        ids[1]: ParticipationStatus.passenger,
+      });
+      await data.createTrip(testToday.subtract(const Duration(days: 7)), {
+        ids[1]: ParticipationStatus.driver,
+        ids[0]: ParticipationStatus.passenger,
+      });
+      return (groupId, ids);
+    }
+
+    testWidgets('die Karte zeigt beide Personen und die Gruppe', (
+      tester,
+    ) async {
+      _useTallSurface(tester);
+      final backend = FakeBackend();
+      await seedDrivers(backend);
+
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      expect(find.text('Fahrten und Ersparnis'), findsOneWidget);
+      // Die Legende benennt jede Linie — Farbe allein trägt die Zuordnung
+      // nie allein, und bei mehreren Personen schon gar nicht.
+      expect(find.text('Zusammen'), findsOneWidget);
+      expect(find.widgetWithText(SavingsTrendChart, 'Anna'), findsOneWidget);
+      expect(find.widgetWithText(SavingsTrendChart, 'Bert'), findsOneWidget);
+    });
+
+    testWidgets('ein Tipp auf einen Namen blendet dessen Linie aus', (
+      tester,
+    ) async {
+      _useTallSurface(tester);
+      final backend = FakeBackend();
+      await seedDrivers(backend);
+
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      // Der Namens-Text im Diagramm — nicht `widgetWithText(SavingsTrend…)`:
+      // Das fände das CHART-Widget, und ein Tap darauf träfe den Canvas
+      // statt des Chips (beim Schreiben dieses Tests genau so passiert).
+      Finder chip(String name) => find.descendant(
+        of: find.byType(SavingsTrendChart),
+        matching: find.text(name),
+      );
+      Opacity chipOf(String name) => tester.widget<Opacity>(
+        find.ancestor(of: chip(name), matching: find.byType(Opacity)).first,
+      );
+
+      expect(chipOf('Anna').opacity, 1);
+
+      // Getippt, nicht nur gefunden — ein toter Chip sähe genauso aus.
+      await tester.tap(chip('Anna'));
+      await tester.pumpAndSettle();
+      expect(
+        chipOf('Anna').opacity,
+        lessThan(1),
+        reason: 'der abgewählte Name muss sich sichtbar abwählen',
+      );
+      expect(chipOf('Bert').opacity, 1, reason: 'nur Anna war gemeint');
+
+      // Der zweite Tipp holt die Linie zurück.
+      await tester.tap(chip('Anna'));
+      await tester.pumpAndSettle();
+      expect(chipOf('Anna').opacity, 1);
+    });
+
+    testWidgets('Kachel und Diagramm nennen dieselbe Summe', (tester) async {
+      _useTallSurface(tester);
+      final backend = FakeBackend();
+      final (groupId, _) = await seedDrivers(backend);
+      final prices = FakePriceRepository(backend);
+      // Ein gemessener Wochenpreis weit über der Konstante: Rechnete die
+      // Kachel weiter über `savedCosts` mit der Konstante und nur das
+      // Diagramm je Woche, liefen die beiden Zahlen hier auseinander — und
+      // zwar sichtbar untereinander auf derselben Seite.
+      prices.weeks[groupId] = [
+        for (var back = 0; back < 3; back++)
+          PricePoint(
+            week: IsoWeek.of(testToday.subtract(Duration(days: 7 * back))),
+            series: PriceSeries.diesel,
+            value: 5,
+            origin: PriceOrigin.measured,
+          ),
+      ];
+
+      await pumpApp(
+        tester,
+        backend,
+        overrides: [priceRepositoryProvider.overrideWithValue(prices)],
+      );
+      await _login(tester);
+
+      // 2 Mitfahrten × 6 l/100 km × 60 km × 5 €/l = 36 €. Der Betrag wird
+      // über dasselbe NumberFormat erzeugt wie im Code — deutsches
+      // Währungsformat trennt mit einem geschützten Leerzeichen, ein
+      // getipptes Leerzeichen fände nichts.
+      final expected = NumberFormat.currency(
+        locale: 'de',
+        symbol: '€',
+        decimalDigits: 0,
+      ).format(36);
+
+      expect(
+        find.textContaining(expected),
+        findsNWidgets(2),
+        reason:
+            'genau zwei Stellen nennen die Summe — die Kachel „Kraftstoff '
+            'gespart" und der Untertitel der Karte. Rechnete die Kachel '
+            'weiter mit der Konstante, stünden hier zwei verschiedene Zahlen.',
+      );
+      expect(find.textContaining('$expected seit'), findsOneWidget);
+    });
+
+    testWidgets('ohne gemessenen Preis ist die Kurve als geschätzt markiert', (
+      tester,
+    ) async {
+      _useTallSurface(tester);
+      final backend = FakeBackend();
+      await seedDrivers(backend);
+
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      // Keine Preiszeile: Die ganze Kurve steht auf der Konstante aus den
+      // Parametern. Ohne diesen Hinweis sähe eine gerechnete Linie aus wie
+      // eine gemessene — dieselbe Regel wie im Preis-Diagramm.
+      expect(find.text('Preis geschätzt'), findsOneWidget);
+    });
   });
 }
