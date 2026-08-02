@@ -229,6 +229,64 @@ void main() {
       expect(points[3].value, closeTo(2.000, 1e-9));
     });
 
+    test('das Fenster wächst nach hinten bis zur ältesten Woche', () {
+      // Der Fehler, den es verhindert: Nach dem Nachfüll-Lauf lagen 164
+      // Wochen vor, gezeigt wurden 26. Der Import wäre gelaufen, und man
+      // hätte nichts davon gesehen.
+      final (from, to) = chartWindow(
+        stored: const [
+          PricePoint(
+            week: IsoWeek(2023, 2),
+            series: PriceSeries.diesel,
+            value: 1.759,
+            origin: PriceOrigin.imported,
+          ),
+          PricePoint(
+            week: IsoWeek(2026, 30),
+            series: PriceSeries.diesel,
+            value: 2.099,
+            origin: PriceOrigin.measured,
+          ),
+        ],
+        now: DateTime(2026, 8, 2),
+      );
+      expect(from, const IsoWeek(2023, 2));
+      // W30 und nicht W31: Die laufende Woche ist noch nicht verdichtet,
+      // das rechte Ende folgt der letzten Messung.
+      expect(to, const IsoWeek(2026, 30));
+    });
+
+    test('das Fenster endet bei der letzten Messung, nicht bei heute', () {
+      // Sonst hielte die Linie den zuletzt bekannten Preis bis zum heutigen
+      // Tag: Fährt eine Gruppe ein Jahr nicht, zöge das Diagramm eine
+      // gerade Linie über das ganze Jahr und behauptete einen Preis, den
+      // nie jemand gemessen hat.
+      final (from, to) = chartWindow(
+        stored: const [
+          PricePoint(
+            week: IsoWeek(2025, 15),
+            series: PriceSeries.diesel,
+            value: 1.529,
+            origin: PriceOrigin.imported,
+          ),
+        ],
+        now: DateTime(2026, 8, 2),
+      );
+      expect(to, const IsoWeek(2025, 15));
+      // 26 Wochen Untergrenze, vom neuen rechten Ende aus gerechnet.
+      expect(from, const IsoWeek(2024, 42));
+      expect(weeksBetween(from, to).length, 26);
+    });
+
+    test('ohne Daten bleibt es beim Mindestfenster bis heute', () {
+      final (from, to) = chartWindow(
+        stored: const [],
+        now: DateTime(2026, 8, 2),
+      );
+      expect(to, const IsoWeek(2026, 31));
+      expect(weeksBetween(from, to).length, 26);
+    });
+
     test('die Zeitachse nennt das Jahr, sobald sie eines überschreitet', () {
       // Der Fall, der den Fehler ausgelöst hat: Das Fenster reicht seit dem
       // Nachfüll-Lauf bis 2023 zurück, die Achse las sich aber wie sieben

@@ -265,17 +265,13 @@ class _PriceOverviewState extends ConsumerState<_PriceOverview> {
     required AppSettings settingsValue,
   }) {
     final theme = Theme.of(context);
-    final to = IsoWeek.of(DateTime.now());
-    var from = to;
-    for (var i = 1; i < _minWeeks; i++) {
-      from = IsoWeek.of(from.monday.subtract(const Duration(days: 7)));
-    }
-    // Bis zur ältesten gespeicherten Woche zurück. `stored` hält alle
-    // Sorten; die älteste über alle hinweg spannt die gemeinsame Achse, so
-    // dass Kraftstoff- und Strom-Diagramm denselben Zeitraum zeigen.
-    for (final point in stored) {
-      if (point.week.monday.isBefore(from.monday)) from = point.week;
-    }
+    // Beide Enden richten sich nach den Daten — Begründung steht bei
+    // `chartWindow`, und dort ist sie auch geprüft.
+    final (from, to) = chartWindow(
+      stored: stored,
+      now: DateTime.now(),
+      minWeeks: _minWeeks,
+    );
 
     Map<PriceSeries, List<PricePoint>> build(List<PriceSeries> series) => {
       for (final entry in series)

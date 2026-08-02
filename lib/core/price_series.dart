@@ -333,6 +333,45 @@ List<PricePoint> weeklySeries({
   ];
 }
 
+/// Der Zeitraum, den das Diagramm zeigt.
+///
+/// Beide Enden richten sich nach den Daten, und beide aus einem Grund, der
+/// teuer gelernt wurde:
+///
+/// - **Nach hinten** bis zur ältesten gespeicherten Woche. Ein festes
+///   Fenster machte den Nachfüll-Lauf unsichtbar: 164 importierte Wochen,
+///   26 gezeigte. [minWeeks] bleibt als Untergrenze, damit eine frisch
+///   eingerichtete Gruppe eine Kurve sieht und keinen Punkt.
+/// - **Nach vorn** nur bis zur jüngsten gespeicherten Woche, nicht bis
+///   heute. Sonst hielte die Linie den zuletzt bekannten Preis bis zum
+///   aktuellen Tag — fährt eine Gruppe ein Jahr nicht, zöge das Diagramm
+///   eine gerade Linie über das ganze Jahr und behauptete einen Preis, den
+///   nie jemand gemessen hat.
+///
+/// Damit überbrückt [PriceOrigin.interpolated] ausschließlich *zwischen*
+/// zwei Messungen — der Fall, der sich verteidigen lässt.
+(IsoWeek, IsoWeek) chartWindow({
+  required Iterable<PricePoint> stored,
+  required DateTime now,
+  int minWeeks = 26,
+}) {
+  var to = IsoWeek.of(now);
+  if (stored.isNotEmpty) {
+    final last = stored
+        .map((point) => point.week)
+        .reduce((a, b) => a.monday.isAfter(b.monday) ? a : b);
+    if (last.monday.isBefore(to.monday)) to = last;
+  }
+  var from = to;
+  for (var i = 1; i < minWeeks; i++) {
+    from = IsoWeek.of(from.monday.subtract(const Duration(days: 7)));
+  }
+  for (final point in stored) {
+    if (point.week.monday.isBefore(from.monday)) from = point.week;
+  }
+  return (from, to);
+}
+
 /// Die beiden Enden der Zeitachse als Text.
 ///
 /// Steht hier und nicht im Painter, damit es prüfbar ist: Auf Canvas

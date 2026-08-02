@@ -24,6 +24,10 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   beiden benachbarten Messungen durchgezogen, weiter gestrichelt. Die
   Zahlen aus den Parametern erscheinen nur noch, solange überhaupt nichts
   gemessen wurde.
+- **Die Kurve endet, wo die Messungen enden.** Bisher wäre sie bis zum
+  heutigen Tag weitergelaufen und hätte dabei den zuletzt bekannten Preis
+  gehalten — wer ein Jahr nicht fährt, hätte eine schnurgerade Linie über
+  das ganze Jahr gesehen und einen Preis, den nie jemand gemessen hat.
 - Die Zeitachse nennt die Jahreszahl, sobald das Diagramm über einen
   Jahreswechsel geht. „05.06." bis „27.07." las sich wie sieben Wochen,
   gemeint waren dreieinhalb Jahre.
