@@ -249,15 +249,28 @@ PriceSeries _seriesFor(EnergyType energy) => switch (energy) {
 /// sonst als waagerechte Linie durch jede fahrfreie Zeit und behauptet
 /// Aktivität, wo keine war. Dieselbe Begründung wie bei `chartWindow` im
 /// Preis-Diagramm.
-(IsoWeek, IsoWeek)? savingsWindow(List<Trip> trips, {int minWeeks = 8}) {
-  if (trips.isEmpty) return null;
-  var first = IsoWeek.of(trips.first.date);
-  var last = first;
+///
+/// Was nach der laufenden Woche liegt, spannt das Fenster nicht auf: Ein
+/// falsch getipptes Datum weit voraus (so ein Ausreißer steckt im
+/// Erst-Import der Gruppe) streckte sonst die Achse dauerhaft und quetschte
+/// alle echten Wochen in den linken Rand — gezeichnet wird die Fahrt ja nie.
+/// Ihre Ersparnis läuft wie bei Fahrten vor dem Fenster in den Übertrag,
+/// damit Kachel und Punkte-Statistik dieselben Fahrten zählen.
+(IsoWeek, IsoWeek)? savingsWindow(
+  List<Trip> trips, {
+  required DateTime now,
+  int minWeeks = 8,
+}) {
+  final current = IsoWeek.of(now);
+  IsoWeek? first;
+  IsoWeek? last;
   for (final trip in trips) {
     final week = IsoWeek.of(trip.date);
-    if (week.compareTo(first) < 0) first = week;
-    if (week.compareTo(last) > 0) last = week;
+    if (current.compareTo(week) < 0) continue;
+    if (first == null || week.compareTo(first) < 0) first = week;
+    if (last == null || week.compareTo(last) > 0) last = week;
   }
+  if (first == null || last == null) return null;
   // Eine junge Gruppe bekäme sonst zwei Punkte statt einer Kurve.
   var from = last;
   for (var i = 1; i < minWeeks; i++) {

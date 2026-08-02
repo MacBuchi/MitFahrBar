@@ -149,7 +149,7 @@ final savingsChartProvider = Provider<SavingsChart?>((ref) {
   if (trips == null || persons == null || settings == null) return null;
   if (!weeks.hasValue) return null;
 
-  final window = savingsWindow(trips);
+  final window = savingsWindow(trips, now: ref.watch(nowProvider)());
   if (window == null) return null;
   final (from, to) = window;
   return weeklySavings(

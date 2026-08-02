@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.55.1] – 2026-08-02
+
+### Behoben
+
+- **Die Zeitachse von „Fahrten und Ersparnis" reicht nicht mehr in die
+  Zukunft.** Ein versehentlich mit künftigem Datum eingetragener Fahrtag —
+  im Erst-Import steckt so ein Tippfehler — streckte das Diagramm bis zu
+  diesem Datum, und alle echten Wochen quetschten sich in den linken Rand.
+  Die Achse endet jetzt wieder bei der letzten wirklich gefahrenen Woche.
+  An der gesparten Summe und an den Punkten ändert sich nichts.
+
 ## [0.55.0] – 2026-08-02
 
 ### Neu
