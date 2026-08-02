@@ -114,13 +114,16 @@ void main() {
     await _login(tester);
     await _openAbout(tester);
 
-    // Beide Quellen verlangen eine Nennung: CC BY 4.0 bei den Spritpreisen,
-    // ODbL bei OpenStreetMap. Verschwindet sie still, ist das kein
-    // Schönheitsfehler, sondern ein Lizenzverstoß — und niemandem fiele es
-    // auf, weil nichts kaputtgeht.
+    // Jede Quelle verlangt eine Nennung: CC BY 4.0 bei den Live-Spritpreisen,
+    // CC BY-NC-SA 4.0 beim historischen Preisarchiv, ODbL bei OpenStreetMap.
+    // Verschwindet eine still, ist das kein Schönheitsfehler, sondern ein
+    // Lizenzverstoß — und niemandem fiele es auf, weil nichts kaputtgeht.
     expect(find.text('Woher die Daten kommen'), findsOneWidget);
     expect(find.textContaining('Tankerkönig'), findsOneWidget);
     expect(find.textContaining('CC BY 4.0'), findsOneWidget);
+    // Die zurückliegenden Wochen stammen aus dem Archiv, und das steht unter
+    // einer ANDEREN Lizenz als die API. Eine Nennung für beide wäre falsch.
+    expect(find.textContaining('CC BY-NC-SA 4.0'), findsOneWidget);
     expect(find.textContaining('OpenStreetMap'), findsOneWidget);
     expect(find.textContaining('ODbL'), findsOneWidget);
   });

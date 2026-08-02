@@ -112,6 +112,26 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   - **Konstanten werden nie gespeichert, nur beim Lesen eingesetzt und
     markiert.** Sonst schriebe eine Parameteränderung die Vergangenheit um.
     Dieselbe Linie wie bei Punkten und Quote.
+  - **Die Parameter-Konstante erscheint im Diagramm nur, wenn es GAR KEINE
+    Messung gibt** (seit v0.54.0). Sobald eine Woche gemessen ist, wird jede
+    andere aus Messungen abgeleitet: dazwischen linear überbrückt
+    (`PriceOrigin.interpolated`), an den Rändern der nächste bekannte Wert
+    gehalten — beides gestrichelt, Legende „nicht gemessen". Grund: Die
+    Konstante liegt rund 0,40 € unter dem realen Niveau, und gut ein
+    Drittel der Kalenderwochen ist fahrfrei. Jede davon zeichnete einen
+    Preissturz, den es nie gab; über 164 Wochen wurde daraus ein Kamm, der
+    den Verlauf begrub. Wer den alten Rückfall wiederherstellt, baut genau
+    das wieder ein. Ausgelassen werden dürfen Lücken **nicht**: Der Painter
+    setzt die Punkte über ihren Index, eine fehlende Woche stauchte also
+    den Zeitraum, statt eine Lücke zu zeigen.
+  - **Das Zeitfenster des Preis-Screens wächst mit den Daten**
+    (`_minWeeks` als Untergrenze). Ein festes Fenster hätte den
+    Nachfüll-Lauf unsichtbar gemacht — 164 importierte Wochen bei 26
+    gezeigten. Und über einen Jahreswechsel hinweg trägt die Zeitachse die
+    **Jahreszahl** (`axisLabels`): „05.06." bis „27.07." liest sich wie
+    sieben Wochen. Die Beschriftung liegt bewusst in `price_series.dart`
+    und nicht im Painter — auf Canvas gezeichneter Text taucht in keinem
+    Widget-Finder auf, im Painter wäre sie ungeprüft.
   - **Der Nachfüll-Lauf nimmt die Datenbank als Warteschlange**
     (`tool/import_fuel_history.py` + `.github/workflows/fuel-history.yml`).
     Der Auftrag ist „Woche mit Fahrt, ohne Zeile in `price_week`" — kein

@@ -147,7 +147,11 @@ class _Legend extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              'aus den Parametern',
+              // Nicht mehr „aus den Parametern": Gestrichelt ist seit dem
+              // Nachfüll-Lauf überwiegend eine überbrückte Woche zwischen
+              // zwei Messungen, nicht die Konstante. Der alte Text hätte
+              // behauptet, der Wert stamme aus den Einstellungen.
+              'nicht gemessen',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -255,8 +259,14 @@ class _PriceTrendPainter extends CustomPainter {
       orElse: () => const [],
     );
     if (span.length >= 2) {
-      final first = _text(_day(span.first.week.monday));
-      final last = _text(_day(span.last.week.monday));
+      // Beschriftung kommt aus `price_series.dart` — sie entscheidet, ob die
+      // Jahreszahl mit muss, und ist dort im Gegensatz zu hier prüfbar.
+      final (firstLabel, lastLabel) = axisLabels(
+        span.first.week,
+        span.last.week,
+      );
+      final first = _text(firstLabel);
+      final last = _text(lastLabel);
       final baseline = size.height - first.height;
       first.paint(canvas, Offset(leftPad, baseline));
       last.paint(canvas, Offset(size.width - last.width, baseline));
@@ -278,7 +288,7 @@ class _PriceTrendPainter extends CustomPainter {
         // Ein Abschnitt gilt als „nicht gemessen", sobald einer seiner
         // beiden Enden aus der Konstante stammt: Die Linie dorthin ist
         // erfunden, auch wenn sie an einem echten Wert beginnt.
-        final guessed = points[i].isConstant || points[i + 1].isConstant;
+        final guessed = points[i].isEstimate || points[i + 1].isEstimate;
         if (guessed) {
           _dashed(
             canvas,
@@ -293,11 +303,6 @@ class _PriceTrendPainter extends CustomPainter {
       }
     }
   }
-
-  /// „16.02." — kurz genug, dass beide Enden nebeneinander passen.
-  static String _day(DateTime date) =>
-      '${date.day.toString().padLeft(2, '0')}.'
-      '${date.month.toString().padLeft(2, '0')}.';
 
   void _dashed(Canvas canvas, Offset from, Offset to, Paint paint) {
     final delta = to - from;
