@@ -114,7 +114,7 @@ void main() {
         (sum, s) => sum + s.savedCosts(settings, byId[s.personId]!),
       );
 
-      final (from, to) = savingsWindow(trips)!;
+      final (from, to) = savingsWindow(trips, now: DateTime(2026, 7, 20))!;
       final chart = weeklySavings(
         trips: trips,
         persons: persons,
@@ -392,7 +392,7 @@ void main() {
 
   group('savingsWindow', () {
     test('ohne Fahrten gibt es kein Fenster', () {
-      expect(savingsWindow(const []), isNull);
+      expect(savingsWindow(const [], now: DateTime(2026, 7, 20)), isNull);
     });
 
     test('endet bei der letzten Fahrt, nicht heute', () {
@@ -401,7 +401,7 @@ void main() {
       final (_, to) = savingsWindow([
         tripOn(DateTime(2026, 7, 8)),
         tripOn(DateTime(2026, 7, 15)),
-      ])!;
+      ], now: DateTime(2026, 7, 20))!;
 
       expect(to, const IsoWeek(2026, 29));
     });
@@ -410,15 +410,41 @@ void main() {
       final (from, _) = savingsWindow([
         tripOn(DateTime(2023, 1, 11)),
         tripOn(DateTime(2026, 7, 15)),
-      ])!;
+      ], now: DateTime(2026, 7, 20))!;
 
       expect(from, const IsoWeek(2023, 2));
     });
 
     test('eine junge Gruppe bekommt trotzdem eine Kurve', () {
-      final (from, to) = savingsWindow([tripOn(DateTime(2026, 7, 15))])!;
+      final (from, to) = savingsWindow([
+        tripOn(DateTime(2026, 7, 15)),
+      ], now: DateTime(2026, 7, 20))!;
 
       expect(weeksBetween(from, to), hasLength(8));
+    });
+
+    test('eine Fahrt in der Zukunft verlängert das Fenster nicht', () {
+      // Genau so ein Ausreißer steckt im Erst-Import der Gruppe (Vertipper
+      // 19.11.2027). Gezeichnet wird er nie — dann darf er auch die Achse
+      // nicht bis dorthin strecken, sonst quetschen sich alle echten Wochen
+      // in den linken Rand. Früher fing das `monthsToCover` ab; mit dem
+      // Monats-Diagramm ist es entfernt, jetzt muss das Fenster selbst
+      // deckeln.
+      final (_, to) = savingsWindow([
+        tripOn(DateTime(2026, 7, 8)),
+        tripOn(DateTime(2027, 11, 19)),
+      ], now: DateTime(2026, 7, 20))!;
+
+      expect(to, const IsoWeek(2026, 28));
+    });
+
+    test('nur Zukunfts-Fahrten ergeben kein Fenster', () {
+      expect(
+        savingsWindow([
+          tripOn(DateTime(2027, 11, 19)),
+        ], now: DateTime(2026, 7, 20)),
+        isNull,
+      );
     });
   });
 }
