@@ -231,6 +231,27 @@ SavingsChart weeklySavings({
   );
 }
 
+/// Reihenfolge der Personen im Ersparnis-Diagramm und im Ersparnis-Ring:
+/// absteigend nach Ersparnis, damit Legende und Zeichnung von oben nach
+/// unten dieselbe Ordnung tragen.
+///
+/// EINE Funktion für beide Flächen: Linien-Legende und Ring-Segmente
+/// vergeben ihre Farben über den Index in dieser Liste — rechnete jede
+/// Fläche die Reihenfolge selbst, drifteten die Farben derselben Person
+/// zwischen Diagramm und Ring auseinander.
+List<String> savingsOrder(SavingsChart chart) {
+  final ids = chart.perPerson.keys.toList();
+  ids.sort((a, b) {
+    final byValue = chart.perPerson[b]!.last.compareTo(
+      chart.perPerson[a]!.last,
+    );
+    // Gleichstand alphabetisch statt in Map-Reihenfolge: Sonst wechselten
+    // Farben zwischen zwei Aufbauten, ohne dass sich etwas geändert hat.
+    return byValue != 0 ? byValue : a.compareTo(b);
+  });
+  return ids;
+}
+
 /// Welche Preisreihe eine Energieart bezahlt.
 ///
 /// Benzin rechnet mit **E5**, nicht E10 — dieselbe Zuordnung wie

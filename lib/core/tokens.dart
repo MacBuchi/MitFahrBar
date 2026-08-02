@@ -55,6 +55,30 @@ abstract final class AppColors {
   static const oneWay = Color(0xFFB45309);
 }
 
+/// Farbe einer Personenlinie — im Ersparnis-Diagramm UND im Ersparnis-Ring;
+/// der Index kommt aus `savingsOrder`, damit dieselbe Person überall
+/// dieselbe Farbe trägt.
+///
+/// Erzeugt statt aufgezählt: Wie viele Personen eine Gruppe hat, steht nicht
+/// fest — eine feste Liste liefe bei der neunten entweder aus oder
+/// wiederholte sich still, und zwei gleichfarbige Linien im selben Diagramm
+/// sind schlimmer als eine ungewohnte Farbe. Gedreht wird deshalb der
+/// Farbton bei fester Sättigung und Helligkeit: So tragen alle Töne gleich
+/// weit gegen den Untergrund, und die Reihe beginnt in der Markenwelt.
+///
+/// Die Helligkeit hängt am Modus — dieselben Töne trügen auf dem dunklen
+/// Untergrund sonst deutlich schlechter als auf dem hellen.
+Color personLineColor(int index, int count, Brightness brightness) {
+  final base = HSLColor.fromColor(AppColors.brand);
+  final step = count <= 1 ? 0.0 : 300.0 / count;
+  return HSLColor.fromAHSL(
+    1,
+    (base.hue + step * index) % 360,
+    0.55,
+    brightness == Brightness.dark ? 0.68 : 0.42,
+  ).toColor();
+}
+
 /// Ein Bannerton: Fläche (oder Verlauf) plus alles, was darauf steht.
 ///
 /// Ein Werttyp statt zweier loser Farben, weil Fläche und Vordergrund nur
