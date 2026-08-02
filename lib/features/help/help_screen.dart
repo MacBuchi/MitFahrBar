@@ -309,7 +309,12 @@ class HelpScreen extends StatelessWidget {
                     'Parameter: euer Arbeitsweg in Kilometern und die Preise '
                     'für Strom, Diesel und Benzin. Daraus entstehen die '
                     'Kilometer und die gesparten Kosten in der Statistik — '
-                    'an den Punkten ändert sich dadurch nichts.',
+                    'an den Punkten ändert sich dadurch nichts. Von dort '
+                    'kommt ihr auch zu den Spritpreisen: Die App sieht sich '
+                    'die Tankstellen in eurem Umkreis an und merkt sich je '
+                    'Woche einen Preis. Das ist noch in Arbeit und geht in '
+                    'die Kostenrechnung nicht ein — eure eingetragenen '
+                    'Werte gelten weiter.',
               ),
               _Line(
                 leading: Icon(Icons.notifications_outlined),
