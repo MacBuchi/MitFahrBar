@@ -49,6 +49,10 @@ create policy price_area_isolated on public.price_area
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 
+grant select, insert, update, delete on public.price_area
+  to anon, authenticated;
+grant all on public.price_area to service_role;
+
 -- ----------------------------------------------------------- price_sample
 -- Rohschicht: was die API zu einem Zeitpunkt gemeldet hat.
 --
@@ -136,6 +140,12 @@ create policy price_week_read on public.price_week
   for select to authenticated
   using (group_id = auth.uid() and public.my_group_active());
 
+-- Erst zurücknehmen, dann gezielt geben: `alter default privileges` gibt
+-- den Client-Rollen sonst select/insert/update/delete auf JEDE neue
+-- Tabelle. Die RLS oben hielte auch so (ohne Policy kein Insert), aber der
+-- Riegel soll nicht allein davon abhängen, dass niemand später eine Policy
+-- ergänzt — dieselbe Begründung wie bei `push_outbox`.
+revoke all on public.price_week from anon, authenticated;
 grant select on public.price_week to authenticated;
 grant all on public.price_week to service_role;
 

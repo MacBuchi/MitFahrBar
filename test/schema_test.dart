@@ -61,6 +61,7 @@ void main() {
     'plan_overrides',
     'notification_prefs',
     'push_log',
+    'price_week',
   ]) {
     test('$table hat group_id im Primärschlüssel', () {
       expect(
@@ -380,6 +381,129 @@ void main() {
             'nimmt die Berichte der Gruppe mit — ohne Fremdschlüssel '
             'überlebte eine gelöschte Gruppe bis zu 90 Tage in den '
             'Berichten.',
+      );
+    });
+  });
+
+  // Preisarchiv. Zwei Riegel und eine bewusste Ausnahme von der
+  // group_id-Regel, die ohne Test wie ein Versehen aussieht.
+  group('Preisarchiv', () {
+    test('die Rohschicht hängt an der Region, nicht an der Gruppe', () {
+      expect(
+        primaryKeyOf('price_sample').replaceAll(RegExp(r'\s'), ''),
+        'region_key,captured_at,station_id',
+        reason:
+            'Bewusste Ausnahme von der group_id-Regel: In price_sample '
+            'stehen keine Gruppendaten, sondern öffentliche Marktdaten. '
+            'An der Region statt an der Gruppe hängt sie, damit zwei '
+            'Gruppen derselben Gegend EINE Abfrage teilen — und damit ein '
+            'späterer Tankdaumen eine Abfrage bleibt statt eines Umbaus.',
+      );
+    });
+
+    test('die Rohschicht hat RLS an und bewusst keine einzige Policy', () {
+      expect(
+        schema,
+        contains('alter table public.price_sample enable row level security'),
+        reason: 'Ohne RLS läse jeder authenticated die Rohschicht.',
+      );
+      expect(
+        RegExp(r'create policy \w+ on public\.price_sample').hasMatch(schema),
+        isFalse,
+        reason:
+            'Kein Client liest die Rohschicht je — gruppensichtbar ist '
+            'allein price_week. Eine SELECT-Policy hier, und sei es „nur '
+            'zum Debuggen", macht aus dem Riegel eine Absichtserklärung.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('revoke all on public.price_sample from anon, authenticated'),
+        reason:
+            'Der Sammel-Grant gibt Rechte auf JEDE Tabelle. Ohne die '
+            'Rücknahme hinge der Riegel allein daran, dass niemand später '
+            'eine Policy ergänzt — dieselbe Begründung wie bei push_outbox.',
+      );
+    });
+
+    test('die Wochenwerte darf ein Client nur lesen', () {
+      final policies = RegExp(
+        r'create policy (\w+) on public\.price_week\s+for (\w+)',
+      ).allMatches(schema).map((m) => '${m.group(1)}:${m.group(2)}').toList();
+      expect(
+        policies,
+        ['price_week_read:select'],
+        reason:
+            'Geschrieben wird allein vom Verdichtungslauf mit service_role. '
+            'Mit einer Schreib-Policy könnte ein Gerät die Preiskurve '
+            'fälschen — und eine gefälschte Kurve fiele niemandem auf, weil '
+            'niemand die Vergangenheit im Kopf hat.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('revoke all on public.price_week from anon, authenticated'),
+        reason: 'Der Sammel-Grant gäbe insert/update/delete.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains('grant select on public.price_week to authenticated'),
+        reason: 'Nach der Rücknahme muss das Lesen ausdrücklich zurück.',
+      );
+    });
+
+    test('die Konstanten stehen NICHT in der Wochenschicht', () {
+      final block = RegExp(
+        r'create table public\.price_week \((.*?)\n\);',
+        dotAll: true,
+      ).firstMatch(schema)!.group(1)!;
+      expect(
+        sqlOnly(block),
+        isNot(anyOf(contains('house_power'), contains('charging_power'))),
+        reason:
+            'Hausstrom und Tankstellenstrom sind vorerst Konstanten aus '
+            'settings, und Konstanten werden nicht gespeichert: Eine '
+            'Parameteränderung müsste sonst die Historie umschreiben, und '
+            'eine abgelegte Konstante sähe später aus wie eine Messung. '
+            'Der Lesepfad in core/price_series.dart füllt und markiert sie.',
+      );
+    });
+
+    test('der Abtast-Takt hat ein eigenes Job-Geheimnis', () {
+      final function = RegExp(
+        r'create or replace function public\.sample_fuel_prices\(\)(.*?)\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(function, isNotNull, reason: 'sample_fuel_prices fehlt.');
+      final body = sqlOnly(function!.group(1)!);
+      expect(
+        body,
+        contains("name = 'fuel_job_secret'"),
+        reason:
+            'Eigenes Geheimnis statt push_job_secret: Ein Leck im Push-Weg '
+            'soll nicht auch den Abtast-Endpunkt öffnen.',
+      );
+      expect(
+        body,
+        isNot(contains('push_job_secret')),
+        reason: 'Sonst hängen beide Wege an einem Wert.',
+      );
+      expect(
+        body,
+        contains('vault.decrypted_secrets'),
+        reason:
+            'Zugangsdaten aus dem Vault, nicht aus einer Tabelle — sonst '
+            'stehen sie in jedem Datenbank-Abzug im Klartext.',
+      );
+    });
+
+    test('die Function ist in config.toml deklariert', () {
+      final config = File('supabase/config.toml').readAsStringSync();
+      expect(
+        config,
+        contains('[functions.fuel-sample]'),
+        reason:
+            'Die GitHub-Integration deployt die in config.toml deklarierten '
+            'Functions. Ohne den Eintrag liefe der Takt ins Leere, ohne dass '
+            'irgendwo ein Fehler auftaucht.',
       );
     });
   });
