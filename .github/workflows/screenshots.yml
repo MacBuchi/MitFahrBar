@@ -67,7 +67,7 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
       - if: steps.guard.outputs.skip != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
       - if: steps.guard.outputs.skip != 'true'
@@ -122,7 +122,7 @@ jobs:
         run: gh workflow run CI --ref "${{ github.head_ref || github.ref_name }}"
       - name: Bilder auch als Artefakt
         if: steps.guard.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshots
           path: doc/screenshots/*.png

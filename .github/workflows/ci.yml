@@ -88,7 +88,7 @@ jobs:
       # CLI-Version gepinnt wie Flutter — ein CLI-Upgrade ändert den
       # lokalen Stack (Ports/Sektionen in config.toml) und gehört bewusst
       # zusammen mit einem lokalen Upgrade getestet.
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: "2.109.1"
       - uses: subosito/flutter-action@v2
@@ -115,7 +115,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: "2.109.1"
       - uses: subosito/flutter-action@v2
@@ -128,7 +128,7 @@ jobs:
         run: tool/browser_e2e.sh
       - name: Screenshots hochladen
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-e2e-shots
           path: tool/browser_e2e/shots/
