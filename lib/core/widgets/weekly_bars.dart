@@ -46,10 +46,11 @@ class WeeklyBarsChart extends StatelessWidget {
           scheme.primary.withValues(alpha: 0.35),
     ];
 
-    // Das Rekord-Label steht unter seinem Balken — aber nur, wenn es den
-    // Randbeschriftungen nicht in die Quere kommt; der Untertitel der Karte
-    // nennt die Rekordwoche ohnehin.
-    final showRecordLabel = record != null && record >= 2 && record <= n - 3;
+    // Das Rekord-Label steht unter seinem Balken — aber nur mit drei Balken
+    // Abstand zu den Randbeschriftungen: Beim ersten Web-Durchklick stand
+    // „KW 30 · 5" auf Index n−3 direkt in „diese Woche" hinein. Der
+    // Untertitel der Karte nennt die Rekordwoche ohnehin.
+    final showRecordLabel = record != null && record >= 3 && record <= n - 4;
     final labelStyle = theme.textTheme.labelSmall?.copyWith(
       color: scheme.onSurfaceVariant,
     );
