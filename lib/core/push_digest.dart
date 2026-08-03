@@ -39,7 +39,13 @@ enum PushKind {
   departureOut,
 
   /// Kurz vor der Abfahrt nach Hause.
-  departureReturn;
+  departureReturn,
+
+  /// Jemand anderes hat mich ein- oder ausgetragen (#163).
+  roster,
+
+  /// Eine eingetragene Fahrt wurde geändert oder gelöscht (#163).
+  trip;
 
   /// Ob diese Art an der Uhr hängt statt am Plan-Fenster.
   ///
@@ -410,6 +416,13 @@ String composeTitle(
     (PushKind.change, false) => 'Änderung · $label',
     (PushKind.departureOut, _) => 'Abfahrt$at',
     (PushKind.departureReturn, _) => 'Rückfahrt$at',
+    // Die „Ausgetragen"-Fassung ist wörtlich die der Änderungs-Meldung, und
+    // `push_due()` greift für diesen Fall auch dort zu: Ein zweites Wort für
+    // dieselbe Sache wäre eine zweite Sprache.
+    (PushKind.roster, true) => 'Ausgetragen · $label',
+    (PushKind.roster, false) => 'Eingetragen · $label',
+    (PushKind.trip, true) => 'Fahrt entfernt · $label',
+    (PushKind.trip, false) => 'Fahrt geändert · $label',
   };
 }
 
@@ -629,6 +642,12 @@ String _driverPhrase(List<String> driverIds, Map<String, Person> persons) {
   if (names.length == 1) return '${names.first} fährt';
   return '${names.join(' und ')} fahren';
 }
+
+/// Derselbe Hash wie im Tages-Digest — für Zustände, die kein Plantag sind
+/// (Fahrt-Meldungen, #163). Öffentlich, damit es bei EINER Rechenart bleibt:
+/// Zwei Hash-Funktionen im selben Korb sähen gleich aus und verglichen sich
+/// nie.
+String pushHash(String input) => _hash(input);
 
 /// djb2 mit 32-Bit-Maske, als Hex.
 ///

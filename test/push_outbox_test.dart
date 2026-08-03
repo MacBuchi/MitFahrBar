@@ -305,6 +305,54 @@ void main() {
       );
     });
 
+    test('nur die eigene Zeile unterdrückt die Eintrag-Meldung (#163)', () {
+      final box = outboxEntries(
+        week: [dayWith()],
+        persons: persons,
+        now: mondayEvening,
+        suppressPersonId: anna,
+      );
+      expect(entryFor(box, anna).suppressRoster, isTrue);
+      expect(
+        entryFor(box, bernd).suppressRoster,
+        isFalse,
+        reason:
+            'Unterdrückt wird die Meldung über die eigene Änderung, nicht '
+            'die der anderen — sonst hörte die Gruppe nichts mehr davon, '
+            'sobald ein Gerät zugeordnet ist.',
+      );
+      expect(
+        entryFor(box, anna).titleRoster,
+        'Eingetragen · Morgen (Di, 28.07.)',
+      );
+    });
+
+    test('ohne Geräte-Zuordnung wird nichts unterdrückt', () {
+      final box = outboxEntries(
+        week: [dayWith()],
+        persons: persons,
+        now: mondayEvening,
+      );
+      expect(
+        box.every((e) => !e.suppressRoster),
+        isTrue,
+        reason:
+            'So schreibt der stündliche Job — er weiß nicht, wer getippt '
+            'hat, und überstimmt damit im Reparaturfall. Lieber eine '
+            'Meldung zu viel als eine, die niemand bekommt.',
+      );
+    });
+
+    test('Plan-Zeilen tragen die Art „plan"', () {
+      final box = outboxEntries(
+        week: [dayWith()],
+        persons: persons,
+        now: mondayEvening,
+      );
+      expect(box.every((e) => e.kind == 'plan'), isTrue);
+      expect(entryFor(box, anna).toJson()['kind'], 'plan');
+    });
+
     test('auch Abwesende bekommen eine Zeile', () {
       final box = outboxEntries(
         week: [

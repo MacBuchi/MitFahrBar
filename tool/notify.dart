@@ -186,13 +186,31 @@ Future<int> _handleGroup({
   // Aufgabe, die `publish_push_outbox` für den Client erledigt. Der Job
   // schreibt mit dem service_role-Key und damit an der Funktion vorbei: Die
   // leitet die Gruppe aus `auth.uid()` ab, und die hat er nicht.
+  //
+  // **Der `kind`-Filter ist Pflicht** (#163): Ohne ihn nähme dieser Lauf der
+  // Gruppe stündlich jede Meldung über eine ältere Fahrt weg, bevor sie
+  // verschickt wird. Trip-Zeilen räumt der Versand selbst weg; der Boden
+  // dafür steht unten.
   await api.delete('push_outbox', {
     ...scope,
+    'kind': 'eq.plan',
     'plan_date': 'lt.${_isoDay(week.first)}',
   });
   await api.upsert('push_outbox', [
     for (final entry in entries) {'group_id': groupId, ...entry.toJson()},
-  ], onConflict: 'group_id,person_id,plan_date');
+  ], onConflict: 'group_id,person_id,plan_date,kind');
+
+  // Liegengebliebene Fahrt-Meldungen (#163). Sie entstehen im Client und
+  // verschwinden nach dem Versand — bleibt eine liegen (kein Gerät, kein
+  // Empfänger mit eingeschalteten Sofort-Meldungen), räumt sie hier ab.
+  // Eine Woche, weil eine Fahrt-Meldung nach so langer Zeit ohnehin
+  // niemanden mehr erreicht, den sie noch interessiert.
+  await api.delete('push_outbox', {
+    ...scope,
+    'kind': 'eq.trip',
+    'updated_at':
+        'lt.${now.toUtc().subtract(const Duration(days: 7)).toIso8601String()}',
+  });
   return entries.length;
 }
 

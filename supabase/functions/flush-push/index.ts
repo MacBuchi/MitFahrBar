@@ -109,6 +109,22 @@ Deno.serve(async (req) => {
     // Fehler wie ein Knopf, der Erfolg meldet, den er nicht geprüft hat.
     if (!results.some((r) => r.status === 'ok')) continue
 
+    // Die Fahrt-Meldung (#163) hat kein Gedächtnis: Ihre Zeile entsteht nur,
+    // wenn wirklich jemand eine Fahrt geändert hat, und wird nach dem
+    // Versand gelöscht. Ein Protokolleintrag wäre die zweite Buchführung
+    // über dasselbe — und `push_log.kind` kennt 'trip' deshalb gar nicht.
+    if (first.kind === 'trip') {
+      await client
+        .from('push_outbox')
+        .delete()
+        .eq('group_id', first.group_id)
+        .eq('person_id', first.person_id)
+        .eq('plan_date', first.plan_date)
+        .eq('kind', 'trip')
+      sent += 1
+      continue
+    }
+
     await client.from('push_log').upsert(
       {
         group_id: first.group_id,
@@ -140,6 +156,17 @@ Deno.serve(async (req) => {
         .eq('group_id', first.group_id)
         .eq('person_id', first.person_id)
         .eq('plan_date', first.plan_date)
+        .eq('kind', 'plan')
+    } else if (first.kind === 'roster') {
+      // Eigene Fälligkeit, eigene Quittung (#163): Über `due_at` liefe sie
+      // dem Abend-Blick ins Handwerk — der quittiert dieselbe Spalte.
+      await client
+        .from('push_outbox')
+        .update({ roster_due_at: null })
+        .eq('group_id', first.group_id)
+        .eq('person_id', first.person_id)
+        .eq('plan_date', first.plan_date)
+        .eq('kind', 'plan')
     }
     sent += 1
   }

@@ -369,6 +369,12 @@ class HelpScreen extends StatelessWidget {
                     'ist standardmäßig aus. Sie braucht die Abfahrtszeiten '
                     'unter „Parameter → Fahrt & Treffpunkt"; wie lange vorher, '
                     'stellst du selbst ein. '
+                    'Die Sofort-Meldungen sind der dritte Fall und '
+                    'standardmäßig an: Sie kommen, wenn dich jemand anderes '
+                    'ein- oder austrägt und wenn eine eingetragene Fahrt '
+                    'geändert oder gelöscht wird — auch eine ältere, denn '
+                    'das verschiebt die Punkte aller Beteiligten. Was du '
+                    'selbst änderst, bleibt still. '
                     'Hast du MitFahrBar gerade offen, erscheint sie als '
                     'Hinweis in der App statt als Benachrichtigung.',
               ),

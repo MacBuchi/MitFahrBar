@@ -74,6 +74,7 @@ class NotificationPrefs {
     required this.changesEnabled,
     this.remindersEnabled = false,
     this.reminderLeadMinutes = defaultReminderLead,
+    this.instantEnabled = true,
   });
 
   /// Vorbelegung beim Einschalten: Abend-Push um 21 Uhr, Fenster bis 7:30.
@@ -102,6 +103,7 @@ class NotificationPrefs {
         reminderLeadMinutes:
             (json['reminder_lead_minutes'] as num?)?.toInt() ??
             defaultReminderLead,
+        instantEnabled: json['instant_enabled'] as bool? ?? true,
       );
 
   final String personId;
@@ -124,8 +126,18 @@ class NotificationPrefs {
   /// Regler für dieselbe Frage sind ein Regler zu viel.
   final int reminderLeadMinutes;
 
+  /// Sofort-Meldungen (#163): ein- oder ausgetragen werden, und geänderte
+  /// oder gelöschte Fahrten.
+  ///
+  /// Bewusst **nicht** an [eveningEnabled] gekoppelt wie [changesEnabled]:
+  /// Die hängt an einem Abend-Eintrag in `push_log` und liefe ohne ihn leer.
+  /// Diese hier feuert außerhalb jedes Fensters — sie zu koppeln hieße, sie
+  /// genau dann abzuschalten, wenn sie gebraucht wird.
+  final bool instantEnabled;
+
   /// Schaltet die Person überhaupt etwas ein?
-  bool get anyEnabled => eveningEnabled || changesEnabled || remindersEnabled;
+  bool get anyEnabled =>
+      eveningEnabled || changesEnabled || remindersEnabled || instantEnabled;
 
   Map<String, Object?> toJson() => {
     'person_id': personId,
@@ -135,6 +147,7 @@ class NotificationPrefs {
     'changes_enabled': changesEnabled,
     'reminders_enabled': remindersEnabled,
     'reminder_lead_minutes': reminderLeadMinutes,
+    'instant_enabled': instantEnabled,
   };
 
   NotificationPrefs copyWith({
@@ -144,6 +157,7 @@ class NotificationPrefs {
     bool? changesEnabled,
     bool? remindersEnabled,
     int? reminderLeadMinutes,
+    bool? instantEnabled,
   }) => NotificationPrefs(
     personId: personId,
     eveningEnabled: eveningEnabled ?? this.eveningEnabled,
@@ -152,6 +166,7 @@ class NotificationPrefs {
     changesEnabled: changesEnabled ?? this.changesEnabled,
     remindersEnabled: remindersEnabled ?? this.remindersEnabled,
     reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
+    instantEnabled: instantEnabled ?? this.instantEnabled,
   );
 }
 

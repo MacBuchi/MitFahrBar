@@ -108,6 +108,33 @@ void main() {
     );
   });
 
+  test('der Job räumt nur Plan-Zeilen weg (#163)', () {
+    // Der ERSTE Aufruf ist der Wochen-Purge; der zweite räumt liegen
+    // gebliebene Fahrt-Meldungen ab und wird unten geprüft.
+    final purge = job.split("delete('push_outbox'")[1].split('});').first;
+    expect(
+      purge,
+      stringContainsInOrder(["'kind': 'eq.plan'", "'plan_date': 'lt."]),
+      reason:
+          'Ohne den Filter nähme dieser Lauf der Gruppe STÜNDLICH jede '
+          'Meldung über eine ältere Fahrt weg, bevor sie verschickt wird — '
+          'und niemand sähe einen roten Lauf. Dieselbe Falle wie im '
+          'Schreibweg des Clients, nur mit service_role-Rechten.',
+    );
+  });
+
+  test('der Job räumt liegengebliebene Fahrt-Meldungen ab', () {
+    expect(
+      job,
+      contains("'kind': 'eq.trip'"),
+      reason:
+          'Trip-Zeilen löscht sonst nur der Versand. Bleibt eine liegen '
+          '(kein Gerät, niemand mit eingeschalteten Sofort-Meldungen), '
+          'wüchse die Tabelle still — mit Personennamen darin.',
+    );
+    expect(job, contains("'updated_at':"));
+  });
+
   test('der Job liest die festen Vorgaben mit (#139)', () {
     expect(
       job,

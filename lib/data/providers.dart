@@ -18,6 +18,7 @@ import '../core/share_text.dart';
 import '../core/stats_data.dart';
 import '../core/stats_insights.dart';
 import '../core/supabase_config.dart';
+import '../core/trip_push.dart';
 import '../core/update_check.dart';
 import '../models/app_settings.dart';
 import '../models/group.dart';
@@ -658,6 +659,10 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
     now: now,
     notes: [for (final day in notes.values) ...day],
     defaults: defaults,
+    // Wer an diesem Gerät sitzt, hat gerade selbst getippt und braucht
+    // keine Meldung darüber (#163). Best effort: ohne Geräte-Zuordnung
+    // wird nichts unterdrückt, und der stündliche Job hebt es wieder auf.
+    suppressPersonId: ref.watch(myPersonProvider)?.id,
   );
   unawaited(
     ref
@@ -671,6 +676,67 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
           log.w('Ausgangskorb nicht geschrieben (${error.runtimeType})');
         }),
   );
+});
+
+/// Meldet geänderte und gelöschte Fahrten (#163).
+///
+/// **Ein zweiter Zuhörer neben [pushOutboxSyncProvider], und bewusst kein
+/// Aufruf im Fahrten-Editor.** Eine Fahrt entsteht und ändert sich an
+/// mehreren Stellen — Editor, Planer („Eintragen"), CSV-Import, zweites
+/// Gerät. Ein Haken an jeder davon wäre einer, den man beim nächsten Weg
+/// vergisst; hier hört einer auf das fertige Ergebnis.
+///
+/// Der vorige Stand wird selbst gemerkt und nicht aus dem `previous` des
+/// Listeners genommen: Ein `invalidate` schickt den Provider über
+/// `AsyncLoading` (mit altem Wert) nach `AsyncData`, der Listener feuert also
+/// mehrfach für dieselbe Änderung. Gegen die eigene Merkzelle verglichen
+/// entsteht der Diff genau einmal.
+///
+/// **Die Erstladung meldet nichts.** Ohne diesen Riegel bekäme jede Person
+/// beim App-Start eine Meldung über jede Fahrt, die es gibt.
+final tripPushSyncProvider = Provider<void>((ref) {
+  if (ref.watch(currentUserIdProvider) == null) return;
+
+  List<Trip>? seen;
+  ref.listen(tripsProvider, (_, next) {
+    final trips = next.valueOrNull;
+    if (trips == null) return;
+    final previous = seen;
+    seen = trips;
+    if (previous == null) return;
+
+    final persons = ref.read(personsProvider).valueOrNull;
+    if (persons == null) return;
+    final active = {
+      for (final person in persons)
+        if (person.active) person.id: person,
+    };
+
+    final entries = tripChangeEntries(
+      previous: previous,
+      next: trips,
+      persons: active,
+      now: ref.read(nowProvider)(),
+      defaults:
+          ref.read(groupDefaultsProvider).valueOrNull ?? const GroupDefaults(),
+      suppressPersonId: ref.read(myPersonProvider)?.id,
+    );
+    if (entries.isEmpty) return;
+
+    unawaited(
+      ref
+          .read(pushOutboxRepositoryProvider)
+          .publish(
+            entries,
+            keepFrom: planningWeek(ref.read(nowProvider)()).first,
+          )
+          // **Ohne Fehlertext** — er könnte die Nutzlast mitführen, und darin
+          // stehen Namen. Dieselbe Regel wie beim Einladungstext.
+          .catchError((Object error) {
+            log.w('Fahrt-Meldung nicht geschrieben (${error.runtimeType})');
+          }),
+    );
+  });
 });
 
 /// Die Anmerkungen EINES Tages, älteste zuerst — für den Anmerkungs-Schirm.

@@ -362,6 +362,44 @@ void main() {
     );
   });
 
+  // Sofort-Meldungen (#163) sind der einzige Schalter, der NICHT am
+  // Abend-Blick hängt — er feuert außerhalb jedes Fensters. Ihn zu koppeln
+  // hieße, ihn genau dann abzuschalten, wenn er gebraucht wird.
+  testWidgets('Sofort-Meldungen stehen für sich und sind vorgabegemäß an', (
+    tester,
+  ) async {
+    _tall(tester);
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
+    await pumpApp(
+      tester,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
+    await _login(tester);
+    await _open(tester);
+    await _toggle(tester);
+
+    expect(push.prefs.values.single.instantEnabled, isTrue);
+
+    // Abend-Blick aus — der Schalter bleibt bedienbar.
+    await tester.tap(find.text('Abends der Blick auf morgen'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Sofort-Meldungen'),
+          )
+          .onChanged,
+      isNotNull,
+    );
+
+    await tester.tap(find.text('Sofort-Meldungen'));
+    await tester.pumpAndSettle();
+    expect(push.prefs.values.single.instantEnabled, isFalse);
+  });
+
   testWidgets('Ausschalten nimmt das Gerät aus der Zustellung', (tester) async {
     final f = await _backend();
     final push = FakePushRepository(f.backend);
