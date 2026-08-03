@@ -669,6 +669,47 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     sie nicht nach (gemessen 15:14, 16:27, 17:38 UTC statt alle zehn
     Minuten). Für den Abend-Blick belanglos, für eine Änderung um 7:05
     fatal — die Meldung kam nach der Abfahrt, also nie.
+  - **Die Abfahrts-Erinnerung hat ein EIGENES Fenster** (#164, seit
+    v0.58.0). `push_due()` ist deshalb ein `union all` aus zwei Zweigen —
+    das ist kein Aufräumen, sondern die einzige Bauform, die trägt: Das
+    Plan-Fenster endet an der persönlichen `departure_time` (Vorgabe 7:30),
+    die Rückfahrt-Erinnerung um 16:20 läge dahinter und wäre nie fällig
+    geworden. Der Erinnerungs-Zweig kennt kein `due_at` und keinen
+    Digest-Vergleich; sein Riegel ist der Eintrag in `push_log`
+    (`sent.person_id is null`). Ohne ihn feuerte sie in **jedem**
+    Minutentakt des Fensters neu — bei 15 Minuten Vorlauf fünfzehnmal.
+    Bewiesen am echten Postgres (`test/e2e/push_e2e_test.dart`, gegen die
+    Berlin-Uhr), Dart-Spiegel in `dueMessages`.
+    - **Deshalb quittiert `flush-push` nur `evening`/`change`.** Liefe
+      `due_at = null` nach jedem Versand, verschluckte eine Erinnerung um
+      07:15 eine Planänderung, die um 07:14 entprellt wurde: Die Zeile wäre
+      erledigt, ohne dass die Änderung je rausging — und der Digest ändert
+      sich danach nicht mehr. Dieselbe Klasse wie ein optimistisch
+      geschriebenes Protokoll.
+    - **`title_out`/`title_return` stehen NICHT im Entprell-Vergleich.** Ein
+      Client von vor v0.58.0 schreibt sie als NULL, der Stundenjob gefüllt;
+      im Vergleich wechselte der Inhalt zwischen beiden Schreibern hin und
+      her und schöbe `due_at` endlos vor sich her — für **alle** Meldungen
+      dieser Person. Damit ein Alt-Client eine gefüllte Kopfzeile nicht
+      ausleert, hält `publish_push_outbox` sie mit `coalesce` fest; eine
+      wirklich entfernte Gruppenzeit macht das nicht rückgängig, denn ohne
+      `outbound_time` gibt es kein Fenster.
+    - **Opt-in, Vorgabe AUS** — anders als der Abend-Blick meldet sie sich
+      an einem Tag, an dem gar nichts passiert ist. Und sie hängt bewusst
+      **nicht** am Abend-Blick (anders als die Änderungs-Meldung): Sie
+      braucht keine `push_log`-Zeile als Bezug, nur die Uhr der Gruppe.
+  - **Ein eingetragener Tag hat seit v0.58.0 den festen Digest `'fix'`**
+    (`confirmedDigest`), statt aus dem Korb zu fallen. Vorher ließ
+    `outboxEntries` ihn aus, und die alte Zeile blieb mit ihrem Plan-Hash
+    stehen — ein Zustand, der zu nichts mehr passte; die Erinnerung braucht
+    die Zeile aber gerade dann. Der Wert trägt zwei Riegel: Der Weg **in**
+    ihn hinein löst nichts aus (Abend- und Änderungs-Zweig schließen ihn
+    aus — sonst bekäme beim Eintragen die halbe Gruppe eine „Änderung"),
+    der Weg **heraus** meldet sich (gelöschte Fahrt = wieder Planung). Die
+    Erinnerung schließt nur `'raus'` aus, nie `'fix'`. Wer an einem
+    bestätigten Tag verfügbar war, aber in keinem Auto steht, bekommt
+    `'raus'` — und `composeBody` sagt dasselbe, sonst stünde über einer
+    Fahrtbeschreibung die Kopfzeile „Ausgetragen".
   - **`tool/notify.dart` verschickt seit #132 nichts mehr, es ist der
     Boden.** Stündlich rechnet es den Korb neu und repariert, was ein Gerät
     ohne Netz oder ein geschlossener Tab hinterlassen hat. **Das ist die

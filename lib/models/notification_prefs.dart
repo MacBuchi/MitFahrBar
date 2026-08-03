@@ -72,9 +72,17 @@ class NotificationPrefs {
     required this.eveningTime,
     required this.departureTime,
     required this.changesEnabled,
+    this.remindersEnabled = false,
+    this.reminderLeadMinutes = defaultReminderLead,
   });
 
   /// Vorbelegung beim Einschalten: Abend-Push um 21 Uhr, Fenster bis 7:30.
+  ///
+  /// Die Abfahrts-Erinnerung (#164) ist hier **aus**, und das ist keine
+  /// Vorsicht, sondern die Entscheidung: Sie meldet sich an einem Tag, an dem
+  /// nichts passiert ist, und wer das nicht will, soll es nicht einmal
+  /// abschalten müssen. Der Wert muss mit dem DB-Default übereinstimmen —
+  /// `test/push_digest_test.dart` nagelt beide zusammen.
   factory NotificationPrefs.initial(String personId) => NotificationPrefs(
     personId: personId,
     eveningEnabled: true,
@@ -90,6 +98,10 @@ class NotificationPrefs {
         eveningTime: DayTime.parse(json['evening_time'] as String),
         departureTime: DayTime.parse(json['departure_time'] as String),
         changesEnabled: json['changes_enabled'] as bool? ?? true,
+        remindersEnabled: json['reminders_enabled'] as bool? ?? false,
+        reminderLeadMinutes:
+            (json['reminder_lead_minutes'] as num?)?.toInt() ??
+            defaultReminderLead,
       );
 
   final String personId;
@@ -104,8 +116,16 @@ class NotificationPrefs {
 
   final bool changesEnabled;
 
+  /// Kurz vor der Abfahrt erinnern (#164) — **Opt-in**.
+  final bool remindersEnabled;
+
+  /// Wie viele Minuten vor der Gruppenzeit. Ein Wert für beide Richtungen:
+  /// Wer morgens fünf Minuten braucht, braucht sie abends auch, und zwei
+  /// Regler für dieselbe Frage sind ein Regler zu viel.
+  final int reminderLeadMinutes;
+
   /// Schaltet die Person überhaupt etwas ein?
-  bool get anyEnabled => eveningEnabled || changesEnabled;
+  bool get anyEnabled => eveningEnabled || changesEnabled || remindersEnabled;
 
   Map<String, Object?> toJson() => {
     'person_id': personId,
@@ -113,6 +133,8 @@ class NotificationPrefs {
     'evening_time': eveningTime.format(),
     'departure_time': departureTime.format(),
     'changes_enabled': changesEnabled,
+    'reminders_enabled': remindersEnabled,
+    'reminder_lead_minutes': reminderLeadMinutes,
   };
 
   NotificationPrefs copyWith({
@@ -120,11 +142,24 @@ class NotificationPrefs {
     DayTime? eveningTime,
     DayTime? departureTime,
     bool? changesEnabled,
+    bool? remindersEnabled,
+    int? reminderLeadMinutes,
   }) => NotificationPrefs(
     personId: personId,
     eveningEnabled: eveningEnabled ?? this.eveningEnabled,
     eveningTime: eveningTime ?? this.eveningTime,
     departureTime: departureTime ?? this.departureTime,
     changesEnabled: changesEnabled ?? this.changesEnabled,
+    remindersEnabled: remindersEnabled ?? this.remindersEnabled,
+    reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
   );
 }
+
+/// Vorlauf der Abfahrts-Erinnerung in Minuten (#164).
+///
+/// Fünfzehn Minuten: genug, um die Jacke zu holen, zu kurz, um es bis zur
+/// Abfahrt wieder zu vergessen. Muss mit dem DB-Default übereinstimmen.
+const int defaultReminderLead = 15;
+
+/// Die wählbaren Vorläufe im Benachrichtigungs-Screen.
+const List<int> reminderLeadChoices = [5, 10, 15, 20, 30, 45, 60];

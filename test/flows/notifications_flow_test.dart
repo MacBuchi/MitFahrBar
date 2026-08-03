@@ -12,6 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/data/push_repository.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
+import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 
 import '../fakes/fake_backend.dart';
@@ -62,6 +64,15 @@ Future<void> _open(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('Benachrichtigungen'));
   await tester.pumpAndSettle();
+}
+
+/// Hohe Fläche: Seit #164 stehen unter den Zeiten noch Erinnerung und
+/// Vorlauf. Auf der Standardgröße liegen sie außerhalb, und eine ListView
+/// baut, was sie nicht zeigt, gar nicht erst.
+void _tall(WidgetTester tester) {
+  tester.view.physicalSize = const Size(420, 1600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
 }
 
 /// Der Hauptschalter — seit #121 der Einschalter statt der Personen-Auswahl.
@@ -221,6 +232,133 @@ void main() {
       changes().value,
       isTrue,
       reason: 'Die eigene Einstellung ist wieder da, unverändert.',
+    );
+  });
+
+  // Die Abfahrts-Erinnerung (#164) hängt an den Gruppenzeiten (#139) — ohne
+  // sie liefe der Schalter genauso leer wie der Änderungs-Schalter ohne
+  // Abend-Blick. Gesperrt wird er deshalb nicht stumm: Der Untertitel sagt,
+  // wo die Zeiten herkommen.
+  testWidgets('ohne Gruppenzeiten sperrt die Erinnerung und sagt woher', (
+    tester,
+  ) async {
+    _tall(tester);
+    final f = await _backend();
+    final push = FakePushRepository(f.backend);
+    await pumpApp(
+      tester,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
+    await _login(tester);
+    await _open(tester);
+    await _toggle(tester);
+
+    SwitchListTile reminder() => tester.widget<SwitchListTile>(
+      find.widgetWithText(SwitchListTile, 'Erinnerung zur Abfahrt'),
+    );
+    expect(reminder().onChanged, isNull);
+    expect(reminder().value, isFalse);
+    expect(find.textContaining('Fahrt & Treffpunkt'), findsOneWidget);
+  });
+
+  testWidgets('mit Gruppenzeiten lässt sie sich einschalten', (tester) async {
+    _tall(tester);
+    final f = await _backend();
+    await f.backend
+        .dataFor('group-1')
+        .saveGroupDefaults(const GroupDefaults(outboundTime: DayTime(7, 30)));
+    final push = FakePushRepository(f.backend);
+    await pumpApp(
+      tester,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
+    await _login(tester);
+    await _open(tester);
+    await _toggle(tester);
+
+    // Vorgabe AUS — das ist die Entscheidung, nicht die Vorsicht.
+    expect(push.prefs.values.single.remindersEnabled, isFalse);
+
+    await tester.tap(find.text('Erinnerung zur Abfahrt'));
+    await tester.pumpAndSettle();
+    expect(push.prefs.values.single.remindersEnabled, isTrue);
+    expect(
+      push.prefs.values.single.reminderLeadMinutes,
+      15,
+      reason: 'Die Vorbelegung kommt aus defaultReminderLead.',
+    );
+
+    // Der Vorlauf ist eine Dauer, keine Uhrzeit — deshalb eine Auswahl.
+    await tester.tap(find.text('Vorlauf'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('30 Minuten'));
+    await tester.pumpAndSettle();
+    expect(push.prefs.values.single.reminderLeadMinutes, 30);
+  });
+
+  testWidgets('der Vorlauf ist gesperrt, solange die Erinnerung aus ist', (
+    tester,
+  ) async {
+    _tall(tester);
+    final f = await _backend();
+    await f.backend
+        .dataFor('group-1')
+        .saveGroupDefaults(const GroupDefaults(outboundTime: DayTime(7, 30)));
+    final push = FakePushRepository(f.backend);
+    await pumpApp(
+      tester,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
+    await _login(tester);
+    await _open(tester);
+    await _toggle(tester);
+
+    expect(
+      tester.widget<ListTile>(find.widgetWithText(ListTile, 'Vorlauf')).enabled,
+      isFalse,
+      reason:
+          'Eine Dauer einzustellen für etwas, das nicht kommt, ist dieselbe '
+          'Falle wie ein Schalter ohne Wirkung.',
+    );
+  });
+
+  testWidgets('sie ist unabhängig vom Abend-Blick', (tester) async {
+    _tall(tester);
+    final f = await _backend();
+    await f.backend
+        .dataFor('group-1')
+        .saveGroupDefaults(const GroupDefaults(outboundTime: DayTime(7, 30)));
+    final push = FakePushRepository(f.backend);
+    await pumpApp(
+      tester,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
+      overrides: [pushRepositoryProvider.overrideWithValue(push)],
+    );
+    await _login(tester);
+    await _open(tester);
+    await _toggle(tester);
+
+    await tester.tap(find.text('Abends der Blick auf morgen'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Erinnerung zur Abfahrt'),
+          )
+          .onChanged,
+      isNotNull,
+      reason:
+          'Anders als die Änderungs-Meldung braucht sie keinen Abend-Push in '
+          'push_log — sie hängt an der Uhr der Gruppe. Wer nur den Schubs '
+          'kurz vorher will, bekommt ihn auch allein.',
     );
   });
 

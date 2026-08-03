@@ -349,7 +349,10 @@ class HelpScreen extends StatelessWidget {
                     'ihr euch trefft. Sie erscheinen auf der Übersicht und '
                     'in der Benachrichtigung, damit niemand nachfragen muss. '
                     'Wer sie leer lässt, sieht davon nichts — und für den '
-                    'einzelnen Tag bleibt die Anmerkung („komme erst um 9").',
+                    'einzelnen Tag bleibt die Anmerkung („komme erst um 9"). '
+                    'Sind sie gepflegt, kann jeder sich unter '
+                    '„Benachrichtigungen" kurz vor der Abfahrt erinnern '
+                    'lassen.',
               ),
               _Line(
                 leading: Icon(Icons.notifications_outlined),
@@ -361,6 +364,11 @@ class HelpScreen extends StatelessWidget {
                     'dich. Nachricht kommt nur an Tagen, an denen du '
                     'eingetragen bist. Die Änderungs-Meldung hängt am '
                     'Abend-Blick: Schaltest du den aus, kommt gar nichts mehr. '
+                    'Die Erinnerung zur Abfahrt ist davon unabhängig — sie '
+                    'meldet sich kurz bevor es losgeht, hin und zurück, und '
+                    'ist standardmäßig aus. Sie braucht die Abfahrtszeiten '
+                    'unter „Parameter → Fahrt & Treffpunkt"; wie lange vorher, '
+                    'stellst du selbst ein. '
                     'Hast du MitFahrBar gerade offen, erscheint sie als '
                     'Hinweis in der App statt als Benachrichtigung.',
               ),

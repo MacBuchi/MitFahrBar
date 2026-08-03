@@ -810,6 +810,313 @@ void main() {
     });
   });
 
+  group('Bestätigte Tage (#164)', () {
+    /// Der Tag ist eingetragen: Anna fährt, Bernd fährt mit. Clara war
+    /// verfügbar, steht aber in keinem Auto — `planWeek` vereint für einen
+    /// bestätigten Tag Verfügbarkeit UND Fahrt (#85).
+    PlannedDay confirmedDay() => dayWith(
+      confirmed: true,
+      cars: const [
+        PlannedCar(driverId: anna, fullIds: [bernd]),
+      ],
+    );
+
+    test('wer mitfuhr, bekommt den festen Wert', () {
+      expect(dayDigestFor(confirmedDay(), anna), confirmedDigest);
+      expect(dayDigestFor(confirmedDay(), bernd), confirmedDigest);
+    });
+
+    test('wer nicht mitfuhr, ist raus wie ein Ausgetragener', () {
+      expect(
+        dayDigestFor(confirmedDay(), clara),
+        removedDigest,
+        reason:
+            'Sie steht noch in availableIds, ist aber nicht mitgefahren. Für '
+            'sie ist der Tag vorbei — und der Text sagt dasselbe.',
+      );
+      expect(
+        composeBody(confirmedDay(), clara, persons),
+        contains('nicht mehr eingetragen'),
+      );
+    });
+
+    test('das Eintragen selbst löst keine Meldung aus', () {
+      // Vorher: geplanter Tag, Abend-Push ist raus. Jetzt ist die Fahrt
+      // eingetragen — für Anna und Bernd wechselt der Digest auf 'fix'.
+      final due = dueMessages(
+        week: [confirmedDay()],
+        prefs: prefsFor([anna, bernd]),
+        sent: [
+          for (final id in [anna, bernd])
+            sentEvening(id, dayDigestFor(dayWith(), id), mondayEvening),
+        ],
+        persons: persons,
+        now: DateTime(2026, 7, 28, 6, 0),
+      );
+      expect(
+        due,
+        isEmpty,
+        reason:
+            'Eine eingetragene Fahrt ist keine Meldung wert — sie ist ja '
+            'schon passiert. Ohne den fix-Riegel bekäme die halbe Gruppe '
+            'beim Eintragen eine „Änderung".',
+      );
+    });
+
+    test('eine gelöschte Fahrt meldet sich dagegen', () {
+      final due = dueMessages(
+        week: [dayWith()],
+        prefs: prefsFor([bernd]),
+        sent: [sentEvening(bernd, confirmedDigest, mondayEvening)],
+        persons: persons,
+        now: DateTime(2026, 7, 28, 6, 0),
+      );
+      expect(due, hasLength(1));
+      expect(
+        due.single.kind,
+        PushKind.change,
+        reason:
+            'Der Weg HERAUS aus „fix" ist eine echte Änderung: Der Tag ist '
+            'wieder Planung, und wer fährt, steht neu zur Debatte.',
+      );
+    });
+
+    test('am eingetragenen Tag kommt kein Abend-Blick mehr', () {
+      final due = dueMessages(
+        week: [confirmedDay()],
+        prefs: prefsFor([anna, bernd]),
+        sent: const [],
+        persons: persons,
+        now: mondayEvening,
+      );
+      expect(due, isEmpty);
+    });
+  });
+
+  group('Abfahrts-Erinnerung (#164)', () {
+    const legs = GroupDefaults(
+      outboundTime: DayTime(7, 30),
+      returnTime: DayTime(16, 30),
+    );
+
+    /// Nur die Erinnerung eingeschaltet — Abend-Blick und Änderungen aus.
+    ///
+    /// Die Trennung ist der Punkt: Das Plan-Fenster (Abend davor bis 7:30)
+    /// überlappt das Erinnerungs-Fenster, ein mitlaufender Abend-Push machte
+    /// jede Prüfung hier unlesbar. Dass beide Arten NEBENEINANDER bestehen,
+    /// prüft der vorletzte Test dieser Gruppe.
+    Map<String, NotificationPrefs> remindingPrefs(
+      List<String> ids, {
+      int lead = defaultReminderLead,
+    }) => {
+      for (final id in ids)
+        id: NotificationPrefs.initial(id).copyWith(
+          eveningEnabled: false,
+          changesEnabled: false,
+          remindersEnabled: true,
+          reminderLeadMinutes: lead,
+        ),
+    };
+
+    List<DuePush> at(
+      DateTime now, {
+      Map<String, NotificationPrefs>? prefs,
+      GroupDefaults defaults = legs,
+      PlannedDay? day,
+      List<SentPush> sent = const [],
+    }) => dueMessages(
+      week: [day ?? dayWith()],
+      prefs: prefs ?? remindingPrefs([anna, bernd, clara]),
+      sent: sent,
+      persons: persons,
+      now: now,
+      defaults: defaults,
+    );
+
+    test('kommt im Vorlauf-Fenster, für beide Richtungen', () {
+      final out = at(DateTime(2026, 7, 28, 7, 20));
+      expect(out.map((d) => d.kind).toSet(), {PushKind.departureOut});
+      expect(out.map((d) => d.personId).toSet(), {anna, bernd, clara});
+      expect(out.first.title, 'Abfahrt 07:30 Uhr');
+
+      final back = at(DateTime(2026, 7, 28, 16, 20));
+      expect(back.map((d) => d.kind).toSet(), {PushKind.departureReturn});
+      expect(back.first.title, 'Rückfahrt 16:30 Uhr');
+    });
+
+    test('kommt nicht zu früh und nicht mehr nach der Abfahrt', () {
+      expect(at(DateTime(2026, 7, 28, 7, 14)), isEmpty);
+      expect(
+        at(DateTime(2026, 7, 28, 7, 30)),
+        isEmpty,
+        reason:
+            'Um 07:30 fährt das Auto. Eine Erinnerung „gleich geht es los" '
+            'wäre da eine Erinnerung an etwas, das gerade passiert.',
+      );
+    });
+
+    test('der Vorlauf verschiebt das Fenster', () {
+      // 6:50 liegt bei 15 Minuten Vorlauf weit davor, bei 45 mitten drin.
+      expect(
+        at(DateTime(2026, 7, 28, 6, 50), prefs: remindingPrefs([anna])),
+        isEmpty,
+      );
+      expect(
+        at(
+          DateTime(2026, 7, 28, 6, 50),
+          prefs: remindingPrefs([anna], lead: 45),
+        ),
+        hasLength(1),
+      );
+      expect(
+        at(
+          DateTime(2026, 7, 28, 6, 44),
+          prefs: remindingPrefs([anna], lead: 45),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('ohne Opt-in kommt nichts', () {
+      expect(
+        at(
+          DateTime(2026, 7, 28, 7, 20),
+          // Alles andere ebenfalls aus — sonst prüfte der Test den
+          // Abend-Blick statt der Erinnerung.
+          prefs: prefsFor([anna, bernd], evening: false, changes: false),
+        ),
+        isEmpty,
+        reason:
+            'Vorgabe AUS: Sie meldet sich an einem Tag, an dem gar nichts '
+            'passiert ist — wer das nicht will, soll es nicht abschalten '
+            'müssen.',
+      );
+    });
+
+    test('ohne Gruppenzeit kommt nichts', () {
+      expect(
+        at(DateTime(2026, 7, 28, 7, 20), defaults: const GroupDefaults()),
+        isEmpty,
+      );
+      // Nur die Hinfahrt gepflegt: dann gibt es abends auch nichts.
+      expect(
+        at(
+          DateTime(2026, 7, 28, 16, 20),
+          defaults: const GroupDefaults(outboundTime: DayTime(7, 30)),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('nicht an Ausgetragene', () {
+      final without = dayWith(
+        available: const [anna, bernd],
+        cars: const [
+          PlannedCar(driverId: anna, fullIds: [bernd]),
+        ],
+      );
+      expect(
+        at(
+          DateTime(2026, 7, 28, 7, 20),
+          day: without,
+        ).map((d) => d.personId).toSet(),
+        {anna, bernd},
+      );
+    });
+
+    test('gerade AM eingetragenen Tag — dafür ist sie da', () {
+      final confirmed = dayWith(
+        confirmed: true,
+        cars: const [
+          PlannedCar(driverId: anna, fullIds: [bernd]),
+        ],
+      );
+      final due = at(DateTime(2026, 7, 28, 7, 20), day: confirmed);
+      expect(
+        due.map((d) => d.personId).toSet(),
+        {anna, bernd},
+        reason:
+            'Der Digest ist hier „fix" — und der ist ausdrücklich NICHT '
+            'ausgeschlossen: An einem eingetragenen Tag fährt die Gruppe '
+            'gerade, das ist der Moment, für den die Erinnerung gebaut wurde.',
+      );
+      expect(due.every((d) => d.digest == confirmedDigest), isTrue);
+    });
+
+    test('genau einmal je Richtung', () {
+      final sent = [
+        SentPush(
+          personId: anna,
+          planDate: tuesday,
+          kind: PushKind.departureOut,
+          digest: 'egal',
+          sentAt: DateTime(2026, 7, 28, 7, 15),
+        ),
+      ];
+      final due = at(
+        DateTime(2026, 7, 28, 7, 20),
+        prefs: remindingPrefs([anna]),
+        sent: sent,
+      );
+      expect(
+        due,
+        isEmpty,
+        reason:
+            'Zeitgetrieben, also genau einmal: Ein Nachholen wäre die '
+            'Erinnerung an eine Abfahrt, die schon war.',
+      );
+      // Die Rückfahrt hat ihren eigenen Riegel und ist davon unberührt.
+      expect(
+        at(
+          DateTime(2026, 7, 28, 16, 20),
+          prefs: remindingPrefs([anna]),
+          sent: sent,
+        ),
+        hasLength(1),
+      );
+    });
+
+    test('hängt nicht am Abend-Blick', () {
+      // `remindingPrefs` hat Abend-Blick UND Änderungen aus — trotzdem kommt
+      // sie. Anders als die Änderungs-Meldung braucht sie keinen Abend-Push
+      // in `push_log`: Sie hängt an der Uhr der Gruppe. Wer nur den Schubs
+      // kurz vorher will, bekommt ihn auch allein.
+      expect(
+        at(DateTime(2026, 7, 28, 7, 20), prefs: remindingPrefs([anna])),
+        hasLength(1),
+      );
+    });
+
+    test('steht neben dem Abend-Blick, nicht statt seiner', () {
+      final prefs = {
+        anna: NotificationPrefs.initial(anna).copyWith(remindersEnabled: true),
+      };
+      // Alles an, nichts verschickt: Um 7:20 ist das Abend-Fenster noch
+      // offen (bis 7:30) und das Erinnerungs-Fenster auch.
+      final due = at(DateTime(2026, 7, 28, 7, 20), prefs: prefs);
+      expect(
+        due.map((d) => d.kind).toSet(),
+        {PushKind.evening, PushKind.departureOut},
+        reason:
+            'Zwei Arten, zwei Fenster, ein Lauf — sie schließen einander '
+            'nicht aus. In `push_due()` ist das der `union all`.',
+      );
+    });
+
+    test('der Text ist der des Tages, samt Vorgaben', () {
+      final due = at(
+        DateTime(2026, 7, 28, 7, 20),
+        prefs: remindingPrefs([bernd]),
+        defaults: const GroupDefaults(
+          outboundTime: DayTime(7, 30),
+          meetingPoint: 'Parkplatz Rathaus',
+        ),
+      );
+      expect(due.single.body, contains('Anna fährt'));
+      expect(due.single.body, contains('Treffpunkt Parkplatz Rathaus'));
+    });
+  });
+
   test('die Vorbelegung deckt sich mit den Defaults der Migration', () {
     final migration = File(
       'supabase/migrations/20260726100000_push_notifications.sql',
@@ -829,6 +1136,27 @@ void main() {
           'Formular-Vorbelegung und DB-Default müssen dasselbe sagen — sonst '
           'bekommt eine von Hand angelegte Zeile andere Zeiten als eine über '
           'den Screen angelegte, und niemand findet den Unterschied.',
+    );
+
+    // Dasselbe für die Erinnerung (#164) — in ihrer eigenen Migration.
+    final reminders = File(
+      'supabase/migrations/20260803140000_departure_reminders.sql',
+    ).readAsStringSync();
+    expect(
+      initial.remindersEnabled,
+      isFalse,
+      reason: 'Opt-in: Vorgabe AUS, in Dart wie in der Datenbank.',
+    );
+    expect(
+      reminders,
+      contains('reminders_enabled boolean not null default false'),
+    );
+    expect(
+      reminders,
+      contains(
+        'reminder_lead_minutes integer not null default '
+        '${initial.reminderLeadMinutes}',
+      ),
     );
   });
 }

@@ -228,6 +228,139 @@ void main() {
       );
     });
 
+    test('der Digest des eingetragenen Tages heißt in SQL wie in Dart', () {
+      final dart = File('lib/core/push_digest.dart').readAsStringSync();
+      final value = RegExp(
+        r"const String confirmedDigest = '([^']+)'",
+      ).firstMatch(dart)?.group(1);
+      expect(value, isNotNull);
+      expect(
+        schema,
+        contains("box.digest <> '$value'"),
+        reason:
+            'Wie bei removedDigest steht der Wert in SQL ein zweites Mal. '
+            'Driftete er, bekäme beim Eintragen einer Fahrt die halbe Gruppe '
+            'eine „Änderung"-Meldung über einen Tag, der gerade erst '
+            'stattgefunden hat.',
+      );
+    });
+
+    test('die Erinnerung rechnet ihr Fenster in deutscher Zeit', () {
+      final function = RegExp(
+        r'create or replace function public\.push_due.*?\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      final reminder = function!.substring(function.indexOf('reminder_ready'));
+      expect(
+        reminder,
+        contains("at time zone 'Europe/Berlin'"),
+        reason:
+            'Derselbe Grund wie beim Plan-Fenster: Postgres läuft in UTC. '
+            'Ohne die Umrechnung erinnerte die App im Sommer zwei Stunden '
+            'zu früh — und zweimal im Jahr eine Stunde daneben.',
+      );
+      expect(
+        reminder,
+        contains('make_interval(mins => prefs.reminder_lead_minutes)'),
+        reason: 'Der Vorlauf ist eine Einstellung, keine Konstante.',
+      );
+      expect(
+        reminder,
+        contains('sent.person_id is null'),
+        reason:
+            'Zeitgetrieben, also genau einmal. Ohne den Riegel feuerte die '
+            'Erinnerung in jedem Minutentakt des Fensters neu — bei 15 '
+            'Minuten Vorlauf fünfzehnmal.',
+      );
+    });
+
+    test('die Erinnerung schließt Ausgetragene aus, Eingetragene nicht', () {
+      final function = RegExp(
+        r'create or replace function public\.push_due.*?\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema)!.group(0)!;
+      final reminder = sqlOnly(
+        function.substring(function.indexOf('reminder_ready')),
+      );
+      expect(reminder, contains("box.digest <> 'raus'"));
+      expect(
+        reminder,
+        isNot(contains("box.digest <> 'fix'")),
+        reason:
+            'An einem eingetragenen Tag fährt die Gruppe gerade — das ist '
+            'der Moment, für den die Erinnerung gebaut wurde. Wer „fix" hier '
+            'ausschließt, schaltet sie genau dann ab, wenn sie zählt.',
+      );
+    });
+
+    test('push_log kennt die vier Arten', () {
+      expect(
+        sqlOnly(schema),
+        contains(
+          "check (kind in ('evening', 'change', 'departure_out', "
+          "'departure_return'))",
+        ),
+        reason:
+            'Der CHECK ist der Riegel, der die Erinnerung auf einmal je Tag '
+            'begrenzt. Fehlte eine Art darin, schlüge das Protokollieren fehl '
+            '— und weil ein abgewiesenes Protokoll wie ein nie gesendeter '
+            'Push aussieht, feuerte die Erinnerung danach jede Minute neu.',
+      );
+    });
+
+    test('der Versand quittiert nur, was an due_at hing', () {
+      final flush = File(
+        'supabase/functions/flush-push/index.ts',
+      ).readAsStringSync();
+      expect(
+        flush,
+        contains("first.kind === 'evening' || first.kind === 'change'"),
+        reason:
+            'Die Quittung `due_at = null` gehört zum Plan-Weg. Liefe sie '
+            'nach JEDEM Versand, verschluckte eine Erinnerung um 07:15 eine '
+            'Planänderung, die um 07:14 entprellt wurde: Die Zeile wäre '
+            'erledigt, ohne dass die Änderung je rausging — und der Digest '
+            'ändert sich danach nicht mehr.',
+      );
+    });
+
+    test('der Entprell-Trigger vergleicht die neuen Kopfzeilen NICHT', () {
+      final trigger = RegExp(
+        r'create or replace function public\.push_outbox_debounce.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(trigger, isNotNull);
+      expect(
+        sqlOnly(trigger!),
+        isNot(anyOf(contains('title_out'), contains('title_return'))),
+        reason:
+            'Ein Client von vor v0.58.0 schreibt sie als NULL, der stündliche '
+            'Job gefüllt. Im Vergleich wechselte der Inhalt zwischen beiden '
+            'Schreibern hin und her, jede Änderung schöbe due_at 60 Sekunden '
+            'nach hinten — die Zeile wäre NIE fällig, und zwar für alle '
+            'Meldungen dieser Person.',
+      );
+    });
+
+    test('ein Alt-Client leert eine gesetzte Kopfzeile nicht aus', () {
+      final function = RegExp(
+        r'create or replace function public\.publish_push_outbox.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        sqlOnly(function!),
+        contains('coalesce(excluded.title_out, push_outbox.title_out)'),
+        reason:
+            '0.57.0 ruft die Funktion ohne die neuen Felder. Ohne coalesce '
+            'setzte jeder Schreibvorgang von dort die Kopfzeile auf NULL — '
+            'und ohne Kopfzeile fällt die Erinnerung aus, bis der stündliche '
+            'Job sie wiederherstellt. Eine wirklich entfernte Gruppenzeit '
+            'macht das nicht rückgängig: ohne outbound_time kein Fenster.',
+      );
+    });
+
     test('der Abholer holt seine Zugangsdaten aus dem Vault', () {
       final function = RegExp(
         r'create or replace function public\.flush_due_push.*?\$\$;',

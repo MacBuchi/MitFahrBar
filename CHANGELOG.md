@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.58.0] – 2026-08-03
+
+### Neu
+
+- **Erinnerung kurz vor der Abfahrt.** Wer will, bekommt eine Meldung, bevor
+  es losgeht — morgens zur Hinfahrt und nachmittags zur Rückfahrt, mit der
+  Uhrzeit in der Kopfzeile („Abfahrt 07:30 Uhr"). Wie lange vorher, stellt
+  jede Person selbst ein (Vorgabe: 15 Minuten).
+- Sie ist **standardmäßig aus**: Anders als der Abend-Blick meldet sie sich
+  auch an einem Tag, an dem sich gar nichts getan hat. Einzuschalten unter
+  „Benachrichtigungen"; sie braucht die Abfahrtszeiten aus „Parameter →
+  Fahrt & Treffpunkt" und ist unabhängig vom Abend-Blick.
+- Die Erinnerung kommt **gerade auch dann, wenn die Fahrt schon eingetragen
+  ist** — das ist ja der Moment, für den sie gedacht ist.
+
+### Geändert
+
+- Ein eingetragener Tag löst keine „Änderung"-Meldung mehr aus, wenn er
+  eingetragen wird — wohl aber, wenn die Fahrt wieder gelöscht wird.
+
 ## [0.57.0] – 2026-08-03
 
 ### Neu
