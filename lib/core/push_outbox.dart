@@ -23,6 +23,7 @@
 library;
 
 import '../models/group_defaults.dart';
+import '../models/notification_prefs.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import 'fairness.dart';
@@ -38,6 +39,8 @@ class OutboxEntry {
     required this.body,
     required this.titleEvening,
     required this.titleChange,
+    this.titleOut,
+    this.titleReturn,
   });
 
   final String personId;
@@ -51,6 +54,12 @@ class OutboxEntry {
   final String titleEvening;
   final String titleChange;
 
+  /// Die Kopfzeilen der Abfahrts-Erinnerungen (#164) — `null`, solange die
+  /// Gruppe keine Zeit gepflegt hat. Ohne Zeit gibt es keine Erinnerung, also
+  /// auch keine Kopfzeile; `push_due()` verlangt beides.
+  final String? titleOut;
+  final String? titleReturn;
+
   Map<String, Object?> toJson() => {
     'person_id': personId,
     'plan_date':
@@ -61,6 +70,8 @@ class OutboxEntry {
     'body': body,
     'title_evening': titleEvening,
     'title_change': titleChange,
+    'title_out': titleOut,
+    'title_return': titleReturn,
   };
 }
 
@@ -73,8 +84,12 @@ class OutboxEntry {
 /// fällig wird, kosten nichts — der Versand schickt einem Abwesenden keinen
 /// Abend-Blick.
 ///
-/// Eingetragene Tage bleiben draußen: Dort gibt es nichts mehr zu planen und
-/// nichts mehr zu melden — dieselbe Regel wie in [dueMessages].
+/// **Eingetragene Tage sind seit v0.58.0 dabei** (#164). Bis dahin ließ diese
+/// Schleife sie aus — mit dem Ergebnis, dass die Zeile des Tages mit ihrem
+/// alten Plan-Hash stehen blieb und zu nichts mehr passte. Für die
+/// Abfahrts-Erinnerung braucht der Tag aber eine Zeile: Sie meldet sich
+/// gerade dann, wenn die Fahrt feststeht. Dass daraus keine Plan-Meldung
+/// wird, regelt [confirmedDigest] und nicht diese Schleife.
 List<OutboxEntry> outboxEntries({
   required List<PlannedDay> week,
   required Map<String, Person> persons,
@@ -84,7 +99,6 @@ List<OutboxEntry> outboxEntries({
 }) {
   final entries = <OutboxEntry>[];
   for (final day in week) {
-    if (day.confirmed) continue;
     for (final personId in persons.keys) {
       final digest = dayDigestFor(day, personId, notes: notes);
       entries.add(
@@ -115,9 +129,38 @@ List<OutboxEntry> outboxEntries({
             now,
             removed: digest == removedDigest,
           ),
+          // Die Uhrzeit steht in der Kopfzeile, nicht im Text: Auf dem
+          // Sperrbildschirm soll „Abfahrt 07:30" stehen, nicht „Heute".
+          titleOut: _legTitle(
+            day.date,
+            PushKind.departureOut,
+            now,
+            defaults.outboundTime,
+          ),
+          titleReturn: _legTitle(
+            day.date,
+            PushKind.departureReturn,
+            now,
+            defaults.returnTime,
+          ),
         ),
       );
     }
   }
   return entries;
 }
+
+/// Kopfzeile einer Abfahrts-Erinnerung — oder `null`, wenn die Gruppe für
+/// diese Richtung keine Zeit gepflegt hat.
+///
+/// Der `null`-Fall ist kein Sonderweg, sondern der Normalfall einer Gruppe,
+/// die #139 nie benutzt: Ohne Zeit gibt es keine Erinnerung, und eine
+/// Kopfzeile ohne Uhrzeit („Abfahrt") wäre eine Meldung, die nichts sagt.
+String? _legTitle(
+  DateTime date,
+  PushKind kind,
+  DateTime now,
+  DayTime? legTime,
+) => legTime == null
+    ? null
+    : composeTitle(date, kind, now, removed: false, legTime: legTime);

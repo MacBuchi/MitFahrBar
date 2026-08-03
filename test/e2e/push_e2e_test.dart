@@ -282,23 +282,29 @@ void main() {
         .eq('group_id', groupId)
         .maybeSingle();
 
-    Future<void> publish(GroupAccount group, String personId, String digest) =>
-        group.client.rpc<void>(
-          'publish_push_outbox',
-          params: {
-            'entries': [
-              {
-                'person_id': personId,
-                'plan_date': '2026-07-30',
-                'digest': digest,
-                'body': 'Anna fährt · dabei: Bert',
-                'title_evening': 'Morgen (Do, 30.07.)',
-                'title_change': 'Änderung · Morgen (Do, 30.07.)',
-              },
-            ],
-            'keep_from': '2026-07-27',
+    Future<void> publish(
+      GroupAccount group,
+      String personId,
+      String digest, {
+      bool legs = false,
+    }) => group.client.rpc<void>(
+      'publish_push_outbox',
+      params: {
+        'entries': [
+          {
+            'person_id': personId,
+            'plan_date': '2026-07-30',
+            'digest': digest,
+            'body': 'Anna fährt · dabei: Bert',
+            'title_evening': 'Morgen (Do, 30.07.)',
+            'title_change': 'Änderung · Morgen (Do, 30.07.)',
+            if (legs) 'title_out': 'Abfahrt 07:30 Uhr',
+            if (legs) 'title_return': 'Rückfahrt 16:30 Uhr',
           },
-        );
+        ],
+        'keep_from': '2026-07-27',
+      },
+    );
 
     test('schreiben geht, lesen nicht', () async {
       final (group, personId) = await groupWithPerson('outa');
@@ -466,6 +472,180 @@ void main() {
         },
         skip: e2eConfigured ? false : e2eSkipReason,
       );
+
+      // Die Abfahrts-Erinnerung (#164). Sie ist der eigentliche Grund, warum
+      // `push_due()` seit v0.58.0 zwei Fenster hat — die Rückfahrt liegt per
+      // Konstruktion AUSSERHALB des Plan-Fensters (das endet um 07:30). In
+      // einem gemeinsamen Fenster wäre sie nie fällig geworden, und das sieht
+      // man nur an einer echten Uhr in Europe/Berlin.
+      group('Abfahrts-Erinnerung', () {
+        /// Wie [ready], zusätzlich mit Gruppenzeiten, Kopfzeilen und Opt-in.
+        Future<(GroupAccount, String)> reminding(
+          String label, {
+          int lead = 15,
+        }) async {
+          final (group, personId) = await ready(label);
+          await publish(group, personId, 'd1', legs: true);
+          await group.client.from('group_defaults').upsert({
+            'group_id': group.id,
+            'outbound_time': '07:30',
+            'return_time': '16:30',
+          }, onConflict: 'group_id');
+          await group.client
+              .from('notification_prefs')
+              .update({
+                'reminders_enabled': true,
+                'reminder_lead_minutes': lead,
+              })
+              .eq('person_id', personId);
+          return (group, personId);
+        }
+
+        test(
+          'die Hinfahrt weckt im Vorlauf, die Rückfahrt nach dem Plan-Fenster',
+          () async {
+            final (group, _) = await reminding('outg');
+
+            expect(
+              (await kindsAt(group.id, '2026-07-30 07:10+02')).toSet(),
+              isNot(contains('departure_out')),
+              reason: '20 Minuten vorher ist der Vorlauf noch nicht erreicht.',
+            );
+            expect(
+              // Als Menge geprüft: Der Abend-Blick ist um 07:20 parallel
+              // offen (Fenster bis 07:30) und gehört nicht zur Frage.
+              (await kindsAt(group.id, '2026-07-30 07:20+02')).toSet(),
+              contains('departure_out'),
+            );
+            expect(
+              await kindsAt(group.id, '2026-07-30 16:20+02'),
+              ['departure_return'],
+              reason:
+                  'Halb fünf liegt weit hinter der persönlichen '
+                  'departure_time (07:30). Läge die Erinnerung im '
+                  'Plan-Fenster, käme hier nichts — und niemand sähe warum.',
+            );
+            expect(
+              await kindsAt(group.id, '2026-07-30 16:30+02'),
+              isEmpty,
+              reason: 'Um 16:30 fährt das Auto.',
+            );
+          },
+          skip: e2eConfigured ? false : e2eSkipReason,
+        );
+
+        test(
+          'sie kommt genau einmal je Richtung',
+          () async {
+            final (group, personId) = await reminding('outh');
+            await service.from('push_log').insert({
+              'group_id': group.id,
+              'person_id': personId,
+              'plan_date': '2026-07-30',
+              'kind': 'departure_out',
+              'digest': 'd1',
+            });
+
+            expect(
+              (await kindsAt(group.id, '2026-07-30 07:20+02')).toSet(),
+              isNot(contains('departure_out')),
+              reason:
+                  'Zeitgetrieben heißt: einmal. Ohne den Riegel feuerte sie '
+                  'in jedem Minutentakt des Fensters neu — bei 15 Minuten '
+                  'Vorlauf fünfzehnmal. Und der CHECK auf push_log.kind muss '
+                  'die Art kennen: Täte er es nicht, schlüge schon dieses '
+                  'insert fehl, und im Betrieb sähe es aus wie „nie gesendet".',
+            );
+            expect(
+              await kindsAt(group.id, '2026-07-30 16:20+02'),
+              ['departure_return'],
+              reason: 'Die andere Richtung hat ihren eigenen Riegel.',
+            );
+          },
+          skip: e2eConfigured ? false : e2eSkipReason,
+        );
+
+        test(
+          'ohne Opt-in und ohne Gruppenzeit kommt nichts',
+          () async {
+            final (group, personId) = await reminding('outi');
+            await group.client
+                .from('notification_prefs')
+                .update({'reminders_enabled': false})
+                .eq('person_id', personId);
+            expect(
+              (await kindsAt(group.id, '2026-07-30 07:20+02')).toSet(),
+              isNot(contains('departure_out')),
+            );
+
+            await group.client
+                .from('notification_prefs')
+                .update({'reminders_enabled': true})
+                .eq('person_id', personId);
+            await group.client
+                .from('group_defaults')
+                .update({'outbound_time': null})
+                .eq('group_id', group.id);
+            expect(
+              (await kindsAt(group.id, '2026-07-30 07:20+02')).toSet(),
+              isNot(contains('departure_out')),
+              reason: 'Ohne Gruppenzeit gibt es kein Fenster.',
+            );
+          },
+          skip: e2eConfigured ? false : e2eSkipReason,
+        );
+
+        test(
+          'am eingetragenen Tag kommt sie, der Abend-Blick nicht',
+          () async {
+            final (group, personId) = await reminding('outj');
+            // `fix` = confirmedDigest: Die Fahrt ist eingetragen.
+            await publish(group, personId, 'fix', legs: true);
+
+            final kinds = (await kindsAt(
+              group.id,
+              '2026-07-30 07:20+02',
+            )).toSet();
+            expect(
+              kinds,
+              contains('departure_out'),
+              reason:
+                  'An einem eingetragenen Tag fährt die Gruppe gerade — das '
+                  'ist der Moment, für den die Erinnerung gebaut wurde.',
+            );
+            expect(
+              kinds,
+              isNot(contains('evening')),
+              reason:
+                  'Ein eingetragener Tag ist geplant fertig. Ohne den '
+                  'fix-Riegel käme noch ein Abend-Blick auf einen Tag, der '
+                  'schon läuft.',
+            );
+          },
+          skip: e2eConfigured ? false : e2eSkipReason,
+        );
+
+        test(
+          'ein Alt-Client leert die Kopfzeile nicht aus',
+          () async {
+            final (group, personId) = await reminding('outk');
+            // Genau der Aufruf eines Clients von vor v0.58.0: ohne die neuen
+            // Felder, mit geändertem Inhalt.
+            await publish(group, personId, 'd2');
+
+            expect(
+              (await kindsAt(group.id, '2026-07-30 07:20+02')).toSet(),
+              contains('departure_out'),
+              reason:
+                  'Ohne coalesce im Upsert setzte jeder Schreibvorgang eines '
+                  'Alt-Clients die Kopfzeile auf NULL — und ohne Kopfzeile '
+                  'fällt die Erinnerung aus, bis der stündliche Job sie '
+                  'wiederherstellt.',
+            );
+          },
+          skip: e2eConfigured ? false : e2eSkipReason,
+        );
+      });
     });
 
     test(

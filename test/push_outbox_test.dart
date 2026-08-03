@@ -185,20 +185,50 @@ void main() {
   });
 
   group('Umfang des Korbs', () {
-    test('eingetragene Tage bleiben draußen', () {
+    test('eingetragene Tage bekommen Zeilen mit festem Digest', () {
       final box = outboxEntries(
         week: [dayWith(confirmed: true)],
         persons: persons,
         now: mondayEvening,
       );
       expect(
-        box,
-        isEmpty,
+        entryFor(box, anna).digest,
+        confirmedDigest,
         reason:
-            'Ein eingetragener Tag ist gelaufen — dieselbe Regel wie in '
-            'dueMessages. Stünde er im Korb, käme nach der Fahrt noch eine '
-            'Meldung über sie.',
+            'Bis v0.57.0 ließ der Korb eingetragene Tage aus — die alte Zeile '
+            'blieb mit ihrem Plan-Hash stehen und passte zu nichts mehr. Die '
+            'Abfahrts-Erinnerung (#164) braucht die Zeile gerade dann: Sie '
+            'meldet sich, wenn die Fahrt feststeht. Dass daraus keine '
+            'Plan-Meldung wird, regelt der feste Digest, nicht das Auslassen.',
       );
+    });
+
+    test('an einem eingetragenen Tag ist draußen, wer nicht mitfuhr', () {
+      // `planWeek` vereint für einen bestätigten Tag Verfügbarkeit UND
+      // Fahrt (#85) — Clara steht also weiter in availableIds, obwohl die
+      // Fahrt ohne sie eingetragen wurde.
+      final box = outboxEntries(
+        week: [
+          dayWith(
+            confirmed: true,
+            cars: const [
+              PlannedCar(driverId: anna, fullIds: [bernd]),
+            ],
+          ),
+        ],
+        persons: persons,
+        now: mondayEvening,
+      );
+      expect(entryFor(box, bernd).digest, confirmedDigest);
+      expect(
+        entryFor(box, clara).digest,
+        removedDigest,
+        reason:
+            'Für sie ist der Tag vorbei wie für eine Ausgetragene — und der '
+            'Text muss dasselbe sagen wie der Digest, sonst stünde über einer '
+            'Fahrtbeschreibung die Kopfzeile „Ausgetragen".',
+      );
+      expect(entryFor(box, clara).body, contains('nicht mehr eingetragen'));
     });
 
     test('feste Vorgaben (#139) stehen im Korb wie in der Meldung', () {
@@ -232,6 +262,46 @@ void main() {
             'Die Vorgaben stehen im TEXT, nicht im Digest. Wanderten sie '
             'hinein, löste ein Speichern im Parameter-Screen eine '
             '„Änderung"-Meldung über einen unveränderten Tag aus.',
+      );
+    });
+
+    test('die Erinnerungs-Kopfzeilen tragen die Gruppenzeit (#164)', () {
+      final box = outboxEntries(
+        week: [dayWith()],
+        persons: persons,
+        now: mondayEvening,
+        defaults: const GroupDefaults(
+          outboundTime: DayTime(7, 30),
+          returnTime: DayTime(16, 30),
+        ),
+      );
+      final entry = entryFor(box, anna);
+      expect(entry.titleOut, 'Abfahrt 07:30 Uhr');
+      expect(entry.titleReturn, 'Rückfahrt 16:30 Uhr');
+      expect(
+        entry.toJson()['title_out'],
+        'Abfahrt 07:30 Uhr',
+        reason:
+            'Die Kopfzeile reist im selben Upsert mit — sonst stünde in der '
+            'Datenbank NULL, und `push_due()` verlangt sie.',
+      );
+    });
+
+    test('ohne Gruppenzeit bleibt die Kopfzeile leer', () {
+      final box = outboxEntries(
+        week: [dayWith()],
+        persons: persons,
+        now: mondayEvening,
+        defaults: const GroupDefaults(outboundTime: DayTime(7, 30)),
+      );
+      final entry = entryFor(box, anna);
+      expect(entry.titleOut, isNotNull);
+      expect(
+        entry.titleReturn,
+        isNull,
+        reason:
+            'Ohne Zeit keine Erinnerung, ohne Erinnerung keine Kopfzeile. '
+            'Ein blankes „Rückfahrt" wäre eine Meldung, die nichts sagt.',
       );
     });
 

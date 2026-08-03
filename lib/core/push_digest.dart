@@ -34,6 +34,20 @@ enum PushKind {
 
   /// Der Plan hat sich zwischen Abend-Push und Abfahrt geändert.
   change,
+
+  /// Kurz vor der Abfahrt zur Arbeit (#164).
+  departureOut,
+
+  /// Kurz vor der Abfahrt nach Hause.
+  departureReturn;
+
+  /// Ob diese Art an der Uhr hängt statt am Plan-Fenster.
+  ///
+  /// Die beiden Erinnerungen haben ein eigenes, viel kürzeres Fenster und
+  /// ihre eigene Bedingung — sie feuern auch an einem Tag, an dem die Fahrt
+  /// längst eingetragen ist (dann sogar besonders zu Recht).
+  bool get isDeparture =>
+      this == PushKind.departureOut || this == PushKind.departureReturn;
 }
 
 /// Eine bereits verschickte Nachricht — eine Zeile aus `push_log`.
@@ -86,6 +100,22 @@ class DuePush {
 /// Austrags-Nachricht — und wieder eine, falls ihn jemand zurückträgt.
 const String removedDigest = 'raus';
 
+/// Der Digest eines Tages, an dem die Fahrt schon eingetragen ist (#164).
+///
+/// Auch ein fester Wert, und zwar aus zwei Gründen. Erstens: Ein eingetragener
+/// Tag ist geplant fertig — was danach noch an Punkten oder Vorschlägen
+/// passiert, geht niemanden mehr an, und ein Hash über den Tageszustand
+/// meldete jede Kleinigkeit als „Änderung". Zweitens braucht die
+/// Abfahrts-Erinnerung eine Korb-Zeile für genau diesen Tag: Bis v0.57.0 ließ
+/// [outboxEntries] eingetragene Tage aus, und die alte Zeile blieb mit ihrem
+/// Plan-Hash stehen — ein Zustand, der nie mehr zu irgendetwas passte.
+///
+/// **Der Übergang in diesen Wert löst nichts aus** (der Änderungs-Zweig
+/// schließt ihn aus, in Dart und in `push_due()`): Eine eingetragene Fahrt
+/// ist keine Meldung wert, sie ist ja schon passiert. Der Übergang *heraus*
+/// dagegen schon — eine gelöschte Fahrt macht den Tag wieder zur Planung.
+const String confirmedDigest = 'fix';
+
 /// Der Tageszustand aus Sicht von [personId], als kurzer Hash.
 ///
 /// Drin ist, was diese Person auf dem Planer sähe: wer dabei ist (und ob nur
@@ -112,6 +142,15 @@ String dayDigestFor(
   List<PlanNote> notes = const [],
 }) {
   if (!day.availableIds.contains(personId)) return removedDigest;
+
+  // Ist die Fahrt eingetragen, zählt nur noch, wer wirklich mitfuhr — das
+  // steht in den Autos, nicht in der Verfügbarkeit. `planWeek` vereint für
+  // einen bestätigten Tag beides (#85), wer also verfügbar war und dann doch
+  // nicht mitfuhr, steht weiter in `availableIds`. Für ihn ist der Tag
+  // vorbei wie für einen Ausgetragenen — und genau das sagt sein Digest.
+  if (day.confirmed) {
+    return _carOf(day, personId) == null ? removedDigest : confirmedDigest;
+  }
 
   final state = StringBuffer();
   for (final id in day.availableIds) {
@@ -198,12 +237,65 @@ List<DuePush> dueMessages({
   final due = <DuePush>[];
 
   for (final day in week) {
-    // Ein eingetragener Tag ist gelaufen: Es gibt nichts mehr zu planen und
-    // nichts mehr zu melden.
-    if (day.confirmed) continue;
-
     final date = _dayOnly(day.date);
 
+    // ------------------------------------------ Erinnerungen zur Abfahrt
+    //
+    // Eigenes Fenster, eigene Bedingung, eigener Riegel: Sie hängen an der
+    // Uhr der Gruppe, nicht am Plan-Fenster. Die Rückfahrt liegt sogar weit
+    // hinter der persönlichen `departureTime`, die den Plan-Teil schließt —
+    // in einem gemeinsamen Fenster wäre sie nie fällig geworden.
+    for (final (kind, legTime) in [
+      (PushKind.departureOut, defaults.outboundTime),
+      (PushKind.departureReturn, defaults.returnTime),
+    ]) {
+      if (legTime == null) continue;
+      for (final personId in day.availableIds) {
+        final pref = prefs[personId];
+        if (pref == null || !pref.remindersEnabled) continue;
+
+        final digest = dayDigestFor(day, personId, notes: notes);
+        // `raus` ist der einzige Ausschluss — `fix` fährt mit: An einem
+        // eingetragenen Tag fährt die Gruppe ja gerade, das ist der Moment,
+        // für den die Erinnerung gebaut wurde.
+        if (digest == removedDigest) continue;
+        // Zeitgetriggert, also genau einmal: Ein Nachholen wäre eine
+        // Erinnerung an eine Abfahrt, die schon war.
+        if (index[_logKey(personId, date, kind)] != null) continue;
+
+        final departs = legTime.on(date);
+        final wakes = departs.subtract(
+          Duration(minutes: pref.reminderLeadMinutes),
+        );
+        if (now.isBefore(wakes) || !now.isBefore(departs)) continue;
+
+        due.add(
+          DuePush(
+            personId: personId,
+            planDate: date,
+            kind: kind,
+            title: composeTitle(
+              date,
+              kind,
+              now,
+              removed: false,
+              legTime: legTime,
+            ),
+            body: composeBody(
+              day,
+              personId,
+              persons,
+              notes: notes,
+              defaults: defaults,
+            ),
+            digest: digest,
+          ),
+        );
+      }
+    }
+
+    // ------------------------------------------------- Plan-Meldungen
+    //
     // Kandidaten sind die Anwesenden — plus die, die schon einen Abend-Push
     // für den Tag haben. Sonst erführe niemand, dass er ausgetragen wurde.
     final candidates = <String>{
@@ -226,6 +318,13 @@ List<DuePush> dueMessages({
       if (now.isBefore(opens) || !now.isBefore(closes)) continue;
 
       final digest = dayDigestFor(day, personId, notes: notes);
+      // Ein eingetragener Tag ist geplant fertig: Weder ein Abend-Blick noch
+      // eine Änderungs-Meldung hat dazu noch etwas zu sagen. Bis v0.57.0
+      // sprang die Schleife dafür ganz aus dem Tag heraus — seit es
+      // Erinnerungen gibt, braucht der Tag seine Korb-Zeile, und der Riegel
+      // sitzt hier. Der Weg HERAUS aus `fix` (gelöschte Fahrt) meldet sich
+      // dagegen: Dann ist der Tag wieder Planung.
+      if (digest == confirmedDigest) continue;
       final evening = index[_logKey(personId, date, PushKind.evening)];
       final change = index[_logKey(personId, date, PushKind.change)];
 
@@ -290,17 +389,27 @@ List<DuePush> dueMessages({
 }
 
 /// Die Kopfzeile der Nachricht.
+///
+/// [legTime] gilt nur für die beiden Abfahrts-Erinnerungen (#164) und ist die
+/// Gruppenzeit, nicht der Weckzeitpunkt: Auf dem Sperrbildschirm soll stehen,
+/// wann es losgeht, nicht wann die Meldung kam. Fehlt sie, bleibt die
+/// Kopfzeile ohne Uhrzeit — aufgerufen wird das nicht, denn ohne Gruppenzeit
+/// entsteht gar keine Erinnerung.
 String composeTitle(
   DateTime date,
   PushKind kind,
   DateTime now, {
   required bool removed,
+  DayTime? legTime,
 }) {
   final label = dayLabel(date, now);
+  final at = legTime == null ? '' : ' ${legTime.format()} Uhr';
   return switch ((kind, removed)) {
     (PushKind.evening, _) => label,
     (PushKind.change, true) => 'Ausgetragen · $label',
     (PushKind.change, false) => 'Änderung · $label',
+    (PushKind.departureOut, _) => 'Abfahrt$at',
+    (PushKind.departureReturn, _) => 'Rückfahrt$at',
   };
 }
 
@@ -312,7 +421,14 @@ String composeBody(
   List<PlanNote> notes = const [],
   GroupDefaults defaults = const GroupDefaults(),
 }) {
-  if (!day.availableIds.contains(personId)) {
+  // Dieselbe Frage wie in [dayDigestFor], und sie muss dieselbe Antwort
+  // geben: Steht im Digest „raus", darf der Text nicht von einer Fahrt
+  // erzählen, an der die Person nicht teilnimmt — die Kopfzeile sagt dann
+  // „Ausgetragen".
+  final riding = day.confirmed
+      ? _carOf(day, personId) != null
+      : day.availableIds.contains(personId);
+  if (!riding) {
     return 'Du bist für diesen Tag nicht mehr eingetragen.';
   }
 

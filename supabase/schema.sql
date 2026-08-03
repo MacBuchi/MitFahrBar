@@ -304,6 +304,14 @@ create table public.notification_prefs (
   -- nachgeholter Lauf darf niemanden nachts wecken.
   departure_time time not null default '07:30',
   changes_enabled boolean not null default true,
+  -- Erinnerung kurz vor der Abfahrt (#164), hin und zurück. **Opt-in**:
+  -- Anders als der Abend-Blick meldet sie sich an einem Tag, an dem gar
+  -- nichts passiert ist. Ein Vorlauf für beide Richtungen — zwei Regler für
+  -- dieselbe Frage wären einer zu viel. Die Vorgabe 15 muss mit
+  -- `defaultReminderLead` in lib/models/notification_prefs.dart übereinstimmen.
+  reminders_enabled boolean not null default false,
+  reminder_lead_minutes integer not null default 15
+    check (reminder_lead_minutes between 0 and 120),
   updated_at timestamptz not null default now(),
   primary key (group_id, person_id)
 );
@@ -315,7 +323,8 @@ create table public.push_log (
     references public.groups(id) on delete cascade,
   person_id uuid not null references public.persons(id) on delete cascade,
   plan_date date not null,
-  kind text not null check (kind in ('evening', 'change')),
+  kind text not null constraint push_log_kind_check
+    check (kind in ('evening', 'change', 'departure_out', 'departure_return')),
   digest text not null,
   sent_at timestamptz not null default now(),
   primary key (group_id, person_id, plan_date, kind)
@@ -346,6 +355,12 @@ create table public.push_outbox (
   -- so wandert kein deutsches Wort nach TypeScript.
   title_evening text not null,
   title_change text not null,
+  -- Die Kopfzeilen der Abfahrts-Erinnerungen (#164). NULL heißt „für diese
+  -- Richtung gibt es keine Gruppenzeit" — ohne Zeit keine Erinnerung, ohne
+  -- Erinnerung keine Kopfzeile. Der Entprell-Trigger vergleicht sie bewusst
+  -- NICHT (Begründung an der Funktion unten).
+  title_out text,
+  title_return text,
   -- NULL = nichts offen. Der Versand quittiert damit.
   due_at timestamptz,
   updated_at timestamptz not null default now(),
@@ -547,6 +562,14 @@ create trigger group_admins_released
 -- es würde **nie** etwas gesendet. Und weil `new.due_at` bei unverändertem
 -- Inhalt unangetastet bleibt, kann der Versand mit `due_at = null`
 -- quittieren, ohne dass die Zeile sofort wieder fällig wird.
+--
+-- **`title_out` und `title_return` (#164) stehen bewusst NICHT im Vergleich.**
+-- Ein Client von vor v0.58.0 schreibt sie als NULL, der stündliche Job
+-- gefüllt. Im Vergleich wechselte der Inhalt zwischen beiden Schreibern hin
+-- und her, jede Änderung schöbe `due_at` 60 Sekunden nach hinten — die Zeile
+-- wäre nie fällig, und zwar für ALLE Meldungen dieser Person. Der Preis: Eine
+-- geänderte Abfahrtszeit allein löst keinen Versand aus. Sie soll es auch
+-- nicht (#139).
 create or replace function public.push_outbox_debounce()
 returns trigger language plpgsql set search_path = public as $$
 begin
@@ -593,7 +616,8 @@ begin
     where group_id = gid and plan_date < keep_from;
 
   insert into public.push_outbox (
-    group_id, person_id, plan_date, digest, body, title_evening, title_change
+    group_id, person_id, plan_date, digest, body,
+    title_evening, title_change, title_out, title_return
   )
   select
     gid,
@@ -602,7 +626,9 @@ begin
     entry->>'digest',
     entry->>'body',
     entry->>'title_evening',
-    entry->>'title_change'
+    entry->>'title_change',
+    entry->>'title_out',
+    entry->>'title_return'
   from jsonb_array_elements(coalesce(entries, '[]'::jsonb)) as entry
   join public.persons person
     on person.id = (entry->>'person_id')::uuid
@@ -611,7 +637,10 @@ begin
     set digest = excluded.digest,
         body = excluded.body,
         title_evening = excluded.title_evening,
-        title_change = excluded.title_change;
+        title_change = excluded.title_change,
+        title_out = coalesce(excluded.title_out, push_outbox.title_out),
+        title_return = coalesce(
+          excluded.title_return, push_outbox.title_return);
 end $$;
 
 -- Übernimmt eine BESTEHENDE Gruppe: für Gruppen von vor #106 und für die
@@ -826,7 +855,7 @@ returns table (
   body text
 )
 language sql security definer set search_path = public as $$
-  with ready as (
+  with plan_ready as (
     select
       box.group_id,
       box.person_id,
@@ -838,9 +867,13 @@ language sql security definer set search_path = public as $$
       case
         when evening.digest is null then
           case
-            when prefs.evening_enabled and box.digest <> 'raus' then 'evening'
+            when prefs.evening_enabled
+              and box.digest <> 'raus'
+              and box.digest <> 'fix'
+            then 'evening'
           end
         when prefs.changes_enabled
+          and box.digest <> 'fix'
           and box.digest is distinct from coalesce(change.digest, evening.digest)
           and box.due_at is not null
           and box.due_at <= at
@@ -869,6 +902,60 @@ language sql security definer set search_path = public as $$
                   at time zone 'Europe/Berlin'
       and at <  (box.plan_date::timestamp + prefs.departure_time)
                   at time zone 'Europe/Berlin'
+  ),
+  reminder_ready as (
+    select
+      box.group_id,
+      box.person_id,
+      box.plan_date,
+      box.digest,
+      leg.kind,
+      leg.title,
+      box.body
+    from public.push_outbox box
+      join public.groups grp
+        on grp.id = box.group_id and grp.status = 'active'
+      join public.persons person
+        on person.id = box.person_id and person.active
+      join public.notification_prefs prefs
+        on prefs.group_id = box.group_id and prefs.person_id = box.person_id
+      join public.group_defaults gd on gd.group_id = box.group_id
+      -- Zwei Beine aus einer Zeile: derselbe Riegel, dieselbe Rechnung,
+      -- einmal geschrieben. `lateral`, weil die Werte aus gd und box kommen.
+      cross join lateral (values
+        ('departure_out'::text, gd.outbound_time, box.title_out),
+        ('departure_return'::text, gd.return_time, box.title_return)
+      ) as leg(kind, leg_time, title)
+      -- Zeitgetrieben, also genau einmal: Ein Nachholen wäre die Erinnerung
+      -- an eine Abfahrt, die schon war. Kein `due_at`, kein Digest-Vergleich.
+      left join public.push_log sent
+        on sent.group_id = box.group_id
+       and sent.person_id = box.person_id
+       and sent.plan_date = box.plan_date
+       and sent.kind = leg.kind
+    where prefs.reminders_enabled
+      and box.digest <> 'raus'
+      and leg.leg_time is not null
+      and leg.title is not null
+      and sent.person_id is null
+      and box.plan_date = (at at time zone 'Europe/Berlin')::date
+      and at >= ((box.plan_date::timestamp + leg.leg_time)
+                   at time zone 'Europe/Berlin')
+                 - make_interval(mins => prefs.reminder_lead_minutes)
+      and at <  ((box.plan_date::timestamp + leg.leg_time)
+                   at time zone 'Europe/Berlin')
+  ),
+  ready as (
+    select
+      group_id, person_id, plan_date, digest, kind,
+      case when kind = 'evening' then title_evening else title_change end
+        as title,
+      body
+    from plan_ready
+    where kind is not null
+    union all
+    select group_id, person_id, plan_date, digest, kind, title, body
+    from reminder_ready
   )
   select
     device.token,
@@ -877,14 +964,12 @@ language sql security definer set search_path = public as $$
     ready.plan_date,
     ready.kind,
     ready.digest,
-    case when ready.kind = 'evening'
-      then ready.title_evening else ready.title_change end,
+    ready.title,
     ready.body
   from ready
     join public.push_devices device
       on device.group_id = ready.group_id
-     and device.person_id = ready.person_id
-  where ready.kind is not null;
+     and device.person_id = ready.person_id;
 $$;
 
 revoke all on function public.push_due(timestamptz) from anon, authenticated;

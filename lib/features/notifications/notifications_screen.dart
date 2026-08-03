@@ -31,6 +31,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/push_messaging.dart';
 import '../../data/providers.dart';
+import '../../models/group_defaults.dart';
 import '../../models/notification_prefs.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -224,6 +225,36 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
+  /// Der Vorlauf als Auswahlliste, nicht als Zeitwähler: Gefragt ist eine
+  /// Dauer („zehn Minuten vorher"), keine Uhrzeit — ein Zifferblatt dafür
+  /// wäre die falsche Frage in der richtigen Optik.
+  Future<void> _pickLead(NotificationPrefs prefs) async {
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Wie lange vorher?'),
+        children: [
+          RadioGroup<int>(
+            groupValue: prefs.reminderLeadMinutes,
+            onChanged: (value) => Navigator.of(context).pop(value),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final minutes in reminderLeadChoices)
+                  RadioListTile<int>(
+                    value: minutes,
+                    title: Text('$minutes Minuten'),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    await _save(prefs.copyWith(reminderLeadMinutes: picked));
+  }
+
   @override
   Widget build(BuildContext context) {
     final persons = ref.watch(personsProvider);
@@ -273,12 +304,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final enabled = _registeredPersonId != null;
     final prefs = enabled ? _prefs : null;
 
+    // Ohne Gruppenzeiten (#139) gibt es nichts, woran eine Erinnerung hinge.
+    // Beim Laden gilt „noch nicht da" wie „nicht gepflegt": Der Schalter
+    // bleibt kurz gesperrt, statt anzugehen und wieder auszufallen.
+    final defaults =
+        ref.watch(groupDefaultsProvider).value ?? const GroupDefaults();
+    final hasLegTimes =
+        defaults.outboundTime != null || defaults.returnTime != null;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Text(
-          'Dieses Gerät kann abends zeigen, wie der nächste Tag aussieht — '
-          'und Bescheid sagen, wenn sich bis zur Abfahrt noch etwas ändert.',
+          'Dieses Gerät kann abends zeigen, wie der nächste Tag aussieht, '
+          'Bescheid sagen, wenn sich bis zur Abfahrt noch etwas ändert — und '
+          'kurz vor der Abfahrt erinnern.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const Divider(height: 32),
@@ -350,6 +390,38 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             subtitle: const Text('Danach kommt nichts mehr.'),
             trailing: Text('${prefs.departureTime} Uhr'),
             onTap: _busy ? null : () => _pickTime(false),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const Divider(height: 32),
+          // Erinnerung zur Abfahrt (#164) — bewusst als Opt-in und bewusst
+          // OHNE Bindung an den Abend-Blick: Sie hängt nicht an `push_log`
+          // wie die Änderungs-Meldung, sondern an der Uhr der Gruppe. Wer nur
+          // den Schubs kurz vorher will, bekommt ihn auch allein.
+          //
+          // Ohne Gruppenzeiten (#139) liefe der Schalter dagegen wirklich
+          // leer — dann sagt der Untertitel, wo sie herkommen, statt ihn
+          // stumm zu sperren.
+          SwitchListTile(
+            value: prefs.remindersEnabled,
+            onChanged: _busy || !hasLegTimes
+                ? null
+                : (value) => _save(prefs.copyWith(remindersEnabled: value)),
+            title: const Text('Erinnerung zur Abfahrt'),
+            subtitle: Text(
+              hasLegTimes
+                  ? 'Kurz bevor es losgeht — hin und zurück.'
+                  : 'Braucht die Abfahrtszeiten der Gruppe. Die stehen unter '
+                        'Parameter → „Fahrt & Treffpunkt".',
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+          ListTile(
+            leading: const Icon(Icons.timer_outlined),
+            title: const Text('Vorlauf'),
+            subtitle: const Text('Wie lange vorher.'),
+            trailing: Text('${prefs.reminderLeadMinutes} min'),
+            enabled: !_busy && prefs.remindersEnabled && hasLegTimes,
+            onTap: () => unawaited(_pickLead(prefs)),
             contentPadding: EdgeInsets.zero,
           ),
           const Divider(height: 32),

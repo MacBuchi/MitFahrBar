@@ -120,15 +120,27 @@ Deno.serve(async (req) => {
       },
       { onConflict: 'group_id,person_id,plan_date,kind' },
     )
-    // Quittieren: Der Trigger auf `push_outbox` lässt `due_at` in Ruhe,
-    // solange sich der Inhalt nicht ändert — die Zeile bleibt also erledigt,
-    // bis wirklich jemand etwas umplant.
-    await client
-      .from('push_outbox')
-      .update({ due_at: null })
-      .eq('group_id', first.group_id)
-      .eq('person_id', first.person_id)
-      .eq('plan_date', first.plan_date)
+    // **Quittiert wird nur, was an `due_at` hing** — also der Abend-Blick
+    // und die Änderung (#164).
+    //
+    // Die beiden Abfahrts-Erinnerungen hängen an der Uhr, nicht an der
+    // Fälligkeit der Zeile: Ihr Riegel ist der Eintrag in `push_log` oben.
+    // Quittierte man auch für sie, verschluckte eine Erinnerung um 07:15
+    // eine Planänderung, die um 07:14 entprellt wurde — die Zeile wäre
+    // erledigt, ohne dass die Änderung je rausging, und der Digest ändert
+    // sich danach nicht mehr. Dieselbe Klasse Fehler wie ein optimistisch
+    // geschriebenes Protokoll.
+    if (first.kind === 'evening' || first.kind === 'change') {
+      // Der Trigger auf `push_outbox` lässt `due_at` in Ruhe, solange sich
+      // der Inhalt nicht ändert — die Zeile bleibt also erledigt, bis
+      // wirklich jemand etwas umplant.
+      await client
+        .from('push_outbox')
+        .update({ due_at: null })
+        .eq('group_id', first.group_id)
+        .eq('person_id', first.person_id)
+        .eq('plan_date', first.plan_date)
+    }
     sent += 1
   }
 
