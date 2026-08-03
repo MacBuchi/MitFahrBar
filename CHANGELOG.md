@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.59.1] – 2026-08-03
+
+### Behoben
+
+- **Der CSV-Export lässt die App auf Android nicht mehr stocken.** Die
+  Bibliothek hinter dem Teilen-Menü (`share_plus` 13.3.0) schreibt die Datei
+  jetzt im Hintergrund statt im Bedien-Faden — bei einer langen Historie
+  konnte das Teilen bis dahin für einen Moment einfrieren. An der Bedienung
+  ändert sich nichts: Auf Android geht der Export weiter über „Teilen", im
+  Browser weiter als Download.
+
+  Solche Aktualisierungen bekommen bewusst ein eigenes Release — eine
+  getauschte Abhängigkeit landet wirklich auf euren Geräten, und dann soll
+  sie auch in dieser Liste stehen.
+
 ## [0.59.0] – 2026-08-03
 
 ### Neu
