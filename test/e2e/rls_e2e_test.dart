@@ -149,6 +149,57 @@ void main() {
     );
   });
 
+  group('Feste Vorgaben der Gruppe (#139)', () {
+    test('jede Gruppe sieht nur ihre eigenen Zeiten', () async {
+      await a.client.from('group_defaults').upsert({
+        'outbound_time': '07:15',
+        'meeting_point': 'Parkplatz A',
+      }, onConflict: 'group_id');
+      await b.client.from('group_defaults').upsert({
+        'outbound_time': '08:00',
+        'meeting_point': 'Parkplatz B',
+      }, onConflict: 'group_id');
+
+      final mine = await a.client.from('group_defaults').select();
+      expect(mine, hasLength(1));
+      expect(mine.single['meeting_point'], 'Parkplatz A');
+      expect(
+        mine.single['outbound_time'],
+        startsWith('07:15'),
+        reason:
+            'Postgres liefert `time` als 07:15:00 — DayTime.parse verwirft '
+            'die Sekunden. Bricht das, steht im Banner „Abfahrt" ohne Zeit.',
+      );
+
+      // Der Upsert der zweiten Gruppe darf die erste nicht getroffen haben:
+      // group_id kommt aus dem Default, nicht vom Client.
+      final other = await b.client.from('group_defaults').select().single();
+      expect(other['meeting_point'], 'Parkplatz B');
+    });
+
+    test('ein Treffpunkt aus Leerzeichen kommt nicht durch', () async {
+      await expectLater(
+        a.client.from('group_defaults').upsert({
+          'meeting_point': '     ',
+        }, onConflict: 'group_id'),
+        throwsA(isA<PostgrestException>()),
+        reason:
+            'Ohne `btrim` im Check stünde im Banner „Treffpunkt " ohne '
+            'Inhalt — dieselbe Falle wie bei plan_notes.',
+      );
+    });
+
+    test('eine fremde group_id scheitert an WITH CHECK', () async {
+      await expectLater(
+        b.client.from('group_defaults').insert({
+          'group_id': a.id,
+          'outbound_time': '05:00',
+        }),
+        throwsA(isA<PostgrestException>()),
+      );
+    });
+  });
+
   group('Fehlerberichte (#136)', () {
     test('einwerfen ja, zurücklesen nein', () async {
       await a.client.from('error_reports').insert({

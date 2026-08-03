@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.57.0] – 2026-08-03
+
+### Neu
+
+- **Feste Abfahrtszeiten und ein Treffpunkt.** Unter „Parameter" gibt es den
+  neuen Abschnitt „Fahrt & Treffpunkt": Abfahrt hin, Abfahrt zurück und wo
+  ihr euch trefft. Was ihr dort eintragt, steht ab sofort auf der Übersicht
+  im Streifen „nächste Fahrt" **und** in der Benachrichtigung — niemand muss
+  mehr nachfragen, und niemand muss in WhatsApp danach suchen.
+- Ausfüllen ist freiwillig: Bleiben die Felder leer, ändert sich nichts, und
+  jede Zeit lässt sich mit einem Tipp wieder herausnehmen. Für Abweichungen
+  an einem einzelnen Tag bleibt die Anmerkung am Plantag der richtige Ort.
+
+### Geändert
+
+- Der Parameter-Screen ist in zwei Abschnitte geteilt („Strecke & Kosten",
+  „Fahrt & Treffpunkt"). An den Punkten ändert weiterhin nichts davon etwas —
+  auch eine neue Abfahrtszeit löst deshalb bewusst **keine**
+  „Änderung"-Meldung aus.
+
 ## [0.56.0] – 2026-08-03
 
 ### Neu

@@ -12,8 +12,16 @@
 /// Android fragt danach nie wieder.
 ///
 /// Die Uhrzeiten stehen bewusst **nicht** unter „Parameter": Dort liegen die
-/// gruppenweiten Kosten-Werte, die für alle gelten. Hier entscheidet jede
-/// Person für sich.
+/// gruppenweiten Werte, die für alle gelten — seit #139 auch die
+/// Abfahrtszeiten der Fahrt selbst. Hier entscheidet jede Person für sich,
+/// wann ihr Gerät sie anspricht.
+///
+/// **Daher die Namen.** Die „Abfahrt" auf diesem Schirm ist eine persönliche
+/// Deadline: Danach nützt keine Meldung mehr, und ein nachgeholter Lauf soll
+/// niemanden nachts wecken (`notification_prefs.departure_time`). Die Abfahrt
+/// der Gruppe heißt in der Datenbank deshalb `outbound_time` /
+/// `return_time` — zwei Bedeutungen unter einem Spaltennamen sieht man beim
+/// Lesen einer Query nicht.
 library;
 
 import 'dart:async';

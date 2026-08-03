@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/core/push_digest.dart';
 import 'package:mitfahrbar/core/push_outbox.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
@@ -197,6 +198,40 @@ void main() {
             'Ein eingetragener Tag ist gelaufen — dieselbe Regel wie in '
             'dueMessages. Stünde er im Korb, käme nach der Fahrt noch eine '
             'Meldung über sie.',
+      );
+    });
+
+    test('feste Vorgaben (#139) stehen im Korb wie in der Meldung', () {
+      const defaults = GroupDefaults(
+        outboundTime: DayTime(7, 30),
+        returnTime: DayTime(16, 30),
+        meetingPoint: 'Parkplatz Rathaus',
+      );
+      final week = [dayWith()];
+      final due = dueMessages(
+        week: week,
+        prefs: prefsFor([anna]),
+        sent: const [],
+        persons: persons,
+        now: mondayEvening,
+        defaults: defaults,
+      );
+      final box = outboxEntries(
+        week: week,
+        persons: persons,
+        now: mondayEvening,
+        defaults: defaults,
+      );
+
+      expect(due.single.body, contains('Abfahrt 07:30'));
+      expect(entryFor(box, anna).body, due.single.body);
+      expect(
+        entryFor(box, anna).digest,
+        due.single.digest,
+        reason:
+            'Die Vorgaben stehen im TEXT, nicht im Digest. Wanderten sie '
+            'hinein, löste ein Speichern im Parameter-Screen eine '
+            '„Änderung"-Meldung über einen unveränderten Tag aus.',
       );
     });
 

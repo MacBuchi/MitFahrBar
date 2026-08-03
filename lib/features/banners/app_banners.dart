@@ -25,6 +25,7 @@ import '../../core/tokens.dart';
 import '../../core/update_check.dart';
 import '../../data/feedback_repository.dart';
 import '../../data/providers.dart';
+import '../../models/group_defaults.dart';
 import '../identity/identity_dialog.dart';
 
 /// Banner nur für die laufende Sitzung ausblenden (bewusst ohne Persistenz).
@@ -136,6 +137,11 @@ class _NextRideBanner extends ConsumerWidget {
     // Anmerkungen des Tages (#127) — aus der Wochenladung, die der Planer
     // ohnehin braucht; das Banner kostet dadurch keine eigene Anfrage.
     final notes = ref.watch(weekNotesProvider).value?[day.date] ?? const [];
+    // Feste Vorgaben (#139). Fehlen sie noch (Ladephase, Fehler), zeigt das
+    // Banner den Tag ohne Zeiten statt gar nicht — anders als bei Plan und
+    // Personen ist hier nichts halb, sondern nur weniger.
+    final defaults =
+        ref.watch(groupDefaultsProvider).value ?? const GroupDefaults();
     final iso =
         '${day.date.year.toString().padLeft(4, '0')}-'
         '${day.date.month.toString().padLeft(2, '0')}-'
@@ -144,7 +150,7 @@ class _NextRideBanner extends ConsumerWidget {
     return _Banner(
       icon: Icons.directions_car,
       text: dayLabel(day.date, ref.watch(nowProvider)()),
-      subtitle: composeGroupBody(day, byId, notes: notes),
+      subtitle: composeGroupBody(day, byId, notes: notes, defaults: defaults),
       // „Deep Teal Flow" aus dem Design-Set — dort mit genau dieser
       // Überschrift gezeichnet. Der Verlauf läuft hell nach dunkel, weil
       // rechts der Zähler sitzt; die Begründung steht am Token.

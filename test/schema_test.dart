@@ -1242,4 +1242,106 @@ void main() {
       );
     });
   });
+
+  group('Feste Vorgaben der Gruppe (Issue #139)', () {
+    final migration = File(
+      'supabase/migrations/20260803090000_group_defaults.sql',
+    ).readAsStringSync();
+
+    test('die Tabelle ist gegen fremde Gruppen dicht', () {
+      expect(
+        schema,
+        contains(
+          'alter table public.group_defaults      enable row level security',
+        ),
+        reason: 'Ohne RLS läse jede Gruppe die Zeiten jeder anderen.',
+      );
+      expect(
+        sqlOnly(schema),
+        stringContainsInOrder([
+          'create policy group_defaults_isolated on public.group_defaults',
+          'group_id = auth.uid() and public.my_group_active()',
+          'with check (group_id = auth.uid() and public.my_group_active())',
+        ]),
+        reason:
+            'Ohne `with check` könnte ein Client eine Zeile mit fremder '
+            'group_id einfügen; ohne my_group_active() schriebe eine '
+            'archivierte Gruppe weiter.',
+      );
+    });
+
+    test('höchstens eine Zeile je Gruppe', () {
+      expect(
+        primaryKeyOf('group_defaults'),
+        contains('group_id'),
+        reason:
+            'Zwei Zeilen wären zwei Wahrheiten über dieselbe Abfahrtszeit, '
+            'und das Repository liest mit maybeSingle — die zweite Zeile '
+            'ließe es werfen. Muster: price_area.',
+      );
+    });
+
+    test('die Zeiten heißen NICHT departure_time', () {
+      final table = RegExp(
+        r'create table public\.group_defaults \((.*?)\n\);',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(table, isNotNull, reason: 'group_defaults fehlt im Gesamtbild.');
+      final body = sqlOnly(table!.group(1)!);
+      expect(body, contains('outbound_time time'));
+      expect(body, contains('return_time time'));
+      expect(
+        body,
+        isNot(contains('departure_time')),
+        reason:
+            'Der Name ist in notification_prefs vergeben — dort ist er die '
+            'persönliche Deadline, ab der eine Meldung niemanden mehr '
+            'erreicht. Zwei Bedeutungen unter einem Spaltennamen sieht man '
+            'beim Lesen einer Query nicht.',
+      );
+    });
+
+    test('ein leerer Treffpunkt kommt nicht in die Datenbank', () {
+      expect(
+        sqlOnly(schema),
+        contains('char_length(btrim(meeting_point)) between 1 and 120'),
+        reason:
+            'Dieselbe Begründung wie bei plan_notes: Ohne `btrim` ließe der '
+            'Check 120 Leerzeichen durch, und das Banner stünde vor einem '
+            '„Treffpunkt " ohne Inhalt.',
+      );
+    });
+
+    test('es gibt keinen Seed und keinen Trigger-Eintrag', () {
+      expect(
+        sqlOnly(migration),
+        isNot(contains('insert into public.group_defaults')),
+        reason:
+            'Keine Zeile = alles NULL = Feature aus. Eine erfundene '
+            'Vorgabezeit stünde einer Gruppe im Banner, die sie nie gesetzt '
+            'hat — und niemand fände, woher sie kommt.',
+      );
+      final trigger = RegExp(
+        r'create or replace function public\.handle_new_group\(\)(.*?)\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(trigger, isNotNull, reason: 'handle_new_group fehlt.');
+      expect(
+        sqlOnly(trigger!.group(1)!),
+        isNot(contains('group_defaults')),
+        reason: 'Auch der Signup-Trigger legt keine Zeile an.',
+      );
+    });
+
+    test('die Migration hebt die Mindestversion NICHT', () {
+      expect(
+        sqlOnly(migration),
+        isNot(contains("value = '")),
+        reason:
+            'Rein additiv: Ein veröffentlichter Client liest die neue Tabelle '
+            'nicht und läuft unverändert weiter. Heben würde nur jeden '
+            'veralteten Client auf den Sperr-Schirm werfen.',
+      );
+    });
+  });
 }

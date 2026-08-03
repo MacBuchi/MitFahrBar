@@ -38,6 +38,16 @@ Future<void> _open(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('Parameter'));
   await tester.pumpAndSettle();
+  // Seit #139 steht unter den Kosten-Werten noch „Fahrt & Treffpunkt", der
+  // Knopf liegt also unterhalb der Testfläche. Gescrollt statt die Fläche
+  // vergrößert: So bleibt der Test das, was er prüft — ein Weg, den auch
+  // ein Handy geht.
+  await tester.dragUntilVisible(
+    find.text('Spritpreise ansehen'),
+    find.byType(ListView),
+    const Offset(0, -200),
+  );
+  await tester.pumpAndSettle();
   await tester.tap(find.text('Spritpreise ansehen'));
   await tester.pumpAndSettle();
 }

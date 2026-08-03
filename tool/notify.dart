@@ -35,6 +35,7 @@ import 'package:http/http.dart' as http;
 import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/core/push_outbox.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
@@ -158,11 +159,20 @@ Future<int> _handleGroup({
   // einhalten kann: Ein Gerät ohne Netz, ein geschlossener Tab, ein
   // vergessener Aufruf — und die Meldung käme nie. So kommt sie eine Stunde
   // später, also genau so spät wie vor dieser Umstellung.
+  // Feste Vorgaben der Gruppe (#139) — sie stehen im Text, nicht im Digest.
+  // Höchstens eine Zeile je Gruppe; keine heißt „nicht gepflegt".
+  final defaultRows = await api.rows('group_defaults', {
+    ...scope,
+    'select': 'outbound_time, return_time, meeting_point',
+  });
+  final defaults = GroupDefaults.fromJson(defaultRows.firstOrNull);
+
   final entries = outboxEntries(
     week: planned,
     persons: active,
     now: now,
     notes: notes,
+    defaults: defaults,
   );
   if (dryRun) {
     // Im Probelauf keine Namen ins Protokoll: Der Actions-Log ist

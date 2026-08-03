@@ -342,6 +342,16 @@ class HelpScreen extends StatelessWidget {
                     'Werte gelten weiter.',
               ),
               _Line(
+                leading: Icon(Icons.wb_twilight),
+                text:
+                    'Unter „Fahrt & Treffpunkt" stehen die Zeiten, die bei '
+                    'euch immer gelten: Abfahrt hin, Abfahrt zurück und wo '
+                    'ihr euch trefft. Sie erscheinen auf der Übersicht und '
+                    'in der Benachrichtigung, damit niemand nachfragen muss. '
+                    'Wer sie leer lässt, sieht davon nichts — und für den '
+                    'einzelnen Tag bleibt die Anmerkung („komme erst um 9").',
+              ),
+              _Line(
                 leading: Icon(Icons.notifications_outlined),
                 text:
                     'Benachrichtigungen: Sag der App, wer du bist, und dieses '

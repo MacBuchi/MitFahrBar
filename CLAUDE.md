@@ -70,17 +70,48 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Migration (siehe `20260721090000_points_only_ranking.sql`).
 - Kennzahlen (Punkte, Quote, km, Ersparnis) werden immer berechnet, nie
   gespeichert.
-- **Der Parameter-Screen zeigt nur die Kosten-Werte** (`features/settings/`,
-  seit v0.33.0, Issue #91): Arbeitsweg und die drei Kraftstoffpreise. Sie
-  gehen ausschließlich in Kilometer und Ersparnis ein. `one_way_factor` und
-  `points_weight` liegen in derselben Tabelle, gehören aber **nicht** in
-  dieses Formular: Sie verschieben rückwirkend die Punkte *aller* — und
+- **Das Kriterium des Parameter-Screens ist nicht „Kosten", sondern: Der
+  Wert darf die Punkte nie berühren** (`features/settings/`, seit v0.33.0,
+  Issue #91; umformuliert v0.57.0 mit #139). Drin sind Arbeitsweg und die
+  drei Kraftstoffpreise (gehen in Kilometer und Ersparnis ein) sowie die
+  festen Vorgaben „Fahrt & Treffpunkt" (gehen nur in Banner und
+  Benachrichtigung ein). `one_way_factor` und `points_weight` liegen in
+  derselben Tabelle wie die Kosten, gehören aber **nicht** in dieses
+  Formular: Sie verschieben rückwirkend die Punkte *aller* — und
   `points_weight` ist die dokumentierte Rückfahrkarte der Fairness-Regel,
   die über eine Migration gesetzt wird, nicht von einem beliebigen
   Mitglied. Weil `saveSettings` immer die ganze Tabelle schreibt, reicht
   der Screen beide Werte über `AppSettings.copyWith` unverändert durch —
-  `test/flows/settings_flow_test.dart` nagelt genau das fest. Wer dort ein
-  Feld ergänzt, prüft zuerst, ob es die Punkte berührt.
+  `test/flows/settings_flow_test.dart` nagelt genau das fest, auch am
+  zweiten Schreibweg. Wer dort ein Feld ergänzt, prüft zuerst, ob es die
+  Punkte berührt.
+- **Abfahrtszeiten und Treffpunkt stehen in `group_defaults`, nicht in
+  `settings`** (#139, seit v0.57.0). Der Grund ist keine Ordnungsliebe:
+  `settings` ist `(group_id, key) → value numeric` und kann einen
+  Treffpunkt nicht tragen; eine Uhrzeit als Minutenzahl unterzubringen
+  hätte die Hälfte des Problems gelöst und die andere verschleiert.
+  - **Die Spalten heißen `outbound_time` / `return_time` — nie
+    `departure_time`.** Der Name ist in `notification_prefs` vergeben und
+    bedeutet dort das Gegenteil einer Abfahrt: die persönliche Deadline,
+    ab der eine Meldung niemanden mehr erreicht. Zwei Bedeutungen unter
+    einem Spaltennamen sieht man beim Lesen einer Query nicht.
+  - **Keine Zeile / alles NULL = Feature aus**, deshalb kein Seed und kein
+    Eintrag in `handle_new_group()`. Eine erfundene Vorgabezeit stünde
+    einer Gruppe im Banner, die sie nie gesetzt hat.
+  - **Sie stehen im Text, aber NICHT im Digest.** Eine geänderte
+    Abfahrtszeit ist eine Parameter-, keine Planänderung — sie verschiebt
+    keinen Tag und keinen Fahrer. Nähme `dayDigestFor` sie auf, bekäme
+    beim Speichern im Parameter-Screen die halbe Gruppe eine
+    „Änderung"-Meldung über einen unveränderten Tag. Dieselbe Linie wie
+    „der Digest hängt nicht an den Punkten". Festgenagelt in
+    `test/push_digest_test.dart` und `test/push_outbox_test.dart`.
+  - **`GroupDefaults` hat bewusst kein `copyWith`**, und `toJson` schreibt
+    nicht gesetzte Werte als `null` mit. Sonst wäre eine einmal gesetzte
+    Uhrzeit nie wieder loszuwerden: Der Screen baut die Vorgaben beim
+    Speichern frisch, der Upsert schreibt immer alle drei Felder.
+  - Tages-Abweichungen bleiben **Anmerkungen** (#127) — „komme erst um 9"
+    gehört an den Tag, nicht in die Vorgabe. Wer hier einen Zeitwähler je
+    Tag ergänzt, baut das Raster um, in dem heute ein Tap steht.
 - **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von

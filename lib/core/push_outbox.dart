@@ -22,6 +22,7 @@
 /// Kopfzeilen: Welche Art die Meldung ist, weiß erst er.
 library;
 
+import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import 'fairness.dart';
@@ -79,6 +80,7 @@ List<OutboxEntry> outboxEntries({
   required Map<String, Person> persons,
   required DateTime now,
   List<PlanNote> notes = const [],
+  GroupDefaults defaults = const GroupDefaults(),
 }) {
   final entries = <OutboxEntry>[];
   for (final day in week) {
@@ -90,7 +92,13 @@ List<OutboxEntry> outboxEntries({
           personId: personId,
           date: day.date,
           digest: digest,
-          body: composeBody(day, personId, persons, notes: notes),
+          body: composeBody(
+            day,
+            personId,
+            persons,
+            notes: notes,
+            defaults: defaults,
+          ),
           // Beide Fassungen, weil die Art erst beim Versand feststeht. Der
           // Abend-Blick geht nie an Ausgetragene, deshalb dort `removed:
           // false`; die Änderungs-Meldung ist genau dann die

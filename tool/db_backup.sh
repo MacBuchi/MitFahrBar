@@ -92,7 +92,7 @@ missing=""
 # --quote-all-identifiers macht daraus CREATE TABLE "public"."trips" (…
 for table in \
   public.groups public.persons public.trips public.trip_participations \
-  public.settings public.feedback public.app_config \
+  public.settings public.group_defaults public.feedback public.app_config \
   public.plan_availability public.plan_overrides public.plan_notes \
   public.push_devices public.notification_prefs public.push_log \
   public.push_outbox public.group_admins public.error_reports \

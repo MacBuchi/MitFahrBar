@@ -21,6 +21,7 @@ import '../core/supabase_config.dart';
 import '../core/update_check.dart';
 import '../models/app_settings.dart';
 import '../models/group.dart';
+import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
@@ -375,6 +376,16 @@ final settingsProvider = FutureProvider<AppSettings>((ref) {
   return ref.watch(carpoolRepositoryProvider).loadSettings();
 });
 
+/// Abfahrtszeiten und Treffpunkt der Gruppe (#139).
+///
+/// Bewusst ein eigener Provider neben [settingsProvider]: Die Vorgaben gehen
+/// in Banner und Benachrichtigung ein, die Parameter in Kilometer und
+/// Ersparnis — wer das eine invalidiert, soll nicht das andere neu laden.
+final groupDefaultsProvider = FutureProvider<GroupDefaults>((ref) {
+  ref.watch(currentUserIdProvider);
+  return ref.watch(carpoolRepositoryProvider).loadGroupDefaults();
+});
+
 /// Statistik aller Personen, abgeleitet aus Fahrten + Parametern.
 final statsProvider = FutureProvider<Map<String, PersonStats>>((ref) async {
   final trips = await ref.watch(tripsProvider.future);
@@ -624,9 +635,15 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
   final week = ref.watch(weekPlanProvider).valueOrNull;
   final persons = ref.watch(personsProvider).valueOrNull;
   final notes = ref.watch(weekNotesProvider).valueOrNull;
+  // Die Vorgaben (#139) stehen im Text, deshalb hängt der Korb auch an ihnen:
+  // Wer die Abfahrtszeit ändert, soll sie in der nächsten Meldung lesen.
+  // Ausgelöst wird dadurch nichts — der Digest kennt sie bewusst nicht.
+  final defaults = ref.watch(groupDefaultsProvider).valueOrNull;
   // Ein halb geladener Stand schriebe einen halben Text. Lieber gar nichts —
   // der stündliche Job holt es nach.
-  if (week == null || persons == null || notes == null) return;
+  if (week == null || persons == null || notes == null || defaults == null) {
+    return;
+  }
 
   final active = {
     for (final person in persons)
@@ -640,6 +657,7 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
     persons: active,
     now: now,
     notes: [for (final day in notes.values) ...day],
+    defaults: defaults,
   );
   unawaited(
     ref
