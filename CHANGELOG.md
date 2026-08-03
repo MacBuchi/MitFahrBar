@@ -4,6 +4,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.59.0] – 2026-08-03
+
+### Neu
+
+- **Sofort Bescheid, wenn dich jemand ein- oder austrägt.** Bisher erfuhr man
+  das erst mit der Abend-Meldung — jetzt kommt es binnen einer Minute, auch
+  mittags. Nur die betroffene Person wird benachrichtigt, und wer selbst
+  tippt, bleibt still (sofern im Menü unter „Ich bin" jemand gewählt ist).
+- **Meldung, wenn eine eingetragene Fahrt geändert oder gelöscht wird** — an
+  alle Beteiligten, die alten wie die neuen. Das gilt **auch für ältere
+  Fahrten**: Wer eine Fahrt von letzter Woche korrigiert, verschiebt damit
+  die Punkte aller Beteiligten, und das soll niemand übersehen.
+- Beides schaltet ein Schalter „Sofort-Meldungen" unter „Benachrichtigungen",
+  standardmäßig **an**. Er hängt bewusst nicht am Abend-Blick: Diese
+  Meldungen kommen ja gerade außerhalb der Abendzeit.
+
+### Bekannte Grenze
+
+- Die Fahrt-Meldung entsteht auf dem Gerät, das die Änderung sieht. Wird die
+  App in genau diesem Moment geschlossen, entfällt sie — anders als beim
+  Wochenplan kann der stündliche Nachlauf eine Änderung nicht nachträglich
+  erkennen.
+
 ## [0.58.0] – 2026-08-03
 
 ### Neu

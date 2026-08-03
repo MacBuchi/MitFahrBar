@@ -41,10 +41,18 @@ class OutboxEntry {
     required this.titleChange,
     this.titleOut,
     this.titleReturn,
+    this.titleRoster,
+    this.kind = 'plan',
+    this.suppressRoster = false,
   });
 
   final String personId;
   final DateTime date;
+
+  /// `plan` oder `trip` (#163) — seit v0.59.0 Teil des Schlüssels. Zum selben
+  /// Tag können eine Plan-Zeile und eine Fahrt-Meldung gleichzeitig offen
+  /// sein; sie sagen Verschiedenes.
+  final String kind;
 
   /// Derselbe Hash wie in `push_log` — daran erkennt der Versand eine
   /// Änderung.
@@ -60,18 +68,36 @@ class OutboxEntry {
   final String? titleOut;
   final String? titleReturn;
 
+  /// Die Kopfzeile der Eintrag-Meldung (#163). Für den Austrag greift
+  /// `push_due()` auf [titleChange] zurück — dieselbe „Ausgetragen"-Fassung
+  /// wie bei der Änderungs-Meldung.
+  final String? titleRoster;
+
+  /// Unterdrückt die Eintrag-Meldung für genau diese Zeile: Wer selbst
+  /// tippt, braucht keine Meldung darüber.
+  ///
+  /// **Best effort, keine Zugriffskontrolle.** Sie hängt an der
+  /// Geräte-Zuordnung „Ich bin" (#121), und die ist ausdrücklich kein Login:
+  /// Ein Gerät ohne Zuordnung unterdrückt gar nichts, und der stündliche Job
+  /// schreibt sie als `false`. Lieber eine Meldung zu viel als eine, die
+  /// jemand nie bekommt.
+  final bool suppressRoster;
+
   Map<String, Object?> toJson() => {
     'person_id': personId,
     'plan_date':
         '${date.year.toString().padLeft(4, '0')}-'
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.day.toString().padLeft(2, '0')}',
+    'kind': kind,
     'digest': digest,
     'body': body,
     'title_evening': titleEvening,
     'title_change': titleChange,
     'title_out': titleOut,
     'title_return': titleReturn,
+    'title_roster': titleRoster,
+    'suppress_roster': suppressRoster,
   };
 }
 
@@ -90,12 +116,17 @@ class OutboxEntry {
 /// Abfahrts-Erinnerung braucht der Tag aber eine Zeile: Sie meldet sich
 /// gerade dann, wenn die Fahrt feststeht. Dass daraus keine Plan-Meldung
 /// wird, regelt [confirmedDigest] und nicht diese Schleife.
+/// [suppressPersonId] ist, wer an diesem Gerät sitzt (#121) — seine Zeile
+/// bekommt keine Eintrag-Meldung (#163). Der stündliche Job übergibt hier
+/// nichts und hebt die Unterdrückung damit wieder auf: Er weiß nicht, wer
+/// getippt hat, und eine Meldung zu viel ist besser als eine verlorene.
 List<OutboxEntry> outboxEntries({
   required List<PlannedDay> week,
   required Map<String, Person> persons,
   required DateTime now,
   List<PlanNote> notes = const [],
   GroupDefaults defaults = const GroupDefaults(),
+  String? suppressPersonId,
 }) {
   final entries = <OutboxEntry>[];
   for (final day in week) {
@@ -143,6 +174,13 @@ List<OutboxEntry> outboxEntries({
             now,
             defaults.returnTime,
           ),
+          titleRoster: composeTitle(
+            day.date,
+            PushKind.roster,
+            now,
+            removed: false,
+          ),
+          suppressRoster: personId == suppressPersonId,
         ),
       );
     }

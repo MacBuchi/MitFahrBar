@@ -135,15 +135,19 @@ void main() {
       );
     });
 
-    test('der Korb-Schlüssel trägt die group_id', () {
+    test('der Korb-Schlüssel trägt group_id UND die Art', () {
       expect(
         primaryKeyOf('push_outbox').replaceAll(' ', ''),
-        'group_id,person_id,plan_date',
+        'group_id,person_id,plan_date,kind',
         reason:
             'Fachlicher Schlüssel: Ohne group_id wäre (person_id, plan_date) '
             'über alle Gruppen eindeutig, und die zweite Gruppe liefe beim '
             'Schreiben in eine Unique-Verletzung auf einer Zeile, die sie '
-            'nicht einmal sehen darf.',
+            'nicht einmal sehen darf. Und seit #163 gehört `kind` dazu: Zum '
+            'selben Tag können eine Plan-Zeile und eine Fahrt-Meldung '
+            'gleichzeitig offen sein — ohne die Spalte im Schlüssel '
+            'überschriebe die eine die andere, und je nach Reihenfolge '
+            'verschwände mal die Planung, mal die Fahrtänderung.',
       );
     });
 
@@ -294,18 +298,38 @@ void main() {
       );
     });
 
-    test('push_log kennt die vier Arten', () {
+    test('push_log kennt jede protokollierte Art — und `trip` nicht', () {
+      final table = RegExp(
+        r'create table public\.push_log \((.*?)\n\);',
+        dotAll: true,
+      ).firstMatch(schema)!.group(1)!;
+      final check = sqlOnly(table);
+      for (final kind in [
+        'evening',
+        'change',
+        'departure_out',
+        'departure_return',
+        'roster',
+      ]) {
+        expect(
+          check,
+          contains("'$kind'"),
+          reason:
+              'Der CHECK ist der Riegel, der Erinnerung und Eintrag-Meldung '
+              'auf einmal je Zustand begrenzt. Fehlte eine Art darin, schlüge '
+              'das Protokollieren fehl — und weil ein abgewiesenes Protokoll '
+              'wie ein nie gesendeter Push aussieht, feuerte die Meldung '
+              'danach jede Minute neu.',
+        );
+      }
       expect(
-        sqlOnly(schema),
-        contains(
-          "check (kind in ('evening', 'change', 'departure_out', "
-          "'departure_return'))",
-        ),
+        check,
+        isNot(contains("'trip'")),
         reason:
-            'Der CHECK ist der Riegel, der die Erinnerung auf einmal je Tag '
-            'begrenzt. Fehlte eine Art darin, schlüge das Protokollieren fehl '
-            '— und weil ein abgewiesenes Protokoll wie ein nie gesendeter '
-            'Push aussieht, feuerte die Erinnerung danach jede Minute neu.',
+            'Trip-Zeilen werden nach dem Versand GELÖSCHT statt quittiert — '
+            'ein Protokolleintrag wäre die zweite Buchführung über dasselbe. '
+            'Stünde die Art hier, sähe es aus, als gäbe es ein Gedächtnis, '
+            'das niemand pflegt.',
       );
     });
 
@@ -358,6 +382,139 @@ void main() {
             'und ohne Kopfzeile fällt die Erinnerung aus, bis der stündliche '
             'Job sie wiederherstellt. Eine wirklich entfernte Gruppenzeit '
             'macht das nicht rückgängig: ohne outbound_time kein Fenster.',
+      );
+    });
+
+    test('der Purge fasst nur Plan-Zeilen an (#163)', () {
+      final function = RegExp(
+        r'create or replace function public\.publish_push_outbox.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      expect(
+        sqlOnly(function!),
+        contains("kind = 'plan' and plan_date < keep_from"),
+        reason:
+            'Der teuerste Einzelfehler dieser Umstellung. Ohne den Filter '
+            'löschte JEDER Schreibvorgang des Clients alle Zeilen vor der '
+            'Planwoche — also genau die Meldungen über ältere Fahrten, für '
+            'die es #163 gibt. Sie stürben, bevor sie eine Minute später '
+            'verschickt würden, und im Log stünde nichts.',
+      );
+      expect(
+        sqlOnly(function),
+        contains('on conflict (group_id, person_id, plan_date, kind)'),
+        reason:
+            'Weicht das Konfliktziel vom Schlüssel ab, meldet Postgres „no '
+            'unique or exclusion constraint matching the ON CONFLICT '
+            'specification" — und zwar erst am Gerät.',
+      );
+    });
+
+    test('der Roster-Detektor feuert nur beim UPDATE', () {
+      final function = RegExp(
+        r'create or replace function public\.push_outbox_debounce.*?end \$\$;',
+        dotAll: true,
+      ).firstMatch(schema)?.group(0);
+      expect(function, isNotNull);
+      final body = sqlOnly(function!);
+      expect(
+        body,
+        stringContainsInOrder([
+          "if tg_op = 'UPDATE'",
+          "new.kind = 'plan'",
+          "(old.digest = 'raus') is distinct from (new.digest = 'raus')",
+          'not new.suppress_roster',
+          'new.roster_due_at :=',
+        ]),
+        reason:
+            'Beim ersten Füllen des Korbs entstehen Zeilen für JEDE Person — '
+            'eine neue Gruppe, ein Wochenwechsel, ein Gerät, das den Korb '
+            'erstmals schreibt. Ohne `tg_op = UPDATE` weckte das die halbe '
+            'Gruppe mit „Eingetragen" für Tage, an denen sich nichts '
+            'geändert hat.',
+      );
+      expect(
+        body,
+        stringContainsInOrder(["old.digest <> 'fix'", "new.digest <> 'fix'"]),
+        reason:
+            'Wird eine Fahrt eingetragen, wechselt der Digest derer, die '
+            'nicht mitfuhren, auf `raus`. Diesen Fall deckt die '
+            'Fahrt-Meldung ab — ohne den Ausschluss käme zusätzlich ein '
+            '„Ausgetragen".',
+      );
+    });
+
+    test('die Sofort-Meldungen haben eine eigene Fälligkeit', () {
+      final table = RegExp(
+        r'create table public\.push_outbox \((.*?)\n\);',
+        dotAll: true,
+      ).firstMatch(schema)!.group(1)!;
+      expect(
+        sqlOnly(table),
+        contains('roster_due_at timestamptz'),
+        reason:
+            'Über `due_at` liefe sie dem Abend-Blick ins Handwerk: Der '
+            'quittiert dieselbe Spalte mit NULL, und eine noch offene '
+            'Eintrag-Meldung wäre damit stillschweigend erledigt.',
+      );
+      expect(
+        sqlOnly(schema),
+        contains(
+          'create index push_outbox_roster_idx on public.push_outbox '
+          '(roster_due_at)',
+        ),
+      );
+    });
+
+    test('push_due trennt Planung und Fahrt-Meldung', () {
+      final function = RegExp(
+        r'create or replace function public\.push_due.*?\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema)!.group(0)!;
+      final body = sqlOnly(function);
+      expect(
+        RegExp(r"box\.kind = 'plan'").allMatches(body).length,
+        greaterThanOrEqualTo(3),
+        reason:
+            'Abend-Blick, Erinnerung und Eintrag-Meldung lesen alle die '
+            'Plan-Zeile. Ohne den Filter läse der Abend-Blick eine '
+            'Trip-Zeile als Plan des Tages — und schickte den Text einer '
+            'Fahrtänderung als „Morgen (Do)".',
+      );
+      expect(body, contains("box.kind = 'trip'"));
+      expect(
+        body,
+        contains('box.digest is distinct from sent.digest'),
+        reason:
+            'Eine Meldung je Zustand: Wer hin- und hergetragen wird, hört '
+            'jede Wendung einmal — nicht jede Schreibrunde.',
+      );
+    });
+
+    test('der Versand löscht Trip-Zeilen, statt sie zu quittieren', () {
+      final flush = File(
+        'supabase/functions/flush-push/index.ts',
+      ).readAsStringSync();
+      expect(
+        flush,
+        stringContainsInOrder([
+          "first.kind === 'trip'",
+          ".from('push_outbox')",
+          '.delete()',
+        ]),
+        reason:
+            'Eine Trip-Zeile trägt keinen wiederkehrenden Zustand, über den '
+            'ein Protokoll wachen könnte — sie entsteht einmal und ist dann '
+            'erledigt. Bliebe sie stehen, ginge sie in jedem Minutentakt '
+            'erneut raus.',
+      );
+      expect(
+        flush,
+        contains("first.kind === 'roster'"),
+        reason:
+            'Die Eintrag-Meldung quittiert ihre EIGENE Spalte. Über `due_at` '
+            'löschte sie die Fälligkeit des Abend-Blicks mit.',
       );
     });
 

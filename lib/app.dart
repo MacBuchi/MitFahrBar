@@ -94,6 +94,10 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
     // Weiterblättern auf zu hören. Er liefert nichts zurück, löst also auch
     // keinen Neubau aus.
     ref.watch(pushOutboxSyncProvider);
+    // Derselbe Grund, andere Quelle: Fahrten ändern sich im Editor, im
+    // Planer und beim Import — der Zuhörer gehört an die Wurzel, nicht an
+    // einen Screen, den man verlässt (#163).
+    ref.watch(tripPushSyncProvider);
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'MitFahrBar',

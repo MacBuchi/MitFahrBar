@@ -710,6 +710,55 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     bestätigten Tag verfügbar war, aber in keinem Auto steht, bekommt
     `'raus'` — und `composeBody` sagt dasselbe, sonst stünde über einer
     Fahrtbeschreibung die Kopfzeile „Ausgetragen".
+  - **Sofort-Meldungen (#163, seit v0.59.0) sind der erste Push ohne
+    Fenster** — Ein-/Ausgetragen-Werden durch andere und geänderte oder
+    gelöschte Fahrten. Sie hängen deshalb an einem **eigenen** Schalter
+    (`instant_enabled`, Vorgabe AN) und nicht am Abend-Blick: Ihn zu koppeln
+    hieße, sie genau dann abzuschalten, wenn sie gebraucht werden.
+    - **`push_outbox.kind` gehört IN den Primärschlüssel.** Zum selben Tag
+      können eine Plan-Zeile und eine Fahrt-Meldung gleichzeitig offen sein;
+      ohne die Spalte im Schlüssel überschriebe die eine die andere. Und
+      **der Purge in `publish_push_outbox` fasst nur `kind='plan'` an** —
+      ohne den Filter nähme der nächste Plan-Schreib jede Meldung über eine
+      ältere Fahrt mit, bevor sie eine Minute später rausginge. Dasselbe im
+      Stundenjob (`kind=eq.plan`). Der Fehler ist im selben Aufruf unsichtbar
+      (der Purge läuft vor dem Insert) — erst der ZWEITE Schreibvorgang
+      zeigt ihn, und genau so prüft ihn `test/e2e/push_e2e_test.dart`.
+    - **Der Roster-Detektor sitzt im Entprell-Trigger und feuert nur bei
+      `tg_op='UPDATE'`.** Die erste Korb-Füllung legt Zeilen für jede Person
+      an (neue Gruppe, Wochenwechsel, erstes Gerät); ohne den Riegel weckte
+      das die halbe Gruppe. **Der Riegel ist doppelt und die zweite Hälfte
+      unsichtbar:** Beim INSERT ist `old` unbelegt, `old.digest <> 'fix'`
+      ergibt NULL, die Bedingung wird NULL. Wer sie „null-sicher" macht,
+      nimmt diese Hälfte weg — dann trägt `tg_op` allein. Beides zusammen
+      ist am echten Postgres rot verifiziert.
+    - **`roster_due_at` ist eine zweite Fälligkeit neben `due_at`**, und das
+      muss so sein: Der Abend-Blick quittiert `due_at = null`, eine noch
+      offene Eintrag-Meldung wäre damit stillschweigend erledigt. `push_log`
+      kennt `roster`, aber bewusst **kein** `trip`: Trip-Zeilen werden nach
+      dem Versand gelöscht statt quittiert.
+    - **Der Fahrt-Diff ist ein Zuhörer** (`core/trip_push.dart` +
+      `tripPushSyncProvider`), keine Haken am Editor — dieselbe Begründung
+      wie beim Ausgangskorb. Eine **neue** Fahrt meldet niemandem etwas: Das
+      Anlegen *ist* die Bestätigung des Tages. Der vorige Stand wird selbst
+      gemerkt, nicht aus dem `previous` des Listeners genommen (ein
+      `invalidate` schickt den Provider über `AsyncLoading` und feuert
+      mehrfach).
+    - **Ehrliche Grenze: Trip-Meldungen haben keinen Stundenboden.** Der Job
+      kann einen Diff nicht rekonstruieren — stirbt der Tab zwischen
+      Speichern und Schreiben, entfällt die Meldung. Dafür räumt er
+      liegengebliebene Trip-Zeilen nach sieben Tagen ab.
+    - Die Selbst-Unterdrückung (`suppress_roster`) hängt an „Ich bin" und ist
+      **best effort, keine Zugriffskontrolle** (#121). Der Stundenjob
+      schreibt `false` und überstimmt im Reparaturfall.
+  - **Nach jedem Merge, der `supabase/functions/` anfasst, den Deploy
+    nachweisen** — und zwar am Bundle-Hash, nicht an der Versionsnummer:
+    `supabase functions list --project-ref <ref>` zeigt `ezbr_sha256`. Die
+    GitHub-Integration deployt bei **jedem** Push auf `main` alle in
+    `config.toml` deklarierten Functions; `version` und `updated_at` bewegen
+    sich also auch dann, wenn sich am Code nichts geändert hat. Nur der Hash
+    beweist, dass die neue Fassung läuft (belegt am 03.08.2026: flush-push
+    v20 `ac1883b6…` → v21 `c55f5f69…`).
   - **`tool/notify.dart` verschickt seit #132 nichts mehr, es ist der
     Boden.** Stündlich rechnet es den Korb neu und repariert, was ein Gerät
     ohne Netz oder ein geschlossener Tab hinterlassen hat. **Das ist die

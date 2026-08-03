@@ -312,6 +312,11 @@ create table public.notification_prefs (
   reminders_enabled boolean not null default false,
   reminder_lead_minutes integer not null default 15
     check (reminder_lead_minutes between 0 and 120),
+  -- Sofort-Meldungen (#163): Ein- und Ausgetragen-Werden durch andere, und
+  -- geänderte oder gelöschte Fahrten. Bewusst NICHT an den Abend-Blick
+  -- gekoppelt — sie feuern außerhalb jedes Fensters, ihn zu koppeln hieße,
+  -- sie genau dann abzuschalten, wenn sie gebraucht werden.
+  instant_enabled boolean not null default true,
   updated_at timestamptz not null default now(),
   primary key (group_id, person_id)
 );
@@ -323,8 +328,12 @@ create table public.push_log (
     references public.groups(id) on delete cascade,
   person_id uuid not null references public.persons(id) on delete cascade,
   plan_date date not null,
+  -- 'trip' fehlt hier bewusst: Trip-Zeilen werden nach dem Versand
+  -- GELÖSCHT statt quittiert — ein Protokolleintrag wäre die zweite
+  -- Buchführung über dasselbe.
   kind text not null constraint push_log_kind_check
-    check (kind in ('evening', 'change', 'departure_out', 'departure_return')),
+    check (kind in ('evening', 'change', 'departure_out',
+                    'departure_return', 'roster')),
   digest text not null,
   sent_at timestamptz not null default now(),
   primary key (group_id, person_id, plan_date, kind)
@@ -348,6 +357,12 @@ create table public.push_outbox (
     references public.groups(id) on delete cascade,
   person_id uuid not null references public.persons(id) on delete cascade,
   plan_date date not null,
+  -- Die Art steht seit #163 IM Schlüssel: Zum selben Tag können eine
+  -- Plan-Zeile und eine Fahrt-Meldung gleichzeitig offen sein, und sie sagen
+  -- Verschiedenes. Der Purge im Schreibweg fasst deshalb ausdrücklich nur
+  -- 'plan' an — ohne den Filter stürbe jede Meldung über eine ältere Fahrt,
+  -- bevor sie eine Minute später verschickt würde.
+  kind text not null default 'plan' check (kind in ('plan', 'trip')),
   digest text not null,
   body text not null,
   -- Zwei Kopfzeilen: Welche Art die Meldung ist, entscheidet `push_log`, und
@@ -361,10 +376,23 @@ create table public.push_outbox (
   -- NICHT (Begründung an der Funktion unten).
   title_out text,
   title_return text,
+  -- Die Kopfzeile der Eintrag-Meldung (#163). Wer RAUS ist, liest statt
+  -- ihrer `title_change` („Ausgetragen") — ein zweites Wort für dieselbe
+  -- Sache wäre eine zweite Sprache.
+  title_roster text,
   -- NULL = nichts offen. Der Versand quittiert damit.
   due_at timestamptz,
+  -- Eine ZWEITE Fälligkeit, und die braucht es: Der Abend-Blick quittiert
+  -- mit `due_at = null`, und eine noch offene Sofort-Meldung wäre damit
+  -- stillschweigend erledigt.
+  roster_due_at timestamptz,
+  -- Selbst-Unterdrückung: Wer selbst tippt, braucht keine Meldung darüber.
+  -- **Best effort, keine Zugriffskontrolle** — sie hängt an der
+  -- Geräte-Zuordnung „Ich bin" (#121), und die ist ausdrücklich kein Login.
+  -- Der stündliche Job schreibt `false` und überstimmt im Reparaturfall.
+  suppress_roster boolean not null default false,
   updated_at timestamptz not null default now(),
-  primary key (group_id, person_id, plan_date)
+  primary key (group_id, person_id, plan_date, kind)
 );
 
 create index push_devices_group_idx on public.push_devices (group_id);
@@ -373,6 +401,8 @@ create index push_devices_person_idx
 create index push_log_date_idx on public.push_log (plan_date);
 create index push_outbox_due_idx on public.push_outbox (due_at)
   where due_at is not null;
+create index push_outbox_roster_idx on public.push_outbox (roster_due_at)
+  where roster_due_at is not null;
 
 -- Verknüpfung Verwalter-Konto ↔ Gruppe. Ein Konto trägt bis zu 5 Gruppen
 -- (Deckel im Trigger unten), deshalb der zusammengesetzte Schlüssel.
@@ -570,6 +600,18 @@ create trigger group_admins_released
 -- wäre nie fällig, und zwar für ALLE Meldungen dieser Person. Der Preis: Eine
 -- geänderte Abfahrtszeit allein löst keinen Versand aus. Sie soll es auch
 -- nicht (#139).
+-- **Der Roster-Detektor unten feuert nur bei UPDATE** (#163). Beim ersten
+-- Füllen des Korbs entstehen Zeilen für JEDE Person — eine neue Gruppe, ein
+-- Wochenwechsel, ein Gerät, das den Korb erstmals schreibt; ohne die
+-- Bedingung weckte das die halbe Gruppe mit „Eingetragen" für Tage, an denen
+-- sich nichts geändert hat. Der Riegel ist doppelt, und die zweite Hälfte ist
+-- unsichtbar: Beim INSERT ist `old` nicht belegt, `old.digest <> 'fix'` ergibt
+-- NULL und die ganze Bedingung wird NULL. Wer sie „null-sicher" macht, nimmt
+-- genau diese Hälfte weg.
+--
+-- `raus` <-> `fix` ist ausgeschlossen: Wird eine Fahrt eingetragen, wechselt
+-- der Digest derer, die nicht mitfuhren, auf `raus` — diesen Fall deckt die
+-- Fahrt-Meldung ab, sonst käme zusätzlich ein „Ausgetragen".
 create or replace function public.push_outbox_debounce()
 returns trigger language plpgsql set search_path = public as $$
 begin
@@ -582,6 +624,17 @@ begin
   then
     new.due_at := now() + interval '60 seconds';
   end if;
+
+  if tg_op = 'UPDATE'
+    and new.kind = 'plan'
+    and (old.digest = 'raus') is distinct from (new.digest = 'raus')
+    and old.digest <> 'fix'
+    and new.digest <> 'fix'
+    and not new.suppress_roster
+  then
+    new.roster_due_at := now() + interval '60 seconds';
+  end if;
+
   return new;
 end $$;
 
@@ -613,34 +666,41 @@ begin
   end if;
 
   delete from public.push_outbox
-    where group_id = gid and plan_date < keep_from;
+    where group_id = gid and kind = 'plan' and plan_date < keep_from;
 
   insert into public.push_outbox (
-    group_id, person_id, plan_date, digest, body,
-    title_evening, title_change, title_out, title_return
+    group_id, person_id, plan_date, kind, digest, body,
+    title_evening, title_change, title_out, title_return,
+    title_roster, suppress_roster
   )
   select
     gid,
     person.id,
     (entry->>'plan_date')::date,
+    coalesce(entry->>'kind', 'plan'),
     entry->>'digest',
     entry->>'body',
     entry->>'title_evening',
     entry->>'title_change',
     entry->>'title_out',
-    entry->>'title_return'
+    entry->>'title_return',
+    entry->>'title_roster',
+    coalesce((entry->>'suppress_roster')::boolean, false)
   from jsonb_array_elements(coalesce(entries, '[]'::jsonb)) as entry
   join public.persons person
     on person.id = (entry->>'person_id')::uuid
    and person.group_id = gid
-  on conflict (group_id, person_id, plan_date) do update
+  on conflict (group_id, person_id, plan_date, kind) do update
     set digest = excluded.digest,
         body = excluded.body,
         title_evening = excluded.title_evening,
         title_change = excluded.title_change,
         title_out = coalesce(excluded.title_out, push_outbox.title_out),
         title_return = coalesce(
-          excluded.title_return, push_outbox.title_return);
+          excluded.title_return, push_outbox.title_return),
+        title_roster = coalesce(
+          excluded.title_roster, push_outbox.title_roster),
+        suppress_roster = excluded.suppress_roster;
 end $$;
 
 -- Übernimmt eine BESTEHENDE Gruppe: für Gruppen von vor #106 und für die
@@ -898,7 +958,8 @@ language sql security definer set search_path = public as $$
        and change.person_id = box.person_id
        and change.plan_date = box.plan_date
        and change.kind = 'change'
-    where at >= ((box.plan_date - 1)::timestamp + prefs.evening_time)
+    where box.kind = 'plan'
+      and at >= ((box.plan_date - 1)::timestamp + prefs.evening_time)
                   at time zone 'Europe/Berlin'
       and at <  (box.plan_date::timestamp + prefs.departure_time)
                   at time zone 'Europe/Berlin'
@@ -920,20 +981,17 @@ language sql security definer set search_path = public as $$
       join public.notification_prefs prefs
         on prefs.group_id = box.group_id and prefs.person_id = box.person_id
       join public.group_defaults gd on gd.group_id = box.group_id
-      -- Zwei Beine aus einer Zeile: derselbe Riegel, dieselbe Rechnung,
-      -- einmal geschrieben. `lateral`, weil die Werte aus gd und box kommen.
       cross join lateral (values
         ('departure_out'::text, gd.outbound_time, box.title_out),
         ('departure_return'::text, gd.return_time, box.title_return)
       ) as leg(kind, leg_time, title)
-      -- Zeitgetrieben, also genau einmal: Ein Nachholen wäre die Erinnerung
-      -- an eine Abfahrt, die schon war. Kein `due_at`, kein Digest-Vergleich.
       left join public.push_log sent
         on sent.group_id = box.group_id
        and sent.person_id = box.person_id
        and sent.plan_date = box.plan_date
        and sent.kind = leg.kind
-    where prefs.reminders_enabled
+    where box.kind = 'plan'
+      and prefs.reminders_enabled
       and box.digest <> 'raus'
       and leg.leg_time is not null
       and leg.title is not null
@@ -944,6 +1002,63 @@ language sql security definer set search_path = public as $$
                  - make_interval(mins => prefs.reminder_lead_minutes)
       and at <  ((box.plan_date::timestamp + leg.leg_time)
                    at time zone 'Europe/Berlin')
+  ),
+  roster_ready as (
+    select
+      box.group_id,
+      box.person_id,
+      box.plan_date,
+      box.digest,
+      'roster'::text as kind,
+      -- Wer raus ist, liest „Ausgetragen" — dieselbe Kopfzeile, die auch
+      -- die Änderungs-Meldung dafür benutzt. Ein zweites Wort für dieselbe
+      -- Sache wäre eine zweite Sprache.
+      case when box.digest = 'raus' then box.title_change else box.title_roster
+        end as title,
+      box.body
+    from public.push_outbox box
+      join public.groups grp
+        on grp.id = box.group_id and grp.status = 'active'
+      join public.persons person
+        on person.id = box.person_id and person.active
+      join public.notification_prefs prefs
+        on prefs.group_id = box.group_id and prefs.person_id = box.person_id
+      left join public.push_log sent
+        on sent.group_id = box.group_id
+       and sent.person_id = box.person_id
+       and sent.plan_date = box.plan_date
+       and sent.kind = 'roster'
+    where box.kind = 'plan'
+      and prefs.instant_enabled
+      and box.roster_due_at is not null
+      and box.roster_due_at <= at
+      and box.digest is distinct from sent.digest
+      and box.title_roster is not null
+      and box.plan_date >= (at at time zone 'Europe/Berlin')::date
+      and (box.plan_date > (at at time zone 'Europe/Berlin')::date
+           or at < (box.plan_date::timestamp + prefs.departure_time)
+                     at time zone 'Europe/Berlin')
+  ),
+  trip_ready as (
+    select
+      box.group_id,
+      box.person_id,
+      box.plan_date,
+      box.digest,
+      'trip'::text as kind,
+      box.title_change as title,
+      box.body
+    from public.push_outbox box
+      join public.groups grp
+        on grp.id = box.group_id and grp.status = 'active'
+      join public.persons person
+        on person.id = box.person_id and person.active
+      join public.notification_prefs prefs
+        on prefs.group_id = box.group_id and prefs.person_id = box.person_id
+    where box.kind = 'trip'
+      and prefs.instant_enabled
+      and box.due_at is not null
+      and box.due_at <= at
   ),
   ready as (
     select
@@ -956,6 +1071,12 @@ language sql security definer set search_path = public as $$
     union all
     select group_id, person_id, plan_date, digest, kind, title, body
     from reminder_ready
+    union all
+    select group_id, person_id, plan_date, digest, kind, title, body
+    from roster_ready
+    union all
+    select group_id, person_id, plan_date, digest, kind, title, body
+    from trip_ready
   )
   select
     device.token,

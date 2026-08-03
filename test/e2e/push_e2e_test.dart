@@ -648,6 +648,302 @@ void main() {
       });
     });
 
+    // Sofort-Meldungen (#163). Drei Dinge sind hier und NUR hier zu sehen:
+    // dass der Trigger beim ersten Füllen schweigt, dass Plan- und
+    // Fahrt-Zeile zum selben Tag nebeneinander bestehen (der vierspaltige
+    // Schlüssel), und dass der Wochen-Purge die Fahrt-Meldung stehen lässt.
+    group('Sofort-Meldungen', () {
+      Future<List<String>> kindsAt(String groupId, String at) async {
+        final rows = await service.rpc<List<dynamic>>(
+          'push_due',
+          params: {'at': at},
+        );
+        return [
+          for (final row in rows.cast<Map<String, dynamic>>())
+            if (row['group_id'] == groupId) row['kind'] as String,
+        ];
+      }
+
+      /// Gruppe mit Person, Einstellungen, Gerät — aber noch OHNE Korb.
+      Future<(GroupAccount, String)> ready(String label) async {
+        final (group, personId) = await groupWithPerson(label);
+        await group.client.from('notification_prefs').upsert({
+          'group_id': group.id,
+          'person_id': personId,
+          'evening_time': '21:00',
+          'departure_time': '07:30',
+        }, onConflict: 'group_id,person_id');
+        await group.client.rpc<void>(
+          'register_push_device',
+          params: {
+            'device_token': uniqueName('token'),
+            'person': personId,
+            'device_platform': 'android',
+          },
+        );
+        return (group, personId);
+      }
+
+      Future<void> publishPlan(
+        GroupAccount group,
+        String personId,
+        String digest, {
+        bool suppress = false,
+      }) => group.client.rpc<void>(
+        'publish_push_outbox',
+        params: {
+          'entries': [
+            {
+              'person_id': personId,
+              'plan_date': '2026-07-30',
+              'kind': 'plan',
+              'digest': digest,
+              'body': 'Anna fährt · dabei: Bert',
+              'title_evening': 'Morgen (Do, 30.07.)',
+              'title_change': 'Ausgetragen · Morgen (Do, 30.07.)',
+              'title_roster': 'Eingetragen · Morgen (Do, 30.07.)',
+              'suppress_roster': suppress,
+            },
+          ],
+          'keep_from': '2026-07-27',
+        },
+      );
+
+      test(
+        'die erste Korb-Füllung weckt niemanden',
+        () async {
+          final (group, personId) = await ready('insta');
+          await publishPlan(group, personId, 'd1');
+
+          final row = await service
+              .from('push_outbox')
+              .select('roster_due_at')
+              .eq('group_id', group.id)
+              .single();
+          expect(
+            row['roster_due_at'],
+            isNull,
+            reason:
+                'Beim ersten Füllen entstehen Zeilen für JEDE Person — eine '
+                'neue Gruppe, ein Wochenwechsel, ein Gerät, das den Korb '
+                'erstmals schreibt. Ohne den tg_op-Riegel weckte das die '
+                'halbe Gruppe mit „Eingetragen" für Tage, an denen sich '
+                'nichts geändert hat.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+
+      test(
+        'ein Eintrag durch andere meldet sich sofort, auch mittags',
+        () async {
+          final (group, personId) = await ready('instb');
+          // Erst raus, dann rein: Das ist der Zustandswechsel, um den es geht.
+          await publishPlan(group, personId, 'raus');
+          await publishPlan(group, personId, 'd1');
+
+          await service
+              .from('push_outbox')
+              .update({'roster_due_at': '2026-07-29 12:00+02'})
+              .eq('group_id', group.id);
+          expect(
+            await kindsAt(group.id, '2026-07-29 12:01+02'),
+            ['roster'],
+            reason:
+                'Mittags ist kein Abend-Fenster offen — genau deshalb hat '
+                'die Meldung ihre eigene Fälligkeit. Hinge sie am '
+                'Abend-Blick, käme sie erst um 21 Uhr.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+
+      test(
+        'die eigene Schreibung bleibt still',
+        () async {
+          final (group, personId) = await ready('instc');
+          await publishPlan(group, personId, 'raus');
+          await publishPlan(group, personId, 'd1', suppress: true);
+
+          final row = await service
+              .from('push_outbox')
+              .select('roster_due_at')
+              .eq('group_id', group.id)
+              .single();
+          expect(
+            row['roster_due_at'],
+            isNull,
+            reason:
+                'Wer selbst tippt, braucht keine Meldung darüber. Best '
+                'effort: Der stündliche Job schreibt `false` und hebt es '
+                'wieder auf.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+
+      test(
+        'hin und her ergibt eine Meldung je Zustand',
+        () async {
+          final (group, personId) = await ready('instd');
+          await publishPlan(group, personId, 'raus');
+          await publishPlan(group, personId, 'd1');
+          await service
+              .from('push_outbox')
+              .update({'roster_due_at': '2026-07-29 12:00+02'})
+              .eq('group_id', group.id);
+          expect(await kindsAt(group.id, '2026-07-29 12:01+02'), ['roster']);
+
+          // Verschickt: Protokoll steht, Fälligkeit quittiert.
+          await service.from('push_log').insert({
+            'group_id': group.id,
+            'person_id': personId,
+            'plan_date': '2026-07-30',
+            'kind': 'roster',
+            'digest': 'd1',
+          });
+          await service
+              .from('push_outbox')
+              .update({'roster_due_at': null})
+              .eq('group_id', group.id);
+          expect(await kindsAt(group.id, '2026-07-29 12:02+02'), isEmpty);
+
+          // Wieder ausgetragen — ein neuer Zustand, also eine neue Meldung.
+          await publishPlan(group, personId, 'raus');
+          await service
+              .from('push_outbox')
+              .update({'roster_due_at': '2026-07-29 12:03+02'})
+              .eq('group_id', group.id);
+          expect(
+            await kindsAt(group.id, '2026-07-29 12:04+02'),
+            ['roster'],
+            reason:
+                'Jede Wendung einmal — aber nicht jede Schreibrunde. Der '
+                'Vergleich mit dem letzten Protokolleintrag macht den '
+                'Unterschied.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+
+      test(
+        'Plan- und Fahrt-Zeile stehen nebeneinander (Schlüssel-Beweis)',
+        () async {
+          final (group, personId) = await ready('inste');
+          await publishPlan(group, personId, 'd1');
+          await group.client.rpc<void>(
+            'publish_push_outbox',
+            params: {
+              'entries': [
+                {
+                  'person_id': personId,
+                  'plan_date': '2026-07-30',
+                  'kind': 'trip',
+                  'digest': 'tripdigest',
+                  'body': 'Die Fahrt an diesem Tag wurde gelöscht.',
+                  'title_evening': 'Fahrt entfernt · Do, 30.07.',
+                  'title_change': 'Fahrt entfernt · Do, 30.07.',
+                },
+              ],
+              'keep_from': '2026-07-27',
+            },
+          );
+
+          final rows = await service
+              .from('push_outbox')
+              .select('kind, body')
+              .eq('group_id', group.id);
+          expect(
+            rows.map((r) => r['kind']).toSet(),
+            {'plan', 'trip'},
+            reason:
+                'Ohne `kind` im Primärschlüssel überschriebe die eine Zeile '
+                'die andere — je nach Reihenfolge verschwände mal die '
+                'Planung, mal die Fahrtänderung.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+
+      test(
+        'eine Fahrt-Meldung feuert ohne Fenster, auch für alte Tage',
+        () async {
+          final (group, personId) = await ready('instf');
+          await group.client.rpc<void>(
+            'publish_push_outbox',
+            params: {
+              'entries': [
+                {
+                  'person_id': personId,
+                  // Zwei Wochen alt: außerhalb jedes Plan-Fensters.
+                  'plan_date': '2026-07-15',
+                  'kind': 'trip',
+                  'digest': 'tripdigest',
+                  'body': 'Die Fahrt an diesem Tag wurde gelöscht.',
+                  'title_evening': 'Fahrt entfernt · Mi, 15.07.',
+                  'title_change': 'Fahrt entfernt · Mi, 15.07.',
+                },
+              ],
+              'keep_from': '2026-07-27',
+            },
+          );
+
+          // **Der eigentliche Beweis:** Ein ZWEITER Schreibvorgang. Der
+          // Purge läuft am Anfang der Funktion, im selben Aufruf sieht er
+          // die Zeile also gar nicht — gefährlich wird erst der nächste
+          // Plan-Schreib, und den macht der Client bei jeder Planänderung.
+          await publishPlan(group, personId, 'd1');
+          expect(
+            await service
+                .from('push_outbox')
+                .select('kind')
+                .eq('group_id', group.id)
+                .eq('kind', 'trip'),
+            hasLength(1),
+            reason:
+                'Die Fahrt liegt zwei Wochen zurück, `plan_date` also vor '
+                '`keep_from`. Ohne den kind-Filter nähme der nächste '
+                'Plan-Schreib sie mit — die Meldung stürbe, bevor sie eine '
+                'Minute später verschickt würde, und im Log stünde nichts.',
+          );
+
+          await service
+              .from('push_outbox')
+              .update({'due_at': '2026-07-29 12:00+02'})
+              .eq('group_id', group.id)
+              .eq('kind', 'trip');
+          expect(
+            await kindsAt(group.id, '2026-07-29 12:01+02'),
+            ['trip'],
+            reason:
+                'Kein Fenster, kein Digest-Vergleich: Die Zeile entsteht '
+                'nur, wenn wirklich jemand eine Fahrt geändert hat.',
+          );
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+
+      test(
+        'ohne Sofort-Meldungen kommt weder Roster noch Trip',
+        () async {
+          final (group, personId) = await ready('instg');
+          await group.client
+              .from('notification_prefs')
+              .update({'instant_enabled': false})
+              .eq('person_id', personId);
+          await publishPlan(group, personId, 'raus');
+          await publishPlan(group, personId, 'd1');
+          await service
+              .from('push_outbox')
+              .update({'roster_due_at': '2026-07-29 12:00+02'})
+              .eq('group_id', group.id);
+
+          expect(await kindsAt(group.id, '2026-07-29 12:01+02'), isEmpty);
+        },
+        skip: e2eConfigured ? false : e2eSkipReason,
+      );
+    });
+
     test(
       'eine fremde Person landet nicht im eigenen Korb',
       () async {

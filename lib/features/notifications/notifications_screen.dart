@@ -425,6 +425,29 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             contentPadding: EdgeInsets.zero,
           ),
           const Divider(height: 32),
+          // Sofort-Meldungen (#163). Bewusst NICHT an den Abend-Blick
+          // gekoppelt: Sie feuern außerhalb jedes Fensters — ihn zu koppeln
+          // hieße, sie genau dann abzuschalten, wenn sie gebraucht werden.
+          //
+          // Die Grenze der Selbst-Unterdrückung steht im Untertitel, statt
+          // sie zu verschweigen: Sie hängt an „Ich bin", und das ist keine
+          // Anmeldung (#121). Ohne gewählte Person meldet sich auch die
+          // eigene Änderung.
+          SwitchListTile(
+            value: prefs.instantEnabled,
+            onChanged: _busy
+                ? null
+                : (value) => _save(prefs.copyWith(instantEnabled: value)),
+            title: const Text('Sofort-Meldungen'),
+            subtitle: const Text(
+              'Wenn dich jemand anderes ein- oder austrägt, und wenn eine '
+              'eingetragene Fahrt geändert oder gelöscht wird — auch eine '
+              'ältere. Eigene Änderungen bleiben still, sofern im Menü unter '
+              '„Ich bin" jemand gewählt ist.',
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const Divider(height: 32),
           FilledButton.tonalIcon(
             onPressed: _busy || _token == null
                 ? null
