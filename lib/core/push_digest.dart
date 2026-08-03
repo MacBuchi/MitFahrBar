@@ -21,6 +21,7 @@
 /// Benachrichtigung sofort abdriften.
 library;
 
+import '../models/group_defaults.dart';
 import '../models/notification_prefs.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
@@ -93,6 +94,13 @@ const String removedDigest = 'raus';
 ///
 /// **Nicht drin sind die Punkte.** Die ändern sich bei jeder eingetragenen
 /// Fahrt und lösten sonst Nachrichten aus, die niemanden interessieren.
+///
+/// **Und nicht drin sind die festen Vorgaben der Gruppe** (#139: Abfahrt,
+/// Rückfahrt, Treffpunkt). Sie stehen zwar im Text, aber eine geänderte
+/// Abfahrtszeit ist eine Parameter-Änderung, keine Planänderung — sie
+/// verschiebt keinen Tag und keinen Fahrer. Nähme der Digest sie auf,
+/// bekäme beim Speichern im Parameter-Screen die halbe Gruppe eine
+/// „Änderung"-Meldung über einen Tag, an dem sich nichts getan hat.
 ///
 /// [notes] darf die Anmerkungen **aller** Tage enthalten — hier wird auf
 /// [day] gefiltert. Eine flache Liste statt einer Map nach Tag ist Absicht:
@@ -170,6 +178,10 @@ String dayDigestFor(
 /// Anmerkungs-Meldungen. **Der Preis, der dazugehört:** Wer den Abend-Blick
 /// abgeschaltet hat, bekommt auch keine Anmerkungs-Meldung; der
 /// Benachrichtigungs-Screen sagt das.
+///
+/// [defaults] sind die festen Vorgaben der Gruppe (#139). Sie stehen im Text,
+/// aber **nicht** im Digest — siehe [dayDigestFor]: Eine geänderte Abfahrtszeit
+/// ist eine Parameter-, keine Planänderung und weckt niemanden.
 List<DuePush> dueMessages({
   required List<PlannedDay> week,
   required Map<String, NotificationPrefs> prefs,
@@ -177,6 +189,7 @@ List<DuePush> dueMessages({
   required Map<String, Person> persons,
   required DateTime now,
   List<PlanNote> notes = const [],
+  GroupDefaults defaults = const GroupDefaults(),
   Duration changeCooldown = const Duration(minutes: 30),
 }) {
   final index = <String, SentPush>{
@@ -227,7 +240,13 @@ List<DuePush> dueMessages({
             planDate: date,
             kind: PushKind.evening,
             title: composeTitle(date, PushKind.evening, now, removed: false),
-            body: composeBody(day, personId, persons, notes: notes),
+            body: composeBody(
+              day,
+              personId,
+              persons,
+              notes: notes,
+              defaults: defaults,
+            ),
             digest: digest,
           ),
         );
@@ -254,7 +273,13 @@ List<DuePush> dueMessages({
             now,
             removed: digest == removedDigest,
           ),
-          body: composeBody(day, personId, persons, notes: notes),
+          body: composeBody(
+            day,
+            personId,
+            persons,
+            notes: notes,
+            defaults: defaults,
+          ),
           digest: digest,
         ),
       );
@@ -285,6 +310,7 @@ String composeBody(
   String personId,
   Map<String, Person> persons, {
   List<PlanNote> notes = const [],
+  GroupDefaults defaults = const GroupDefaults(),
 }) {
   if (!day.availableIds.contains(personId)) {
     return 'Du bist für diesen Tag nicht mehr eingetragen.';
@@ -327,6 +353,7 @@ String composeBody(
   }
 
   if (day.cars.length > 1) parts.add('${day.cars.length} Autos');
+  parts.addAll(_defaultPhrases(defaults));
   final note = _notePhrase(day, persons, notes);
   if (note != null) parts.add(note);
   return parts.join(' · ');
@@ -344,6 +371,7 @@ String composeGroupBody(
   PlannedDay day,
   Map<String, Person> persons, {
   List<PlanNote> notes = const [],
+  GroupDefaults defaults = const GroupDefaults(),
 }) {
   final parts = <String>[];
 
@@ -372,10 +400,27 @@ String composeGroupBody(
   }
 
   if (day.cars.length > 1) parts.add('${day.cars.length} Autos');
+  parts.addAll(_defaultPhrases(defaults));
   final note = _notePhrase(day, persons, notes);
   if (note != null) parts.add(note);
   return parts.join(' · ');
 }
+
+/// Die festen Vorgaben der Gruppe (#139) als Satzteile — leer, wenn nichts
+/// gepflegt ist.
+///
+/// Sie stehen **vor** der Anmerkung und nach allem anderen: Eine Anmerkung ist
+/// die Abweichung von genau diesen Vorgaben („komme erst um 9"), und sie
+/// zuletzt zu lesen ist die Reihenfolge, in der man es sich sagen würde.
+///
+/// Ein nicht gepflegter Wert erzeugt **kein** Wort — kein „Abfahrt —", kein
+/// „Treffpunkt unbekannt". Wer die Felder nie ausfüllt, merkt von der ganzen
+/// Sache nichts.
+List<String> _defaultPhrases(GroupDefaults defaults) => [
+  if (defaults.outboundTime case final time?) 'Abfahrt ${time.format()}',
+  if (defaults.returnTime case final time?) 'Rückfahrt ${time.format()}',
+  if (defaults.meetingPoint case final point?) 'Treffpunkt $point',
+];
 
 /// Die jüngste Anmerkung des Tages als `Anna: komme erst um 9`, ältere nur
 /// gezählt — oder `null`, wenn es keine gibt.

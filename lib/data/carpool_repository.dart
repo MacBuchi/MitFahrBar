@@ -2,6 +2,7 @@
 library;
 
 import '../models/app_settings.dart';
+import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
@@ -50,6 +51,19 @@ abstract class CarpoolRepository {
 
   Future<AppSettings> loadSettings();
   Future<void> saveSettings(AppSettings settings);
+
+  /// Abfahrtszeiten und Treffpunkt der Gruppe (#139). Keine Zeile heißt
+  /// „nicht gepflegt" und ergibt `const GroupDefaults()`.
+  ///
+  /// Steht neben [loadSettings], weil beides dieselbe Sorte ist: Werte, die
+  /// die Gruppe im Parameter-Screen pflegt und die die Punkte nie berühren.
+  /// Eine eigene Tabelle brauchen sie trotzdem — `settings` trägt nur Zahlen.
+  Future<GroupDefaults> loadGroupDefaults();
+
+  /// Schreibt die Vorgaben **vollständig**: Ein leeres Feld löscht den alten
+  /// Wert, statt ihn stehen zu lassen. Anders wäre eine einmal gesetzte
+  /// Uhrzeit nie wieder loszuwerden.
+  Future<void> saveGroupDefaults(GroupDefaults defaults);
 
   /// Wochenplan ab [from] für [days] Tage: wer kann wann, und wo wurde der
   /// Fahrer-Vorschlag von Hand übersteuert. Der Vorschlag selbst wird nicht

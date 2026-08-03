@@ -1,15 +1,24 @@
-/// settings_screen.dart – Kosten-Parameter der Gruppe (Issue #91).
+/// settings_screen.dart – Parameter der Gruppe (Issues #91, #139).
 ///
 /// Der lange offene „Parameter"-Screen aus KONZEPT.md 5.5: Bis v0.32 lagen
 /// Arbeitsweg und Kraftstoffpreise zwar längst je Gruppe in `settings`,
 /// aber ohne Oberfläche — für die Gruppen war die Strecke damit faktisch
 /// fest verdrahtet (Issue #91).
 ///
-/// Hier stehen **nur** die Werte, die in Kilometer und Ersparnis eingehen.
-/// `one_way_factor` und `points_weight` fehlen mit Absicht: Sie würden
-/// rückwirkend die Punkte aller verschieben, und `points_weight` ist die
-/// dokumentierte Rückfahrkarte der Fairness-Regel — die gehört in eine
-/// Migration, nicht in ein Formular, das jedes Mitglied öffnen kann.
+/// **Das Kriterium für dieses Formular ist nicht „Kosten", sondern: Der Wert
+/// darf die Punkte nie berühren.** Arbeitsweg und Kraftstoffpreise gehen in
+/// Kilometer und Ersparnis ein, Abfahrtszeiten und Treffpunkt (#139) nur in
+/// Banner und Benachrichtigung — beides lässt die Fairness-Rechnung
+/// unangetastet. `one_way_factor` und `points_weight` fehlen deshalb weiter
+/// mit Absicht: Sie verschieben rückwirkend die Punkte aller, und
+/// `points_weight` ist die dokumentierte Rückfahrkarte der Fairness-Regel —
+/// die gehört in eine Migration, nicht in ein Formular, das jedes Mitglied
+/// öffnen kann.
+///
+/// Zwei Tabellen, ein Formular: Die Kosten-Werte liegen in `settings`
+/// (`(group_id, key) → numeric`), die Vorgaben in `group_defaults` — eine
+/// Uhrzeit und ein Treffpunkt passen in eine Zahlenspalte nicht hinein. Der
+/// Speichern-Knopf schreibt beides, in dieser Reihenfolge.
 library;
 
 import 'dart:async';
@@ -22,6 +31,8 @@ import '../../core/supabase_config.dart';
 import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/app_settings.dart';
+import '../../models/group_defaults.dart';
+import '../../models/notification_prefs.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -29,14 +40,17 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final defaults = ref.watch(groupDefaultsProvider);
 
+    // Erst mit BEIDEN Ständen bauen: Ein Formular, das die Vorgaben
+    // nachlädt, überschriebe die frisch getippte Uhrzeit beim Eintreffen.
     return Scaffold(
       appBar: AppBar(title: const Text('Parameter')),
-      body: switch (settings) {
-        AsyncData(value: final loaded) => _Form(settings: loaded),
-        AsyncError(:final error) => Center(
-          child: Text('Fehler beim Laden: $error'),
-        ),
+      body: switch ((settings, defaults)) {
+        (AsyncData(value: final loaded), AsyncData(value: final vorgaben)) =>
+          _Form(settings: loaded, defaults: vorgaben),
+        (AsyncError(:final error), _) || (_, AsyncError(:final error)) =>
+          Center(child: Text('Fehler beim Laden: $error')),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -44,9 +58,10 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 class _Form extends ConsumerStatefulWidget {
-  const _Form({required this.settings});
+  const _Form({required this.settings, required this.defaults});
 
   final AppSettings settings;
+  final GroupDefaults defaults;
 
   @override
   ConsumerState<_Form> createState() => _FormState();
@@ -65,6 +80,15 @@ class _FormState extends ConsumerState<_Form> {
   late final _petrol = TextEditingController(
     text: _format(widget.settings.petrolPricePerLiter),
   );
+  late final _meetingPoint = TextEditingController(
+    text: widget.defaults.meetingPoint ?? '',
+  );
+
+  // Die Uhrzeiten liegen im State und nicht in einem Controller: Es gibt
+  // nichts zu tippen, nur zu wählen — und `null` ist ein echter Wert
+  // („nicht gepflegt"), kein leerer Text.
+  late DayTime? _outbound = widget.defaults.outboundTime;
+  late DayTime? _return = widget.defaults.returnTime;
 
   String? _error;
   bool _saving = false;
@@ -79,6 +103,7 @@ class _FormState extends ConsumerState<_Form> {
     _electricity.dispose();
     _diesel.dispose();
     _petrol.dispose();
+    _meetingPoint.dispose();
     super.dispose();
   }
 
@@ -119,10 +144,26 @@ class _FormState extends ConsumerState<_Form> {
       petrolPricePerLiter: prices['Benzinpreis'],
     );
 
+    // Frisch gebaut statt kopiert: Ein geleertes Feld muss den alten Wert
+    // wirklich löschen. Genau deshalb hat `GroupDefaults` kein `copyWith`.
+    final point = _meetingPoint.text.trim();
+    final defaults = GroupDefaults(
+      outboundTime: _outbound,
+      returnTime: _return,
+      meetingPoint: point.isEmpty ? null : point,
+    );
+
+    final repository = ref.read(carpoolRepositoryProvider);
     try {
-      await ref.read(carpoolRepositoryProvider).saveSettings(updated);
+      await repository.saveSettings(updated);
+      await repository.saveGroupDefaults(defaults);
     } catch (error) {
       if (!mounted) return;
+      // Auch im Fehlerfall neu laden: Scheitert der zweite Schreib, ist der
+      // erste trotzdem draußen — ohne das zeigte der Screen zwei
+      // verschiedene Wahrheiten über dieselbe Gruppe.
+      ref.invalidate(settingsProvider);
+      ref.invalidate(groupDefaultsProvider);
       setState(() {
         _saving = false;
         _error = 'Speichern fehlgeschlagen: $error';
@@ -131,8 +172,9 @@ class _FormState extends ConsumerState<_Form> {
     }
     // Statistik, Ersparnis und Charts hängen alle am settingsProvider —
     // ohne die Invalidierung zeigten sie bis zum nächsten Login die alten
-    // Kilometer.
+    // Kilometer. Am `groupDefaultsProvider` hängen Banner und Ausgangskorb.
     ref.invalidate(settingsProvider);
+    ref.invalidate(groupDefaultsProvider);
     if (!mounted) return;
     setState(() => _saving = false);
     ScaffoldMessenger.of(
@@ -140,6 +182,58 @@ class _FormState extends ConsumerState<_Form> {
     ).showSnackBar(const SnackBar(content: Text('Parameter gespeichert.')));
     unawaited(Navigator.of(context).maybePop());
   }
+
+  /// Zeit wählen — oder wieder leeren. Ohne den zweiten Weg wäre eine einmal
+  /// gesetzte Abfahrtszeit nicht mehr loszuwerden; „nicht gepflegt" ist aber
+  /// ein Zustand, den es geben muss (Gruppen ohne feste Zeiten).
+  Future<void> _pickTime({
+    required String helpText,
+    required DayTime? current,
+    required DayTime fallback,
+    required ValueChanged<DayTime> onPicked,
+  }) async {
+    final start = current ?? fallback;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: start.hour, minute: start.minute),
+      helpText: helpText,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => onPicked(DayTime(picked.hour, picked.minute)));
+  }
+
+  Widget _timeTile({
+    required IconData icon,
+    required String label,
+    required String helpText,
+    required DayTime? value,
+    required DayTime fallback,
+    required ValueChanged<DayTime?> onChanged,
+  }) => ListTile(
+    leading: Icon(icon),
+    title: Text(label),
+    subtitle: Text(
+      value == null ? 'Nicht festgelegt' : '${value.format()} Uhr',
+    ),
+    trailing: value == null
+        ? null
+        : IconButton(
+            tooltip: '$label leeren',
+            icon: const Icon(Icons.backspace_outlined),
+            onPressed: _saving ? null : () => setState(() => onChanged(null)),
+          ),
+    onTap: _saving
+        ? null
+        : () => unawaited(
+            _pickTime(
+              helpText: helpText,
+              current: value,
+              fallback: fallback,
+              onPicked: onChanged,
+            ),
+          ),
+    contentPadding: EdgeInsets.zero,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -149,11 +243,18 @@ class _FormState extends ConsumerState<_Form> {
       padding: const EdgeInsets.all(AppSpacing.m),
       children: [
         Text(
-          'Diese Werte gelten für eure Gruppe und gehen in Kilometer und '
-          'gesparte Kosten ein. Die Punkte ändern sich dadurch nicht.',
+          'Diese Werte gelten für eure Gruppe. Die Punkte ändern sich '
+          'dadurch nicht — weder rückwirkend noch künftig.',
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: AppSpacing.l),
+        Text('Strecke & Kosten', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Gehen in Kilometer und gesparte Kosten ein.',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.s),
         TextField(
           controller: _commute,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -184,6 +285,44 @@ class _FormState extends ConsumerState<_Form> {
             labelText: 'Benzinpreis (€ je Liter)',
           ),
         ),
+        const Divider(height: 40),
+        Text('Fahrt & Treffpunkt', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Was für jede Fahrt gilt. MitFahrBar schreibt es auf die Übersicht '
+          'und in die Benachrichtigung, damit niemand nachfragen muss. '
+          'Leer lassen ist in Ordnung — dann steht dort nichts davon.',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.s),
+        _timeTile(
+          icon: Icons.wb_twilight,
+          label: 'Abfahrt hin',
+          helpText: 'Abfahrt zur Arbeit',
+          value: _outbound,
+          // Nur der Startwert des Wählers, nichts Gespeichertes — eine
+          // Vorgabezeit zu erfinden hieße, sie der Gruppe unterzuschieben.
+          fallback: const DayTime(7, 30),
+          onChanged: (value) => _outbound = value,
+        ),
+        _timeTile(
+          icon: Icons.nights_stay_outlined,
+          label: 'Abfahrt zurück',
+          helpText: 'Abfahrt nach Hause',
+          value: _return,
+          fallback: const DayTime(16, 30),
+          onChanged: (value) => _return = value,
+        ),
+        const SizedBox(height: AppSpacing.s),
+        TextField(
+          controller: _meetingPoint,
+          maxLength: 120,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Treffpunkt',
+            helperText: 'Zum Beispiel „Parkplatz Rathaus".',
+          ),
+        ),
         if (_error case final error?) ...[
           const SizedBox(height: AppSpacing.m),
           Text(error, style: TextStyle(color: theme.colorScheme.error)),
@@ -201,8 +340,8 @@ class _FormState extends ConsumerState<_Form> {
         ),
         const SizedBox(height: AppSpacing.l),
         Text(
-          'Diese Werte pflegt ihr selbst — sie gehen in Kilometer und '
-          'Ersparnis ein. Für die Ersparnis reicht ein grober Wert.',
+          'Alles hier pflegt ihr selbst. Für die Ersparnis reicht ein '
+          'grober Wert.',
           style: theme.textTheme.bodySmall,
         ),
         // Der Weg zum Preisarchiv sitzt hier und nicht im Hauptmenü: Er

@@ -121,6 +121,27 @@ create table public.settings (
   primary key (group_id, key)
 );
 
+-- Feste Vorgaben der Gruppe (#139): Abfahrt hin, Abfahrt zurück, Treffpunkt.
+-- Eine eigene Tabelle, weil `settings` nur Zahlen trägt — eine Uhrzeit als
+-- Minutenzahl wäre unterzubringen, ein Treffpunkt nicht.
+--
+-- Die Zeitspalten heißen bewusst NICHT `departure_time`: Der Name ist in
+-- `notification_prefs` als persönliche Fenster-Deadline vergeben, und zwei
+-- Bedeutungen unter einem Namen sieht man beim Lesen einer Query nicht.
+--
+-- Keine Zeile = alles NULL = Feature aus. Kein Seed, kein Eintrag in
+-- `handle_new_group()`: Eine erfundene Vorgabezeit wäre der Gruppe
+-- untergeschoben.
+create table public.group_defaults (
+  group_id uuid primary key default auth.uid()
+    references public.groups(id) on delete cascade,
+  outbound_time time,
+  return_time time,
+  meeting_point text
+    check (char_length(btrim(meeting_point)) between 1 and 120),
+  updated_at timestamptz not null default now()
+);
+
 -- In-App-Feedback; der Feedback-Bot macht daraus GitHub-Issues.
 create table public.feedback (
   id uuid primary key default gen_random_uuid(),
@@ -1088,6 +1109,7 @@ alter table public.persons             enable row level security;
 alter table public.trips               enable row level security;
 alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
+alter table public.group_defaults      enable row level security;
 alter table public.plan_availability   enable row level security;
 alter table public.plan_overrides      enable row level security;
 alter table public.plan_notes          enable row level security;
@@ -1121,6 +1143,10 @@ create policy participations_isolated on public.trip_participations for all to a
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy settings_isolated on public.settings for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy group_defaults_isolated on public.group_defaults
+  for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy plan_availability_isolated on public.plan_availability

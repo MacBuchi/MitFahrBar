@@ -5,6 +5,8 @@ library;
 import 'package:mitfahrbar/core/tokens.dart';
 import 'package:mitfahrbar/core/update_check.dart';
 import 'package:mitfahrbar/data/providers.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
+import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
 import 'package:flutter/material.dart';
@@ -87,6 +89,49 @@ void main() {
 
       expect(find.text('Morgen (Do, 23.07.)'), findsOneWidget);
       expect(find.text('Heute (Mi, 22.07.)'), findsNothing);
+    });
+
+    // #139: Die festen Vorgaben stehen im selben Streifen — was das Handy
+    // meldet und was die Übersicht zeigt, kommt aus derselben Funktion.
+    testWidgets('nennt Abfahrt und Treffpunkt, wenn sie gepflegt sind', (
+      tester,
+    ) async {
+      final backend = await _rideBackend();
+      await backend
+          .dataFor('group-1')
+          .saveGroupDefaults(
+            const GroupDefaults(
+              outboundTime: DayTime(7, 15),
+              returnTime: DayTime(16, 30),
+              meetingPoint: 'Parkplatz Rathaus',
+            ),
+          );
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      expect(
+        find.textContaining('Abfahrt 07:15 · Rückfahrt 16:30'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Treffpunkt Parkplatz Rathaus'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('ohne Vorgaben steht davon kein Wort im Banner', (
+      tester,
+    ) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      expect(
+        find.textContaining('Abfahrt'),
+        findsNothing,
+        reason:
+            'Wer die Felder nie ausfüllt, soll von der ganzen Sache nichts '
+            'merken — kein „Abfahrt —", kein „Treffpunkt unbekannt".',
+      );
     });
 
     testWidgets('führt angetippt in die Woche', (tester) async {

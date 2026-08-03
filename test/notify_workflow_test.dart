@@ -108,6 +108,20 @@ void main() {
     );
   });
 
+  test('der Job liest die festen Vorgaben mit (#139)', () {
+    expect(
+      job,
+      contains("api.rows('group_defaults'"),
+      reason:
+          'Der Stundenlauf rechnet den ganzen Korb neu — er ist der Boden '
+          'unter dem Ereignis-Weg. Läse er die Vorgaben nicht, schriebe er '
+          'die Zeiten wieder aus dem Text heraus, die der Client gerade '
+          'hineingeschrieben hat: ein Text, der stündlich zwischen zwei '
+          'Fassungen springt.',
+    );
+    expect(job, contains('defaults: defaults'));
+  });
+
   test('der Job räumt Anmerkungen vergangener Tage weg (#131)', () {
     final purge = job
         .split("deleteCounted('plan_notes'")

@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/core/push_digest.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
@@ -684,6 +685,128 @@ void main() {
             'compose-Funktionen die Anmerkung, zeigte die Übersicht etwas '
             'anderes als das Handy meldet.',
       );
+    });
+  });
+
+  group('Feste Vorgaben (#139)', () {
+    const full = GroupDefaults(
+      outboundTime: DayTime(7, 30),
+      returnTime: DayTime(16, 30),
+      meetingPoint: 'Parkplatz Rathaus',
+    );
+
+    test('Banner und Nachricht nennen Abfahrt, Rückfahrt und Treffpunkt', () {
+      for (final body in [
+        composeGroupBody(dayWith(), persons, defaults: full),
+        composeBody(dayWith(), clara, persons, defaults: full),
+      ]) {
+        expect(body, contains('Abfahrt 07:30'));
+        expect(body, contains('Rückfahrt 16:30'));
+        expect(body, contains('Treffpunkt Parkplatz Rathaus'));
+      }
+    });
+
+    test('ohne Vorgaben ändert sich kein Wort', () {
+      expect(
+        composeGroupBody(dayWith(), persons, defaults: const GroupDefaults()),
+        composeGroupBody(dayWith(), persons),
+      );
+      expect(
+        composeBody(dayWith(), clara, persons, defaults: const GroupDefaults()),
+        composeBody(dayWith(), clara, persons),
+        reason:
+            'Wer die Felder nie ausfüllt, soll von der ganzen Sache nichts '
+            'merken — kein „Abfahrt —", kein „Treffpunkt unbekannt".',
+      );
+    });
+
+    test('eine halb gepflegte Vorgabe nennt nur, was da ist', () {
+      final body = composeGroupBody(
+        dayWith(),
+        persons,
+        defaults: const GroupDefaults(meetingPoint: 'Rathaus'),
+      );
+      expect(body, contains('Treffpunkt Rathaus'));
+      expect(body, isNot(contains('Abfahrt')));
+      expect(body, isNot(contains('Rückfahrt')));
+    });
+
+    test('sie stehen vor der Anmerkung', () {
+      final body = composeGroupBody(
+        dayWith(),
+        persons,
+        notes: [
+          PlanNote(
+            id: 'n1',
+            date: tuesday,
+            personId: bernd,
+            body: 'Komme erst um 9',
+            createdAt: mondayEvening,
+          ),
+        ],
+        defaults: full,
+      );
+      expect(
+        body.indexOf('Abfahrt 07:30'),
+        lessThan(body.indexOf('Bernd: Komme erst um 9')),
+        reason:
+            'Eine Anmerkung ist die Abweichung von genau diesen Vorgaben — '
+            'sie zuletzt zu lesen ist die Reihenfolge, in der man es sich '
+            'sagen würde.',
+      );
+    });
+
+    test('eine geänderte Vorgabe ändert den Digest NICHT', () {
+      // Der Kern der Sache. Nähme der Digest die Vorgaben auf, bekäme beim
+      // Speichern im Parameter-Screen die halbe Gruppe eine
+      // „Änderung"-Meldung über einen Tag, an dem sich nichts getan hat —
+      // und der Digest hängt nicht ohne Grund auch nicht an den Punkten.
+      expect(dayDigestFor(dayWith(), bernd), dayDigestFor(dayWith(), bernd));
+
+      final before = dueMessages(
+        week: [dayWith()],
+        prefs: prefsFor([anna, bernd, clara]),
+        sent: [
+          for (final id in [anna, bernd, clara])
+            sentEvening(id, dayDigestFor(dayWith(), id), mondayEvening),
+        ],
+        persons: persons,
+        now: mondayEvening.add(const Duration(hours: 1)),
+        defaults: const GroupDefaults(),
+      );
+      expect(before, isEmpty);
+
+      final after = dueMessages(
+        week: [dayWith()],
+        prefs: prefsFor([anna, bernd, clara]),
+        sent: [
+          for (final id in [anna, bernd, clara])
+            sentEvening(id, dayDigestFor(dayWith(), id), mondayEvening),
+        ],
+        persons: persons,
+        now: mondayEvening.add(const Duration(hours: 1)),
+        defaults: full,
+      );
+      expect(
+        after,
+        isEmpty,
+        reason:
+            'Eine neue Abfahrtszeit ist eine Parameter-Änderung, keine '
+            'Planänderung: Sie verschiebt keinen Tag und keinen Fahrer.',
+      );
+    });
+
+    test('eine fällige Meldung trägt sie trotzdem im Text', () {
+      final due = dueMessages(
+        week: [dayWith()],
+        prefs: prefsFor([clara]),
+        sent: const [],
+        persons: persons,
+        now: mondayEvening,
+        defaults: full,
+      );
+      expect(due, hasLength(1));
+      expect(due.single.body, contains('Treffpunkt Parkplatz Rathaus'));
     });
   });
 

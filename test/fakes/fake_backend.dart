@@ -24,6 +24,7 @@ import 'package:mitfahrbar/data/push_repository.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/group.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
@@ -244,6 +245,13 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
   @override
   Future<void> saveSettings(AppSettings settings) =>
       _target.saveSettings(settings);
+
+  @override
+  Future<GroupDefaults> loadGroupDefaults() => _target.loadGroupDefaults();
+
+  @override
+  Future<void> saveGroupDefaults(GroupDefaults defaults) =>
+      _target.saveGroupDefaults(defaults);
 
   @override
   Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) =>

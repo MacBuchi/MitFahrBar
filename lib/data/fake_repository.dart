@@ -3,6 +3,8 @@
 library;
 
 import '../models/app_settings.dart';
+import '../models/group_defaults.dart';
+import '../models/notification_prefs.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
@@ -104,6 +106,16 @@ class FakeCarpoolRepository implements CarpoolRepository {
   @override
   Future<void> saveSettings(AppSettings settings) async {
     _settings = settings;
+  }
+
+  GroupDefaults _defaults = const GroupDefaults();
+
+  @override
+  Future<GroupDefaults> loadGroupDefaults() async => _defaults;
+
+  @override
+  Future<void> saveGroupDefaults(GroupDefaults defaults) async {
+    _defaults = defaults;
   }
 
   // Wie in der DB nach Kalendertag geschlüsselt — ein voller Zeitstempel
@@ -266,6 +278,16 @@ FakeCarpoolRepository demoRepository() {
       ),
     );
   }
+
+  // Feste Vorgaben (#139) — im Demo-Modus gepflegt, damit Banner und
+  // Parameter-Screen zeigen, wofür die Felder da sind. Eine echte Gruppe
+  // startet dagegen ohne: Eine erfundene Abfahrtszeit wäre ihr
+  // untergeschoben.
+  repo._defaults = const GroupDefaults(
+    outboundTime: DayTime(7, 15),
+    returnTime: DayTime(16, 30),
+    meetingPoint: 'Parkplatz Rathaus',
+  );
 
   // Zwei Anmerkungen (Issue #127) auf dem nächsten Werktag — sie zeigen im
   // Demo-Modus, wofür das Feld da ist. Bewusst harmlos formuliert: Der

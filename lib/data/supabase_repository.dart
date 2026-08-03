@@ -4,6 +4,7 @@ library;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_settings.dart';
+import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
@@ -171,6 +172,28 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
       for (final e in settings.toMap().entries)
         {'group_id': groupId, 'key': e.key, 'value': e.value},
     ], onConflict: 'group_id,key');
+  }
+
+  @override
+  Future<GroupDefaults> loadGroupDefaults() async {
+    final row = await _client
+        .from('group_defaults')
+        .select('outbound_time, return_time, meeting_point')
+        .maybeSingle();
+    return GroupDefaults.fromJson(row);
+  }
+
+  @override
+  Future<void> saveGroupDefaults(GroupDefaults defaults) async {
+    final groupId = _client.auth.currentUser?.id;
+    // Alle drei Felder gehen mit, auch die leeren: Ein `null` löscht hier
+    // bewusst: Wer die Rückfahrzeit wieder herausnimmt, will sie weg haben,
+    // nicht die alte behalten.
+    await _client.from('group_defaults').upsert({
+      'group_id': groupId,
+      ...defaults.toJson(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'group_id');
   }
 
   @override
