@@ -51,7 +51,7 @@ dependencies:
   # In-App-Update: lädt die APK und übergibt sie an den Android-Installer.
   ota_update: ^7.1.0
   web: ^1.1.1
-  share_plus: ^13.2.1
+  share_plus: ^13.3.0
   file_selector: ^1.1.0
   # Push-Benachrichtigungen zum Wochenplaner (Issue #101). Bewusst FCM: Für
   # eine native Android-App gibt es keinen anderen verlässlichen Weg — Doze
