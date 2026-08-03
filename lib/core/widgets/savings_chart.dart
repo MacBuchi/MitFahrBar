@@ -29,28 +29,6 @@ import '../chart_data.dart';
 import '../price_series.dart';
 import '../tokens.dart';
 
-/// Farbe einer Personenlinie.
-///
-/// Erzeugt statt aufgezählt: Wie viele Personen eine Gruppe hat, steht nicht
-/// fest — eine feste Liste liefe bei der neunten entweder aus oder
-/// wiederholte sich still, und zwei gleichfarbige Linien im selben Diagramm
-/// sind schlimmer als eine ungewohnte Farbe. Gedreht wird deshalb der
-/// Farbton bei fester Sättigung und Helligkeit: So tragen alle Töne gleich
-/// weit gegen den Untergrund, und die Reihe beginnt in der Markenwelt.
-///
-/// Die Helligkeit hängt am Modus — dieselben Töne trügen auf dem dunklen
-/// Untergrund sonst deutlich schlechter als auf dem hellen.
-Color personLineColor(int index, int count, Brightness brightness) {
-  final base = HSLColor.fromColor(AppColors.brand);
-  final step = count <= 1 ? 0.0 : 300.0 / count;
-  return HSLColor.fromAHSL(
-    1,
-    (base.hue + step * index) % 360,
-    0.55,
-    brightness == Brightness.dark ? 0.68 : 0.42,
-  ).toColor();
-}
-
 /// Kleinster Zoom-Ausschnitt. Enger als acht Wochen zeigt nur noch
 /// Liniensegmente ohne Verlauf.
 const int _minZoomWeeks = 8;
@@ -125,7 +103,7 @@ class _SavingsTrendChartState extends State<SavingsTrendChart> {
       );
     }
 
-    final ordered = _orderedPersons();
+    final ordered = savingsOrder(widget.chart);
     final colors = <String, Color>{
       for (var i = 0; i < ordered.length; i++)
         ordered[i]: personLineColor(i, ordered.length, theme.brightness),
@@ -250,22 +228,6 @@ class _SavingsTrendChartState extends State<SavingsTrendChart> {
       'Fahrten je Woche als Säulen',
     ];
     return parts.join(', ');
-  }
-
-  /// Wer zuerst gezeichnet wird. Absteigend nach Ersparnis, damit die
-  /// Legende dieselbe Reihenfolge hat wie die Linien von oben nach unten —
-  /// bei acht Linien ist das der einzige Weg, eine zuzuordnen.
-  List<String> _orderedPersons() {
-    final ids = widget.chart.perPerson.keys.toList();
-    ids.sort((a, b) {
-      final byValue = widget.chart.perPerson[b]!.last.compareTo(
-        widget.chart.perPerson[a]!.last,
-      );
-      // Gleichstand alphabetisch statt in Map-Reihenfolge: Sonst wechselten
-      // Farben zwischen zwei Aufbauten, ohne dass sich etwas geändert hat.
-      return byValue != 0 ? byValue : a.compareTo(b);
-    });
-    return ids;
   }
 }
 

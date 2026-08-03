@@ -77,6 +77,12 @@ void main() {
       ('Fahrtag-Regel', find.textContaining('frühestens am Fahrtag')),
       ('Hajo', find.textContaining('Hajo')),
       ('Historie', find.text('Historie & Statistik')),
+      (
+        'Eine Summe',
+        find.textContaining('dieselbe Summe wie auf der Übersicht'),
+      ),
+      ('CO₂-Rechnung', find.textContaining('E-Autos zählen dabei 0')),
+      ('Insights', find.textContaining('wechseln kleine Insight-Karten')),
       ('Menü', find.text('Das Menü oben rechts')),
       ('Sitzplätze', find.textContaining('inklusive Fahrer')),
       ('Nie löschen', find.textContaining('Gelöscht wird niemand')),

@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.56.0] – 2026-08-03
+
+### Neu
+
+- **Die Statistik erzählt jetzt eure Zahlen.** Der Reiter ist eine echte
+  Auswertungs-Seite geworden: Fahrten pro Woche mit markierter Rekordwoche,
+  „Gemeinsam gespart" als Kurve mit Meilenstein und einer ehrlichen
+  Hochrechnung („bei eurem Tempo … bis Jahresende"), ein Ring, der die
+  Ersparnis auf die Mitfahrenden aufteilt — zusammen immer dieselbe Summe
+  wie auf der Übersicht — und euer Wochen-Muster als Raster, samt Hinweis,
+  wenn ein Wochentag fast immer an derselben Person hängt. Die gewohnten
+  Zahlen je Person stehen weiter am Ende der Seite.
+- **CO₂ eingespart.** Gerechnet aus dem Verbrauch und der Spritart eurer
+  eigenen Autos, nicht aus einer Pauschale — E-Autos zählen dabei 0. Mit
+  Baum-Vergleich und den vermiedenen Solo-Kilometern.
+- **Wöchentlich wechselnde Insight-Karten** ganz oben auf der Statistik:
+  Strecken-Meilenstein („… — einmal bis Lissabon"), sparsamste Woche,
+  Kilometerheld des Monats und Serien-Rekord ohne Solo-Fahrt.
+- **Die Spritpreis-Verläufe stehen jetzt auch in der Statistik.** Verwaltet
+  (Region, „Jetzt abfragen") werden sie wie bisher über die Parameter.
+
 ## [0.55.1] – 2026-08-02
 
 ### Behoben

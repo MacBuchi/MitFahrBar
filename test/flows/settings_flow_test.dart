@@ -67,6 +67,13 @@ void main() {
   testWidgets('der Arbeitsweg lässt sich ändern und wirkt in der Statistik', (
     tester,
   ) async {
+    // Hohe Fläche: Die Personen-Karten stehen seit v0.56.0 am ENDE der
+    // Statistik-Chart-Seite — auf der Standardgröße baute die ListView sie
+    // nie, und der km-Nachweis unten fände nichts.
+    tester.view.physicalSize = const Size(420, 5200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final backend = await _backend();
     await pumpApp(tester, backend);
     await _login(tester);

@@ -87,6 +87,8 @@ Eine **Fahrt = eine Fahrgruppe an einem Tag** (in der Regel eine pro Tag; an man
 - Gesparte Kraftstoffkosten je Person = eigener Kostensatz/100 km × Mitfahr-Strecken (Kostensatz = Verbrauch × Energiepreis je Antriebsart)
 - **Kilometerheld** = Top-2 nach Kilometern; Gesamt-Ersparnis der Gruppe (aktuell 3.761 € bei 416 Fahrten)
 
+> **Ergänzung 2026-08-03 (v0.56.0): Dazugekommen sind CO₂ und Insight-Karten** (Design-Konzept „MitFahrBar Statistik Konzept"). CO₂ wird je Person aus dem eingetragenen Verbrauch und der Spritart gerechnet — dieselbe Formel wie die Ersparnis, mit kg/l statt €/l (Diesel 2,65, Benzin 2,37; E-Autos zählen 0). Baum- (21 kg/Jahr) und Tankfüllungs-Äquivalent (50 l) sind Anschauungswerte. Alle Konstanten stehen in `lib/core/stats_data.dart`, werden beim Lesen eingesetzt und nie gespeichert — dieselbe Linie wie bei Punkten und Preisen. Die Insight-Karten (Strecken-Meilenstein, sparsamste Woche, Kilometerheld des Monats, Serien-Rekord) rotieren deterministisch je ISO-Woche (`lib/core/stats_insights.dart`).
+
 ### 3.4 Parameter (verwaltbar in der App)
 `Arbeitsweg_km = 30` · `OneWayFaktor = 0,5` · Strompreis 0,35 €/kWh · Diesel 1,70 €/l · Benzin 1,78 €/l — Preise mit **Gültig-ab-Datum** versionieren (im Excel statisch, in der App historisierbar).
 
@@ -157,6 +159,8 @@ Liste aller Fahrten (neueste zuerst, gruppiert nach KW), Suche/Filter nach Perso
 
 ### 5.4 Statistik
 Pro Person: gefahren / mitgefahren / 1-way / mitgenommen / Quote / Punkte / km / gesparte Kosten. Gesamtwerte, Kilometerheld-Badge, einfache Verlaufs-Charts (Punkte über Zeit).
+
+> **Ergänzung 2026-08-03 (v0.56.0): Die Statistik ist eine Chart-Seite** (`features/stats/`, nach dem Design-Konzept „MitFahrBar Statistik Konzept"): Insight-Karten zuoberst, Fahrten pro Woche (mit Rekordwoche), „Gemeinsam gespart" (Kurve mit Meilenstein und Hochrechnung), Ersparnis-Ring je Person, CO₂-Ring, die Spritpreis-Verläufe, Unterwegs-Balken mit Punkte-Saldo und eine Wochentags-Heatmap. Die „einfachen Verlaufs-Charts (Punkte über Zeit)" von oben wurden dadurch überholt und nie gebaut. Die Zahlen je Person stehen unverändert am Seitenende.
 
 ### 5.5 Verwaltung
 - Personen: anlegen, **aktiv/inaktiv** schalten (inaktiv = raus aus dem Ranking, Historie bleibt — Felix, Stefan H, Noah).

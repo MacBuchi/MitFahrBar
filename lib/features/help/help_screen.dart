@@ -290,7 +290,26 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
-                    'Die Statistik zeigt je Person Punkte, Fahrten, '
+                    'Die Statistik erzählt eure Zahlen: Fahrten pro Woche '
+                    'mit Rekordwoche, die gemeinsame Ersparnis als Kurve '
+                    'und als Ring je Person — zusammen immer dieselbe '
+                    'Summe wie auf der Übersicht.',
+              ),
+              _Line(
+                text:
+                    'CO₂ rechnet die App aus Verbrauch und Spritart eurer '
+                    'Autos; E-Autos zählen dabei 0 — geschätzt wird nichts.',
+              ),
+              _Line(
+                text:
+                    'Ganz oben wechseln kleine Insight-Karten wöchentlich: '
+                    'Meilensteine, Rekorde und wer im Monat am meisten am '
+                    'Steuer saß. Auch die Spritpreise eurer Region stehen '
+                    'auf der Seite — verwaltet werden sie in den Parametern.',
+              ),
+              _Line(
+                text:
+                    'Am Ende stehen alle Zahlen je Person: Punkte, Fahrten, '
                     'Fahranteil, Ø Mitgenommene, Kilometer und was sie an '
                     'Kraftstoff gespart hat.',
               ),
