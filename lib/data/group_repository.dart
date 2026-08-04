@@ -8,6 +8,7 @@ library;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/group.dart';
+import 'read_retry.dart';
 
 abstract class GroupRepository {
   /// Die Gruppe des aktuell eingeloggten Accounts (null wenn keine).
@@ -20,7 +21,7 @@ class SupabaseGroupRepository implements GroupRepository {
   final SupabaseClient _client;
 
   @override
-  Future<Group?> myGroup() async {
+  Future<Group?> myGroup() => readTolerant(() async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return null;
     final row = await _client
@@ -29,7 +30,7 @@ class SupabaseGroupRepository implements GroupRepository {
         .eq('id', uid)
         .maybeSingle();
     return row == null ? null : Group.fromJson(row);
-  }
+  });
 }
 
 /// Demo-Modus: eine feste aktive Gruppe.

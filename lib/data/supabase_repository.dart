@@ -10,6 +10,7 @@ import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
+import 'read_retry.dart';
 
 class SupabaseCarpoolRepository implements CarpoolRepository {
   SupabaseCarpoolRepository(this._client);
@@ -33,10 +34,10 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
       date.toIso8601String().substring(0, 10);
 
   @override
-  Future<List<Person>> loadPersons() async {
+  Future<List<Person>> loadPersons() => readTolerant(() async {
     final rows = await _client.from('persons').select().order('name');
     return rows.map(Person.fromJson).toList();
-  }
+  });
 
   /// Der einzige Unique auf `persons` ist `persons_group_name_key`
   /// (Issue #109) — eine 23505 von dieser Tabelle kann also nur der Name
@@ -88,7 +89,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
-  Future<List<Trip>> loadTrips() async {
+  Future<List<Trip>> loadTrips() => readTolerant(() async {
     final rows = await _client
         .from('trips')
         .select('id, trip_date, note, trip_participations(person_id, status)')
@@ -107,7 +108,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
           },
         ),
     ];
-  }
+  });
 
   @override
   Future<Trip> createTrip(
@@ -157,13 +158,13 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
-  Future<AppSettings> loadSettings() async {
+  Future<AppSettings> loadSettings() => readTolerant(() async {
     final rows = await _client.from('settings').select('key, value');
     return AppSettings.fromMap({
       for (final row in rows)
         row['key'] as String: (row['value'] as num).toDouble(),
     });
-  }
+  });
 
   @override
   Future<void> saveSettings(AppSettings settings) async {
@@ -175,13 +176,13 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
-  Future<GroupDefaults> loadGroupDefaults() async {
+  Future<GroupDefaults> loadGroupDefaults() => readTolerant(() async {
     final row = await _client
         .from('group_defaults')
         .select('outbound_time, return_time, meeting_point')
         .maybeSingle();
     return GroupDefaults.fromJson(row);
-  }
+  });
 
   @override
   Future<void> saveGroupDefaults(GroupDefaults defaults) async {
@@ -197,37 +198,38 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
-  Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) async {
-    final start = _isoDay(from);
-    final end = _isoDay(from.add(Duration(days: days - 1)));
+  Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) =>
+      readTolerant(() async {
+        final start = _isoDay(from);
+        final end = _isoDay(from.add(Duration(days: days - 1)));
 
-    final availabilityRows = await _client
-        .from('plan_availability')
-        .select('plan_date, person_id, one_way')
-        .gte('plan_date', start)
-        .lte('plan_date', end);
-    final overrideRows = await _client
-        .from('plan_overrides')
-        .select('plan_date, driver_id')
-        .gte('plan_date', start)
-        .lte('plan_date', end);
+        final availabilityRows = await _client
+            .from('plan_availability')
+            .select('plan_date, person_id, one_way')
+            .gte('plan_date', start)
+            .lte('plan_date', end);
+        final overrideRows = await _client
+            .from('plan_overrides')
+            .select('plan_date, driver_id')
+            .gte('plan_date', start)
+            .lte('plan_date', end);
 
-    final availability = <DateTime, Map<String, PlanRide>>{};
-    for (final row in availabilityRows) {
-      final date = DateTime.parse(row['plan_date'] as String);
-      (availability[date] ??= <String, PlanRide>{})[row['person_id']
-          as String] = (row['one_way'] as bool? ?? false)
-          ? PlanRide.oneWay
-          : PlanRide.full;
-    }
+        final availability = <DateTime, Map<String, PlanRide>>{};
+        for (final row in availabilityRows) {
+          final date = DateTime.parse(row['plan_date'] as String);
+          (availability[date] ??= <String, PlanRide>{})[row['person_id']
+              as String] = (row['one_way'] as bool? ?? false)
+              ? PlanRide.oneWay
+              : PlanRide.full;
+        }
 
-    final overrides = <DateTime, Set<String>>{};
-    for (final row in overrideRows) {
-      final date = DateTime.parse(row['plan_date'] as String);
-      (overrides[date] ??= <String>{}).add(row['driver_id'] as String);
-    }
-    return WeekPlan(availability: availability, overrides: overrides);
-  }
+        final overrides = <DateTime, Set<String>>{};
+        for (final row in overrideRows) {
+          final date = DateTime.parse(row['plan_date'] as String);
+          (overrides[date] ??= <String>{}).add(row['driver_id'] as String);
+        }
+        return WeekPlan(availability: availability, overrides: overrides);
+      });
 
   @override
   Future<void> setAvailability(
@@ -274,7 +276,10 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
-  Future<List<PlanNote>> loadNotes(DateTime from, {int days = 7}) async {
+  Future<List<PlanNote>> loadNotes(
+    DateTime from, {
+    int days = 7,
+  }) => readTolerant(() async {
     // `order` ist Pflicht, nicht Geschmack: PostgREST sichert ohne ihn keine
     // Reihenfolge zu. Die Anzeige braucht sie ohnehin — und der Versand-Job
     // mischt die Anmerkungen in den Tages-Digest, wo eine wechselnde
@@ -287,7 +292,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
         .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))))
         .order('created_at');
     return rows.map(PlanNote.fromJson).toList();
-  }
+  });
 
   @override
   Future<void> addNote(DateTime date, String personId, String body) async {

@@ -294,6 +294,41 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   false` die entfernte Spalte sauber ab, die Selects liefen ins Leere statt in
   Fehler — dort wurde bewusst **nicht** gehoben. Gehoben wird, wenn der Client
   ohne Update falsche Daten zeigt oder in eine Exception läuft.
+- **Jedes Gate braucht einen Weg weg — auch das Gruppen-Gate** (#169, seit
+  v0.60.0). Dieselbe Lehre wie beim Sperr-Schirm, nur an der anderen Tür:
+  `AppShell` zeigte bei `AsyncError` von `myGroupProvider` ein nacktes
+  `Text('Fehler: $error')` ohne Rahmen. Ohne Empfang stand dort der rohe
+  Ausnahmetext samt Projekt-URL und Gruppen-Kennung — und weil
+  `myGroupProvider` an `currentUserIdProvider` hängt (der sich bewusst nur
+  bei echtem An-/Abmelden ändert), lief nach der Rückkehr des Netzes von
+  allein **nichts** neu: Es half nur, die App zu beenden. Drei Dinge daran
+  gehören zusammen und dürfen nicht einzeln „aufgeräumt" werden:
+  - **Der Knopf wird im Test getippt, nicht gefunden.** Genau daran ist der
+    tote Update-Knopf in 0.37.0 durchgerutscht.
+  - **Der Rohtext bleibt vom Schirm.** Er sagt der Gruppe nichts und trägt
+    Adressen nach außen; die Fehlersenke (#136) hat ihn ohnehin. Wer ihn
+    „zum Debuggen" wieder anzeigt, baut das Leck neu.
+  - **Kein Netz ist kein Defekt** und bekommt einen eigenen Text.
+    Unterschieden wird über die String-Form (wie bei `isPasswordRecovery`):
+    Die Typen kommen aus `http`/`dart:io` und sind im Web-Build nicht
+    dieselben.
+- **PGRST303 wird wiederholt — aber NUR beim Lesen** (`data/read_retry.dart`,
+  #169). PostgREST lehnt eine Anfrage mit `JWT issued at future` ab, wenn das
+  `iat` des Tokens vor **seiner** Uhr in der Zukunft liegt; ausgestellt wird
+  es von GoTrue, geprüft von PostgREST. Belegt in `error_reports` KW 32: 12
+  Vorfälle, Android **und** Web, über mehrere Versionen, und immer im Rudel —
+  nach einer Token-Erneuerung feuern alle Provider gleichzeitig.
+  - **Gewartet wird, nicht erneuert.** `refreshSession()` ist der
+    naheliegende und genau falsche Griff: Es besorgt ein noch jüngeres Token,
+    dessen `iat` noch weiter in der Zukunft liegt. Der Fehler heilt allein
+    dadurch, dass Zeit vergeht.
+  - **Schreibende Aufrufe bleiben ungehüllt.** Ein wiederholtes `createTrip`
+    legte die Fahrt zweimal an und verschöbe rückwirkend die Punkte *aller* —
+    dieselbe Klasse Schaden wie ein doppelt angelegter Name beim CSV-Import.
+    `test/read_retry_test.dart` prüft **beide** Richtungen am Quelltext der
+    Datenschicht und ist gegen eine umgehüllte Schreibmethode rot verifiziert.
+  - Genau ein zweiter Anlauf, keine Schleife: Sonst würde aus einem sichtbaren
+    Fehler ein zähes Hängen.
 - **Multi-Tenant:** Eine Gruppe = ein Login (`group_id = auth.uid()`). Alle
   Datentabellen tragen `group_id` (Default `auth.uid()`), RLS erzwingt
   `group_id = auth.uid() AND my_group_active()`. Neue Gruppen entstehen seit
