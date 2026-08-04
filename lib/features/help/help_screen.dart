@@ -426,6 +426,17 @@ class HelpScreen extends StatelessWidget {
                     'und ändert alles — wie an einer gemeinsamen Pinnwand.',
               ),
               _Line(
+                leading: Icon(Icons.cloud_off_outlined),
+                text:
+                    'Ohne Empfang zeigt MitFahrBar den zuletzt geladenen '
+                    'Stand. Oben steht dann, von wann er ist — im Funkloch '
+                    'oder in der Tiefgarage siehst du also weiter, wer '
+                    'fährt. Ändern lässt sich in diesem Zustand nichts: Ein '
+                    'Eintrag braucht Verbindung, damit die anderen ihn auch '
+                    'bekommen. Sobald das Netz zurück ist, verschwindet der '
+                    'Hinweis von allein.',
+              ),
+              _Line(
                 leading: Icon(Icons.admin_panel_settings_outlined),
                 text:
                     'Gruppen entstehen in der Verwalter-Konsole, erreichbar '

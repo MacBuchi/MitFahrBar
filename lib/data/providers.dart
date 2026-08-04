@@ -40,6 +40,8 @@ import 'price_repository.dart';
 import 'push_outbox_repository.dart';
 import 'push_repository.dart';
 import 'supabase_repository.dart';
+import 'caching_repository.dart';
+import 'offline_cache.dart';
 
 final supabaseClientProvider = Provider<SupabaseClient>(
   (ref) => Supabase.instance.client,
@@ -258,17 +260,47 @@ final authRepositoryProvider = Provider<AuthRepository>(
       : AlwaysLoggedInAuthRepository(),
 );
 
-final carpoolRepositoryProvider = Provider<CarpoolRepository>(
-  (ref) => SupabaseConfig.isConfigured
-      ? SupabaseCarpoolRepository(ref.watch(supabaseClientProvider))
-      : demoRepository(),
+/// Die Ablage des letzten bekannten Stands (#169).
+final offlineCacheProvider = Provider<OfflineCache>(
+  (ref) => PrefsOfflineCache(),
 );
 
-final groupRepositoryProvider = Provider<GroupRepository>(
-  (ref) => SupabaseConfig.isConfigured
-      ? SupabaseGroupRepository(ref.watch(supabaseClientProvider))
-      : DemoGroupRepository(),
+/// Woher der gezeigte Stand kam — `null` heißt „frisch vom Server".
+///
+/// Ein einzelnes Objekt für die ganze App: Beide Dekorierer melden hierhin,
+/// die Leiste im [AppShell] hört zu.
+final offlineStatusProvider = Provider<OfflineStatus>((ref) => OfflineStatus());
+
+/// Wessen Zeilen im Zwischenspeicher liegen dürfen. `null` = kein Speicher.
+///
+/// Bewusst über `currentUserId` und nicht über die geladene Gruppe: Die
+/// Kennung muss schon feststehen, **bevor** der erste Lesezugriff läuft —
+/// sonst könnte der allererste (`myGroup`) nie aus dem Speicher bedient
+/// werden, und genau der ist das Gate vor der ganzen App.
+final _cacheGroupIdProvider = Provider<String? Function()>(
+  (ref) =>
+      () => ref.read(authRepositoryProvider).currentUserId,
 );
+
+final carpoolRepositoryProvider = Provider<CarpoolRepository>((ref) {
+  if (!SupabaseConfig.isConfigured) return demoRepository();
+  return CachingCarpoolRepository(
+    SupabaseCarpoolRepository(ref.watch(supabaseClientProvider)),
+    ref.watch(offlineCacheProvider),
+    ref.watch(offlineStatusProvider),
+    ref.watch(_cacheGroupIdProvider),
+  );
+});
+
+final groupRepositoryProvider = Provider<GroupRepository>((ref) {
+  if (!SupabaseConfig.isConfigured) return DemoGroupRepository();
+  return CachingGroupRepository(
+    SupabaseGroupRepository(ref.watch(supabaseClientProvider)),
+    ref.watch(offlineCacheProvider),
+    ref.watch(offlineStatusProvider),
+    ref.watch(_cacheGroupIdProvider),
+  );
+});
 
 final adminRepositoryProvider = Provider<AdminRepository>(
   (ref) => SupabaseConfig.isConfigured

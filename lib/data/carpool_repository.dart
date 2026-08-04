@@ -107,4 +107,44 @@ class WeekPlan {
   /// Tag → von Hand gesetzte Fahrer (eine Zeile je Fahrer in
   /// `plan_overrides`).
   final Map<DateTime, Set<String>> overrides;
+
+  /// Für den Zwischenspeicher (#169). Die Tage werden als ISO-Kalendertag
+  /// abgelegt, nicht als Zeitstempel: Der Plan kennt keine Uhrzeit, und ein
+  /// mitgeschriebener Zeitzonen-Anteil käme beim Lesen als anderer Tag
+  /// zurück, sobald das Gerät die Zone wechselt.
+  Map<String, dynamic> toJson() => {
+    'availability': {
+      for (final day in availability.entries)
+        _dayKey(day.key): {
+          for (final person in day.value.entries) person.key: person.value.name,
+        },
+    },
+    'overrides': {
+      for (final day in overrides.entries) _dayKey(day.key): day.value.toList(),
+    },
+  };
+
+  factory WeekPlan.fromJson(Map<String, dynamic> json) => WeekPlan(
+    availability: {
+      for (final day in (json['availability'] as Map).entries)
+        DateTime.parse(day.key as String): {
+          for (final person in (day.value as Map).entries)
+            person.key as String: PlanRide.values.firstWhere(
+              (r) => r.name == person.value,
+              // Ein unbekannter Wert gilt als „kann ganz" — dieselbe Linie
+              // wie `Group.statusFrom`: tolerant lesen statt werfen, denn
+              // ein Wurf hier machte den Zwischenspeicher unbrauchbar.
+              orElse: () => PlanRide.full,
+            ),
+        },
+    },
+    overrides: {
+      for (final day in (json['overrides'] as Map).entries)
+        DateTime.parse(day.key as String): {
+          for (final id in day.value as List) id as String,
+        },
+    },
+  );
+
+  static String _dayKey(DateTime day) => day.toIso8601String().substring(0, 10);
 }

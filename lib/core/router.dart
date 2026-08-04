@@ -28,6 +28,7 @@ import '../features/stats/stats_screen.dart';
 import '../features/trip_editor/trip_editor_screen.dart';
 import '../features/trip_editor/trip_editor_seed.dart';
 import 'tokens.dart';
+import 'widgets/offline_bar.dart';
 
 /// Stößt den Router-Redirect an, sobald sich der Auth-Zustand ändert.
 class _AuthRefresh extends ChangeNotifier {
@@ -193,7 +194,15 @@ class AppShell extends ConsumerWidget {
 
     return switch (group) {
       AsyncData(value: final g) when g != null && g.isActive => Scaffold(
-        body: navigationShell,
+        // Die Leiste sitzt ÜBER dem Inhalt und nicht in einem einzelnen
+        // Screen: Der Stand gilt für die ganze App, und in einem Tab
+        // verdrahtet verschwände der Hinweis beim Wechsel auf einen anderen.
+        body: Column(
+          children: [
+            const OfflineBar(),
+            Expanded(child: navigationShell),
+          ],
+        ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: navigationShell.currentIndex,
           onDestinationSelected: (index) => navigationShell.goBranch(
