@@ -329,6 +329,39 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Datenschicht und ist gegen eine umgehüllte Schreibmethode rot verifiziert.
   - Genau ein zweiter Anlauf, keine Schleife: Sonst würde aus einem sichtbaren
     Fehler ein zähes Hängen.
+- **Der Zwischenspeicher hält Zeilen, nie Kennzahlen** (`data/offline_cache.dart`
+  + `data/caching_repository.dart`, #169, seit v0.61.0). Ohne Netz liest die App
+  den zuletzt geladenen Stand; Punkte, Quote, Ersparnis und der vorgeschlagene
+  Fahrer entstehen weiter in `core/fairness.dart` aus genau diesen Zeilen. Läge
+  eine berechnete Zahl im Speicher, gäbe es zwei Wahrheiten über dieselbe Woche
+  — dieselbe Linie wie „der Fahrer-Vorschlag wird nie gespeichert".
+  - **Dekorierer, kein Umbau.** `CachingCarpoolRepository` /
+    `CachingGroupRepository` legen sich um die Supabase-Fassungen; Provider und
+    Screens wissen nichts davon, und die Fakes der Testsuite laufen daran
+    vorbei. Wer die Regel stattdessen in die Provider zöge, verteilte sie auf
+    ein Dutzend Stellen.
+  - **Nur Lesezugriffe.** Schreiben geht unverändert durch und scheitert ohne
+    Netz ehrlich. Ein „später hochschieben"-Korb ist bewusst **nicht** gebaut:
+    Er müsste beantworten, was passiert, wenn zwei Leute denselben Tag offline
+    unterschiedlich eintragen, und kollidierte mit „die Existenz einer Zeile in
+    `trips` *ist* die Bestätigung".
+  - **Geschrieben wird nur nach einem erfolgreichen Netz-Lesezugriff.** Ein
+    Treffer aus dem Speicher darf seinen eigenen Zeitstempel nicht auffrischen
+    — sonst stünde in der Leiste ewig „heute 07:12", auch drei Tage später.
+  - **Je Gruppe getrennt, und Fremdes wird beim ersten Lesezugriff gelöscht**
+    (`keepOnly`) — die Mandantentrennung der RLS, auf dem Gerät nachgezogen.
+    Bewusst am Lesezugriff und nicht an einem Abmelde-Haken: Der liefe nicht,
+    wenn jemand die App angemeldet schließt und die nächste Person sich
+    anmeldet.
+  - **Die Leiste nennt den Zeitpunkt, nicht nur „offline".** Ohne ihn hielte
+    man einen alten Plan für den aktuellen und führe zur falschen Zeit los. Sie
+    sitzt im `AppShell` über dem Inhalt, nicht in einem Tab — der Stand gilt für
+    die ganze App. Und sie hört an einem eigenen Halter statt an einem Provider:
+    Die Meldung entsteht, *während* ein Provider lädt; ein Provider-Schreib in
+    diesem Moment stieße eine Invalidierung mitten in der Build-Phase an.
+  - **Das Preisarchiv ist bewusst draußen** (entschieden 05.08.2026): mit
+    Abstand die meisten Zeilen, und ein Diagramm ohne Empfang war der
+    schwächste der Wünsche.
 - **Multi-Tenant:** Eine Gruppe = ein Login (`group_id = auth.uid()`). Alle
   Datentabellen tragen `group_id` (Default `auth.uid()`), RLS erzwingt
   `group_id = auth.uid() AND my_group_active()`. Neue Gruppen entstehen seit

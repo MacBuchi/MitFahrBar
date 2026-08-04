@@ -51,4 +51,16 @@ class Group {
         ? null
         : DateTime.parse(json['created_at'] as String),
   );
+
+  /// Für den Zwischenspeicher (#169) — dieselben Schlüssel wie die Zeile in
+  /// `groups`, damit [Group.fromJson] sie unverändert wieder liest. Ein
+  /// eigenes Format wäre eine zweite Stelle, an der ein neues Feld vergessen
+  /// werden kann.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'handle': handle,
+    'status': status.name,
+    'created_at': createdAt?.toIso8601String(),
+  };
 }

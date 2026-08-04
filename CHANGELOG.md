@@ -4,6 +4,28 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.61.0] – 2026-08-05
+
+### Neu
+
+- **Ohne Empfang zeigt MitFahrBar jetzt den letzten Stand.** Im Funkloch, in
+  der Tiefgarage oder mit Flugmodus öffnet die App wie immer und zeigt, wer
+  fährt, wer eingetragen ist, den Wochenplan, die Anmerkungen und die
+  Statistik — so, wie ihr sie zuletzt geladen habt.
+
+  Oben steht dabei eine schmale Leiste: **„Offline · Stand heute 07:12"**.
+  Der Zeitpunkt ist der eigentliche Punkt daran — nur so könnt ihr
+  entscheiden, ob der Stand für eure Frage reicht. Sobald das Netz zurück
+  ist, verschwindet die Leiste von allein.
+
+  Was in diesem Zustand **nicht** geht: eintragen, ändern, löschen. Das
+  braucht Verbindung, damit die anderen es auch bekommen — und eine Fahrt,
+  die nur auf einem Handy steht, wäre schlimmer als gar keine. Bei einem
+  Versuch sagt die App das.
+
+  Die Spritpreis-Verläufe bleiben online-only: Sie sind mit Abstand die
+  meisten Daten, und ein Diagramm ohne Empfang war der schwächste Wunsch.
+
 ## [0.60.0] – 2026-08-05
 
 ### Behoben
