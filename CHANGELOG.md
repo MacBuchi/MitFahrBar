@@ -4,6 +4,30 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.60.0] – 2026-08-05
+
+### Behoben
+
+- **Ohne Empfang ist die App keine Sackgasse mehr.** Bisher stand beim Start
+  ohne Netz nur eine kryptische Fehlermeldung auf schwarzem Grund — ohne
+  Menü, ohne Knopf, ohne Weg zurück; selbst wenn das Netz wiederkam, half
+  nur, die App zu schließen und neu zu öffnen. Jetzt erklärt ein richtiger
+  Schirm den Zustand („Keine Verbindung") und hat einen Knopf **Erneut
+  versuchen**, der wirklich neu lädt. Was nicht am Netz liegt, bekommt einen
+  eigenen Text — damit eine echte Störung nicht als Funkloch durchgeht.
+- **Die sporadischen Fehler bei wackligem Empfang sollten aufhören.** In der
+  vergangenen Woche haben sie zwölfmal zugeschlagen, auf Handys wie im
+  Browser: Kurz nach dem stillen Erneuern der Anmeldung hielt der Server das
+  frische Zugangsmerkmal für einen Moment für „zu neu" und wies alles ab —
+  Personen, Fahrten, Wochenplan und Statistik auf einmal. Die App wartet in
+  diesem Fall jetzt kurz und fragt noch einmal, statt euch den Fehler zu
+  zeigen.
+
+  Bewusst nur beim **Lesen**: Ein zweiter Anlauf beim Speichern könnte eine
+  Fahrt doppelt eintragen, und das verschöbe rückwirkend die Punkte aller
+  Beteiligten. Beim Speichern bleibt es deshalb bei einer ehrlichen Meldung
+  und einem zweiten Tipp von euch.
+
 ## [0.59.1] – 2026-08-03
 
 ### Behoben

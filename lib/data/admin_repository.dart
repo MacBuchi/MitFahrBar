@@ -15,6 +15,7 @@ library;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/group_login.dart';
+import 'read_retry.dart';
 
 /// Wie viele Gruppen ein Verwalter-Konto tragen darf. Entscheidend ist der
 /// Trigger `group_admins_cap` in der Datenbank — dieser Wert steuert nur, ob
@@ -155,7 +156,7 @@ class SupabaseAdminRepository implements AdminRepository {
   }
 
   @override
-  Future<List<AdminGroup>> myAdminGroups() async {
+  Future<List<AdminGroup>> myAdminGroups() => readTolerant(() async {
     final rows = await _client.rpc<List<dynamic>>('my_admin_groups');
     return [
       for (final row in rows.cast<Map<String, dynamic>>())
@@ -165,7 +166,7 @@ class SupabaseAdminRepository implements AdminRepository {
           name: row['name'] as String,
         ),
     ];
-  }
+  });
 
   @override
   Future<void> resetGroupPassword({

@@ -12,6 +12,7 @@ library;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/log.dart';
+import 'read_retry.dart';
 
 abstract class AppConfigRepository {
   /// Kleinste noch unterstützte App-Version, oder `null` wenn unbekannt.
@@ -24,7 +25,7 @@ class SupabaseAppConfigRepository implements AppConfigRepository {
   final SupabaseClient _client;
 
   @override
-  Future<String?> minSupportedVersion() async {
+  Future<String?> minSupportedVersion() => readTolerant(() async {
     try {
       final row = await _client
           .from('app_config')
@@ -39,7 +40,7 @@ class SupabaseAppConfigRepository implements AppConfigRepository {
       log.w('min supported version unavailable: $error');
       return null;
     }
-  }
+  });
 }
 
 /// Demo-Modus: keine Datenbank, also keine Mindestversion.

@@ -5,6 +5,7 @@ library;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/notification_prefs.dart';
+import 'read_retry.dart';
 
 /// Was dieses Gerät gerade ist: wem es zugeordnet ist und was diese Person
 /// eingestellt hat. `personId == null` heißt „registriert, aber niemandem
@@ -60,7 +61,7 @@ class SupabasePushRepository implements PushRepository {
   final SupabaseClient _client;
 
   @override
-  Future<PushState> stateFor(String token) async {
+  Future<PushState> stateFor(String token) => readTolerant(() async {
     final device = await _client
         .from('push_devices')
         .select('person_id')
@@ -78,7 +79,7 @@ class SupabasePushRepository implements PushRepository {
       personId: personId,
       prefs: prefs == null ? null : NotificationPrefs.fromJson(prefs),
     );
-  }
+  });
 
   @override
   Future<void> register({

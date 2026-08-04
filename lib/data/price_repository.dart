@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/price_series.dart';
 import '../models/price_area.dart';
+import 'read_retry.dart';
 
 /// Was ein „Jetzt aktualisieren" ergeben hat.
 ///
@@ -55,13 +56,13 @@ class SupabasePriceRepository implements PriceRepository {
   final SupabaseClient _client;
 
   @override
-  Future<PriceArea?> loadArea() async {
+  Future<PriceArea?> loadArea() => readTolerant(() async {
     final row = await _client
         .from('price_area')
         .select('label, lat, lng, radius_km')
         .maybeSingle();
     return row == null ? null : PriceArea.fromMap(row);
-  }
+  });
 
   @override
   Future<void> saveArea(PriceArea area) async {
@@ -74,7 +75,7 @@ class SupabasePriceRepository implements PriceRepository {
   }
 
   @override
-  Future<List<PricePoint>> loadWeeks() async {
+  Future<List<PricePoint>> loadWeeks() => readTolerant(() async {
     final rows = await _client
         .from('price_week')
         .select(
@@ -103,7 +104,7 @@ class SupabasePriceRepository implements PriceRepository {
       );
     }
     return points;
-  }
+  });
 
   static PriceOrigin _originFrom(String? value) => switch (value) {
     'imported' => PriceOrigin.imported,

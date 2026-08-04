@@ -27,6 +27,7 @@ import '../features/settings/settings_screen.dart';
 import '../features/stats/stats_screen.dart';
 import '../features/trip_editor/trip_editor_screen.dart';
 import '../features/trip_editor/trip_editor_seed.dart';
+import 'tokens.dart';
 
 /// Stößt den Router-Redirect an, sobald sich der Auth-Zustand ändert.
 class _AuthRefresh extends ChangeNotifier {
@@ -227,11 +228,99 @@ class AppShell extends ConsumerWidget {
         status: g.status,
       ),
       AsyncData() => const _NoGroupScreen(),
-      AsyncError(:final error) => Scaffold(
-        body: Center(child: Text('Fehler: $error')),
-      ),
+      AsyncError(:final error) => _GateErrorScreen(error: error),
       _ => const Scaffold(body: Center(child: CircularProgressIndicator())),
     };
+  }
+}
+
+/// Das Gruppen-Gate konnte nicht gelesen werden — meist schlicht: kein Netz.
+///
+/// Bis v0.59.1 stand hier `Text('Fehler: $error')` ohne Rahmen: Wer die App
+/// ohne Empfang öffnete, sah nackten Ausnahmetext samt Projekt-URL und
+/// Gruppen-Kennung, ohne Navigation und ohne Weg zurück (Issue #169, auf dem
+/// Pixel 7 Pro im Flugmodus reproduziert). Drei Dinge daran waren schlecht,
+/// und alle drei sind hier beantwortet:
+///
+/// * **Es gab keinen Ausweg.** `myGroupProvider` hängt an
+///   `currentUserIdProvider`, und der ändert sich bewusst nur bei echtem
+///   An-/Abmelden — kommt das Netz zurück, läuft von allein *nichts* neu. Ohne
+///   den Knopf hier half nur, die App zu beenden. Derselbe Fehler wie beim
+///   toten Update-Knopf in 0.37.0, weshalb der Regressionstest ihn **tippt**
+///   und sich nicht damit begnügt, ihn zu finden.
+/// * **Der Rohtext gehört nicht auf den Schirm.** Er sagt der Gruppe nichts
+///   und trägt Adressen nach außen; die Fehlersenke (#136) hat ihn ohnehin
+///   längst — `wireErrorReporting` meldet Provider-Fehler nach
+///   `error_reports`. Auf dem Schirm steht ein Satz, im Bericht der Fehler.
+/// * **Kein Netz ist kein Defekt.** Ein `SocketException`/`ClientException`
+///   bekommt deshalb seinen eigenen Text; alles andere bleibt beim
+///   allgemeinen. Unterschieden wird über die String-Form, wie schon bei
+///   [isPasswordRecovery] — die Typen stammen aus `http`/`dart:io` und wären
+///   im Web-Build nicht dieselben.
+class _GateErrorScreen extends ConsumerWidget {
+  const _GateErrorScreen({required this.error});
+
+  final Object error;
+
+  /// Netzausfälle melden sich je nach Plattform als `SocketException`
+  /// (mobil), `ClientException` (http-Paket) oder `Failed to fetch` (Web).
+  static bool looksOffline(Object error) {
+    final text = error.toString();
+    return text.contains('SocketException') ||
+        text.contains('ClientException') ||
+        text.contains('Failed host lookup') ||
+        text.contains('Failed to fetch');
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offline = looksOffline(error);
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.l),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  offline ? Icons.wifi_off_outlined : Icons.error_outline,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: AppSpacing.m),
+                Text(
+                  offline ? 'Keine Verbindung' : 'Das hat nicht geklappt',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.s),
+                Text(
+                  offline
+                      ? 'MitFahrBar erreicht gerade den Server nicht. Sobald '
+                            'du wieder Empfang hast, geht es hier weiter.'
+                      : 'Die Fahrgemeinschaft konnte nicht geladen werden. '
+                            'Versuch es gleich noch einmal.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.l),
+                FilledButton.icon(
+                  onPressed: () => ref.invalidate(myGroupProvider),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Erneut versuchen'),
+                ),
+                const SizedBox(height: AppSpacing.s),
+                TextButton(
+                  onPressed: () => ref.read(authRepositoryProvider).signOut(),
+                  child: const Text('Abmelden'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
