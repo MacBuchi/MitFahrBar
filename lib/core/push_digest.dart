@@ -270,9 +270,14 @@ List<DuePush> dueMessages({
         if (index[_logKey(personId, date, kind)] != null) continue;
 
         final departs = legTime.on(date);
-        final wakes = departs.subtract(
-          Duration(minutes: pref.reminderLeadMinutes),
-        );
+        // Je Richtung ein eigener Vorlauf (#168): Hin- und Rückweg starten
+        // nicht am selben Ort. Der Spiegel dazu steht in `push_due()` als
+        // vierte Spalte des `values`-Paars — driften beide auseinander,
+        // weckt die Datenbank zu anderen Zeiten als dieser Code behauptet.
+        final lead = kind == PushKind.departureOut
+            ? pref.reminderLeadMinutes
+            : pref.reminderLeadReturnMinutes;
+        final wakes = departs.subtract(Duration(minutes: lead));
         if (now.isBefore(wakes) || !now.isBefore(departs)) continue;
 
         due.add(

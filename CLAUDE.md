@@ -762,7 +762,18 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       ausleert, hält `publish_push_outbox` sie mit `coalesce` fest; eine
       wirklich entfernte Gruppenzeit macht das nicht rückgängig, denn ohne
       `outbound_time` gibt es kein Fenster.
-    - **Opt-in, Vorgabe AUS** — anders als der Abend-Blick meldet sie sich
+    - **Seit v0.62.0 hat jede Richtung ihren eigenen Vorlauf** (#168). Die
+    ursprüngliche Begründung für den einen Wert („wer morgens fünf Minuten
+    braucht, braucht sie abends auch") ist widerlegt: Hin- und Rückweg starten
+    nicht am selben Ort. `reminder_lead_minutes` **behält seinen Namen** und
+    ist ab hier die Hinfahrt — umbenennen hieße, eine Spalte zu entfernen, die
+    ein veröffentlichter Client liest, und damit die Mindestversion zu heben.
+    Der Vorlauf reist im `values`-Paar von `push_due()` als vierte Spalte mit
+    (`leg.lead_minutes`), damit es bei EINER Rechnung für beide Beine bleibt;
+    ein direkter Bezug auf `prefs` an der `make_interval`-Stelle gäbe beiden
+    wieder denselben Wert. Im Screen bleibt es bewusst bei **einer** Zeile mit
+    beiden Werten — zwei Zeilen wären dieselbe Frage, zweimal gestellt.
+  - **Opt-in, Vorgabe AUS** — anders als der Abend-Blick meldet sie sich
       an einem Tag, an dem gar nichts passiert ist. Und sie hängt bewusst
       **nicht** am Abend-Blick (anders als die Änderungs-Meldung): Sie
       braucht keine `push_log`-Zeile als Bezug, nur die Uhr der Gruppe.

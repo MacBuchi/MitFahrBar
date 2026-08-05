@@ -310,8 +310,13 @@ create table public.notification_prefs (
   -- dieselbe Frage wären einer zu viel. Die Vorgabe 15 muss mit
   -- `defaultReminderLead` in lib/models/notification_prefs.dart übereinstimmen.
   reminders_enabled boolean not null default false,
+  -- Getrennt je Richtung (#168): Hin- und Rückweg starten nicht am selben
+  -- Ort. Der alte Name ist die Hinfahrt und bleibt, damit ein
+  -- veröffentlichter Client weiterläuft.
   reminder_lead_minutes integer not null default 15
     check (reminder_lead_minutes between 0 and 120),
+  reminder_lead_return_minutes integer not null default 15
+    check (reminder_lead_return_minutes between 0 and 120),
   -- Sofort-Meldungen (#163): Ein- und Ausgetragen-Werden durch andere, und
   -- geänderte oder gelöschte Fahrten. Bewusst NICHT an den Abend-Blick
   -- gekoppelt — sie feuern außerhalb jedes Fensters, ihn zu koppeln hieße,
@@ -982,9 +987,11 @@ language sql security definer set search_path = public as $$
         on prefs.group_id = box.group_id and prefs.person_id = box.person_id
       join public.group_defaults gd on gd.group_id = box.group_id
       cross join lateral (values
-        ('departure_out'::text, gd.outbound_time, box.title_out),
-        ('departure_return'::text, gd.return_time, box.title_return)
-      ) as leg(kind, leg_time, title)
+        ('departure_out'::text, gd.outbound_time, box.title_out,
+         prefs.reminder_lead_minutes),
+        ('departure_return'::text, gd.return_time, box.title_return,
+         prefs.reminder_lead_return_minutes)
+      ) as leg(kind, leg_time, title, lead_minutes)
       left join public.push_log sent
         on sent.group_id = box.group_id
        and sent.person_id = box.person_id
@@ -999,7 +1006,7 @@ language sql security definer set search_path = public as $$
       and box.plan_date = (at at time zone 'Europe/Berlin')::date
       and at >= ((box.plan_date::timestamp + leg.leg_time)
                    at time zone 'Europe/Berlin')
-                 - make_interval(mins => prefs.reminder_lead_minutes)
+                 - make_interval(mins => leg.lead_minutes)
       and at <  ((box.plan_date::timestamp + leg.leg_time)
                    at time zone 'Europe/Berlin')
   ),

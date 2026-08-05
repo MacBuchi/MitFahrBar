@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/push_messaging.dart';
+import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/group_defaults.dart';
 import '../../models/notification_prefs.dart';
@@ -225,34 +226,74 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  /// Der Vorlauf als Auswahlliste, nicht als Zeitwähler: Gefragt ist eine
-  /// Dauer („zehn Minuten vorher"), keine Uhrzeit — ein Zifferblatt dafür
-  /// wäre die falsche Frage in der richtigen Optik.
+  /// Der Vorlauf als Auswahl, nicht als Zeitwähler: Gefragt ist eine Dauer
+  /// („zehn Minuten vorher"), keine Uhrzeit — ein Zifferblatt dafür wäre die
+  /// falsche Frage in der richtigen Optik.
+  ///
+  /// **Beide Richtungen in EINEM Dialog** (#168). Der Wunsch kam mit einer
+  /// Begründung, die den einen Wert widerlegt: Zum Morgen-Treffpunkt sind es
+  /// fünfzehn Minuten, zum Treffpunkt für die Rückfahrt dreißig. Zwei
+  /// getrennte Zeilen im Screen wären die naheliegende Umsetzung und die
+  /// falsche — es bliebe eine Frage, nur eben zweimal gestellt, und der
+  /// Screen wüchse um eine Zeile für nichts. Chips statt Radios, weil sieben
+  /// Werte × zwei Richtungen als Liste ein scrollender Dialog wären.
   Future<void> _pickLead(NotificationPrefs prefs) async {
-    final picked = await showDialog<int>(
+    var out = prefs.reminderLeadMinutes;
+    var back = prefs.reminderLeadReturnMinutes;
+
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Wie lange vorher?'),
-        children: [
-          RadioGroup<int>(
-            groupValue: prefs.reminderLeadMinutes,
-            onChanged: (value) => Navigator.of(context).pop(value),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final minutes in reminderLeadChoices)
-                  RadioListTile<int>(
-                    value: minutes,
-                    title: Text('$minutes Minuten'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) {
+          Widget row(String label, int value, void Function(int) onPick) =>
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.labelLarge),
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    children: [
+                      for (final minutes in reminderLeadChoices)
+                        ChoiceChip(
+                          label: Text('$minutes'),
+                          selected: value == minutes,
+                          onSelected: (_) => setLocal(() => onPick(minutes)),
+                        ),
+                    ],
                   ),
+                ],
+              );
+
+          return AlertDialog(
+            title: const Text('Wie lange vorher?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                row('Hinfahrt (Minuten)', out, (v) => out = v),
+                const SizedBox(height: AppSpacing.m),
+                row('Rückfahrt (Minuten)', back, (v) => back = v),
               ],
             ),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Übernehmen'),
+              ),
+            ],
+          );
+        },
       ),
     );
-    if (picked == null || !mounted) return;
-    await _save(prefs.copyWith(reminderLeadMinutes: picked));
+    if (saved != true || !mounted) return;
+    await _save(
+      prefs.copyWith(reminderLeadMinutes: out, reminderLeadReturnMinutes: back),
+    );
   }
 
   @override
@@ -415,11 +456,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ),
             contentPadding: EdgeInsets.zero,
           ),
+          // Beide Vorläufe in EINER Zeile (#168): Der Wunsch kam ausdrücklich
+          // mit „kompakt, nicht unnötig neuer Space". Zwei getrennte Zeilen
+          // wären die naheliegende Umsetzung gewesen und hätten den Screen um
+          // eine Zeile wachsen lassen, ohne mehr zu sagen.
           ListTile(
             leading: const Icon(Icons.timer_outlined),
             title: const Text('Vorlauf'),
-            subtitle: const Text('Wie lange vorher.'),
-            trailing: Text('${prefs.reminderLeadMinutes} min'),
+            subtitle: const Text('Hinfahrt · Rückfahrt'),
+            trailing: Text(
+              '${prefs.reminderLeadMinutes} · '
+              '${prefs.reminderLeadReturnMinutes} min',
+            ),
             enabled: !_busy && prefs.remindersEnabled && hasLegTimes,
             onTap: () => unawaited(_pickLead(prefs)),
             contentPadding: EdgeInsets.zero,

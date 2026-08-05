@@ -74,6 +74,7 @@ class NotificationPrefs {
     required this.changesEnabled,
     this.remindersEnabled = false,
     this.reminderLeadMinutes = defaultReminderLead,
+    this.reminderLeadReturnMinutes = defaultReminderLead,
     this.instantEnabled = true,
   });
 
@@ -100,6 +101,9 @@ class NotificationPrefs {
         departureTime: DayTime.parse(json['departure_time'] as String),
         changesEnabled: json['changes_enabled'] as bool? ?? true,
         remindersEnabled: json['reminders_enabled'] as bool? ?? false,
+        reminderLeadReturnMinutes:
+            (json['reminder_lead_return_minutes'] as num?)?.toInt() ??
+            defaultReminderLead,
         reminderLeadMinutes:
             (json['reminder_lead_minutes'] as num?)?.toInt() ??
             defaultReminderLead,
@@ -121,10 +125,17 @@ class NotificationPrefs {
   /// Kurz vor der Abfahrt erinnern (#164) — **Opt-in**.
   final bool remindersEnabled;
 
-  /// Wie viele Minuten vor der Gruppenzeit. Ein Wert für beide Richtungen:
-  /// Wer morgens fünf Minuten braucht, braucht sie abends auch, und zwei
-  /// Regler für dieselbe Frage sind ein Regler zu viel.
+  /// Wie viele Minuten vor der **Hinfahrt**.
+  ///
+  /// Hieß bis v0.61.0 „der Vorlauf" und galt für beide Richtungen — die
+  /// Begründung dafür („wer morgens fünf Minuten braucht, braucht sie abends
+  /// auch") ist mit #168 widerlegt: Hin- und Rückweg starten nicht am selben
+  /// Ort. Der Name bleibt trotzdem, weil die Spalte in der Datenbank so
+  /// heißt und ein veröffentlichter Client sie liest.
   final int reminderLeadMinutes;
+
+  /// Wie viele Minuten vor der **Rückfahrt** (#168).
+  final int reminderLeadReturnMinutes;
 
   /// Sofort-Meldungen (#163): ein- oder ausgetragen werden, und geänderte
   /// oder gelöschte Fahrten.
@@ -147,6 +158,7 @@ class NotificationPrefs {
     'changes_enabled': changesEnabled,
     'reminders_enabled': remindersEnabled,
     'reminder_lead_minutes': reminderLeadMinutes,
+    'reminder_lead_return_minutes': reminderLeadReturnMinutes,
     'instant_enabled': instantEnabled,
   };
 
@@ -157,6 +169,7 @@ class NotificationPrefs {
     bool? changesEnabled,
     bool? remindersEnabled,
     int? reminderLeadMinutes,
+    int? reminderLeadReturnMinutes,
     bool? instantEnabled,
   }) => NotificationPrefs(
     personId: personId,
@@ -166,6 +179,8 @@ class NotificationPrefs {
     changesEnabled: changesEnabled ?? this.changesEnabled,
     remindersEnabled: remindersEnabled ?? this.remindersEnabled,
     reminderLeadMinutes: reminderLeadMinutes ?? this.reminderLeadMinutes,
+    reminderLeadReturnMinutes:
+        reminderLeadReturnMinutes ?? this.reminderLeadReturnMinutes,
     instantEnabled: instantEnabled ?? this.instantEnabled,
   );
 }

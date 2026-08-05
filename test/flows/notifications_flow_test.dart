@@ -292,12 +292,33 @@ void main() {
       reason: 'Die Vorbelegung kommt aus defaultReminderLead.',
     );
 
-    // Der Vorlauf ist eine Dauer, keine Uhrzeit — deshalb eine Auswahl.
+    expect(
+      push.prefs.values.single.reminderLeadReturnMinutes,
+      15,
+      reason: 'Beide Richtungen starten auf derselben Vorbelegung.',
+    );
+
+    // Der Vorlauf ist eine Dauer, keine Uhrzeit — deshalb eine Auswahl. Und
+    // seit #168 zwei davon in einem Dialog.
     await tester.tap(find.text('Vorlauf'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('30 Minuten'));
+
+    // Zwei Reihen à sieben Chips, Hinfahrt zuerst. Index 1 ist also die
+    // Rückfahrt — und genau dass die beiden auseinanderlaufen können, ist
+    // der ganze Inhalt von #168.
+    await tester.tap(find.widgetWithText(ChoiceChip, '30').at(1));
     await tester.pumpAndSettle();
-    expect(push.prefs.values.single.reminderLeadMinutes, 30);
+    await tester.tap(find.widgetWithText(FilledButton, 'Übernehmen'));
+    await tester.pumpAndSettle();
+
+    expect(push.prefs.values.single.reminderLeadReturnMinutes, 30);
+    expect(
+      push.prefs.values.single.reminderLeadMinutes,
+      15,
+      reason:
+          'Die Hinfahrt bleibt unangetastet. Zöge der Dialog beide Werte '
+          'mit, wäre der geteilte Vorlauf wieder einer.',
+    );
   });
 
   testWidgets('der Vorlauf ist gesperrt, solange die Erinnerung aus ist', (

@@ -266,8 +266,24 @@ void main() {
       );
       expect(
         reminder,
-        contains('make_interval(mins => prefs.reminder_lead_minutes)'),
-        reason: 'Der Vorlauf ist eine Einstellung, keine Konstante.',
+        contains('make_interval(mins => leg.lead_minutes)'),
+        reason:
+            'Der Vorlauf ist eine Einstellung, keine Konstante — und seit '
+            '#168 eine je Richtung. Er kommt deshalb aus derselben Zeile '
+            'wie Uhrzeit und Kopfzeile (`leg`), nicht direkt aus `prefs`: '
+            'Stünde hier wieder ein fester Bezug auf `prefs`, bekämen beide '
+            'Beine denselben Vorlauf und die Rückfahrt-Erinnerung käme zur '
+            'falschen Zeit.',
+      );
+      expect(
+        reminder,
+        allOf(
+          contains('prefs.reminder_lead_minutes'),
+          contains('prefs.reminder_lead_return_minutes'),
+        ),
+        reason:
+            'Beide Werte müssen ins `values`-Paar — fehlte einer, fiele '
+            'sein Bein still aus dem Vergleich.',
       );
       expect(
         reminder,
