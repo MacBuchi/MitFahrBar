@@ -11,6 +11,7 @@ import '../core/export_file.dart';
 import '../core/import_file.dart';
 import '../core/fairness.dart';
 import '../core/log.dart';
+import '../core/notification_health_probe.dart';
 import '../core/push_messaging.dart';
 import '../core/price_series.dart';
 import '../core/push_outbox.dart';
@@ -105,6 +106,15 @@ final pushRepositoryProvider = Provider<PushRepository>(
   (ref) => SupabaseConfig.isConfigured
       ? SupabasePushRepository(ref.watch(supabaseClientProvider))
       : NoopPushRepository(),
+);
+
+/// Fragt Android, ob eine Meldung überhaupt ankommen darf (#180).
+///
+/// Als Provider aus demselben Grund wie [pushTokenProvider]: Im Test gibt es
+/// keinen Plattform-Kanal, und der Flow-Test muss eine Blockade stellen
+/// können, ohne ein Gerät zu haben.
+final notificationHealthProbeProvider = Provider<NotificationHealthProbe>(
+  (ref) => const NotificationHealthProbe(),
 );
 
 final pushOutboxRepositoryProvider = Provider<PushOutboxRepository>(

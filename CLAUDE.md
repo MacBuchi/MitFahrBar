@@ -889,6 +889,53 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Ausgang je Gerät im Rumpf; `sendTest` wertet ihn aus. Dieselbe Klasse
     Fehler wie der tote Update-Knopf in 0.37.0 — und der Regressionstest
     **tippt**, statt nur zu finden.
+  - **Und eine Ebene tiefer: Zugestellt ist nicht Erlaubt** (#180, seit
+    v0.63.0). Ein gültiges FCM-Token sagt nichts darüber, ob Android etwas
+    **anzeigt**. Am 05.08.2026 stand in `push_log` beides als verschickt, FCM
+    hatte `ok` gemeldet, und auf dem Gerät kam nichts an: Die Berechtigung war
+    aus (#175). Geprüft wurde sie bis dahin genau einmal — beim Einschalten.
+    - **Vier Achsen, die einander nicht ersetzen** (`core/notification_health
+      .dart`, reine Auswertung): Berechtigung, Kanal, „Nicht stören", und der
+      Akku-Zustand **„Eingeschränkt"** — letzterer unterbindet *jede*
+      FCM-Zustellung. Die **normale** Akkuoptimierung tut das nicht:
+      `priority: 'high'` weckt aus Doze, und das steht in `send-push` bereits
+      richtig. Wer hier „Akkuoptimierung abschalten" empfiehlt, kuriert ein
+      Symptom, das es nicht gibt.
+    - **Nicht über `firebase_messaging.getNotificationSettings()`.** Das
+      meldet auf Android `authorized`, obwohl die Systemeinstellung aus ist
+      (flutterfire#4492), und `denied` vor der ersten Frage auf API 34
+      (#12839). Darauf gebaut wäre die Überwachung genau so unzuverlässig wie
+      der Zustand, den sie aufdecken soll. Gefragt wird Android selbst über
+      `MainActivity.kt` — `areNotificationsEnabled()` ist der einzige Aufruf,
+      der Berechtigung UND Schalter abbildet; `checkSelfPermission` meldet vor
+      Android 13 immer „verweigert".
+    - **Unbekannt ist keine Blockade.** Jedes Feld ist `null`, wo die
+      Plattform es nicht kennt (Web, ältere Androids), und `fromMap` verträgt
+      auch falsche Typen. Ein Schirm, der ohne Wissen warnt, ist Lärm — und
+      diese Abfrage ist Diagnose, sie darf den Schirm nie kaputt machen.
+    - **Bei jedem `resumed` neu lesen.** Der Ablauf schickt Leute in die
+      Systemeinstellungen und erwartet sie zurück; ohne das stünde die alte
+      Warnung noch da. Es ist auch der Grund, warum „einmal bei der
+      Einrichtung klären" nicht trägt: Android entzieht die Berechtigung nach
+      Monaten der Nichtnutzung von selbst und erteilt sie beim Aufwachen
+      **nicht** neu.
+    - **Der Kanal ist ein Parameter, kein fester Wert.** Bekommt die
+      Erinnerung ihren eigenen Kanal (#180 B), ist das eine Ergänzung und
+      kein Umbau. „Nicht stören ignorieren" ist eine Eigenschaft des
+      **Kanals**: Solange alles auf `plan` liegt, lässt man die Erinnerung
+      nur durch, indem man den Abend-Blick gleich mit durchlässt. Und
+      `setBypassDnd` wirkt nur mit Policy-Zugriff **und** nur, solange der
+      Nutzer den Kanal seit seiner Erstellung nicht angefasst hat — für
+      `plan` ist der Zug abgefahren, es **muss** ein neuer Kanal sein.
+    - **Wo die App nichts ausrichtet, sagt sie das.** Bei völliger Stille
+      (`INTERRUPTION_FILTER_NONE`/`ALARMS`) kommt nichts durch, auch kein
+      Ausnahmekanal — diese Karte bekommt bewusst **keinen** Knopf. Ein
+      Knopf, der nichts löst, ist ein Versprechen.
+    - Der Flow-Test **tippt** den Knopf und ist rot verifiziert; Kanalnamen
+      und die Kennung aus `strings.xml` hält `test/android_manifest_test.dart`
+      zusammen. Dessen „kommt nicht vor"-Prüfung liest den Dart-Code **ohne
+      Kommentare** — dieselbe Lehre wie `sqlOnly`: Ein File, das seine eigene
+      Entscheidung begründet, nennt den verbotenen Namen zwangsläufig.
   Push-Texte gehören nie ins Log (sie enthalten Personennamen), und der Job
   loggt nur Zahlen. Festgenagelt in `test/push_digest_test.dart`,
   `test/notify_workflow_test.dart`, `test/schema_test.dart`,
