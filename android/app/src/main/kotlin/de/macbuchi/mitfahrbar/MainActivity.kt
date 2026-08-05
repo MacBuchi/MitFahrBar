@@ -4,9 +4,14 @@ import android.app.ActivityManager
 import android.app.ApplicationExitInfo
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -24,6 +29,13 @@ class MainActivity : FlutterActivity() {
          * `test/android_manifest_test.dart` vergleicht beide Dateien.
          */
         const val CHANNEL = "de.macbuchi.mitfahrbar/exit_info"
+
+        /**
+         * Muss wörtlich mit `NotificationHealthProbe.channelName` in
+         * `lib/core/notification_health_probe.dart` übereinstimmen —
+         * `test/android_manifest_test.dart` vergleicht beide Dateien.
+         */
+        const val HEALTH_CHANNEL = "de.macbuchi.mitfahrbar/notification_health"
 
         /** Genug für den Haupt-Thread; das Schema erlaubt 4000 Zeichen. */
         const val TRACE_CHARS = 6000
@@ -96,6 +108,119 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // Bewusst OHNE TaskQueue, also auf dem Platform-Thread: Diese
+        // Abfragen sind ein paar Feldzugriffe am NotificationManager, kein
+        // 4-MB-Dump. Und `startActivity` gehört ohnehin hierher.
+        MethodChannel(messenger, HEALTH_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                val channelId = call.argument<String>("channel")
+                when (call.method) {
+                    "read" -> result.success(notificationHealth(channelId))
+                    "openAppNotifications" -> {
+                        openSettings(
+                            Settings.ACTION_APP_NOTIFICATION_SETTINGS,
+                            Bundle().apply {
+                                putString(Settings.EXTRA_APP_PACKAGE, packageName)
+                            },
+                        )
+                        result.success(null)
+                    }
+                    "openChannel" -> {
+                        openSettings(
+                            Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS,
+                            Bundle().apply {
+                                putString(Settings.EXTRA_APP_PACKAGE, packageName)
+                                putString(Settings.EXTRA_CHANNEL_ID, channelId)
+                            },
+                        )
+                        result.success(null)
+                    }
+                    "openDndAccess" -> {
+                        openSettings(
+                            Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS,
+                            null,
+                        )
+                        result.success(null)
+                    }
+                    "openAppDetails" -> {
+                        openSettings(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            null,
+                            Uri.fromParts("package", packageName, null),
+                        )
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * Der wahre Zustand der Benachrichtigungen — vier Achsen, die einander
+     * nicht ersetzen (Issue #180).
+     *
+     * **Warum nicht über `firebase_messaging`.** Dessen
+     * `getNotificationSettings()` ist auf Android unzuverlässig: Es meldet
+     * `authorized`, während die Systemeinstellung aus ist
+     * (flutterfire#4492), und auf API 34 `denied`, bevor überhaupt gefragt
+     * wurde (flutterfire#12839). Darauf eine Überwachung zu bauen hieße,
+     * genau die stille Falschaussage nachzubauen, die #180 beseitigt.
+     * `areNotificationsEnabled()` ist der Aufruf, den die Android-Doku
+     * nennt, und der einzige, der Berechtigung UND Schalter abbildet —
+     * `checkSelfPermission` meldet vor Android 13 immer „verweigert".
+     *
+     * Alles ist `null`, wo die Plattform es nicht kennt; die Auswertung in
+     * Dart behandelt „weiß ich nicht" als „nicht meckern". Ein erfundener
+     * Vorgabewert wäre hier eine Behauptung.
+     */
+    private fun notificationHealth(channelId: String?): Map<String, Any?> {
+        val manager = getSystemService(NotificationManager::class.java)
+        val channel =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && channelId != null) {
+                manager.getNotificationChannel(channelId)
+            } else {
+                null
+            }
+        return mapOf(
+            "notificationsEnabled" to
+                NotificationManagerCompat.from(this).areNotificationsEnabled(),
+            // Kein Kanal ist etwas anderes als ein stummer Kanal: Vor
+            // Android 8 gibt es keine, danach legt `onCreate` ihn an.
+            "channelImportance" to channel?.importance,
+            "channelBypassesDnd" to channel?.canBypassDnd(),
+            "interruptionFilter" to manager.currentInterruptionFilter,
+            "policyAccessGranted" to manager.isNotificationPolicyAccessGranted,
+            // Der einzige Akku-Zustand, der wirklich blockiert: „Eingeschränkt"
+            // unterbindet JEDE FCM-Zustellung, high wie normal. Gewöhnliche
+            // Akkuoptimierung tut das nicht — high-priority weckt aus Doze.
+            "backgroundRestricted" to
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    getSystemService(ActivityManager::class.java)
+                        .isBackgroundRestricted
+                } else {
+                    null
+                },
+        )
+    }
+
+    /**
+     * Öffnet einen Systemschirm. Scheitert das (kein Gerät hat garantiert
+     * jeden Intent), bleibt die App stehen, statt zu stürzen — der Schirm
+     * hat den Zustand ohnehin schon benannt.
+     */
+    private fun openSettings(action: String, extras: Bundle?, data: Uri? = null) {
+        try {
+            startActivity(
+                Intent(action).apply {
+                    extras?.let { putExtras(it) }
+                    data?.let { setData(it) }
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+            )
+        } catch (_: ActivityNotFoundException) {
+            // Nichts zu tun: Der Text daneben sagt, worum es geht.
+        }
     }
 
     /** Übersicht ohne Thread-Dump — billig genug für jeden App-Start. */

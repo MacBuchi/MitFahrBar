@@ -4,6 +4,33 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.63.0] – 2026-08-06
+
+### Neu
+
+- **Der Benachrichtigungs-Schirm sagt jetzt, wenn Android etwas blockiert.**
+  Bisher stand dort ein Schalter auf „an", und ob wirklich etwas ankam, erfuhr
+  man nur daran, dass nichts kam. Genau das ist am 5. August passiert: Der
+  Abend-Blick und beide Abfahrts-Erinnerungen wurden verschickt und vom
+  Zustelldienst angenommen — angezeigt hat das Telefon sie nicht, weil ihm die
+  Erlaubnis dafür fehlte.
+
+  Der Schirm prüft das jetzt bei jedem Öffnen und jedes Mal, wenn du aus den
+  Einstellungen zurückkommst. Steht etwas im Weg, sagt er **was** — fehlende
+  Erlaubnis, ausgeschaltete Kategorie, „Nicht stören", lautlos gestellt oder
+  der Akku-Zustand „Eingeschränkt" — und ein Knopf führt direkt auf den
+  richtigen Systemschirm. Ist alles in Ordnung, steht da nichts.
+
+  Zwei Dinge sagt er dabei ehrlich, statt etwas zu versprechen: Steht „Nicht
+  stören" auf völliger Stille, kommt nichts durch, und daran kann die App
+  nichts ändern — dort gibt es deshalb auch keinen Knopf. Und die normale
+  Akkuoptimierung darf anbleiben; sie stört nicht. Nur der Zustand
+  „Eingeschränkt" unterbindet die Zustellung wirklich.
+
+  Warum das nicht einmalig bei der Einrichtung zu klären ist: Android nimmt
+  die Erlaubnis von sich aus zurück, wenn eine App monatelang ungenutzt
+  bleibt — und erteilt sie beim nächsten Start nicht neu.
+
 ## [0.62.0] – 2026-08-05
 
 ### Geändert

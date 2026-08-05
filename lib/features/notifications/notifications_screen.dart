@@ -29,6 +29,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/notification_health.dart';
+import '../../core/notification_health_probe.dart';
 import '../../core/push_messaging.dart';
 import '../../core/tokens.dart';
 import '../../data/providers.dart';
@@ -43,7 +45,8 @@ class NotificationsScreen extends ConsumerStatefulWidget {
       _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
+    with WidgetsBindingObserver {
   String? _token;
 
   /// Auf welche Person dieses Gerät in `push_devices` steht — `null` heißt
@@ -55,16 +58,52 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _busy = false;
   bool _failed = false;
 
+  /// Was Android gerade zulässt (#180). Vorbelegt mit „unbekannt", damit vor
+  /// der ersten Antwort nichts behauptet wird.
+  NotificationHealth _health = NotificationHealth.unknown;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// **Beim Zurückkehren neu lesen, nicht nur beim Öffnen.**
+  ///
+  /// Der ganze Ablauf schickt den Menschen in die Systemeinstellungen und
+  /// erwartet ihn zurück. Ohne das hier stünde nach dem Erlauben weiter die
+  /// alte Warnung, und niemand wüsste, ob es geklappt hat. Es ist zugleich
+  /// der Grund, warum es diesen Schirm gibt: Android kann jederzeit
+  /// widerrufen — und nimmt die Berechtigung nach Monaten der Nichtnutzung
+  /// von selbst zurück, ohne sie beim Aufwachen neu zu erteilen.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_readHealth());
+  }
+
+  Future<void> _readHealth() async {
+    final health = await ref
+        .read(notificationHealthProbeProvider)
+        .read(androidPlanChannel);
+    if (!mounted) return;
+    setState(() => _health = health);
   }
 
   /// Beim Öffnen wird **nicht** nach der Berechtigung gefragt, nur
   /// nachgesehen: Ein ungefragter Dialog wird weggetippt, und Android fragt
   /// danach nie wieder.
   Future<void> _load() async {
+    // Vor allem anderen und unabhängig davon: Ist die Berechtigung entzogen,
+    // liefert `pushToken` gar kein Token, und der Schirm sähe schlicht
+    // ausgeschaltet aus — ohne zu sagen, warum sich nichts einschalten lässt.
+    unawaited(_readHealth());
     try {
       final token = await ref.read(pushTokenProvider)(ask: false);
       if (!mounted) return;
@@ -326,6 +365,80 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
+  /// Je Blockade eine Karte: was im Weg steht, und der Knopf, der genau
+  /// dorthin führt (#180).
+  ///
+  /// **Der Knopf muss tippbar sein, nicht nur sichtbar.** Genau daran ist
+  /// der tote Update-Knopf in 0.37.0 durchgerutscht — deshalb tippt der
+  /// Flow-Test ihn an, statt ihn zu finden.
+  List<Widget> _blockCards() {
+    final probe = ref.read(notificationHealthProbeProvider);
+    return [
+      for (final block in _health.blocks)
+        switch (block) {
+          NotificationBlock.permission => _BlockCard(
+            icon: Icons.notifications_off_outlined,
+            title: 'Android lässt keine Benachrichtigungen zu',
+            body:
+                'Ohne diese Erlaubnis kommt nichts an — auch nicht, wenn hier '
+                'alles eingeschaltet ist. Android nimmt sie auch von selbst '
+                'zurück, wenn die App monatelang ungenutzt bleibt.',
+            action: 'Erlauben',
+            onPressed: probe.openAppNotifications,
+          ),
+          NotificationBlock.batteryRestricted => _BlockCard(
+            icon: Icons.battery_alert_outlined,
+            title: 'Der Akkuverbrauch steht auf „Eingeschränkt"',
+            body:
+                'In diesem Zustand stellt Android gar keine Meldungen mehr zu. '
+                'Die normale Akkuoptimierung ist damit nicht gemeint — die '
+                'darf anbleiben und stört nicht.',
+            action: 'Akku-Einstellung öffnen',
+            onPressed: probe.openAppDetails,
+          ),
+          NotificationBlock.channelOff => _BlockCard(
+            icon: Icons.layers_clear_outlined,
+            title: 'Die Kategorie „Fahrgemeinschaft" ist ausgeschaltet',
+            body:
+                'Der Schalter der App kann dabei an sein — Android führt für '
+                'jede Kategorie einen eigenen.',
+            action: 'Kategorie öffnen',
+            onPressed: () => probe.openChannel(androidPlanChannel),
+          ),
+          NotificationBlock.dndBlocks => _BlockCard(
+            icon: Icons.do_not_disturb_on_outlined,
+            title: '„Nicht stören" hält die Meldungen zurück',
+            body:
+                'Du kannst dieser Kategorie erlauben, „Nicht stören" zu '
+                'ignorieren. Sie trägt heute alles: den Blick am Abend ebenso '
+                'wie die Erinnerung vor der Abfahrt.',
+            action: 'Kategorie öffnen',
+            onPressed: () => probe.openChannel(androidPlanChannel),
+          ),
+          // Bewusst ohne Knopf: `setBypassDnd` gilt nur für „nur
+          // Prioritäten". Bei totaler Stille kommt nichts durch, und ein
+          // Knopf, der nichts löst, wäre ein Versprechen.
+          NotificationBlock.dndSilences => const _BlockCard(
+            icon: Icons.notifications_paused_outlined,
+            title: '„Nicht stören" steht auf völliger Stille',
+            body:
+                'In diesem Modus lässt Android nichts durch — auch keine '
+                'Ausnahme. Solange er läuft, kommt die Erinnerung nicht an; '
+                'daran kann die App nichts ändern.',
+          ),
+          NotificationBlock.channelSilent => _BlockCard(
+            icon: Icons.volume_off_outlined,
+            title: 'Die Meldungen kommen lautlos an',
+            body:
+                'Sie erscheinen, machen aber nicht auf sich aufmerksam. Kurz '
+                'vor der Abfahrt ist das so gut wie keine Meldung.',
+            action: 'Kategorie öffnen',
+            onPressed: () => probe.openChannel(androidPlanChannel),
+          ),
+        },
+    ];
+  }
+
   Widget _body() {
     final me = ref.watch(myPersonProvider);
 
@@ -362,6 +475,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           'kurz vor der Abfahrt erinnern.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
+        // Ganz oben, weil alles darunter wirkungslos ist, solange Android
+        // blockiert: Ein Schalter, der auf „an" steht, während nichts
+        // ankommt, ist die Falle, die #175 gekostet hat.
+        ..._blockCards(),
         const Divider(height: 32),
         SwitchListTile(
           value: enabled,
@@ -520,6 +637,65 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Eine Blockade, benannt und mit dem Weg dorthin (#180).
+///
+/// [onPressed] darf fehlen — bei völliger Stille gibt es keinen Schirm, der
+/// hilft, und ein Knopf ohne Wirkung wäre schlimmer als keiner.
+class _BlockCard extends StatelessWidget {
+  const _BlockCard({
+    required this.icon,
+    required this.title,
+    required this.body,
+    this.action,
+    this.onPressed,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final String? action;
+  final Future<void> Function()? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(top: 16),
+      // Warnfarbe statt Fehlerfarbe: Es ist nichts kaputt, es ist etwas
+      // ausgeschaltet — und der Weg zurück steht daneben.
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(body, style: theme.textTheme.bodySmall),
+            if (action != null && onPressed != null) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  onPressed: () => unawaited(onPressed!()),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: Text(action!),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

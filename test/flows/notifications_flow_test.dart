@@ -9,6 +9,8 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mitfahrbar/core/notification_health.dart';
+import 'package:mitfahrbar/core/notification_health_probe.dart';
 import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/data/push_repository.dart';
@@ -648,4 +650,132 @@ void main() {
           'Zeile, die die RLS ihr nicht einmal zeigen darf.',
     );
   });
+
+  group('Was Android blockiert, steht auf dem Schirm (#180)', () {
+    testWidgets('eine entzogene Berechtigung wird benannt', (tester) async {
+      _tall(tester);
+      final f = await _backend();
+      final probe = _FakeProbe(
+        const NotificationHealth(notificationsEnabled: false),
+      );
+      await pumpApp(
+        tester,
+        f.backend,
+        identity: DeviceIdentity(personId: f.anna, asked: true),
+        overrides: [
+          pushRepositoryProvider.overrideWithValue(
+            FakePushRepository(f.backend),
+          ),
+          notificationHealthProbeProvider.overrideWithValue(probe),
+        ],
+      );
+      await _login(tester);
+      await _open(tester);
+
+      expect(
+        find.text('Android lässt keine Benachrichtigungen zu'),
+        findsOneWidget,
+      );
+
+      // **Tippen, nicht finden.** Genau daran ist der tote Update-Knopf in
+      // 0.37.0 durchgerutscht: Er war sichtbar und tat nichts, weil unter
+      // ihm kein Navigator lag. Ein Test, der nur `find` benutzt, hätte das
+      // wieder nicht gesehen.
+      await tester.tap(find.widgetWithText(FilledButton, 'Erlauben'));
+      await tester.pumpAndSettle();
+      expect(probe.opened, ['app']);
+    });
+
+    testWidgets('völlige Stille bekommt bewusst keinen Knopf', (tester) async {
+      // `setBypassDnd` gilt nur für „nur Prioritäten". Hier hilft kein
+      // Systemschirm — ein Knopf wäre ein Versprechen, das die App nicht
+      // halten kann.
+      _tall(tester);
+      final f = await _backend();
+      await pumpApp(
+        tester,
+        f.backend,
+        identity: DeviceIdentity(personId: f.anna, asked: true),
+        overrides: [
+          pushRepositoryProvider.overrideWithValue(
+            FakePushRepository(f.backend),
+          ),
+          notificationHealthProbeProvider.overrideWithValue(
+            _FakeProbe(const NotificationHealth(interruptionFilter: 3)),
+          ),
+        ],
+      );
+      await _login(tester);
+      await _open(tester);
+
+      expect(
+        find.text('„Nicht stören" steht auf völliger Stille'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(FilledButton, 'Kategorie öffnen'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('ein sauberes Gerät bekommt gar keine Karte', (tester) async {
+      // Ein Schirm, der immer warnt, wird nicht mehr gelesen.
+      _tall(tester);
+      final f = await _backend();
+      await pumpApp(
+        tester,
+        f.backend,
+        identity: DeviceIdentity(personId: f.anna, asked: true),
+        overrides: [
+          pushRepositoryProvider.overrideWithValue(
+            FakePushRepository(f.backend),
+          ),
+          notificationHealthProbeProvider.overrideWithValue(
+            _FakeProbe(
+              const NotificationHealth(
+                notificationsEnabled: true,
+                channelImportance: 4,
+                channelBypassesDnd: false,
+                interruptionFilter: 1,
+                backgroundRestricted: false,
+              ),
+            ),
+          ),
+        ],
+      );
+      await _login(tester);
+      await _open(tester);
+
+      expect(find.byType(Card), findsNothing);
+    });
+  });
+}
+
+/// Stellt eine Blockade, ohne ein Gerät zu haben.
+class _FakeProbe extends NotificationHealthProbe {
+  _FakeProbe(this.health);
+
+  final NotificationHealth health;
+
+  /// Welche Systemschirme geöffnet wurden — das ist die Wirkung, die der
+  /// Test prüft.
+  final List<String> opened = [];
+
+  @override
+  bool get supported => true;
+
+  @override
+  Future<NotificationHealth> read(String channelId) async => health;
+
+  @override
+  Future<void> openAppNotifications() async => opened.add('app');
+
+  @override
+  Future<void> openChannel(String channelId) async => opened.add(channelId);
+
+  @override
+  Future<void> openDndAccess() async => opened.add('dnd');
+
+  @override
+  Future<void> openAppDetails() async => opened.add('details');
 }

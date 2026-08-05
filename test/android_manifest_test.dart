@@ -367,4 +367,88 @@ void main() {
       );
     });
   });
+
+  group('Benachrichtigungs-Prüfung (#180)', () {
+    final mainActivity = File(
+      'android/app/src/main/kotlin/de/macbuchi/mitfahrbar/MainActivity.kt',
+    ).readAsStringSync();
+    final probe = File(
+      'lib/core/notification_health_probe.dart',
+    ).readAsStringSync();
+
+    test('Kanalname der Prüf-Brücke ist in Kotlin und Dart derselbe', () {
+      final kotlin = RegExp(
+        r'const val HEALTH_CHANNEL = "([^"]+)"',
+      ).firstMatch(mainActivity)?.group(1);
+      final dart = RegExp(
+        r"channelName = '([^']+)'",
+      ).firstMatch(probe)?.group(1);
+      expect(kotlin, isNotNull);
+      expect(
+        dart,
+        kotlin,
+        reason:
+            'Driften die Namen, wirft invokeMethod MissingPluginException, '
+            'der catch macht daraus „unbekannt" — und unbekannt meldet keine '
+            'Blockade. Der Schirm sagte also „alles in Ordnung", während '
+            'nichts ankommt: genau die stille Falschaussage, gegen die diese '
+            'Prüfung gebaut wurde.',
+      );
+    });
+
+    test('die geprüfte Kanal-Kennung ist die aus strings.xml', () {
+      final declared =
+          RegExp(
+                r'<string name="notification_channel_plan_id">([^<]+)</string>',
+              )
+              .firstMatch(
+                File(
+                  'android/app/src/main/res/values/strings.xml',
+                ).readAsStringSync(),
+              )
+              ?.group(1);
+      final probed = RegExp(
+        r"androidPlanChannel = '([^']+)'",
+      ).firstMatch(probe)?.group(1);
+      expect(declared, isNotNull);
+      expect(
+        probed,
+        declared,
+        reason:
+            'Sonst fragt die App nach einem Kanal, den es nicht gibt. '
+            '`getNotificationChannel` liefert dann null, die Prüfung liest '
+            'das als „weiß ich nicht" und schweigt — obwohl der echte Kanal '
+            'ausgeschaltet sein kann.',
+      );
+    });
+
+    test('die Prüfung baut NICHT auf firebase_messaging', () {
+      // Ohne Kommentare prüfen — dieselbe Lehre wie bei `sqlOnly` in
+      // `schema_test.dart`: Ein File, das seine eigene Entscheidung
+      // begründet, nennt den verbotenen Namen zwangsläufig. Ein Test, der
+      // den Fließtext mitliest, scheitert an der Begründung statt am Code.
+      final code = probe
+          .split('\n')
+          .where((line) => !line.trimLeft().startsWith('//'))
+          .join('\n');
+      expect(
+        code,
+        isNot(contains('getNotificationSettings')),
+        reason:
+            'getNotificationSettings() meldet auf Android authorized, obwohl '
+            'die Systemeinstellung aus ist (flutterfire#4492), und denied '
+            'vor der ersten Frage auf API 34 (flutterfire#12839). Darauf '
+            'gebaut wäre die Überwachung genau so unzuverlässig wie der '
+            'Zustand, den sie aufdecken soll.',
+      );
+      expect(
+        mainActivity,
+        contains('areNotificationsEnabled'),
+        reason:
+            'Der einzige Aufruf, der Berechtigung UND Systemschalter '
+            'abbildet. checkSelfPermission meldet vor Android 13 immer '
+            '„verweigert", auch bei erlaubten Benachrichtigungen.',
+      );
+    });
+  });
 }
