@@ -3,12 +3,23 @@ name: Push-Benachrichtigungen
 # Hält den Ausgangskorb in Ordnung (Issues #101, #132). **Verschickt seit
 # #132 nichts mehr** — das tut die Datenbank (pg_cron → `flush-push`). Ruht,
 # solange die Secrets nicht gesetzt sind.
+#
+# **Achtung: Dieser Workflow ist seit dem 30.07.2026 in den Repo-Einstellungen
+# von Hand deaktiviert** (`disabled_manually`) und läuft nicht, egal was hier
+# steht. Der Zeitplan unten beschreibt also eine Absicht, keinen Betrieb; wer
+# ihn liest, prüft zuerst `gh workflow list --all`. Belegt und aufgeschrieben
+# am 05.08.2026 bei #175, Begründung in CLAUDE.md.
 on:
   schedule:
     # Stündlich statt sechsmal je Stunde: Dieser Lauf ist nur noch der
     # Boden unter dem schnellen Weg. Er rechnet den Korb neu und repariert,
     # was ein Gerät ohne Netz oder ein geschlossener Tab hinterlassen hat —
     # verschickt wird binnen einer Minute nach der Änderung, nicht hier.
+    #
+    # **„Stündlich" war er auch im Betrieb nicht:** zuletzt 00:12, 03:32,
+    # 06:43, 09:44 UTC — gut drei Stunden auseinander. Derselbe Befund wie
+    # #115. Als Boden unter einer minutengenauen Erinnerung taugt das nicht,
+    # und genau deshalb liegt der Takt seit #132 in `pg_cron`.
     #
     # Der Minuten-Offset bleibt: GitHub verzögert Läufe zur vollen Stunde
     # regelmäßig um 5 bis 30 Minuten, nahe der halben Stunde deutlich

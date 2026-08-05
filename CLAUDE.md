@@ -838,13 +838,33 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     sich also auch dann, wenn sich am Code nichts geändert hat. Nur der Hash
     beweist, dass die neue Fassung läuft (belegt am 03.08.2026: flush-push
     v20 `ac1883b6…` → v21 `c55f5f69…`).
-  - **`tool/notify.dart` verschickt seit #132 nichts mehr, es ist der
-    Boden.** Stündlich rechnet es den Korb neu und repariert, was ein Gerät
-    ohne Netz oder ein geschlossener Tab hinterlassen hat. **Das ist die
-    Zusage, die den schnellen Weg trägt:** Der Ereignis-Weg ist ein
-    Beschleuniger, keine Garantie — fällt er aus, kommt die Meldung eine
-    Stunde später, also genau so spät wie vor der Umstellung. Wer diesen Job
-    abschafft, macht aus „schneller" ein „vielleicht".
+  - **`tool/notify.dart` verschickt seit #132 nichts mehr — und seit dem
+    30.07.2026 läuft es überhaupt nicht mehr.** Der Workflow
+    „Push-Benachrichtigungen" steht auf `disabled_manually` (nachgemessen am
+    05.08.2026 bei #175). Gedacht war er als Boden: stündlich den Korb neu
+    rechnen und reparieren, was ein Gerät ohne Netz oder ein geschlossener
+    Tab hinterlassen hat — „der Ereignis-Weg ist ein Beschleuniger, keine
+    Garantie". An dieser Beschreibung stimmten zwei Dinge nicht:
+    - **„Stündlich" war er nie.** Die letzten vier Läufe lagen bei 00:12,
+      03:32, 06:43 und 09:44 UTC — gut drei Stunden auseinander auf einem
+      stündlichen Cron. Das ist derselbe Befund wie #115, der die Umstellung
+      überhaupt ausgelöst hat: GitHub verwirft geplante Läufe unter Last und
+      holt sie nicht nach. Ein Boden, der alle drei Stunden trägt, ist für
+      eine minutengenaue Erinnerung keiner.
+    - **Der schnelle Weg trägt allein.** Am 05.08.2026 gingen der
+      Abend-Blick und **beide** Abfahrts-Erinnerungen auf die Minute raus —
+      sechs Tage nach dem Abschalten. Der Takt kommt aus `pg_cron`
+      (`flush-due-push`, `* * * * *`) → `flush_due_push()` → `flush-push`,
+      der Inhalt aus dem Client (`pushOutboxSyncProvider`). GitHub steht auf
+      keinem dieser beiden Pfade, und die Erinnerung hat diesen Boden nie
+      gehabt: Sie kam mit v0.58.0 vier Tage nach dem Abschalten.
+    Was ohne den Job wirklich fehlt, ist enger als die alte Zusage klang:
+    Schreibt **niemand** den Korb — keine App offen, eine ganze Woche lang —,
+    entsteht keine Zeile, und dann meldet sich auch nichts. Solange jemand
+    die App öffnet, fällt das nicht auf. **Ob der Job zurückkommt, ist offen**
+    (Stand 05.08.2026); zurück käme er ehrlich als „alle paar Stunden", nicht
+    als Zusage über Minuten. Wo unten „der Stundenjob" steht, ist das seine
+    gebaute Aufgabe — solange er ruht, erledigt sie niemand.
   - **Zustellen ist nicht Anzeigen** (v0.40.0, teuer gelernt). Android und
     der Web-Service-Worker zeigen eine `notification`-Payload **nur an,
     solange die App nicht im Vordergrund ist**. Ist sie vorne, liefert FCM
