@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.62.0] – 2026-08-05
+
+### Geändert
+
+- **Der Vorlauf der Erinnerung lässt sich jetzt für Hin- und Rückfahrt
+  getrennt einstellen.** Bisher galt ein Wert für beide Richtungen — mit der
+  Begründung, wer morgens fünf Minuten braucht, brauche sie abends auch. Das
+  stimmt nicht, wenn die Treffpunkte verschieden weit weg sind: fünfzehn
+  Minuten zum Morgen-Treffpunkt, dreißig zu dem für zurück.
+
+  Unter „Benachrichtigungen" steht dafür weiterhin **eine** Zeile — sie zeigt
+  jetzt beide Werte („15 · 30 min"), und ein Tipp öffnet beide zur Auswahl.
+  Wer nichts ändert, merkt nichts: Die Rückfahrt startet auf demselben Wert
+  wie bisher.
+
 ## [0.61.0] – 2026-08-05
 
 ### Neu

@@ -908,6 +908,7 @@ void main() {
     Map<String, NotificationPrefs> remindingPrefs(
       List<String> ids, {
       int lead = defaultReminderLead,
+      int? returnLead,
     }) => {
       for (final id in ids)
         id: NotificationPrefs.initial(id).copyWith(
@@ -915,6 +916,7 @@ void main() {
           changesEnabled: false,
           remindersEnabled: true,
           reminderLeadMinutes: lead,
+          reminderLeadReturnMinutes: returnLead ?? lead,
         ),
     };
 
@@ -932,6 +934,47 @@ void main() {
       now: now,
       defaults: defaults,
     );
+
+    /// #168: Hin- und Rückweg starten nicht am selben Ort — fünfzehn
+    /// Minuten zum Morgen-Treffpunkt, dreißig zum Treffpunkt für zurück.
+    /// Die alte Begründung („wer morgens fünf Minuten braucht, braucht sie
+    /// abends auch") ist damit widerlegt, und diese drei Tests halten fest,
+    /// dass die beiden Vorläufe wirklich getrennt wirken.
+    group('Ein eigener Vorlauf je Richtung (#168)', () {
+      test('die Rückfahrt weckt nach ihrem eigenen Vorlauf', () {
+        final prefs = remindingPrefs([anna], lead: 15, returnLead: 30);
+
+        // 16:05 — dreißig Minuten vor 16:30 liegt IM Fenster der Rückfahrt,
+        // fünfzehn Minuten davor noch nicht.
+        final early = at(DateTime(2026, 7, 28, 16, 5), prefs: prefs);
+        expect(
+          early.map((m) => m.kind),
+          contains(PushKind.departureReturn),
+          reason: 'Mit 30 Minuten Vorlauf ist 16:05 fällig.',
+        );
+      });
+
+      test('der Vorlauf der Hinfahrt gilt nicht für die Rückfahrt', () {
+        // Umgekehrt: 30 hin, 15 zurück. Um 16:05 darf NICHTS kommen —
+        // täte es das, rechnete die Rückfahrt mit dem Wert der Hinfahrt.
+        final prefs = remindingPrefs([anna], lead: 30, returnLead: 15);
+        expect(at(DateTime(2026, 7, 28, 16, 5), prefs: prefs), isEmpty);
+        expect(
+          at(DateTime(2026, 7, 28, 16, 20), prefs: prefs).map((m) => m.kind),
+          contains(PushKind.departureReturn),
+        );
+      });
+
+      test('und die Hinfahrt nicht mit dem der Rückfahrt', () {
+        final prefs = remindingPrefs([anna], lead: 15, returnLead: 45);
+        // 6:50 wäre mit 45 Minuten Vorlauf fällig — mit 15 nicht.
+        expect(at(DateTime(2026, 7, 28, 6, 50), prefs: prefs), isEmpty);
+        expect(
+          at(DateTime(2026, 7, 28, 7, 20), prefs: prefs).map((m) => m.kind),
+          contains(PushKind.departureOut),
+        );
+      });
+    });
 
     test('kommt im Vorlauf-Fenster, für beide Richtungen', () {
       final out = at(DateTime(2026, 7, 28, 7, 20));
@@ -1136,6 +1179,22 @@ void main() {
           'Formular-Vorbelegung und DB-Default müssen dasselbe sagen — sonst '
           'bekommt eine von Hand angelegte Zeile andere Zeiten als eine über '
           'den Screen angelegte, und niemand findet den Unterschied.',
+    );
+
+    // Dasselbe für den Rückfahrt-Vorlauf (#168). Er steht in einer eigenen
+    // Migration, weil die Spalte später dazukam — geprüft wird trotzdem
+    // gegen dieselbe Dart-Vorbelegung.
+    expect(
+      File(
+        'supabase/migrations/20260805010000_split_reminder_lead.sql',
+      ).readAsStringSync(),
+      contains(
+        'reminder_lead_return_minutes integer not null\n    default '
+        '${initial.reminderLeadReturnMinutes}',
+      ),
+      reason:
+          'Ein Alt-Client schreibt diese Spalte nie — dann gilt der '
+          'DB-Default, und der muss das sagen, was der Screen anzeigt.',
     );
 
     // Dasselbe für die Erinnerung (#164) — in ihrer eigenen Migration.
