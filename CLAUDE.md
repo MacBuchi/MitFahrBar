@@ -329,8 +329,8 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Datenschicht und ist gegen eine umgehüllte Schreibmethode rot verifiziert.
   - Genau ein zweiter Anlauf, keine Schleife: Sonst würde aus einem sichtbaren
     Fehler ein zähes Hängen.
-- **Der Zwischenspeicher hält Zeilen, nie Kennzahlen** (`data/offline_cache.dart`
-  + `data/caching_repository.dart`, #169, seit v0.61.0). Ohne Netz liest die App
+- **Der Zwischenspeicher hält Zeilen, nie Kennzahlen** (#169, seit v0.61.0;
+  `data/offline_cache.dart` und `data/caching_repository.dart`). Ohne Netz liest die App
   den zuletzt geladenen Stand; Punkte, Quote, Ersparnis und der vorgeschlagene
   Fahrer entstehen weiter in `core/fairness.dart` aus genau diesen Zeilen. Läge
   eine berechnete Zahl im Speicher, gäbe es zwei Wahrheiten über dieselbe Woche
@@ -1180,6 +1180,19 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Kandidaten über `gh run list --branch <branch>` an
   `action_required` erkennbar) — danach laufen sie normal durch und der PR
   wird grün. Ein eigener Push (nicht vom Bot) hat das Problem nicht.
+  **Das Freigeben allein genügt aber nicht immer** (nachgemessen 05.08.2026,
+  PR #170): Die freigegebenen Läufe können von der `concurrency`-Gruppe
+  sofort abgebrochen werden. Dann liegen auf demselben Commit je Check-Name
+  **zwei** Läufe — ein abgebrochener und ein erfolgreicher — und die Branch
+  Protection wertet nicht den zeitlich letzten, sondern den der **jüngsten
+  Check-Suite**. Bei #170 war die abgebrochene Suite drei Sekunden jünger
+  angelegt und gewann, obwohl ihre Läufe eine Minute *früher* endeten; der
+  PR blieb `BLOCKED`, und `gh pr checks` zeigte `fail` mit Links in genau
+  diesen Lauf. Ein `gh run rerun` des **erfolgreichen** Laufs half deshalb
+  nicht — er liegt in der älteren Suite. Neu gestartet wird der
+  **abgebrochene** Lauf; erst dessen Ergebnis zählt. Zum Erkennen taugt
+  `.../check-runs` mit `check_suite.id` und `completed_at` nebeneinander:
+  Weichen die beiden Reihenfolgen voneinander ab, ist genau das der Fall.
   **Zwei Läufe sind nie bitgleich** — die Stimmungs-Gesichter animieren,
   und jeder Lauf erwischt eine andere Phase (gemessen 5–281 abweichende
   Pixel, die Bounding-Box jedes Mal exakt auf einem Smiley).
