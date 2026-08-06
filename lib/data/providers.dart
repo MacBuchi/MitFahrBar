@@ -637,6 +637,25 @@ final nextRideProvider = Provider<AsyncValue<PlannedDay?>>((ref) {
 /// Die Schlüssel sind auf Tagesbeginn normiert — sonst fände ein Nachschlagen
 /// mit `PlannedDay.date` seine Zeile nicht (dieselbe Falle wie im
 /// [WeekPlanNotifier]).
+/// Die Abweichungen der Planwoche, nach Kalendertag (#183).
+///
+/// Dieselbe Spanne und dieselbe Normierung wie [weekNotesProvider], und aus
+/// demselben Grund: Nachgeschlagen wird mit `PlannedDay.date`, und ein Tag mit
+/// Uhrzeit fände seine Zeile nicht.
+///
+/// Ein Tag ohne Abweichung fehlt in der Map. „Keine Abweichung" und „leere
+/// Abweichung" sind dasselbe — zwei Schreibweisen dafür wären zwei Fälle im
+/// Digest, und einer davon würde vergessen.
+final weekPlanDefaultsProvider = FutureProvider<Map<DateTime, GroupDefaults>>((
+  ref,
+) async {
+  ref.watch(currentUserIdProvider);
+  final dates = planningWeek(ref.read(nowProvider)());
+  return ref
+      .watch(carpoolRepositoryProvider)
+      .loadPlanDefaults(dates.first, days: 7);
+});
+
 final weekNotesProvider = FutureProvider<Map<DateTime, List<PlanNote>>>((
   ref,
 ) async {
@@ -682,9 +701,18 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
   // Wer die Abfahrtszeit ändert, soll sie in der nächsten Meldung lesen.
   // Ausgelöst wird dadurch nichts — der Digest kennt sie bewusst nicht.
   final defaults = ref.watch(groupDefaultsProvider).valueOrNull;
+  // Die Abweichungen einzelner Tage (#183). Anders als die Vorgabe stehen sie
+  // sehr wohl im Digest: Eine verschobene Abfahrt ist eine Tatsache über
+  // diesen Tag, keine Parameter-Änderung — wer sie verschiebt, muss die
+  // Mitfahrenden wecken.
+  final dayDefaults = ref.watch(weekPlanDefaultsProvider).valueOrNull;
   // Ein halb geladener Stand schriebe einen halben Text. Lieber gar nichts —
   // der stündliche Job holt es nach.
-  if (week == null || persons == null || notes == null || defaults == null) {
+  if (week == null ||
+      persons == null ||
+      notes == null ||
+      defaults == null ||
+      dayDefaults == null) {
     return;
   }
 
@@ -701,6 +729,7 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
     now: now,
     notes: [for (final day in notes.values) ...day],
     defaults: defaults,
+    dayDefaults: dayDefaults,
     // Wer an diesem Gerät sitzt, hat gerade selbst getippt und braucht
     // keine Meldung darüber (#163). Best effort: ohne Geräte-Zuordnung
     // wird nichts unterdrückt, und der stündliche Job hebt es wieder auf.
@@ -761,6 +790,8 @@ final tripPushSyncProvider = Provider<void>((ref) {
       now: ref.read(nowProvider)(),
       defaults:
           ref.read(groupDefaultsProvider).valueOrNull ?? const GroupDefaults(),
+      dayDefaults:
+          ref.read(weekPlanDefaultsProvider).valueOrNull ?? const {},
       suppressPersonId: ref.read(myPersonProvider)?.id,
     );
     if (entries.isEmpty) return;

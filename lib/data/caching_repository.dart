@@ -207,8 +207,33 @@ class CachingCarpoolRepository implements CarpoolRepository {
         (raw) => [for (final row in _maps(raw)) PlanNote.fromJson(row)],
       );
 
+  /// Wie [loadPlan] mit der Woche im Schlüssel — die Abweichungen gehören zu
+  /// genau dieser Spanne.
+  @override
+  Future<Map<DateTime, GroupDefaults>> loadPlanDefaults(
+    DateTime from, {
+    int days = 7,
+  }) => _layer.read(
+    'plandefaults.${from.toIso8601String().substring(0, 10)}.$days',
+    () => _inner.loadPlanDefaults(from, days: days),
+    (byDay) => {
+      for (final e in byDay.entries)
+        e.key.toIso8601String().substring(0, 10): e.value.toJson(),
+    },
+    (raw) => {
+      for (final e in (raw as Map).entries)
+        DateTime.parse(e.key as String): GroupDefaults.fromJson(
+          Map<String, Object?>.from(e.value as Map),
+        ),
+    },
+  );
+
   // Ab hier: alles Schreibende geht unverändert durch. Ohne Netz scheitert
   // es, und die Oberfläche sagt das — siehe Kopf dieser Datei.
+
+  @override
+  Future<void> savePlanDefaults(DateTime date, GroupDefaults defaults) =>
+      _inner.savePlanDefaults(date, defaults);
 
   @override
   Future<Person> createPerson(Person person) => _inner.createPerson(person);

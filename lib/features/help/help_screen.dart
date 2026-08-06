@@ -187,18 +187,30 @@ class HelpScreen extends StatelessWidget {
             children: [
               _Line(
                 text:
-                    'Tippt an, wer wann kann — gleiche Tipp-Folge wie beim '
-                    'Eintragen, zweimal heißt nur eine Richtung. Oben links '
+                    'Ein Tipp auf ein leeres Feld deiner Zeile trägt dich '
+                    'ein — mehr braucht der Normalfall nicht. Oben links '
                     'steht zur Orientierung die Kalenderwoche mit ihrem '
                     'Zeitraum.',
               ),
               _Line(
                 leading: Icon(Icons.badge_outlined),
                 text:
-                    'Deine eigene Zeile tippst du direkt durch. Bei allen '
-                    'anderen fragt die App kurz nach — damit niemand aus '
-                    'Versehen bei jemandem dreht. Eintragen darfst du '
-                    'weiterhin für jeden.',
+                    'Tippst du noch einmal auf dasselbe Feld, geht ein '
+                    'kleines Menü auf: nur eine Richtung, doch selbst '
+                    'fahren, wieder austragen. Bei allen anderen geht das '
+                    'Menü sofort auf — damit niemand aus Versehen bei '
+                    'jemandem dreht. Eintragen darfst du weiterhin für '
+                    'jeden.',
+              ),
+              _Line(
+                leading: Icon(Icons.schedule),
+                text:
+                    'Im selben Menü stehen Abfahrt und Treffpunkt für '
+                    'genau diesen Tag. Fahrt ihr einmal früher los, tragt '
+                    'ihr es dort ein: Alle, die an dem Tag mitfahren, '
+                    'bekommen ihre Erinnerung dann zur neuen Zeit. Was du '
+                    'leer lässt, bleibt bei euren festen Vorgaben. Ein '
+                    'Uhrsymbol am Tag zeigt, dass dort etwas abweicht.',
               ),
               _Line(
                 text:

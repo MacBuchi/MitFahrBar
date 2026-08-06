@@ -138,6 +138,22 @@ const String confirmedDigest = 'fix';
 /// bekäme beim Speichern im Parameter-Screen die halbe Gruppe eine
 /// „Änderung"-Meldung über einen Tag, an dem sich nichts getan hat.
 ///
+/// **[dayDefaults] dagegen schon** (#183) — und darin liegt die Trennung, um
+/// die es geht: Die Vorgabe der Gruppe ist ein *Parameter*, die Abweichung
+/// eines Tages ist eine *Tatsache über diesen Tag*. Wer sie verschiebt, muss
+/// die Leute wecken, die an dem Tag mitfahren; sonst stünde die neue Zeit im
+/// Planer und das Handy klingelte zur alten. Hier gehört ausschließlich die
+/// **Abweichung** hinein, nie die aufgelöste Zeit — sonst käme die
+/// Gruppen-Vorgabe durch die Hintertür in den Digest zurück.
+///
+/// **Und nur, wenn es sie wirklich gibt.** Ein Client von vor v0.64.0 kennt
+/// die Abweichung nicht und rechnet ohne sie. Flösse hier auch bei leerer
+/// Abweichung etwas ein, unterschieden sich die Digests zweier Clients für
+/// denselben unveränderten Tag — und jeder Wechsel wäre eine „Änderung"-
+/// Meldung an alle Anwesenden. So sind alle normalen Tage versionsübergreifend
+/// bitgleich, und pendeln kann höchstens ein Tag, an dem gerade jemand
+/// bewusst etwas geändert hat: Dort ist die Meldung ohnehin gewollt.
+///
 /// [notes] darf die Anmerkungen **aller** Tage enthalten — hier wird auf
 /// [day] gefiltert. Eine flache Liste statt einer Map nach Tag ist Absicht:
 /// Ein Aufrufer, der falsch auf Tagesbeginn normiert, könnte Anmerkungen
@@ -146,6 +162,7 @@ String dayDigestFor(
   PlannedDay day,
   String personId, {
   List<PlanNote> notes = const [],
+  GroupDefaults? dayDefaults,
 }) {
   if (!day.availableIds.contains(personId)) return removedDigest;
 
@@ -198,6 +215,18 @@ String dayDigestFor(
     ..write('|')
     ..write(ids.join(','));
 
+  // Die Abweichung dieses Tages (#183). Nur wenn es sie gibt — siehe oben:
+  // Ein leerer Anhang hier machte jeden normalen Tag versionsabhängig.
+  if (dayDefaults != null && !dayDefaults.isEmpty) {
+    state
+      ..write('|')
+      ..write(dayDefaults.outboundTime?.format() ?? '')
+      ..write('~')
+      ..write(dayDefaults.returnTime?.format() ?? '')
+      ..write('~')
+      ..write(dayDefaults.meetingPoint ?? '');
+  }
+
   return _hash(state.toString());
 }
 
@@ -227,6 +256,11 @@ String dayDigestFor(
 /// [defaults] sind die festen Vorgaben der Gruppe (#139). Sie stehen im Text,
 /// aber **nicht** im Digest — siehe [dayDigestFor]: Eine geänderte Abfahrtszeit
 /// ist eine Parameter-, keine Planänderung und weckt niemanden.
+///
+/// [dayDefaults] sind die Abweichungen einzelner Tage (#183). Sie schlagen
+/// [defaults] feldweise und stehen — anders als jene — sehr wohl im Digest.
+/// Dies ist der Dart-Spiegel von `push_due()`; weicht er ab, prüft
+/// `test/push_outbox_test.dart` einen Weg, den es in Produktion nicht gibt.
 List<DuePush> dueMessages({
   required List<PlannedDay> week,
   required Map<String, NotificationPrefs> prefs,
@@ -235,6 +269,7 @@ List<DuePush> dueMessages({
   required DateTime now,
   List<PlanNote> notes = const [],
   GroupDefaults defaults = const GroupDefaults(),
+  Map<DateTime, GroupDefaults> dayDefaults = const {},
   Duration changeCooldown = const Duration(minutes: 30),
 }) {
   final index = <String, SentPush>{
@@ -244,6 +279,11 @@ List<DuePush> dueMessages({
 
   for (final day in week) {
     final date = _dayOnly(day.date);
+    // Was an diesem Tag wirklich gilt (#183) — die Abweichung schlägt die
+    // Vorgabe, feldweise. `deviation` allein geht in den Digest, `effective`
+    // in Zeiten und Text.
+    final deviation = dayDefaults[date];
+    final effective = effectiveDefaults(defaults, deviation);
 
     // ------------------------------------------ Erinnerungen zur Abfahrt
     //
@@ -252,15 +292,15 @@ List<DuePush> dueMessages({
     // hinter der persönlichen `departureTime`, die den Plan-Teil schließt —
     // in einem gemeinsamen Fenster wäre sie nie fällig geworden.
     for (final (kind, legTime) in [
-      (PushKind.departureOut, defaults.outboundTime),
-      (PushKind.departureReturn, defaults.returnTime),
+      (PushKind.departureOut, effective.outboundTime),
+      (PushKind.departureReturn, effective.returnTime),
     ]) {
       if (legTime == null) continue;
       for (final personId in day.availableIds) {
         final pref = prefs[personId];
         if (pref == null || !pref.remindersEnabled) continue;
 
-        final digest = dayDigestFor(day, personId, notes: notes);
+        final digest = dayDigestFor(day, personId, notes: notes, dayDefaults: deviation);
         // `raus` ist der einzige Ausschluss — `fix` fährt mit: An einem
         // eingetragenen Tag fährt die Gruppe ja gerade, das ist der Moment,
         // für den die Erinnerung gebaut wurde.
@@ -297,7 +337,7 @@ List<DuePush> dueMessages({
               personId,
               persons,
               notes: notes,
-              defaults: defaults,
+              defaults: effective,
             ),
             digest: digest,
           ),
@@ -328,7 +368,7 @@ List<DuePush> dueMessages({
       final closes = pref.departureTime.on(date);
       if (now.isBefore(opens) || !now.isBefore(closes)) continue;
 
-      final digest = dayDigestFor(day, personId, notes: notes);
+      final digest = dayDigestFor(day, personId, notes: notes, dayDefaults: deviation);
       // Ein eingetragener Tag ist geplant fertig: Weder ein Abend-Blick noch
       // eine Änderungs-Meldung hat dazu noch etwas zu sagen. Bis v0.57.0
       // sprang die Schleife dafür ganz aus dem Tag heraus — seit es
@@ -355,7 +395,7 @@ List<DuePush> dueMessages({
               personId,
               persons,
               notes: notes,
-              defaults: defaults,
+              defaults: effective,
             ),
             digest: digest,
           ),
@@ -388,7 +428,7 @@ List<DuePush> dueMessages({
             personId,
             persons,
             notes: notes,
-            defaults: defaults,
+            defaults: effective,
           ),
           digest: digest,
         ),

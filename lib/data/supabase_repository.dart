@@ -198,6 +198,40 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
+  Future<Map<DateTime, GroupDefaults>> loadPlanDefaults(
+    DateTime from, {
+    int days = 7,
+  }) => readTolerant(() async {
+    final rows = await _client
+        .from('plan_defaults')
+        .select('plan_date, outbound_time, return_time, meeting_point')
+        .gte('plan_date', _isoDay(from))
+        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))));
+    return {
+      for (final row in rows)
+        DateTime.parse(row['plan_date'] as String): GroupDefaults.fromJson(row),
+    };
+  });
+
+  @override
+  Future<void> savePlanDefaults(DateTime date, GroupDefaults defaults) async {
+    final day = _isoDay(date);
+    // Nichts gesetzt heißt: keine Zeile. Ein leerer Eintrag stünde im Digest
+    // anders da als gar keiner, und dann hinge an einer inhaltlosen Zeile
+    // eine Meldung.
+    if (defaults.isEmpty) {
+      await _client.from('plan_defaults').delete().eq('plan_date', day);
+      return;
+    }
+    await _client.from('plan_defaults').upsert({
+      'group_id': _client.auth.currentUser?.id,
+      'plan_date': day,
+      ...defaults.toJson(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'group_id,plan_date');
+  }
+
+  @override
   Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) =>
       readTolerant(() async {
         final start = _isoDay(from);

@@ -167,12 +167,30 @@ Future<int> _handleGroup({
   });
   final defaults = GroupDefaults.fromJson(defaultRows.firstOrNull);
 
+  // Abweichungen einzelner Tage (#183). Sie schlagen die Vorgabe feldweise
+  // und stehen — anders als jene — im Digest: Wer die Abfahrt eines Tages
+  // verschiebt, muss die Mitfahrenden wecken. Rechnete dieser Job ohne sie,
+  // schriebe er einen anderen Digest als die App und beide pendelten
+  // gegeneinander.
+  final dayDefaultRows = await api.rows('plan_defaults', {
+    ...scope,
+    'plan_date': 'gte.${_isoDay(week.first)}',
+    'select': 'plan_date, outbound_time, return_time, meeting_point',
+  });
+  final dayDefaults = {
+    for (final row in dayDefaultRows)
+      DateTime.parse(row['plan_date']! as String): GroupDefaults.fromJson(
+        row.cast<String, Object?>(),
+      ),
+  };
+
   final entries = outboxEntries(
     week: planned,
     persons: active,
     now: now,
     notes: notes,
     defaults: defaults,
+    dayDefaults: dayDefaults,
   );
   if (dryRun) {
     // Im Probelauf keine Namen ins Protokoll: Der Actions-Log ist

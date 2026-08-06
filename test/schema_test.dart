@@ -58,6 +58,7 @@ void main() {
   // eindeutig — dort wäre `group_id` im Schlüssel sinnlos.
   for (final table in [
     'plan_availability',
+    'plan_defaults',
     'plan_overrides',
     'notification_prefs',
     'push_log',
@@ -76,6 +77,85 @@ void main() {
       );
     });
   }
+
+  // Abweichende Zeiten je Tag (#183).
+  group('Tages-Abweichungen', () {
+    test('plan_defaults ist mandantengetrennt wie jede Datentabelle', () {
+      expect(
+        schema,
+        contains('create policy plan_defaults_isolated on public.plan_defaults'),
+        reason:
+            'Ohne Policy bei aktivem RLS wäre die Tabelle für jeden Client '
+            'leer — und die Abweichung eines Tages verschwände, ohne dass '
+            'irgendetwas einen Fehler meldete.',
+      );
+      expect(
+        schema,
+        contains(
+          'alter table public.plan_defaults       enable row level security',
+        ),
+      );
+    });
+
+    test('das Konfliktziel des upsert nennt denselben Schlüssel', () {
+      expect(
+        repository,
+        contains("onConflict: 'group_id,plan_date'"),
+        reason:
+            'Weicht es vom Primärschlüssel ab, meldet Postgres „no unique or '
+            'exclusion constraint matching the ON CONFLICT specification" — '
+            'und zwar erst beim zweiten Speichern desselben Tages.',
+      );
+      expect(
+        primaryKeyOf('plan_defaults').replaceAll(' ', ''),
+        'group_id,plan_date',
+      );
+    });
+
+    test('die wirksamen Zeiten stehen NICHT im Entprell-Vergleich', () {
+      final trigger = RegExp(
+        r'function public\.push_outbox_debounce\(\).*?\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(trigger, isNotNull);
+      for (final column in ['outbound_time', 'return_time']) {
+        expect(
+          sqlOnly(trigger!.group(0)!),
+          isNot(contains(column)),
+          reason:
+              'Die `title_out`-Lehre aus v0.58.0: Ein Client, der die Spalte '
+              'nicht kennt, schreibt NULL, ein anderer Schreiber gefüllt — im '
+              'Vergleich wechselte der Inhalt hin und her und schöbe `due_at` '
+              'endlos vor sich her, für ALLE Meldungen dieser Person. '
+              'Ausgelöst wird trotzdem: Der `digest` trägt die Abweichung.',
+        );
+      }
+    });
+
+    test('push_due nimmt die Zeile der Zeit vor der Vorgabe der Gruppe', () {
+      final function = RegExp(
+        r'function public\.push_due\(.*?\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(function, isNotNull);
+      final body = sqlOnly(function!.group(0)!);
+      expect(
+        body,
+        contains('coalesce(box.outbound_time, gd.outbound_time)'),
+        reason:
+            'Sonst feuerte die Erinnerung zur Gruppenzeit, während Planer '
+            'und Banner die Zeit des Tages zeigen.',
+      );
+      expect(
+        body,
+        contains('left join public.group_defaults gd'),
+        reason:
+            'Als INNERER Join verschluckte er den Fall „ein einzelner Tag '
+            'hat eine Zeit, die Gruppe aber nie eine gesetzt" — dann gäbe es '
+            'nie eine Erinnerung, und niemand sähe warum.',
+      );
+    });
+  });
 
   // Push-Benachrichtigungen (Issue #101). Drei Annahmen, die alle erst in der
   // echten Datenbank auffielen — und eine bewusste Ausnahme von der Regel

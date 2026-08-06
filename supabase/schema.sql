@@ -226,6 +226,32 @@ create table public.plan_availability (
   primary key (group_id, plan_date, person_id)
 );
 
+-- Abweichende Zeiten und Treffpunkt für EINEN Tag (#183). Dieselben drei
+-- Felder wie `group_defaults`, damit dieselbe `GroupDefaults.fromJson` beide
+-- Zeilen liest; aufgelöst wird feldweise (Tag schlägt Gruppe), sodass ein Tag,
+-- der nur den Treffpunkt ändert, die Zeiten der Gruppe behält.
+--
+-- Das ersetzt die Absage aus #127 („Tages-Abweichungen bleiben Anmerkungen"):
+-- Die galt, solange eine Zeit nur Text war. Seit #164 entscheidet sie, wann
+-- das Handy klingelt — eine Anmerkung kann keine Erinnerung verschieben.
+--
+-- Keine Zeile heißt „keine Abweichung"; ein leerer Eintrag wird deshalb gar
+-- nicht erst geschrieben. Stufe B legt Zeiten je AUTO als eigene Ebene
+-- darüber (`car -> day -> group`), statt diese Tabelle umzubauen.
+create table public.plan_defaults (
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  plan_date date not null,
+  outbound_time time,
+  return_time time,
+  meeting_point text
+    check (char_length(btrim(meeting_point)) between 1 and 120),
+  updated_at timestamptz not null default now(),
+  -- `group_id` gehört in den Schlüssel, sonst kämen sich zwei Gruppen am
+  -- selben Tag ins Gehege.
+  primary key (group_id, plan_date)
+);
+
 create table public.plan_overrides (
   group_id uuid not null default auth.uid()
     references public.groups(id) on delete cascade,
@@ -396,6 +422,18 @@ create table public.push_outbox (
   -- Geräte-Zuordnung „Ich bin" (#121), und die ist ausdrücklich kein Login.
   -- Der stündliche Job schreibt `false` und überstimmt im Reparaturfall.
   suppress_roster boolean not null default false,
+  -- Die WIRKSAME Abfahrtszeit dieses Tages (#183) — die Abweichung des Tages,
+  -- sonst die Vorgabe der Gruppe. Sie steht hier und nicht in `push_due()`,
+  -- weil sie ab Stufe B davon abhängt, in WELCHEM Auto die Person sitzt: Das
+  -- weiß nur `planWeek`, und im Versand nachgerechnet wäre es die zweite
+  -- Wahrheit über die Fairness-Regel.
+  --
+  -- Bewusst NICHT im Entprell-Vergleich (`push_outbox_debounce`) — die
+  -- `title_out`-Lehre: Ein Alt-Client schriebe NULL, ein anderer Schreiber
+  -- gefüllt, und `due_at` schöbe sich endlos vor sich her. Ausgelöst wird
+  -- trotzdem, denn der `digest` trägt die Abweichung.
+  outbound_time time,
+  return_time time,
   updated_at timestamptz not null default now(),
   primary key (group_id, person_id, plan_date, kind)
 );
@@ -676,7 +714,7 @@ begin
   insert into public.push_outbox (
     group_id, person_id, plan_date, kind, digest, body,
     title_evening, title_change, title_out, title_return,
-    title_roster, suppress_roster
+    title_roster, suppress_roster, outbound_time, return_time
   )
   select
     gid,
@@ -690,7 +728,9 @@ begin
     entry->>'title_out',
     entry->>'title_return',
     entry->>'title_roster',
-    coalesce((entry->>'suppress_roster')::boolean, false)
+    coalesce((entry->>'suppress_roster')::boolean, false),
+    (entry->>'outbound_time')::time,
+    (entry->>'return_time')::time
   from jsonb_array_elements(coalesce(entries, '[]'::jsonb)) as entry
   join public.persons person
     on person.id = (entry->>'person_id')::uuid
@@ -705,7 +745,13 @@ begin
           excluded.title_return, push_outbox.title_return),
         title_roster = coalesce(
           excluded.title_roster, push_outbox.title_roster),
-        suppress_roster = excluded.suppress_roster;
+        suppress_roster = excluded.suppress_roster,
+        -- Wie bei den Kopfzeilen: Ein Alt-Client, der die Felder nicht kennt,
+        -- darf eine gesetzte Zeit nicht ausleeren.
+        outbound_time = coalesce(
+          excluded.outbound_time, push_outbox.outbound_time),
+        return_time = coalesce(
+          excluded.return_time, push_outbox.return_time);
 end $$;
 
 -- Übernimmt eine BESTEHENDE Gruppe: für Gruppen von vor #106 und für die
@@ -985,11 +1031,16 @@ language sql security definer set search_path = public as $$
         on person.id = box.person_id and person.active
       join public.notification_prefs prefs
         on prefs.group_id = box.group_id and prefs.person_id = box.person_id
-      join public.group_defaults gd on gd.group_id = box.group_id
+      -- LEFT: Ein einzelner Tag kann seit #183 eine Zeit tragen, ohne dass
+      -- die Gruppe je eine gesetzt hat — ein innerer Join verschluckte genau
+      -- diesen Fall.
+      left join public.group_defaults gd on gd.group_id = box.group_id
       cross join lateral (values
-        ('departure_out'::text, gd.outbound_time, box.title_out,
+        ('departure_out'::text,
+         coalesce(box.outbound_time, gd.outbound_time), box.title_out,
          prefs.reminder_lead_minutes),
-        ('departure_return'::text, gd.return_time, box.title_return,
+        ('departure_return'::text,
+         coalesce(box.return_time, gd.return_time), box.title_return,
          prefs.reminder_lead_return_minutes)
       ) as leg(kind, leg_time, title, lead_minutes)
       left join public.push_log sent
@@ -1323,6 +1374,7 @@ alter table public.trips               enable row level security;
 alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
 alter table public.group_defaults      enable row level security;
+alter table public.plan_defaults       enable row level security;
 alter table public.plan_availability   enable row level security;
 alter table public.plan_overrides      enable row level security;
 alter table public.plan_notes          enable row level security;
@@ -1363,6 +1415,10 @@ create policy group_defaults_isolated on public.group_defaults
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy plan_availability_isolated on public.plan_availability
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy plan_defaults_isolated on public.plan_defaults
   for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());

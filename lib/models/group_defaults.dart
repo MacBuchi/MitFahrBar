@@ -79,3 +79,29 @@ class GroupDefaults {
       'GroupDefaults(${outboundTime?.format()}, ${returnTime?.format()}, '
       '$meetingPoint)';
 }
+
+/// Was an EINEM Tag wirklich gilt: [day] schlägt [group], Feld für Feld
+/// (#183).
+///
+/// **Feldweise und nicht objektweise.** Ein Tag, an dem nur der Treffpunkt
+/// abweicht, behält die Zeiten der Gruppe — objektweise ersetzt fielen sie
+/// auf `null` und die Erinnerung des Tages entfiele stillschweigend. Das ist
+/// derselbe Fehler wie ein `update`, das nicht gesetzte Felder mitschreibt.
+///
+/// **Das ist kein `copyWith`**, dessen Fehlen in [GroupDefaults] Absicht ist:
+/// Dort geht es ums *Schreiben* — der Screen baut die Vorgaben frisch, damit
+/// eine einmal gesetzte Zeit wieder zu leeren ist. Hier wird nur *gelesen*,
+/// und zwar aus zwei Zeilen, die beide in der Datenbank stehen. Es entsteht
+/// kein Weg, auf dem ein nicht gesetzter Wert ungewollt erhalten bliebe.
+///
+/// Stufe B legt die Auto-Ebene darüber: `car → day → group`. Weil hier
+/// feldweise aufgelöst wird, ist das eine weitere Anwendung derselben
+/// Funktion und kein Umbau.
+GroupDefaults effectiveDefaults(GroupDefaults group, GroupDefaults? day) {
+  if (day == null || day.isEmpty) return group;
+  return GroupDefaults(
+    outboundTime: day.outboundTime ?? group.outboundTime,
+    returnTime: day.returnTime ?? group.returnTime,
+    meetingPoint: day.meetingPoint ?? group.meetingPoint,
+  );
+}

@@ -122,6 +122,30 @@ class FakeCarpoolRepository implements CarpoolRepository {
   // würde sonst zwei Einträge für denselben Tag erlauben.
   final Map<DateTime, Map<String, PlanRide>> _availability = {};
   final Map<DateTime, Set<String>> _planDrivers = {};
+  final Map<DateTime, GroupDefaults> _dayDefaults = {};
+
+  @override
+  Future<Map<DateTime, GroupDefaults>> loadPlanDefaults(
+    DateTime from, {
+    int days = 7,
+  }) async {
+    final start = _day(from);
+    final end = start.add(Duration(days: days - 1));
+    return {
+      for (final e in _dayDefaults.entries)
+        if (!e.key.isBefore(start) && !e.key.isAfter(end)) e.key: e.value,
+    };
+  }
+
+  @override
+  Future<void> savePlanDefaults(DateTime date, GroupDefaults defaults) async {
+    // Leer heißt weg — wie das `delete` in der Datenbank.
+    if (defaults.isEmpty) {
+      _dayDefaults.remove(_day(date));
+      return;
+    }
+    _dayDefaults[_day(date)] = defaults;
+  }
 
   static DateTime _day(DateTime date) =>
       DateTime(date.year, date.month, date.day);
