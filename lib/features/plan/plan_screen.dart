@@ -322,9 +322,9 @@ class _AvailabilityGrid extends ConsumerWidget {
         // Menschenentscheidung. Reichen die Plätze nicht, sagt das der
         // Hinweis am Tag, wie bei jedem anderen Übersteuern auch.
         try {
-          await ref
-              .read(weekPlanProvider.notifier)
-              .setDrivers(day.date, {person.id});
+          await ref.read(weekPlanProvider.notifier).setDrivers(day.date, {
+            person.id,
+          });
         } catch (_) {
           messenger.showSnackBar(
             const SnackBar(content: Text('Speichern fehlgeschlagen.')),
@@ -746,9 +746,9 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
           Text(
             'Gilt nur für diesen Tag. Was hier leer bleibt, kommt weiter aus '
             'den festen Vorgaben.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.s),
           for (final (label, own, group, outbound) in [

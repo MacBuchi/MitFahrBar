@@ -83,7 +83,9 @@ void main() {
     test('plan_defaults ist mandantengetrennt wie jede Datentabelle', () {
       expect(
         schema,
-        contains('create policy plan_defaults_isolated on public.plan_defaults'),
+        contains(
+          'create policy plan_defaults_isolated on public.plan_defaults',
+        ),
         reason:
             'Ohne Policy bei aktivem RLS wäre die Tabelle für jeden Client '
             'leer — und die Abweichung eines Tages verschwände, ohne dass '

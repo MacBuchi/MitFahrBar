@@ -790,8 +790,7 @@ final tripPushSyncProvider = Provider<void>((ref) {
       now: ref.read(nowProvider)(),
       defaults:
           ref.read(groupDefaultsProvider).valueOrNull ?? const GroupDefaults(),
-      dayDefaults:
-          ref.read(weekPlanDefaultsProvider).valueOrNull ?? const {},
+      dayDefaults: ref.read(weekPlanDefaultsProvider).valueOrNull ?? const {},
       suppressPersonId: ref.read(myPersonProvider)?.id,
     );
     if (entries.isEmpty) return;

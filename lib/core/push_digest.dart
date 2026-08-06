@@ -300,7 +300,12 @@ List<DuePush> dueMessages({
         final pref = prefs[personId];
         if (pref == null || !pref.remindersEnabled) continue;
 
-        final digest = dayDigestFor(day, personId, notes: notes, dayDefaults: deviation);
+        final digest = dayDigestFor(
+          day,
+          personId,
+          notes: notes,
+          dayDefaults: deviation,
+        );
         // `raus` ist der einzige Ausschluss — `fix` fährt mit: An einem
         // eingetragenen Tag fährt die Gruppe ja gerade, das ist der Moment,
         // für den die Erinnerung gebaut wurde.
@@ -368,7 +373,12 @@ List<DuePush> dueMessages({
       final closes = pref.departureTime.on(date);
       if (now.isBefore(opens) || !now.isBefore(closes)) continue;
 
-      final digest = dayDigestFor(day, personId, notes: notes, dayDefaults: deviation);
+      final digest = dayDigestFor(
+        day,
+        personId,
+        notes: notes,
+        dayDefaults: deviation,
+      );
       // Ein eingetragener Tag ist geplant fertig: Weder ein Abend-Blick noch
       // eine Änderungs-Meldung hat dazu noch etwas zu sagen. Bis v0.57.0
       // sprang die Schleife dafür ganz aus dem Tag heraus — seit es
