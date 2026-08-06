@@ -101,6 +101,37 @@ class OutboxEntry {
   };
 }
 
+/// Der erste Tag, der im Ausgangskorb stehen bleiben darf (#177).
+///
+/// **Der Planer darf vorausblicken, der Korb darf nicht den Tag wegwerfen,
+/// über den er noch meldet.** Ab Freitagmittag liefert [planningWeek] die
+/// kommende Woche — genau dafür ist es da, der Planer zeigt dann schon den
+/// Montag. Als `keep_from` weitergereicht löschte derselbe Wert aber die
+/// Zeilen **dieses** Freitags: `publish_push_outbox` räumt alles vor
+/// `keep_from` weg, und Freitag liegt vor dem nächsten Montag. Die
+/// Rückfahrt-Erinnerung um 16:20 hätte danach keine Zeile mehr, aus der sie
+/// feuern könnte, und die Sofort-Meldungen dieses Tages (#163) stürben mit
+/// ihr — sie reisen als `plan`-Zeilen mit `roster_due_at`.
+///
+/// Bis zur Abfahrts-Erinnerung (v0.58.0) fiel das nicht auf: Abend-Blick und
+/// Änderungs-Meldung sind mit dem Freitag an dessen persönlicher
+/// `departure_time` (Vorgabe 7:30) durch, das Wegräumen um zwölf kostete
+/// nichts. Eine **Rückfahrt** um 16:20 ist das Erste, was die Zeile über den
+/// eigenen Mittag hinaus braucht.
+///
+/// Deshalb der frühere der beiden Tage: vor Freitagmittag unverändert der
+/// Wochenmontag, danach heute. Am Samstag ist der Freitag dann wirklich vorbei
+/// und darf weg.
+///
+/// Gehört bewusst hierher und nicht an die drei Aufrufstellen: `lib/data` und
+/// `tool/notify.dart` schreiben denselben Korb, und drei von Hand gerechnete
+/// Vergleiche wären drei Gelegenheiten, den Fall verschieden zu beantworten.
+DateTime outboxKeepFrom(DateTime now) {
+  final today = DateTime(now.year, now.month, now.day);
+  final planned = planningWeek(now).first;
+  return planned.isBefore(today) ? planned : today;
+}
+
 /// Der ganze Ausgangskorb für [week].
 ///
 /// Geschrieben wird für **alle** aktiven Personen, nicht nur für die

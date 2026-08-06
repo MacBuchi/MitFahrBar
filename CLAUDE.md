@@ -777,6 +777,25 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       an einem Tag, an dem gar nichts passiert ist. Und sie hängt bewusst
       **nicht** am Abend-Blick (anders als die Änderungs-Meldung): Sie
       braucht keine `push_log`-Zeile als Bezug, nur die Uhr der Gruppe.
+    - **`keep_from` darf nie über heute hinauswandern** (#177, seit v0.63.1;
+      `outboxKeepFrom` in `core/push_outbox.dart`). Ab Freitagmittag liefert
+      `planningWeek` die kommende Woche — richtig für den Planer, verheerend
+      als Löschgrenze: `publish_push_outbox` räumt alles vor `keep_from` weg,
+      Freitag liegt vor dem nächsten Montag, und die Rückfahrt-Erinnerung um
+      16:20 hatte danach keine Zeile mehr. **Der Planer darf vorausblicken,
+      der Korb darf nicht den Tag wegwerfen, über den er noch meldet.** Bis
+      #164 war das folgenlos: Abend-Blick und Änderung sind mit dem Freitag
+      an dessen `departure_time` durch. Eine **Rückfahrt** ist das Erste, was
+      die Zeile über den eigenen Mittag hinaus braucht — und die
+      Sofort-Meldungen (#163) hingen mit dran, sie reisen als `plan`-Zeilen.
+      Die Grenze steht an **einer** Stelle, weil beide Schreiber denselben
+      Korb räumen (`data/providers.dart` **und** `tool/notify.dart`).
+      - **Das Fake musste dafür erst ehrlich werden.** Es *ersetzte* den Korb,
+        die echte Funktion löscht vor `keep_from` und upsertet dann — eine
+        Zeile ab `keep_from`, die in den neuen Einträgen fehlt, überlebt dort.
+        Gegen das alte Fake wäre der Flow-Test grün gewesen und hätte nichts
+        bewiesen. Wer einen Fake baut, spiegelt die Schrittfolge, nicht das
+        Ergebnis des Normalfalls.
   - **Ein eingetragener Tag hat seit v0.58.0 den festen Digest `'fix'`**
     (`confirmedDigest`), statt aus dem Korb zu fallen. Vorher ließ
     `outboxEntries` ihn aus, und die alte Zeile blieb mit ihrem Plan-Hash

@@ -199,6 +199,68 @@ void main() {
     handle.dispose();
   });
 
+  // #177: Ab Freitagmittag zeigt der Planer die KOMMENDE Woche — der Korb
+  // rechnet dann nur noch deren Zeilen. Räumt er dabei alles vor dem
+  // nächsten Montag weg, nimmt er diesem Freitag die Zeilen, aus denen am
+  // Nachmittag seine Rückfahrt-Erinnerung feuern muss (und mit ihnen die
+  // Sofort-Meldungen des Tages, #163).
+  //
+  // Der Ablauf ist der echte: vormittags geschrieben, nachmittags neu
+  // geöffnet. Ein von Hand in den Korb gelegter Eintrag prüfte nur, ob das
+  // Fake filtert.
+  testWidgets('am Freitagnachmittag überlebt der Freitag im Korb', (
+    tester,
+  ) async {
+    final backend = await _backend(['Anna', 'Bert']);
+    final friday = DateTime(2026, 7, 31);
+    var now = DateTime(2026, 7, 31, 9);
+
+    await pumpApp(
+      tester,
+      backend,
+      overrides: [nowProvider.overrideWithValue(() => now)],
+    );
+    await _login(tester);
+
+    final group = backend.currentGroupId!;
+    expect(
+      (backend.outbox[group] ?? const []).where((e) => e.date == friday),
+      isNotEmpty,
+      reason:
+          'Vormittags gehört der Freitag zur Planwoche — ohne seine Zeilen '
+          'prüfte der Rest dieses Tests nichts.',
+    );
+
+    // Nachmittags neu geöffnet: `planningWeek` steht jetzt auf der kommenden
+    // Woche, der erste Schreibvorgang räumt auf.
+    now = DateTime(2026, 7, 31, 14);
+    await pumpApp(
+      tester,
+      backend,
+      overrides: [nowProvider.overrideWithValue(() => now)],
+    );
+    if (find.widgetWithText(FilledButton, 'Anmelden').evaluate().isNotEmpty) {
+      await _login(tester);
+    }
+
+    expect(
+      planningWeek(now).first,
+      DateTime(2026, 8, 3),
+      reason:
+          'Die Vorbedingung des Falls: Der Planer blickt voraus. Ohne sie '
+          'liefe der Test gegen eine Woche, die den Freitag ohnehin enthält.',
+    );
+    expect(
+      (backend.outbox[group] ?? const []).where((e) => e.date == friday),
+      isNotEmpty,
+      reason:
+          'Der Planer darf vorausblicken, der Korb darf nicht den Tag '
+          'wegwerfen, über den er noch meldet. Ohne diese Zeilen käme am '
+          'Freitag um 16:20 keine Rückfahrt-Erinnerung — und niemand merkte '
+          'es, weil ausbleibende Meldungen nichts rot machen.',
+    );
+  });
+
   // Ohne Vorwärts-Simulation stünde an beiden Tagen derselbe Name.
   testWidgets('über zwei Tage wechselt der vorgeschlagene Fahrer', (
     tester,

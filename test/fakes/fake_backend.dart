@@ -375,9 +375,21 @@ class FakePushRepository implements PushRepository {
   }
 }
 
-/// Bildet `publish_push_outbox` nach: Der Korb wird ersetzt, und was vor
-/// `keepFrom` liegt, fällt weg — sonst prüfte ein Test eine Zusage
-/// („beschränkt auf Personen × Planwoche"), die der Fake gar nicht einhält.
+/// Bildet `publish_push_outbox` nach: Was vor `keepFrom` liegt, fällt weg —
+/// sonst prüfte ein Test eine Zusage („beschränkt auf Personen × Planwoche"),
+/// die der Fake gar nicht einhält.
+///
+/// **Es wird geräumt und ergänzt, nicht ersetzt** (#177). Die echte Funktion
+/// löscht `kind='plan'` vor `keepFrom` und schreibt die Einträge dann per
+/// `on conflict do update` darüber; eine Zeile ab `keepFrom`, die in den neuen
+/// Einträgen nicht vorkommt, **überlebt**. Genau davon lebt der Freitag: Ab
+/// Freitagmittag rechnet der Client nur noch die kommende Woche, die Zeilen
+/// dieses Freitags stammen vom Vormittag und müssen stehen bleiben, bis seine
+/// Rückfahrt-Erinnerung gefallen ist.
+///
+/// Ein Fake, der stattdessen den Korb ersetzt, verliert sie in **jedem** Fall
+/// — mit und ohne Fix. Er wäre grün und bewiese nichts; genau der nachgebaute
+/// Pfad, den ein Flow-Test nicht prüfen darf.
 class FakePushOutboxRepository implements PushOutboxRepository {
   FakePushOutboxRepository(this.backend);
 
@@ -390,10 +402,29 @@ class FakePushOutboxRepository implements PushOutboxRepository {
   }) async {
     final group = backend.currentGroupId;
     if (group == null) return;
-    backend.outbox[group] = [
-      for (final entry in entries)
-        if (!entry.date.isBefore(keepFrom)) entry,
+    // Der Purge trifft wie in der Datenbank nur `plan`: Ohne den Filter nähme
+    // ein Plan-Schreib jede Fahrt-Meldung (#163) mit, bevor sie rausgeht.
+    final kept = [
+      for (final entry in backend.outbox[group] ?? const <OutboxEntry>[])
+        if (entry.kind != 'plan' || !entry.date.isBefore(keepFrom)) entry,
     ];
+    // `on conflict (group_id, person_id, plan_date, kind) do update` — und
+    // ohne Filter auf `keepFrom`, genau wie in der Datenbank: Dort läuft der
+    // Insert nach dem Delete und kennt die Grenze nicht.
+    for (final entry in entries) {
+      final at = kept.indexWhere(
+        (existing) =>
+            existing.personId == entry.personId &&
+            existing.date == entry.date &&
+            existing.kind == entry.kind,
+      );
+      if (at < 0) {
+        kept.add(entry);
+      } else {
+        kept[at] = entry;
+      }
+    }
+    backend.outbox[group] = kept;
   }
 }
 
