@@ -191,10 +191,16 @@ Future<int> _handleGroup({
   // Gruppe stündlich jede Meldung über eine ältere Fahrt weg, bevor sie
   // verschickt wird. Trip-Zeilen räumt der Versand selbst weg; der Boden
   // dafür steht unten.
+  //
+  // Die Grenze kommt aus `outboxKeepFrom` und **nicht** aus `week.first`
+  // (#177): Ab Freitagmittag steht dort der nächste Montag, und der nähme
+  // diesem Freitag die Zeilen weg, aus denen seine Rückfahrt-Erinnerung noch
+  // feuern muss. Derselbe Wert, den der Client an `publish_push_outbox`
+  // reicht.
   await api.delete('push_outbox', {
     ...scope,
     'kind': 'eq.plan',
-    'plan_date': 'lt.${_isoDay(week.first)}',
+    'plan_date': 'lt.${_isoDay(outboxKeepFrom(now))}',
   });
   await api.upsert('push_outbox', [
     for (final entry in entries) {'group_id': groupId, ...entry.toJson()},

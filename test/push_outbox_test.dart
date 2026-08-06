@@ -378,4 +378,58 @@ void main() {
       );
     });
   });
+
+  group('Was der Korb behalten muss (#177)', () {
+    // 2026-07-27 ist ein Montag, 2026-07-31 der Freitag, 2026-08-03 der
+    // Montag danach.
+    final monday = DateTime(2026, 7, 27);
+    final friday = DateTime(2026, 7, 31);
+    final nextMonday = DateTime(2026, 8, 3);
+
+    test('am Freitagnachmittag bleibt dieser Freitag stehen', () {
+      expect(
+        outboxKeepFrom(DateTime(2026, 7, 31, 14)),
+        friday,
+        reason:
+            'Ab Freitagmittag liefert `planningWeek` den nächsten Montag — '
+            'als `keep_from` genommen löschte das die Zeilen DIESES Freitags, '
+            'und die Rückfahrt-Erinnerung um 16:20 hätte nichts mehr, aus dem '
+            'sie feuern könnte. Der Planer darf vorausblicken, der Korb darf '
+            'den Tag nicht wegwerfen, über den er noch meldet.',
+      );
+      expect(
+        planningWeek(DateTime(2026, 7, 31, 14)).first,
+        nextMonday,
+        reason:
+            'Die Gegenprobe zur Regel: `planningWeek` selbst bleibt '
+            'unverändert: Der Planer soll am Freitagnachmittag die kommende '
+            'Woche zeigen. Geändert wird nur, was der Korb daraus macht.',
+      );
+    });
+
+    test('vor Freitagmittag ist es unverändert der Wochenmontag', () {
+      expect(outboxKeepFrom(DateTime(2026, 7, 31, 11, 59)), monday);
+      expect(
+        outboxKeepFrom(DateTime(2026, 7, 29, 14)),
+        monday,
+        reason:
+            'Mitten in der Woche liegt der Wochenmontag vor heute — dann '
+            'gewinnt er, sonst räumte jeder Schreibvorgang die Tage weg, die '
+            'diese Woche schon hinter uns liegen, aber noch zur Planwoche '
+            'gehören.',
+      );
+    });
+
+    test('am Samstag darf der Freitag weg', () {
+      expect(
+        outboxKeepFrom(DateTime(2026, 8, 1, 9)),
+        DateTime(2026, 8, 1),
+        reason:
+            'Die Regel ist „nie über heute hinaus", nicht „behalte den '
+            'Freitag". Am Samstag ist seine letzte Erinnerung gefallen, die '
+            'Zeile hat ihren Zweck erfüllt — bliebe sie liegen, wüchse der '
+            'Korb mit jedem Tag.',
+      );
+    });
+  });
 }

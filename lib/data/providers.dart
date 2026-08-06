@@ -709,7 +709,7 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
   unawaited(
     ref
         .read(pushOutboxRepositoryProvider)
-        .publish(entries, keepFrom: planningWeek(now).first)
+        .publish(entries, keepFrom: outboxKeepFrom(now))
         // Scheitert das Schreiben, ist das kein Fall für die Nutzerin: Sie
         // hat nichts falsch gemacht und kann nichts tun. **Ohne Fehlertext**
         // — der könnte die Nutzlast mitführen, und darin stehen Namen.
@@ -768,10 +768,7 @@ final tripPushSyncProvider = Provider<void>((ref) {
     unawaited(
       ref
           .read(pushOutboxRepositoryProvider)
-          .publish(
-            entries,
-            keepFrom: planningWeek(ref.read(nowProvider)()).first,
-          )
+          .publish(entries, keepFrom: outboxKeepFrom(ref.read(nowProvider)()))
           // **Ohne Fehlertext** — er könnte die Nutzlast mitführen, und darin
           // stehen Namen. Dieselbe Regel wie beim Einladungstext.
           .catchError((Object error) {

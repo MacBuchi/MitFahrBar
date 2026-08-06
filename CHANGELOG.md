@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.63.1] – 2026-08-06
+
+### Behoben
+
+- **Freitags kam die Erinnerung an die Rückfahrt nicht.** Ab Freitagmittag
+  stellt der Planer auf die kommende Woche um — das ist so gewollt, damit man
+  am Nachmittag schon den Montag eintragen kann. Beim Aufräumen warf die App
+  dabei aber auch den laufenden Freitag weg, und damit genau die Notiz, aus der
+  am Nachmittag die Erinnerung an die Rückfahrt kommen sollte. Sie blieb
+  deshalb aus; Meldungen darüber, dass jemand einen an diesem Freitag ein- oder
+  ausgetragen hat, ebenso.
+
+  Aufgefallen ist es erst jetzt, weil es die Erinnerung an die Abfahrt erst
+  seit v0.58.0 gibt: Der Abend-Blick und die Änderungs-Meldungen sind mit dem
+  Freitag längst durch, bevor mittags aufgeräumt wird. Vorausblicken darf der
+  Planer weiterhin — aufgeräumt wird ab jetzt nie über den heutigen Tag hinaus.
+
 ## [0.63.0] – 2026-08-06
 
 ### Neu

@@ -210,4 +210,26 @@ void main() {
       reason: 'Stattdessen schreibt er den Ausgangskorb.',
     );
   });
+
+  // #177. Dieser Job hat keinen Ausführungs-Harnisch — was er löscht, sieht
+  // man erst in Produktion. Deshalb hier am Quelltext: Die Grenze kommt aus
+  // derselben Funktion wie beim Client.
+  test('der Purge räumt nie über heute hinaus', () {
+    expect(
+      job,
+      contains('outboxKeepFrom(now)'),
+      reason:
+          'Ab Freitagmittag steht in `planningWeek(now).first` der nächste '
+          'Montag. Als Löschgrenze genommen nähme dieser Lauf dem laufenden '
+          'Freitag die Zeilen, aus denen um 16:20 seine Rückfahrt-Erinnerung '
+          'feuern muss — dieselbe Stelle, an der der Client sie verlor.',
+    );
+    expect(
+      job,
+      isNot(contains(r"'lt.${_isoDay(week.first)}'")),
+      reason:
+          'Die alte Grenze. Sie steht dem Fix nicht im Weg, sie IST der '
+          'Fehler — beide Schreiber räumen denselben Korb.',
+    );
+  });
 }
