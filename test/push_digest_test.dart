@@ -479,7 +479,11 @@ void main() {
       expect(composeGroupBody(dayWith(), persons), isNot(contains('u fährst')));
     });
 
-    test('zählt über alle Autos zusammen, nicht je Auto', () {
+    // **Revidiert mit #189** (vorher: „zählt über alle Autos zusammen, nicht
+    // je Auto"). Der alte Satz warf die Mitfahrer beider Autos in einen Topf
+    // und beantwortete damit die Frage nicht, die man vor der Abfahrt
+    // wirklich hat: mit wem fahre ich. Gemeldet als Wunsch am 07.08.
+    test('zählt ab zwei Autos je Auto auf', () {
       final day = dayWith(
         cars: const [
           PlannedCar(driverId: anna, fullIds: [bernd]),
@@ -488,7 +492,60 @@ void main() {
       );
       expect(
         composeGroupBody(day, persons),
-        'Anna und Clara fahren · dabei: Bernd · 2 Autos',
+        'Auto 1: Anna mit Bernd · Auto 2: Clara allein',
+      );
+    });
+
+    test('bei EINEM Auto bleibt es beim Satz ohne Nummer', () {
+      expect(
+        composeGroupBody(dayWith(), persons),
+        'Anna fährt · dabei: Bernd, Clara',
+        reason:
+            'Dieselbe Grenze wie bei den Auto-Marken im Raster: Bei einem '
+            'Auto sitzen ohnehin alle darin, „Auto 1:" wäre eine '
+            'Unterscheidung ohne Unterschied.',
+      );
+    });
+
+    test('die Abweichung steht an ihrem Auto, nicht am Tag', () {
+      final day = dayWith(
+        cars: const [
+          PlannedCar(driverId: anna, fullIds: [bernd]),
+          PlannedCar(driverId: clara),
+        ],
+      );
+      expect(
+        composeGroupBody(
+          day,
+          persons,
+          carDefaults: const {
+            clara: GroupDefaults(outboundTime: DayTime(6, 45)),
+          },
+        ),
+        'Auto 1: Anna mit Bernd · Auto 2: Clara allein (hin 06:45)',
+        reason:
+            'Eine Aufzählung je Auto, die für eines davon die falsche Zeit '
+            'behauptet, wäre der Fehler aus v0.66.1 an neuer Stelle.',
+      );
+    });
+
+    test('ein Auto ohne eigene Zeit bekommt keinen Zusatz', () {
+      final day = dayWith(
+        cars: const [
+          PlannedCar(driverId: anna, fullIds: [bernd]),
+          PlannedCar(driverId: clara),
+        ],
+      );
+      expect(
+        composeGroupBody(
+          day,
+          persons,
+          carDefaults: const {anna: GroupDefaults()},
+        ),
+        'Auto 1: Anna mit Bernd · Auto 2: Clara allein',
+        reason:
+            'Eine leere Zeile ist keine Abweichung — sonst stünde ein '
+            'leeres Klammerpaar da.',
       );
     });
 

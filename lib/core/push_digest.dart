@@ -578,6 +578,7 @@ String composeGroupBody(
   Map<String, Person> persons, {
   List<PlanNote> notes = const [],
   GroupDefaults defaults = const GroupDefaults(),
+  Map<String, GroupDefaults> carDefaults = const {},
 }) {
   final parts = <String>[];
 
@@ -591,10 +592,8 @@ String composeGroupBody(
           : 'Kein Fahrer',
     );
     parts.add('${day.availableIds.length} dabei');
-  } else {
+  } else if (day.cars.length == 1) {
     parts.add(_driverPhrase(day.driverIds, persons));
-    // Alle Anwesenden außer den Fahrern — bei mehreren Autos ist „dabei" die
-    // Gruppe des Tages, nicht die eines Autos.
     final riders = day.availableIds
         .where((id) => !day.driverIds.contains(id))
         .toList();
@@ -603,9 +602,35 @@ String composeGroupBody(
           ? 'niemand mitzunehmen'
           : 'dabei: ${_names(riders, persons)}',
     );
+  } else {
+    // **Ab zwei Autos wird je Auto aufgezählt** (#189). Vorher stand hier
+    // „A und B fahren · dabei: C, D, E · 2 Autos" — die Frage, die man vor
+    // der Abfahrt wirklich hat, ist aber „mit wem fahre ich", und die
+    // beantwortete der Satz nicht: Er warf die Mitfahrer beider Autos in
+    // einen Topf.
+    //
+    // Die Grenze ist dieselbe wie bei den Auto-Marken im Raster: **erst ab
+    // zwei.** Bei einem sitzen ohnehin alle darin, und „Auto 1:" davor wäre
+    // eine Unterscheidung ohne Unterschied.
+    //
+    // Das „N Autos" am Ende entfällt damit — wer „Auto 1" und „Auto 2"
+    // liest, hat sie gezählt.
+    for (final (i, car) in day.cars.indexed) {
+      final riders = [...car.fullIds, ...car.oneWayIds];
+      final who = riders.isEmpty
+          ? '${_name(car.driverId, persons)} allein'
+          : '${_name(car.driverId, persons)} mit ${_names(riders, persons)}';
+      // Die Abweichung DIESES Autos dahinter (#183/#189). Ohne sie wäre die
+      // Aufzählung die Rückkehr des Fehlers aus v0.66.1 an anderer Stelle:
+      // Eine Zeile je Auto, die für eines davon die falsche Zeit behauptet.
+      // Verwaiste Zeilen kommen hier nicht vor — `day.cars` trägt nur, wer
+      // wirklich fährt.
+      final dev = carDefaults[car.driverId];
+      final hint = dev == null || dev.isEmpty ? '' : ' (${_devText(dev)})';
+      parts.add('Auto ${i + 1}: $who$hint');
+    }
   }
 
-  if (day.cars.length > 1) parts.add('${day.cars.length} Autos');
   parts.addAll(_defaultPhrases(defaults));
   final note = _notePhrase(day, persons, notes);
   if (note != null) parts.add(note);
@@ -622,6 +647,17 @@ String composeGroupBody(
 /// Ein nicht gepflegter Wert erzeugt **kein** Wort — kein „Abfahrt —", kein
 /// „Treffpunkt unbekannt". Wer die Felder nie ausfüllt, merkt von der ganzen
 /// Sache nichts.
+/// Eine Abweichung als Satzteil — `hin 06:45, zurück 16:20, Werkstor`.
+///
+/// **Wortgleich mit der Tageszeile des Planers** (`plan_screen.dart`): Beide
+/// beschreiben dieselbe Zeile in `plan_car_defaults`, und zwei Wortlaute für
+/// dieselbe Sache liest man als zwei verschiedene Sachen.
+String _devText(GroupDefaults d) => [
+  if (d.outboundTime case final time?) 'hin ${time.format()}',
+  if (d.returnTime case final time?) 'zurück ${time.format()}',
+  ?d.meetingPoint,
+].join(', ');
+
 List<String> _defaultPhrases(GroupDefaults defaults) => [
   if (defaults.outboundTime case final time?) 'Abfahrt ${time.format()}',
   if (defaults.returnTime case final time?) 'Rückfahrt ${time.format()}',

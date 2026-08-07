@@ -131,6 +131,46 @@ void main() {
       );
     });
 
+    // #189: Ab zwei Autos zählt der Streifen sie einzeln auf — mit ihren
+    // Mitfahrern und ihrer eigenen Zeit. Für diesen Fall gab es bis hierher
+    // gar keinen Test durch die App; gemessen wurde nur der Ein-Auto-Fall.
+    testWidgets('zwei Autos stehen einzeln, jedes mit seiner Zeit', (
+      tester,
+    ) async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      // Vier Personen à zwei Sitzen ergeben zwei Autos (Issue #62).
+      final ids = <String, String>{};
+      for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true, seats: 2),
+        );
+        ids[name] = person.id;
+        await data.setAvailability(testToday, person.id, PlanRide.full);
+      }
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      expect(
+        find.textContaining('Auto 1: '),
+        findsOneWidget,
+        reason:
+            'Die Frage vor der Abfahrt ist „mit wem fahre ich" — ein Topf '
+            'aus den Mitfahrern beider Autos beantwortet sie nicht.',
+      );
+      expect(find.textContaining('Auto 2: '), findsOneWidget);
+      expect(
+        find.textContaining('2 Autos'),
+        findsNothing,
+        reason: 'Wer „Auto 1" und „Auto 2" liest, hat sie gezählt.',
+      );
+    });
+
     // #139: Die festen Vorgaben stehen im selben Streifen — was das Handy
     // meldet und was die Übersicht zeigt, kommt aus derselben Funktion.
     testWidgets('nennt Abfahrt und Treffpunkt, wenn sie gepflegt sind', (
@@ -305,10 +345,61 @@ void main() {
         badge.backgroundColor,
         AppAccents.notesChip,
         reason:
-            'Der Akzent sitzt allein auf dem Zähler, der seine eigene '
-            'Fläche mitbringt. Frei auf dem Verlauf wäre Magenta unlesbar '
-            '(1,61:1 auf dem hellen Teal) — das Design-Set nennt die Regel '
-            '„nie zwei Akzente im selben Banner".',
+            'Der Zähler bringt seine eigene Fläche mit — frei auf dem hellen '
+            'Teal wäre Magenta mit 1,61:1 unlesbar. Deshalb sitzt der Knopf '
+            'am dunklen Ende des Verlaufs.',
+      );
+    });
+
+    // #189: „bei Kommentaren auch Chatsymbol in gleicher Farbe". Die Blase
+    // hat keine eigene Fläche, sie liegt frei auf dem Verlauf — deshalb gilt
+    // das nur am dunklen Ende, und deshalb misst der Kontrast-Test es mit.
+    testWidgets('die Sprechblase wird magenta, sobald es Anmerkungen gibt', (
+      tester,
+    ) async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final anna = await data.createPerson(
+        const Person(id: '', name: 'Anna', active: true),
+      );
+      await data.setAvailability(testToday, anna.id, PlanRide.full);
+      await data.addNote(testToday, anna.id, 'Komme erst um 9');
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      Icon bubble() => tester.widget<Icon>(
+        find
+            .descendant(of: find.byType(Badge), matching: find.byType(Icon))
+            .first,
+      );
+      expect(bubble().color, AppAccents.notesChip);
+      expect(
+        bubble().icon,
+        Icons.chat_bubble_rounded,
+        reason: 'Gefüllt, sobald etwas drinsteht — Farbe UND Form.',
+      );
+    });
+
+    testWidgets('ohne Anmerkung bleibt die Sprechblase weiß', (tester) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      final bubble = tester.widget<Icon>(
+        find
+            .descendant(of: find.byType(Badge), matching: find.byType(Icon))
+            .first,
+      );
+      expect(
+        bubble.color,
+        AppBannerTones.nextRide(Brightness.light).foreground,
+        reason:
+            'Die andere Richtung: Ein Akzent ohne Anmerkung zeigte auf '
+            'nichts. Rot verifiziert.',
       );
     });
 

@@ -259,8 +259,26 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       Zeile, deren Fahrer nicht fährt, erscheint nicht: Sie wirkt auch
       nicht, und sie zu zeigen wäre der gemeldete Fehler mit umgekehrtem
       Vorzeichen. Das Banner löst bei EINEM Auto dessen Abweichung mit auf;
-      bei mehreren nennt es bewusst die Tageszeit — zwei Abfahrtszeiten in
-      einer Banner-Zeile wären eine eigene Design-Entscheidung.
+      bei mehreren nennt es die Tageszeit — zwei Abfahrtszeiten in EINER
+      Banner-Zeile wären eine eigene Design-Entscheidung.
+      - **Seit v0.66.3 sind es aber mehrere Zeilen** (#189): Ab zwei Autos
+        zählt `composeGroupBody` sie einzeln auf („Auto 2: Dora mit Emil
+        (hin 06:45)"), jedes mit seinen Mitfahrern und seiner eigenen
+        Abweichung. Damit ist die offene Design-Entscheidung beantwortet,
+        ohne die Regel zu brechen: Eine Zeile trägt weiter genau eine Zeit.
+        Ohne die Abweichung am Auto wäre die Aufzählung der Fehler aus
+        v0.66.1 an neuer Stelle — eine Zeile je Auto, die für eines davon
+        die falsche Zeit behauptet.
+      - **Erst ab zwei**, wie bei den Auto-Marken im Raster: Bei einem Auto
+        sitzen ohnehin alle darin, „Auto 1:" wäre eine Unterscheidung ohne
+        Unterschied. Das „N Autos" am Ende entfällt dafür — wer „Auto 1"
+        und „Auto 2" liest, hat sie gezählt.
+      - **`composeGroupBody` speist nur das Banner**, nicht den Push
+        (das ist `composeBody`) und nie den Digest — der Wortlaut darf sich
+        hier also ändern, ohne dass jemand eine „Änderung"-Meldung bekommt.
+        Der Wortlaut der Abweichung ist trotzdem **derselbe** wie in der
+        Tageszeile des Planers (`hin 06:45, zurück 16:20, Ort`): zwei
+        Wortlaute für dieselbe Zeile liest man als zwei verschiedene Sachen.
     - **Der Pin ist an der Ablage zu prüfen, nicht am Etikett:** Wer genau
       die vorgeschlagenen Fahrer festschreibt (der Normalfall beim
       Zeit-Setzen), sieht weiter „Vorschlag" — `isOverridden` vergleicht
@@ -395,6 +413,23 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     selbst („nie zwei Akzente im selben Banner") und ist genau daran zu
     spiegeln, nicht zu befolgen. Ebenso entfällt sein heller Endpunkt
     `#22D3EE`: Weiß darauf trägt 1,81:1.
+    - **Seit v0.66.3 trägt auch die Sprechblase den Akzent — aber nur mit
+      Anmerkung** (#189, entschieden am 07.08.: „Ort und Zeitänderung sind
+      Anmerkungen", Chatsymbol in derselben Farbe). Es sind keine zwei
+      Akzente: Chip und Blase sagen dieselbe Sache. Leer bleibt sie weiß,
+      ein Akzent ohne Anmerkung zeigte auf nichts.
+    - **Die Blase hat keine eigene Fläche** — anders als der Chip liegt sie
+      frei auf dem Verlauf, und das ist genau die Rechnung, an der Magenta
+      hier zweimal gescheitert ist. Sie geht nur am dunklen Ende auf
+      (4,06:1 gegen 1,61:1 am hellen). Deshalb steht der Knopf rechts;
+      `banner_contrast_test.dart` misst **beide** Enden, das helle
+      ausdrücklich als Beleg für die Anordnung.
+    - **Im Untertitel geht Magenta deshalb NICHT**, und das ist der Grund,
+      warum die Abweichungen dort weiter in der normalen Schrift stehen:
+      Der Text läuft über die ganze Breite, also auch über das helle Ende.
+      Wer sie hervorheben will, braucht einen Chip mit eigener Fläche —
+      farbige Schrift ist dort keine Option, sie sähe im Bild gut aus und
+      wäre auf halber Strecke unlesbar.
   - **Jedes Paar wird gemessen, nicht geschätzt** —
     `test/banner_contrast_test.dart`, WCAG 4,5:1 für Text und 3,0:1 für
     Grafik. Bei einem Verlauf **jeder Stopp**, nie ein Mittelwert; genau
