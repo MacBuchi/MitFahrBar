@@ -6,6 +6,8 @@ import 'dart:async';
 import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
+import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
 import 'package:mitfahrbar/models/trip.dart';
@@ -132,6 +134,51 @@ Future<void> _pick(
   );
   await tester.pumpAndSettle();
 }
+
+/// Tippt „Ich möchte fahren" im Zell-Menü von [person] an [day].
+///
+/// Öffnet das Menü unabhängig vom Zustand der Zelle: Eine leere eigene
+/// Zelle trägt beim ersten Tap nur ein — dann noch einmal.
+Future<void> _wantToDrive(
+  WidgetTester tester,
+  String person,
+  DateTime day,
+) async {
+  await tester.tap(_cell(person, day));
+  await tester.pumpAndSettle();
+  if (find.byType(AlertDialog).evaluate().isEmpty) {
+    await tester.tap(_cell(person, day));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(
+    find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(ListTile, 'Ich möchte fahren'),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Öffnet „Zeiten & Treffpunkt" aus dem Zell-Menü von [person].
+Future<void> _openTimes(
+  WidgetTester tester,
+  String person,
+  DateTime day,
+) async {
+  await tester.tap(_cell(person, day));
+  await tester.pumpAndSettle();
+  if (find.widgetWithText(ListTile, 'Zeiten & Treffpunkt').evaluate().isEmpty) {
+    await tester.tap(_cell(person, day));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.widgetWithText(ListTile, 'Zeiten & Treffpunkt'));
+  await tester.pumpAndSettle();
+}
+
+/// Wer von [names] an [day] im Zustand [state] steht — für Aufbauten, in
+/// denen der Vorschlag zwischen punktgleichen Personen nicht festliegt.
+String _personIn(String state, DateTime day, List<String> names) => names
+    .firstWhere((name) => _cell(name, day, state: state).evaluate().isNotEmpty);
 
 void main() {
   testWidgets('der Planer zeigt Montag bis Freitag und alle Personen', (
@@ -1333,6 +1380,432 @@ void main() {
             'Wer die Startabfrage überspringt, sieht das Raster wie vor dem '
             'Release — dieselbe Regel wie beim Durchschalten.',
       );
+    });
+  });
+
+  // „Ich möchte fahren" (#183) — die volle Matrix aus Zustand der Person
+  // (leer / dabei / 1-way) × Zustand des Tages (Vorschlag / von Hand
+  // gesetzt). Der erste Fall ist der gemeldete Fehler vom 07.08.: Der Pin
+  // allein verfiel in `planWeek` als tote Auswahl, und sichtbar geschah
+  // nichts. Seitdem gilt: Wer fahren will, wird zuerst eingetragen — und
+  // ein Vorschlag wird ersetzt, eine Menschenentscheidung bekommt
+  // Gesellschaft.
+  group('Ich möchte fahren', () {
+    testWidgets('leere fremde Zelle: trägt ein UND pinnt (der Repro-Fall)', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final gid = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final ids = <String, String>{};
+      for (final name in ['Anna', 'Bert']) {
+        final person = await backend
+            .dataFor(gid)
+            .createPerson(Person(id: '', name: name, active: true));
+        ids[name] = person.id;
+      }
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      // Anna trägt sich ein — sie ist damit die Vorgeschlagene.
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      // Berts LEERE Zelle: fremde Zeile, das Menü geht sofort auf.
+      await _wantToDrive(tester, 'Bert', monday);
+
+      expect(
+        _cell('Bert', monday, state: 'fährt'),
+        findsOneWidget,
+        reason:
+            'Der Pin allein verfiele als tote Auswahl — „Ich möchte fahren" '
+            'muss Bert zuerst eintragen, sonst passiert sichtbar nichts.',
+      );
+      expect(
+        find.textContaining('Bert fährt · von Hand gesetzt'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('auf einem Vorschlags-Tag wird ERSETZT — ein Auto', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert']) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      // Wer der Vorschlag ist, liegt bei Punktgleichheit nicht fest — der
+      // Test nimmt, wen es getroffen hat, und lässt den ANDEREN wollen.
+      final passenger = _personIn('dabei', monday, ['Anna', 'Bert']);
+      await _wantToDrive(tester, passenger, monday);
+
+      expect(
+        find.textContaining('$passenger fährt · von Hand gesetzt'),
+        findsOneWidget,
+        reason: '„Ich möchte fahren" auf einem Vorschlag heißt: statt dessen.',
+      );
+      expect(
+        find.textContaining('2 Autos'),
+        findsNothing,
+        reason:
+            'Aus dem Ersetzen eines Vorschlags darf kein zweites Auto '
+            'entstehen — das wäre die falsche Hälfte der Regel.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('zwei Freiwillige sind zwei Autos, niemand wird entpinnt', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert']) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      final passenger = _personIn('dabei', monday, ['Anna', 'Bert']);
+      final suggested = passenger == 'Anna' ? 'Bert' : 'Anna';
+      // Erst pinnt sich der Nicht-Vorgeschlagene …
+      await _wantToDrive(tester, passenger, monday);
+      // … dann will der andere AUCH fahren: Gesellschaft, kein Ersetzen.
+      await _wantToDrive(tester, suggested, monday);
+
+      expect(
+        find.textContaining('fahren · 2 Autos · von Hand gesetzt'),
+        findsOneWidget,
+        reason:
+            'Eine Menschenentscheidung löscht nie still eine andere — der '
+            'zweite Freiwillige ist das zweite Auto (und bei nur zwei '
+            'Leuten ehrlich: zwei Solo-Autos, kein Mitfahrer, zählt nichts).',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('aus 1-way wird volle Fahrt plus Fahrer', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await _pick(tester, 'Bert', monday, 'nur eine Richtung');
+      expect(find.textContaining('Anna fährt'), findsOneWidget);
+
+      await _wantToDrive(tester, 'Bert', monday);
+
+      expect(
+        _cell('Bert', monday, state: 'fährt'),
+        findsOneWidget,
+        reason:
+            '1-way schließt Fahren aus — der Pin allein verfiele. Fahren '
+            'wollen heißt: beide Richtungen, also volle Fahrt.',
+      );
+      expect(
+        find.textContaining('Bert fährt · von Hand gesetzt'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('leer auf einem GESETZTEN Tag: eintragen + zweites Auto', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert', 'Clara']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert']) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      final passenger = _personIn('dabei', monday, ['Anna', 'Bert']);
+      await _wantToDrive(tester, passenger, monday);
+      // Clara ist noch leer und will auf dem gesetzten Tag fahren.
+      await _wantToDrive(tester, 'Clara', monday);
+
+      expect(_cell('Clara', monday, state: 'fährt, Auto [12]'), findsOneWidget);
+      expect(find.textContaining('2 Autos · von Hand gesetzt'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('1-way auf einem GESETZTEN Tag: volle Fahrt + zweites Auto', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert', 'Clara']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert']) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      final passenger = _personIn('dabei', monday, ['Anna', 'Bert']);
+      await _wantToDrive(tester, passenger, monday);
+      await _pick(tester, 'Clara', monday, 'nur eine Richtung');
+      await _wantToDrive(tester, 'Clara', monday);
+
+      expect(_cell('Clara', monday, state: 'fährt, Auto [12]'), findsOneWidget);
+      expect(find.textContaining('2 Autos · von Hand gesetzt'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('beim aktuellen Fahrer erscheint der Eintrag nicht', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      // Anna ist als Einzige verfügbar und damit die Fahrerin — ihr Menü:
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.widgetWithText(ListTile, 'Ich möchte fahren'),
+        findsNothing,
+        reason: 'Wer schon fährt, hat keinen Grund, es zu wollen.',
+      );
+      handle.dispose();
+    });
+  });
+
+  // Sichtbarkeit der Abweichungen (#183) — der zweite gemeldete Fehler vom
+  // 07.08.: Eine gespeicherte Auto-Zeit war NIRGENDS zu sehen; der Push
+  // hätte zur neuen Zeit geweckt, aber kein Schirm sagte es.
+  group('Abweichungen sichtbar', () {
+    testWidgets('eine Tages-Abweichung steht an der Tageszeile', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await _openTimes(tester, 'Anna', monday);
+      // Ein Auto: kein Umschalter, der Schirm bearbeitet den Tag.
+      expect(find.text('Ganzer Tag'), findsNothing);
+      await tester.tap(find.widgetWithText(ListTile, 'Abfahrt hin'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Speichern'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('hin 07:30'),
+        findsOneWidget,
+        reason: 'Die Abweichung muss an der Tageszeile stehen — im Text.',
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('Abweichende Zeiten')),
+        findsOneWidget,
+        reason: '… und als Uhr am Datum.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('eine Auto-Abweichung: Tageszeile, Fahrer-Glyph und Pin', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = await _seatBackend({
+        'Anna': 2,
+        'Bert': 2,
+        'Clara': 2,
+        'Dora': 2,
+      });
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      final names = ['Anna', 'Bert', 'Clara', 'Dora'];
+      for (final name in names) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      final driver = _personIn('fährt, Auto [12]', monday, names);
+      await _openTimes(tester, driver, monday);
+      // Zwei Autos: Umschalter da, das eigene Auto ist vorgewählt.
+      expect(find.text('Ganzer Tag'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ListTile, 'Abfahrt hin'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Speichern'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('hin 07:30'),
+        findsOneWidget,
+        reason:
+            'Die Auto-Abweichung gehört an die Tageszeile („Auto N: …") — '
+            'genau das fehlte im gemeldeten Fall.',
+      );
+      expect(
+        _cell(driver, monday, state: 'fährt, Auto [12], andere Zeiten'),
+        findsOneWidget,
+        reason:
+            'Und ans Raster: das Uhr-Glyph am Fahrer, dessen Auto abweicht — '
+            'auch für den Screenreader.',
+      );
+      // Der Pin: Die Zeile in `plan_overrides` muss stehen. Sichtbar wird
+      // „von Hand gesetzt" erst, wenn der Vorschlag kippen WÜRDE — die
+      // festgeschriebene Menge ist ja gerade die vorgeschlagene. Genau
+      // dafür ist der Pin da; geprüft wird deshalb die Ablage, nicht das
+      // Etikett.
+      final plan = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadPlan(monday, days: 1);
+      expect(
+        plan.overrides[monday],
+        isNotEmpty,
+        reason:
+            'Die Zeit zu setzen schreibt die Fahrer des Tages fest — sonst '
+            'hinge sie morgen an einem anderen Auto, sobald jemand seine '
+            'Verfügbarkeit ändert.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('nur der Treffpunkt: Marker statt Uhr', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await _openTimes(tester, 'Anna', monday);
+      await tester.enterText(find.byType(TextField), 'Werkstor');
+      await tester.tap(find.widgetWithText(FilledButton, 'Speichern'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Werkstor'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Abweichender Treffpunkt')),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('Abweichende Zeiten')),
+        findsNothing,
+        reason: 'Ohne abweichende Zeit wäre die Uhr eine falsche Aussage.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Auto-Treffpunkt: Marker-Glyph am Fahrer', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(
+        tester,
+        await _seatBackend({'Anna': 2, 'Bert': 2, 'Clara': 2, 'Dora': 2}),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      final names = ['Anna', 'Bert', 'Clara', 'Dora'];
+      for (final name in names) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      final driver = _personIn('fährt, Auto [12]', monday, names);
+      await _openTimes(tester, driver, monday);
+      await tester.enterText(find.byType(TextField), 'Werkstor');
+      await tester.tap(find.widgetWithText(FilledButton, 'Speichern'));
+      await tester.pumpAndSettle();
+
+      expect(
+        _cell(driver, monday, state: 'fährt, Auto [12], anderer Treffpunkt'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Werkstor'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('eine verwaiste Auto-Zeile ist unsichtbar', (tester) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final gid = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(gid);
+      final ids = <String, String>{};
+      for (final name in ['Anna', 'Bert', 'Clara']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true),
+        );
+        ids[name] = person.id;
+      }
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert']) {
+        await data.setAvailability(monday, ids[name]!, PlanRide.full);
+      }
+      // Claras Zeile ist übrig geblieben — sie fährt an dem Tag nicht.
+      await data.saveCarDefaults(
+        monday,
+        ids['Clara']!,
+        const GroupDefaults(outboundTime: DayTime(5, 0)),
+      );
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      expect(
+        find.textContaining('05:00'),
+        findsNothing,
+        reason:
+            'Die Zeile wirkt beim Auflösen nicht — sie anzuzeigen hieße, '
+            'eine Zeit zu behaupten, zu der niemand geweckt wird. Der '
+            'gemeldete Fehler mit umgekehrtem Vorzeichen.',
+      );
+      expect(find.bySemanticsLabel(RegExp('Abweichende Zeiten')), findsNothing);
+      expect(
+        find.bySemanticsLabel(RegExp('andere Zeiten')),
+        findsNothing,
+        reason:
+            'Auch kein Glyph an irgendeiner Zelle — die Tageszeile und das '
+            'Raster sind zwei Anzeigen, und beide müssen die verwaiste '
+            'Zeile ignorieren.',
+      );
+      handle.dispose();
     });
   });
 }

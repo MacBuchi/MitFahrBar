@@ -254,6 +254,23 @@ class _AvailabilityGrid extends ConsumerWidget {
     }
   }
 
+  /// Die Abweichung, die an der Zelle von [personId] erscheint (#183):
+  /// die seines Autos, und **nur am Fahrer**.
+  ///
+  /// Nicht am Mitfahrer — der sähe ein Glyph, das er nicht gesetzt hat und
+  /// über das Menü seiner Zelle auch nicht erreicht (der Schirm bearbeitet
+  /// dort SEIN Auto, also dasselbe, aber die Marke gehört zur Quelle). Und
+  /// nicht für Verwaiste: Wer nicht fährt, dessen Zeile wirkt nicht.
+  GroupDefaults? _cellDeviation(
+    Map<DateTime, Map<String, GroupDefaults>> byDay,
+    PlannedDay day,
+    String personId,
+  ) {
+    if (!day.driverIds.contains(personId)) return null;
+    final dev = byDay[day.date]?[personId];
+    return dev == null || dev.isEmpty ? null : dev;
+  }
+
   /// In welchem Auto [personId] an [day] sitzt, 1-basiert — oder `null`.
   ///
   /// **Erst ab zwei Autos.** Bei einem sitzen alle darin; eine Marke daran
@@ -328,12 +345,30 @@ class _AvailabilityGrid extends ConsumerWidget {
           );
         }
       case _WantToDrive():
-        // Dieselbe Bedeutung wie „Fahrer ändern" am Tag: Eine gültige Menge
-        // ersetzt den Vorschlag **komplett** und ohne Sitzprüfung — eine
-        // Menschenentscheidung. Reichen die Plätze nicht, sagt das der
-        // Hinweis am Tag, wie bei jedem anderen Übersteuern auch.
         try {
+          // **Wer fahren will, ist dabei — beide Richtungen.** Ohne diesen
+          // Schritt verfällt der Pin in `planWeek` als tote Auswahl (das
+          // Übersteuern wirkt nur auf Verfügbare, 1-way schließt Fahren
+          // aus), und sichtbar passiert gar nichts — der gemeldete Fall
+          // vom 07.08.: leere Zelle, „Ich möchte fahren", nichts.
+          if (!day.availableIds.contains(person.id) ||
+              day.oneWayIds.contains(person.id)) {
+            await ref
+                .read(weekPlanProvider.notifier)
+                .setRide(day.date, person.id, PlanRide.full);
+          }
+          // **Ein Vorschlag wird ersetzt, eine Menschenentscheidung bekommt
+          // Gesellschaft.** Steht der Tag auf Vorschlag, heißt der Tipp „ich
+          // fahre statt dessen" — ein Auto. Ist er von Hand gesetzt, käme
+          // ein Ersetzen einer stillen Löschung fremder Entscheidungen
+          // gleich (Reise nach Jerusalem beim zweiten Freiwilligen);
+          // stattdessen entsteht das zweite Auto — der Fall, für den es
+          // die Zeiten je Auto gibt. Ohne Sitzprüfung wie jedes
+          // Übersteuern; reichen die Plätze nicht, sagt es der Hinweis am
+          // Tag. Zwei Solo-Fahrer sind dann ehrlich zwei Autos ohne
+          // Mitfahrer — und zählen nichts (#61).
           await ref.read(weekPlanProvider.notifier).setDrivers(day.date, {
+            if (day.isOverridden) ...day.driverIds,
             person.id,
           });
         } catch (_) {
@@ -418,6 +453,10 @@ class _AvailabilityGrid extends ConsumerWidget {
     // im Minus steht, ist als Nächstes dran (zugesagt in Issue #38).
     final stats = ref.watch(statsProvider).value;
     final pointsFormat = NumberFormat('#,##0.#', 'de');
+    // Die Auto-Abweichungen der Woche (#183) — fürs Glyph am Fahrer.
+    final carDeviations =
+        ref.watch(weekCarDefaultsProvider).value ??
+        const <DateTime, Map<String, GroupDefaults>>{};
     // Wer an diesem Gerät sitzt (#121) — `null`, solange niemand gewählt ist.
     final me = ref.watch(myPersonProvider);
     return Card(
@@ -550,6 +589,16 @@ class _AvailabilityGrid extends ConsumerWidget {
                           // jeder Fahrer bekommt sein Auto-Symbol.
                           isDriver: day.driverIds.contains(person.id),
                           carNumber: _carNumberOf(day, person.id),
+                          // Die Abweichung des eigenen Autos, NUR am Fahrer
+                          // (#183): Sein Glyph war der ursprüngliche Wunsch —
+                          // „auf den ersten Blick sehen". Tages-Abweichungen
+                          // stehen an der Tageszeile; an jeder Zelle wären
+                          // sie Rauschen, sie gelten ja allen.
+                          deviation: _cellDeviation(
+                            carDeviations,
+                            day,
+                            person.id,
+                          ),
                           // Bereits eingetragene Tage sind Geschichte, keine
                           // Planung mehr.
                           enabled: !day.confirmed,
@@ -923,6 +972,7 @@ class _Cell extends StatelessWidget {
     required this.enabled,
     required this.onTap,
     this.carNumber,
+    this.deviation,
   });
 
   final String label;
@@ -939,6 +989,10 @@ class _Cell extends StatelessWidget {
   /// die das ohnehin dichte Raster verstellt.
   final int? carNumber;
 
+  /// Die Abweichung des eigenen Autos — nur am Fahrer gesetzt (#183).
+  /// `null` heißt: nichts zu zeigen.
+  final GroupDefaults? deviation;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -954,9 +1008,32 @@ class _Cell extends StatelessWidget {
       (_, true, false) => (Icons.check_circle, scheme.primary, 'dabei'),
       _ => (Icons.circle_outlined, scheme.outlineVariant, 'kann nicht'),
     };
-    // Die Nummer gehört in die Vorlesung: „Anna, Mo, fährt" sagt nicht, mit
-    // wem — und genau das ist die Frage, für die es die Marke gibt.
-    final spoken = carNumber == null ? state : '$state, Auto $carNumber';
+    // Uhr, sobald eine Zeit abweicht; nur der Treffpunkt → Marker. Dieselbe
+    // Regel wie am Tages-Titel, ein Glyph-Platz statt zweier.
+    final dev = deviation;
+    final devTime =
+        dev != null && (dev.outboundTime != null || dev.returnTime != null);
+    final devIcon = dev == null
+        ? null
+        : devTime
+        ? Icons.schedule
+        : Icons.place_outlined;
+    // Alles gehört in die Vorlesung: „Anna, Mo, fährt" sagt weder, mit wem,
+    // noch dass ihr Auto abweicht — und genau dafür gibt es die Marken.
+    final spoken = [
+      state,
+      if (carNumber case final n?) 'Auto $n',
+      if (devIcon != null) devTime ? 'andere Zeiten' : 'anderer Treffpunkt',
+    ].join(', ');
+    // Das Glyph erbt die Farbe seines Autos; bei einem Auto (keine Nummer)
+    // bleibt es neutral — dort gibt es nichts zu unterscheiden.
+    final devColor = carNumber == null
+        ? scheme.onSurfaceVariant
+        : AppCarTones.byIndex(
+                carNumber! - 1,
+                Theme.of(context).brightness,
+              )?.surface ??
+              scheme.onSurfaceVariant;
     return Semantics(
       label: enabled
           ? '$label, $spoken'
@@ -973,17 +1050,26 @@ class _Cell extends StatelessWidget {
           child: Opacity(
             opacity: enabled ? 1 : 0.38,
             child: Center(
-              child: carNumber == null
+              child: carNumber == null && devIcon == null
                   ? Icon(icon, size: 20, color: color)
                   : Stack(
                       clipBehavior: Clip.none,
                       children: [
                         Icon(icon, size: 20, color: color),
-                        Positioned(
-                          right: -6,
-                          bottom: -4,
-                          child: _CarBadge(number: carNumber!),
-                        ),
+                        if (carNumber case final n?)
+                          Positioned(
+                            right: -6,
+                            bottom: -4,
+                            child: _CarBadge(number: n),
+                          ),
+                        if (devIcon != null)
+                          Positioned(
+                            right: -7,
+                            top: -5,
+                            child: ExcludeSemantics(
+                              child: Icon(devIcon, size: 11, color: devColor),
+                            ),
+                          ),
                       ],
                     ),
             ),
@@ -1290,19 +1376,53 @@ class _DayRow extends ConsumerWidget {
     final notes = _notesHint(
       ref.watch(weekNotesProvider).value?[day.date]?.length ?? 0,
     );
-    // Die Abweichung dieses Tages (#183) — im Text UND als Symbol. Ein Symbol
+    // Was an diesem Tag abweicht (#183) — im Text UND als Symbol. Ein Symbol
     // allein sagte „hier ist etwas anders", ohne zu sagen was; ein Text ohne
-    // Symbol fiele im Raster nicht auf. Die Farbe bleibt neutral: Die
-    // Auto-Farben kommen erst mit der zweiten Stufe, und zwei Akzente in
-    // derselben Zeile sind einer zu viel.
-    final deviation = ref.watch(weekPlanDefaultsProvider).value?[day.date];
-    final deviationHint = deviation == null
-        ? ''
-        : [
-            if (deviation.outboundTime case final t?) 'hin ${t.format()}',
-            if (deviation.returnTime case final t?) 'zurück ${t.format()}',
-            ?deviation.meetingPoint,
-          ].join(', ');
+    // Symbol fiele im Raster nicht auf.
+    //
+    // Angezeigt wird das **Wirksame**, nicht die Ablage: Bei einem Auto ist
+    // dessen Abweichung praktisch die des Tages und erscheint ohne
+    // „Auto 1:"-Präfix; bei mehreren steht die Tageszeit vorn und jedes
+    // abweichende Auto dahinter. **Verwaiste Auto-Zeilen erscheinen nicht**
+    // — sie wirken beim Auflösen nicht, und eine Zeit anzuzeigen, zu der
+    // niemand geweckt wird, wäre die Rückkehr des gemeldeten Fehlers mit
+    // umgekehrtem Vorzeichen.
+    final dayDeviation = ref.watch(weekPlanDefaultsProvider).value?[day.date];
+    final carDeviations =
+        ref.watch(weekCarDefaultsProvider).value?[day.date] ??
+        const <String, GroupDefaults>{};
+    String devText(GroupDefaults d) => [
+      if (d.outboundTime case final t?) 'hin ${t.format()}',
+      if (d.returnTime case final t?) 'zurück ${t.format()}',
+      ?d.meetingPoint,
+    ].join(', ');
+    final effectiveDay = day.cars.length == 1
+        ? effectiveDefaults(
+            dayDeviation ?? const GroupDefaults(),
+            carDeviations[day.cars.single.driverId],
+          )
+        : (dayDeviation ?? const GroupDefaults());
+    final shownDeviations = <GroupDefaults>[
+      if (!effectiveDay.isEmpty) effectiveDay,
+      if (day.cars.length > 1)
+        for (final car in day.cars)
+          if (carDeviations[car.driverId] case final dev? when !dev.isEmpty)
+            dev,
+    ];
+    final deviationHint = [
+      if (!effectiveDay.isEmpty) devText(effectiveDay),
+      if (day.cars.length > 1)
+        for (final (i, car) in day.cars.indexed)
+          if (carDeviations[car.driverId] case final dev? when !dev.isEmpty)
+            'Auto ${i + 1}: ${devText(dev)}',
+    ].join(' · ');
+    // Uhr, sobald irgendwo eine Zeit abweicht; nur der Ort → Marker.
+    final deviationIcon =
+        shownDeviations.any(
+          (d) => d.outboundTime != null || d.returnTime != null,
+        )
+        ? Icons.schedule
+        : Icons.place_outlined;
 
     return ListTile(
       // Die Anmerkungen stehen JEDEM Tag offen, auch einem eingetragenen.
@@ -1317,10 +1437,12 @@ class _DayRow extends ConsumerWidget {
                 Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: AppSpacing.xs),
                 Icon(
-                  Icons.schedule,
+                  deviationIcon,
                   size: 16,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  semanticLabel: 'Abweichende Zeiten',
+                  semanticLabel: deviationIcon == Icons.schedule
+                      ? 'Abweichende Zeiten'
+                      : 'Abweichender Treffpunkt',
                 ),
               ],
             ),

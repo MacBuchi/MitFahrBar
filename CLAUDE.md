@@ -212,6 +212,37 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       `plan_overrides`, sonst hinge morgen eine 6:45 an einem Auto, das
       jemand anders fährt. Deshalb erscheint „Ich möchte fahren" nur, wenn
       man nicht ohnehin schon fährt.
+    - **„Ich möchte fahren" trägt ZUERST ein** (v0.66.1, gemeldet am
+      07.08.): Der Pin allein verfällt in `planWeek` als tote Auswahl —
+      das Übersteuern wirkt nur auf Verfügbare, 1-way schließt Fahren aus.
+      Ohne den `setRide(full)`-Schritt davor passiert sichtbar **gar
+      nichts**, und genau so ist es durchgerutscht: Kein Test hat den
+      Eintrag je angetippt. Seitdem tippt eine ganze Matrix (leer / dabei /
+      1-way × Vorschlag / gesetzt) in `test/flows/plan_flow_test.dart`.
+    - **Ein Vorschlag wird ersetzt, eine Menschenentscheidung bekommt
+      Gesellschaft** (`day.isOverridden` entscheidet — dasselbe Kriterium
+      wie das Etikett „von Hand gesetzt"). Auf einem Vorschlags-Tag heißt
+      „Ich möchte fahren" „statt dessen" (ein Auto); auf einem gesetzten
+      Tag entsteht das **zweite** Auto — sonst spielte der zweite
+      Freiwillige Reise nach Jerusalem und entpinnte den ersten still.
+      Zwei Freiwillige ohne Mitfahrer sind dann ehrlich zwei Solo-Autos
+      und zählen nichts (#61).
+    - **Jede Abweichung ist im Planer sichtbar, verwaiste nie** (v0.66.1,
+      zweite Meldung vom selben Tag: Eine Auto-Zeit war NIRGENDS zu sehen —
+      B1 unfertig ausgeliefert). Tageszeile zeigt das Wirksame („Auto 2:
+      hin 06:45"; bei einem Auto ohne Präfix), am Fahrer hängt das Glyph
+      (Uhr; nur Ort → Marker) in seiner Auto-Farbe, und es steht in der
+      Zell-Semantik („…, andere Zeiten") — daran tippen die Tests. Eine
+      Zeile, deren Fahrer nicht fährt, erscheint nicht: Sie wirkt auch
+      nicht, und sie zu zeigen wäre der gemeldete Fehler mit umgekehrtem
+      Vorzeichen. Das Banner löst bei EINEM Auto dessen Abweichung mit auf;
+      bei mehreren nennt es bewusst die Tageszeit — zwei Abfahrtszeiten in
+      einer Banner-Zeile wären eine eigene Design-Entscheidung.
+    - **Der Pin ist an der Ablage zu prüfen, nicht am Etikett:** Wer genau
+      die vorgeschlagenen Fahrer festschreibt (der Normalfall beim
+      Zeit-Setzen), sieht weiter „Vorschlag" — `isOverridden` vergleicht
+      Mengen. Sichtbar wird der Pin erst, wenn er etwas festhält; genau
+      dafür ist er da.
 - **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von

@@ -197,10 +197,13 @@ class HelpScreen extends StatelessWidget {
                 text:
                     'Tippst du noch einmal auf dasselbe Feld, geht ein '
                     'kleines Menü auf: nur eine Richtung, doch selbst '
-                    'fahren, wieder austragen. Bei allen anderen geht das '
-                    'Menü sofort auf — damit niemand aus Versehen bei '
-                    'jemandem dreht. Eintragen darfst du weiterhin für '
-                    'jeden.',
+                    'fahren, wieder austragen. „Ich möchte fahren" trägt '
+                    'dich auch gleich ein, falls du es noch nicht warst — '
+                    'und hat schon jemand anderes sich selbst als Fahrer '
+                    'gesetzt, entsteht ein zweites Auto, statt ihn zu '
+                    'verdrängen. Bei allen anderen geht das Menü sofort '
+                    'auf — damit niemand aus Versehen bei jemandem dreht. '
+                    'Eintragen darfst du weiterhin für jeden.',
               ),
               _Line(
                 leading: Icon(Icons.looks_two_outlined),
@@ -230,7 +233,9 @@ class HelpScreen extends StatelessWidget {
                     'zur Zeit seines Autos, und bei einer Änderung wird nur '
                     'geweckt, wer darin sitzt. Damit die Zeit nicht am '
                     'nächsten Tag am falschen Auto hängt, hält MitFahrBar die '
-                    'Fahrer dieses Tages fest.',
+                    'Fahrer dieses Tages fest. Am Fahrer eines abweichenden '
+                    'Autos hängt im Raster eine kleine Uhr, und die '
+                    'Tageszeile nennt die Zeiten.',
               ),
               _Line(
                 text:

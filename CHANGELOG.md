@@ -4,6 +4,37 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.66.1] – 2026-08-07
+
+### Behoben
+
+- **„Ich möchte fahren" trägt jetzt auch ein.** Wer noch nicht im Plan stand
+  und über das Menü fahren wollte, wurde zwar als Fahrer vorgemerkt — aber
+  nicht eingetragen, und eine Vormerkung ohne Eintrag verfällt. Sichtbar
+  passierte gar nichts. Jetzt gilt: Wer fahren will, ist dabei — beide
+  Richtungen —, und wird Fahrer. Auch aus „nur eine Richtung" heraus.
+
+  Dabei ist eine Regel dazugekommen: **Ein Vorschlag wird ersetzt, eine von
+  Hand getroffene Entscheidung bekommt Gesellschaft.** Steht der Tag auf
+  Vorschlag, heißt „Ich möchte fahren" wie gehabt „ich fahre statt dessen".
+  Hat sich aber schon jemand selbst als Fahrer gesetzt, entsteht ein zweites
+  Auto — niemandes Entscheidung wird still überschrieben. Zwei Freiwillige
+  ohne Mitfahrer sind dann ehrlich zwei Solo-Autos, und die zählen wie
+  gehabt nichts.
+
+- **Abweichende Zeiten und Treffpunkte sind jetzt im Wochenplan sichtbar.**
+  Eine für ein Auto gespeicherte Zeit war bisher nirgends zu sehen — die
+  Erinnerung hätte richtig geweckt, aber kein Schirm sagte es. Jetzt steht
+  jede Abweichung an der Tageszeile („Auto 2: hin 06:45"), und am Fahrer,
+  dessen Auto abweicht, hängt im Raster eine kleine Uhr (bzw. ein
+  Ortsmarker, wenn nur der Treffpunkt abweicht) — in der Farbe seines
+  Autos. Übrig gebliebene Einträge zu jemandem, der an dem Tag gar nicht
+  fährt, erscheinen bewusst nicht: Sie wirken auch nicht.
+
+  Das Banner auf der Übersicht nennt bei einem einzelnen Auto jetzt
+  ebenfalls dessen Zeit — vorher konnte dort die alte Zeit stehen, während
+  die Erinnerung schon zur neuen weckte.
+
 ## [0.66.0] – 2026-08-07
 
 ### Neu
