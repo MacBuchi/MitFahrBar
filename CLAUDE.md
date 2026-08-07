@@ -273,6 +273,41 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         sitzen ohnehin alle darin, „Auto 1:" wäre eine Unterscheidung ohne
         Unterschied. Das „N Autos" am Ende entfällt dafür — wer „Auto 1"
         und „Auto 2" liest, hat sie gezählt.
+      - **Seit v0.66.4 sind es abgesetzte Zeilen mit Auto-Marke** (#189,
+        zweite Rückmeldung: „beide Fahrzeuge sind im Banner
+        zusammengewurstelt"). Jede Zeile trägt die Farbe und Nummer ihres
+        Auto-Platzes — dieselbe Marke wie im Raster, damit man an einem
+        Punkt sieht, wo man sitzt.
+      - **Die Zeilen haben eine eigene Fläche, und das ist Kontrast, keine
+        Optik.** Die Auto-Farben tragen auf dem blanken Verlauf gegen
+        dessen helles Ende 1,71:1 (Violett) bis 2,79:1 (Bernstein) — alle
+        unter den 3,0:1 einer Grafik. Mit dem Schleier
+        (`AppBannerTones.carLineScrim`, Schwarz 40 %) sind es 3,51:1 bis
+        9,64:1. **Unterteilen und Farben übernehmen ist dieselbe
+        Entscheidung, nicht zwei** — wer die Fläche „aufräumt", macht die
+        Marken unsichtbar, und im Bild sieht man das nicht.
+      - **Der Schleierwert steht in `tokens.dart`**, nicht im Widget: Der
+        Kontrast-Test rechnet mit demselben Wert, mit dem gezeichnet wird.
+        Zwei Stellen wären zwei Wahrheiten, und die Rechnung wäre
+        stillschweigend ungültig, sobald jemand eine davon senkt.
+      - **Das Banner nimmt `AppCarTones.onDark`, nicht `byIndex`.** Der
+        Verlauf ist in hell wie dunkel derselbe dunkle Teal, braucht also
+        beide Male die hellen Flächen; nach der Theme-Helligkeit gefragt
+        käme im hellen Theme dunkel auf dunkel. Die Zuordnung zum Planer
+        trägt trotzdem: **Der Farbton ist die Identität, nicht die
+        Helligkeit** — Auto 2 ist in beiden Sätzen violett.
+      - **Die Abweichung ist ein Chip, kein Wort** (#189): Als farbige
+        Schrift ginge es nicht, der Untertitel läuft über das helle
+        Verlaufsende. Der Chip bringt seine eigene Fläche mit und trägt
+        den Anmerkungs-Akzent — „Ort und Zeitänderung sind Anmerkungen".
+        Uhr, sobald eine Zeit abweicht; nur der Ort → Marker, dieselbe
+        Regel wie im Planer.
+      - **`subtitle` bleibt Pflicht und wird zur Screenreader-
+        Beschriftung.** `groupBody` liefert die Teile, `composeGroupBody`
+        setzt genau dieselben zum Satz — eine Quelle, zwei Darstellungen.
+        Wer die flache Fassung danebenbaut statt daraus, hat zwei
+        Wortlaute; und wer nichts sieht, hört sonst zusammenhanglose
+        Wortgruppen.
       - **`composeGroupBody` speist nur das Banner**, nicht den Push
         (das ist `composeBody`) und nie den Digest — der Wortlaut darf sich
         hier also ändern, ohne dass jemand eine „Änderung"-Meldung bekommt.

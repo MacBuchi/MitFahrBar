@@ -137,6 +137,7 @@ void main() {
     testWidgets('zwei Autos stehen einzeln, jedes mit seiner Zeit', (
       tester,
     ) async {
+      final handle = tester.ensureSemantics();
       final backend = FakeBackend();
       final id = backend.addGroup(
         handle: 'daciaracing',
@@ -156,19 +157,82 @@ void main() {
       await pumpApp(tester, backend);
       await _login(tester);
 
+      // Gezeichnet sind es Zeilen mit Farbmarken — vorgelesen bleibt es ein
+      // Satz. Beides gehört geprüft: Die Marke sagt einem Screenreader
+      // nichts, und der Satz allein wäre der alte Zustand.
       expect(
-        find.textContaining('Auto 1: '),
+        find.bySemanticsLabel(RegExp('Auto 1: .* · Auto 2: ')),
         findsOneWidget,
         reason:
             'Die Frage vor der Abfahrt ist „mit wem fahre ich" — ein Topf '
-            'aus den Mitfahrern beider Autos beantwortet sie nicht.',
+            'aus den Mitfahrern beider Autos beantwortet sie nicht. Und wer '
+            'nichts sieht, muss denselben Satz hören.',
       );
-      expect(find.textContaining('Auto 2: '), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('car-badge-1')),
+        findsOneWidget,
+        reason:
+            'Die Nummer trägt die Zuordnung mit — ohne sie verlöre jeder '
+            'Rot-Grün-Schwache und jeder Graustufen-Screenshot sie.',
+      );
+      expect(find.byKey(const ValueKey('car-badge-2')), findsOneWidget);
       expect(
         find.textContaining('2 Autos'),
         findsNothing,
         reason: 'Wer „Auto 1" und „Auto 2" liest, hat sie gezählt.',
       );
+      handle.dispose();
+    });
+
+    // Der gemeldete Punkt vom 07.08.: „was pro Fahrzeug auf den ersten Blick
+    // hervorgehen sollte, wenn Treffpunkt oder Uhrzeit abweichen — das ist
+    // aktuell nicht der Fall." Als Wort im Fließtext ging es unter.
+    testWidgets('die Abweichung eines Autos steht als eigener Chip da', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final ids = <String>[];
+      for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true, seats: 2),
+        );
+        ids.add(person.id);
+        await data.setAvailability(testToday, person.id, PlanRide.full);
+      }
+      // Beide möglichen Fahrer bekommen dieselbe Zeit — so trägt der Test
+      // die Abweichung, egal welchen der beiden der Vorschlag wählt.
+      for (final personId in ids) {
+        await data.saveCarDefaults(
+          testToday,
+          personId,
+          const GroupDefaults(outboundTime: DayTime(6, 45)),
+        );
+      }
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      expect(
+        find.text('hin 06:45'),
+        findsWidgets,
+        reason: 'Die abweichende Zeit gehört sichtbar an ihr Auto.',
+      );
+      final glyph = tester.widget<Icon>(find.byIcon(Icons.schedule).first);
+      expect(
+        glyph.color,
+        AppAccents.notesChipInk,
+        reason:
+            'Der Chip trägt den Anmerkungs-Akzent: Eine geänderte Zeit IST '
+            'eine Anmerkung (entschieden 07.08.). Als farbige Schrift ginge '
+            'es nicht — der Untertitel läuft über das helle Verlaufsende.',
+      );
+      handle.dispose();
     });
 
     // #139: Die festen Vorgaben stehen im selben Streifen — was das Handy

@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.66.4] – 2026-08-07
+
+### Geändert
+
+- **Auf der Übersicht bekommt jedes Auto seine eigene Zeile — mit der Farbe
+  und der Nummer aus dem Wochenplaner.** Bisher standen beide Autos als ein
+  Fließtext untereinandergemischt; jetzt sind es zwei abgesetzte Zeilen, und
+  die Marke am Anfang ist dieselbe, die im Planer an deinem Feld hängt. Du
+  siehst also am selben Farbpunkt, in welchem Auto du sitzt.
+
+- **Weicht ein Auto von euren festen Zeiten ab, steht das jetzt als
+  farbiger Aufkleber an seiner Zeile** — mit Uhr, wenn die Zeit abweicht,
+  mit Ortsmarke, wenn nur der Treffpunkt ein anderer ist. Vorher war es ein
+  Wort mitten im Satz und ging unter, obwohl es genau die Information ist,
+  wegen der man hinsieht. Die Farbe ist dieselbe wie bei den Anmerkungen:
+  Eine geänderte Zeit ist eine Anmerkung zu diesem Tag.
+
+  Wer die Übersicht vorlesen lässt, hört unverändert einen ganzen Satz —
+  Farbe und Anordnung sagen einem Screenreader nichts.
+
 ## [0.66.3] – 2026-08-07
 
 ### Geändert

@@ -169,6 +169,76 @@ void main() {
       );
     });
 
+    // #189: Die Auto-Zeilen des Banners. Ihre Existenz ist eine
+    // Kontrast-Entscheidung, keine Layout-Laune — deshalb steht die Rechnung
+    // hier und nicht nur im Kommentar.
+    group('Auto-Zeilen', () {
+      /// Schwarzer Schleier über einem Verlaufsende — sRGB-Komposition, so
+      /// wie Flutter zeichnet — mit demselben Wert, mit dem gezeichnet wird.
+      Color scrimmed(Color stop) => Color.alphaBlend(
+        Colors.black.withValues(alpha: AppBannerTones.carLineScrim),
+        stop,
+      );
+
+      test('ohne Schleier fielen die Auto-Farben durch', () {
+        // Der Beleg, warum es die Fläche gibt: Auf dem blanken hellen Ende
+        // trägt KEINE der vier die 3,0:1. Wer die Fläche „aufräumt", macht
+        // die Marken unsichtbar — und das sieht man im Bild nicht.
+        for (var i = 0; i < AppCarTones.count; i++) {
+          expect(
+            _contrast(AppCarTones.onDark(i)!.surface, gradient.colors.first),
+            lessThan(_graphic),
+            reason:
+                'Auto ${i + 1} auf dem blanken Verlauf — genau dieser Wert '
+                'ist der Grund für die eigene Fläche.',
+          );
+        }
+      });
+
+      test('mit Schleier trennt sich jede Auto-Farbe an beiden Enden', () {
+        for (var i = 0; i < AppCarTones.count; i++) {
+          final tone = AppCarTones.onDark(i)!;
+          for (final stop in gradient.colors) {
+            _expectContrast(
+              tone.surface,
+              scrimmed(stop),
+              _graphic,
+              'Auto ${i + 1} auf der Zeilenfläche über ${_hex(stop)}',
+            );
+          }
+          _expectContrast(
+            tone.foreground,
+            tone.surface,
+            _text,
+            'Nummer auf Auto ${i + 1}',
+          );
+        }
+      });
+
+      test('Text und Abweichungs-Chip stehen auf der Zeile lesbar', () {
+        for (final stop in gradient.colors) {
+          _expectContrast(
+            AppBannerTones.nextRide(Brightness.light).foreground,
+            scrimmed(stop),
+            _text,
+            'Mitfahrer-Namen auf der Zeilenfläche über ${_hex(stop)}',
+          );
+          _expectContrast(
+            AppAccents.notesChip,
+            scrimmed(stop),
+            _graphic,
+            'Abweichungs-Chip auf der Zeilenfläche über ${_hex(stop)}',
+          );
+        }
+        _expectContrast(
+          AppAccents.notesChipInk,
+          AppAccents.notesChip,
+          _text,
+          'Abweichung im Chip',
+        );
+      });
+    });
+
     test('und sie ginge am hellen Ende NICHT auf', () {
       expect(
         _contrast(AppAccents.notesChip, gradient.colors.first),
