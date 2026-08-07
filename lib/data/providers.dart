@@ -656,6 +656,20 @@ final weekPlanDefaultsProvider = FutureProvider<Map<DateTime, GroupDefaults>>((
       .loadPlanDefaults(dates.first, days: 7);
 });
 
+/// Die Abweichungen einzelner **Autos** der Planwoche (#183, Stufe B):
+/// Tag → Fahrer → Abweichung.
+///
+/// Die dritte Ebene über [weekPlanDefaultsProvider] und
+/// [groupDefaultsProvider]; aufgelöst wird `Auto → Tag → Gruppe`, feldweise.
+final weekCarDefaultsProvider =
+    FutureProvider<Map<DateTime, Map<String, GroupDefaults>>>((ref) async {
+      ref.watch(currentUserIdProvider);
+      final dates = planningWeek(ref.read(nowProvider)());
+      return ref
+          .watch(carpoolRepositoryProvider)
+          .loadCarDefaults(dates.first, days: 7);
+    });
+
 final weekNotesProvider = FutureProvider<Map<DateTime, List<PlanNote>>>((
   ref,
 ) async {
@@ -706,13 +720,17 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
   // diesen Tag, keine Parameter-Änderung — wer sie verschiebt, muss die
   // Mitfahrenden wecken.
   final dayDefaults = ref.watch(weekPlanDefaultsProvider).valueOrNull;
+  // Und je Auto (Stufe B): Zwei Autos desselben Tages können verschieden
+  // früh losfahren.
+  final carDefaults = ref.watch(weekCarDefaultsProvider).valueOrNull;
   // Ein halb geladener Stand schriebe einen halben Text. Lieber gar nichts —
   // der stündliche Job holt es nach.
   if (week == null ||
       persons == null ||
       notes == null ||
       defaults == null ||
-      dayDefaults == null) {
+      dayDefaults == null ||
+      carDefaults == null) {
     return;
   }
 
@@ -730,6 +748,7 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
     notes: [for (final day in notes.values) ...day],
     defaults: defaults,
     dayDefaults: dayDefaults,
+    carDefaults: carDefaults,
     // Wer an diesem Gerät sitzt, hat gerade selbst getippt und braucht
     // keine Meldung darüber (#163). Best effort: ohne Geräte-Zuordnung
     // wird nichts unterdrückt, und der stündliche Job hebt es wieder auf.

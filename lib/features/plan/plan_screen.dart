@@ -261,14 +261,8 @@ class _AvailabilityGrid extends ConsumerWidget {
   /// gar nicht mitfährt, bekommt ebenfalls keine.
   int? _carNumberOf(PlannedDay day, String personId) {
     if (day.cars.length < 2) return null;
-    for (final (i, car) in day.cars.indexed) {
-      if (car.driverId == personId ||
-          car.fullIds.contains(personId) ||
-          car.oneWayIds.contains(personId)) {
-        return i + 1;
-      }
-    }
-    return null;
+    final index = carIndexOf(day, personId);
+    return index == null ? null : index + 1;
   }
 
   /// Entscheidet zwischen „ein Klick trägt ein" und „Menü" (#183).
@@ -348,34 +342,67 @@ class _AvailabilityGrid extends ConsumerWidget {
           );
         }
       case _EditDay():
-        await _editDay(context, ref, day.date);
+        await _editDay(context, ref, day, person.id);
     }
   }
 
-  /// Abweichende Zeiten und Treffpunkt für EINEN Tag (#183).
+  /// Abweichende Zeiten und Treffpunkt — für den Tag oder für EIN Auto (#183).
   ///
   /// Eigener Schirm statt dreier Felder im Auswahlmenü: Der häufige Weg ist
   /// „dabei" antippen, und drei Eingabefelder darüber machten genau den laut.
+  ///
+  /// **Ein Schirm mit Geltungsbereich, nicht zwei Einträge im Menü.** Sobald
+  /// der Tag zwei Autos hat, steht oben ein Umschalter „Ganzer Tag / Auto N";
+  /// das macht die Schichtung sichtbar, statt sie auf zwei Wege zu verteilen,
+  /// zwischen denen man raten müsste.
   Future<void> _editDay(
     BuildContext context,
     WidgetRef ref,
-    DateTime date,
+    PlannedDay day,
+    String personId,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
+    final date = day.date;
     final group =
         ref.read(groupDefaultsProvider).value ?? const GroupDefaults();
-    final current = ref.read(weekPlanDefaultsProvider).value?[date];
+    // Nur, wenn es überhaupt etwas zu unterscheiden gibt: Bei einem Auto ist
+    // „dieses Auto" dasselbe wie „der Tag", und zwei Wege zum selben Ziel
+    // sind einer zu viel.
+    final carIndex = day.cars.length < 2 ? null : carIndexOf(day, personId);
+    final driverId = carIndex == null ? null : day.cars[carIndex].driverId;
 
-    final result = await showDialog<GroupDefaults>(
+    final result = await showDialog<_DefaultsEdit>(
       context: context,
-      builder: (_) =>
-          _DayDefaultsDialog(date: date, group: group, current: current),
+      builder: (_) => _DayDefaultsDialog(
+        date: date,
+        group: group,
+        day: ref.read(weekPlanDefaultsProvider).value?[date],
+        car: driverId == null
+            ? null
+            : ref.read(weekCarDefaultsProvider).value?[date]?[driverId],
+        carNumber: carIndex == null ? null : carIndex + 1,
+      ),
     );
     if (result == null) return;
 
     try {
-      await ref.read(carpoolRepositoryProvider).savePlanDefaults(date, result);
-      ref.invalidate(weekPlanDefaultsProvider);
+      final repository = ref.read(carpoolRepositoryProvider);
+      if (result.forCar && driverId != null) {
+        await repository.saveCarDefaults(date, driverId, result.defaults);
+        // **Die Zeit zu setzen schreibt den Fahrer fest.** Der Vorschlag
+        // kippt, sobald jemand seine Verfügbarkeit ändert — die Zeile hinge
+        // dann an einer Person, die an dem Tag gar nicht mehr fährt. Fixiert
+        // wird der GANZE Satz Fahrer des Tages: Wer nur einen festhielte,
+        // ließe die Wahl der übrigen weiterlaufen, und die verschiebt auch
+        // dieses Auto.
+        await ref
+            .read(weekPlanProvider.notifier)
+            .setDrivers(date, day.driverIds.toSet());
+        ref.invalidate(weekCarDefaultsProvider);
+      } else {
+        await repository.savePlanDefaults(date, result.defaults);
+        ref.invalidate(weekPlanDefaultsProvider);
+      }
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Speichern fehlgeschlagen.')),
@@ -694,11 +721,21 @@ class _RidePickerDialog extends StatelessWidget {
 /// die Felder deren Werte als Platzhalter und nicht als Inhalt. Ein Feld zu
 /// leeren heißt „wieder wie immer", nicht „gar keine Zeit": Aufgelöst wird
 /// feldweise.
+/// Was der Schirm zurückgibt: die Werte **und** wofür sie gelten.
+class _DefaultsEdit {
+  const _DefaultsEdit({required this.forCar, required this.defaults});
+
+  final bool forCar;
+  final GroupDefaults defaults;
+}
+
 class _DayDefaultsDialog extends StatefulWidget {
   const _DayDefaultsDialog({
     required this.date,
     required this.group,
-    required this.current,
+    required this.day,
+    required this.car,
+    required this.carNumber,
   });
 
   final DateTime date;
@@ -707,18 +744,41 @@ class _DayDefaultsDialog extends StatefulWidget {
   final GroupDefaults group;
 
   /// Die gespeicherte Abweichung dieses Tages, `null` wenn es keine gibt.
-  final GroupDefaults? current;
+  final GroupDefaults? day;
+
+  /// Die des eigenen Autos, `null` wenn es keine gibt.
+  final GroupDefaults? car;
+
+  /// Nummer des eigenen Autos — `null` heißt: Es gibt nichts zu
+  /// unterscheiden, der Umschalter bleibt weg.
+  final int? carNumber;
 
   @override
   State<_DayDefaultsDialog> createState() => _DayDefaultsDialogState();
 }
 
 class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
-  late DayTime? _out = widget.current?.outboundTime;
-  late DayTime? _back = widget.current?.returnTime;
+  /// Beginnt beim Auto, sobald es eines gibt: Wer bei zwei Autos die Zeit
+  /// ändert, meint fast immer seines. Der ganze Tag ist einen Tipp entfernt.
+  late bool _forCar = widget.carNumber != null;
+
+  late DayTime? _out = _source?.outboundTime;
+  late DayTime? _back = _source?.returnTime;
   late final TextEditingController _point = TextEditingController(
-    text: widget.current?.meetingPoint ?? '',
+    text: _source?.meetingPoint ?? '',
   );
+
+  GroupDefaults? get _source => _forCar ? widget.car : widget.day;
+
+  /// Der Umschalter wechselt die BEARBEITETE Ebene, also auch die Werte im
+  /// Formular — sonst schriebe man die Zeit des Tages versehentlich als die
+  /// des Autos fort.
+  void _switchScope(bool forCar) => setState(() {
+    _forCar = forCar;
+    _out = _source?.outboundTime;
+    _back = _source?.returnTime;
+    _point.text = _source?.meetingPoint ?? '';
+  });
 
   @override
   void dispose() {
@@ -726,11 +786,15 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
     super.dispose();
   }
 
+  /// Was gälte, wenn dieses Feld leer bliebe: die nächsttiefere Ebene.
+  /// Beim Auto also der Tag, sonst die Gruppe — dieselbe Kette wie im
+  /// Ausgangskorb, nur zur Anzeige.
+  GroupDefaults get _fallback =>
+      _forCar ? effectiveDefaults(widget.group, widget.day) : widget.group;
+
   Future<void> _pick(bool outbound) async {
     final start = outbound ? _out : _back;
-    final fallback = outbound
-        ? widget.group.outboundTime
-        : widget.group.returnTime;
+    final fallback = outbound ? _fallback.outboundTime : _fallback.returnTime;
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(
@@ -761,17 +825,35 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.carNumber case final number?) ...[
+            SegmentedButton<bool>(
+              segments: [
+                const ButtonSegment(value: false, label: Text('Ganzer Tag')),
+                ButtonSegment(value: true, label: Text('Auto $number')),
+              ],
+              selected: {_forCar},
+              onSelectionChanged: (selection) => _switchScope(selection.single),
+              showSelectedIcon: false,
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            ),
+            const SizedBox(height: AppSpacing.s),
+          ],
           Text(
-            'Gilt nur für diesen Tag. Was hier leer bleibt, kommt weiter aus '
-            'den festen Vorgaben.',
+            _forCar
+                ? 'Gilt nur für dein Auto an diesem Tag. Was hier leer '
+                      'bleibt, kommt vom Tag — und sonst aus den festen '
+                      'Vorgaben. Damit die Zeit nicht an einem anderen Auto '
+                      'landet, wird der Fahrer des Tages festgehalten.'
+                : 'Gilt für alle an diesem Tag. Was hier leer bleibt, kommt '
+                      'weiter aus den festen Vorgaben.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.s),
           for (final (label, own, group, outbound) in [
-            ('Abfahrt hin', _out, widget.group.outboundTime, true),
-            ('Abfahrt zurück', _back, widget.group.returnTime, false),
+            ('Abfahrt hin', _out, _fallback.outboundTime, true),
+            ('Abfahrt zurück', _back, _fallback.returnTime, false),
           ])
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -800,7 +882,7 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
             controller: _point,
             decoration: InputDecoration(
               labelText: 'Treffpunkt',
-              hintText: widget.group.meetingPoint ?? 'wie immer',
+              hintText: _fallback.meetingPoint ?? 'wie immer',
             ),
             maxLength: 120,
           ),
@@ -815,10 +897,13 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
           onPressed: () {
             final point = _point.text.trim();
             Navigator.of(context).pop(
-              GroupDefaults(
-                outboundTime: _out,
-                returnTime: _back,
-                meetingPoint: point.isEmpty ? null : point,
+              _DefaultsEdit(
+                forCar: _forCar,
+                defaults: GroupDefaults(
+                  outboundTime: _out,
+                  returnTime: _back,
+                  meetingPoint: point.isEmpty ? null : point,
+                ),
               ),
             );
           },

@@ -172,7 +172,7 @@ String dayDigestFor(
   // nicht mitfuhr, steht weiter in `availableIds`. Für ihn ist der Tag
   // vorbei wie für einen Ausgetragenen — und genau das sagt sein Digest.
   if (day.confirmed) {
-    return _carOf(day, personId) == null ? removedDigest : confirmedDigest;
+    return carOf(day, personId) == null ? removedDigest : confirmedDigest;
   }
 
   final state = StringBuffer();
@@ -270,6 +270,7 @@ List<DuePush> dueMessages({
   List<PlanNote> notes = const [],
   GroupDefaults defaults = const GroupDefaults(),
   Map<DateTime, GroupDefaults> dayDefaults = const {},
+  Map<DateTime, Map<String, GroupDefaults>> carDefaults = const {},
   Duration changeCooldown = const Duration(minutes: 30),
 }) {
   final index = <String, SentPush>{
@@ -282,8 +283,18 @@ List<DuePush> dueMessages({
     // Was an diesem Tag wirklich gilt (#183) — die Abweichung schlägt die
     // Vorgabe, feldweise. `deviation` allein geht in den Digest, `effective`
     // in Zeiten und Text.
-    final deviation = dayDefaults[date];
-    final effective = effectiveDefaults(defaults, deviation);
+    final dayDeviation = dayDefaults[date];
+    final carsOfDay = carDefaults[date] ?? const <String, GroupDefaults>{};
+
+    /// Was für [personId] an diesem Tag abweicht: Auto über Tag, feldweise.
+    /// Ohne Gruppen-Vorgabe — die gehört in die Zeiten, nicht in den Digest.
+    GroupDefaults deviationFor(String personId) {
+      final car = carOf(day, personId);
+      return effectiveDefaults(
+        dayDeviation ?? const GroupDefaults(),
+        car == null ? null : carsOfDay[car.driverId],
+      );
+    }
 
     // ------------------------------------------ Erinnerungen zur Abfahrt
     //
@@ -291,14 +302,21 @@ List<DuePush> dueMessages({
     // Uhr der Gruppe, nicht am Plan-Fenster. Die Rückfahrt liegt sogar weit
     // hinter der persönlichen `departureTime`, die den Plan-Teil schließt —
     // in einem gemeinsamen Fenster wäre sie nie fällig geworden.
-    for (final (kind, legTime) in [
-      (PushKind.departureOut, effective.outboundTime),
-      (PushKind.departureReturn, effective.returnTime),
-    ]) {
-      if (legTime == null) continue;
+    //
+    // **Die Zeit hängt seit Stufe B an der Person, nicht am Tag**: Zwei
+    // Autos desselben Tages können verschieden früh losfahren. Deshalb wird
+    // sie im Personen-Lauf aufgelöst und nicht davor.
+    for (final kind in [PushKind.departureOut, PushKind.departureReturn]) {
       for (final personId in day.availableIds) {
         final pref = prefs[personId];
         if (pref == null || !pref.remindersEnabled) continue;
+
+        final deviation = deviationFor(personId);
+        final effective = effectiveDefaults(defaults, deviation);
+        final legTime = kind == PushKind.departureOut
+            ? effective.outboundTime
+            : effective.returnTime;
+        if (legTime == null) continue;
 
         final digest = dayDigestFor(
           day,
@@ -373,6 +391,10 @@ List<DuePush> dueMessages({
       final closes = pref.departureTime.on(date);
       if (now.isBefore(opens) || !now.isBefore(closes)) continue;
 
+      // Auch hier je Person aufgelöst: Der Text nennt die Abfahrt, und die
+      // ist ab Stufe B die des eigenen Autos.
+      final deviation = deviationFor(personId);
+      final effective = effectiveDefaults(defaults, deviation);
       final digest = dayDigestFor(
         day,
         personId,
@@ -494,14 +516,14 @@ String composeBody(
   // erzählen, an der die Person nicht teilnimmt — die Kopfzeile sagt dann
   // „Ausgetragen".
   final riding = day.confirmed
-      ? _carOf(day, personId) != null
+      ? carOf(day, personId) != null
       : day.availableIds.contains(personId);
   if (!riding) {
     return 'Du bist für diesen Tag nicht mehr eingetragen.';
   }
 
   final parts = <String>[];
-  final myCar = _carOf(day, personId);
+  final myCar = carOf(day, personId);
 
   if (day.cars.isEmpty) {
     final allOneWay =
@@ -667,17 +689,6 @@ DateTime _dayOnly(DateTime value) =>
 String _logKey(String personId, DateTime date, PushKind kind) {
   final day = _dayOnly(date);
   return '$personId|${day.year}-${day.month}-${day.day}|${kind.name}';
-}
-
-PlannedCar? _carOf(PlannedDay day, String personId) {
-  for (final car in day.cars) {
-    if (car.driverId == personId ||
-        car.fullIds.contains(personId) ||
-        car.oneWayIds.contains(personId)) {
-      return car;
-    }
-  }
-  return null;
 }
 
 String _name(String id, Map<String, Person> persons) =>

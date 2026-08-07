@@ -252,6 +252,31 @@ create table public.plan_defaults (
   primary key (group_id, plan_date)
 );
 
+-- Abweichende Zeiten und Treffpunkt für EIN AUTO eines Tages (#183, Stufe B)
+-- — die dritte Ebene: aufgelöst wird `Auto → Tag → Gruppe`, feldweise.
+--
+-- Geschlüsselt am Fahrer, weil ein Auto in der Datenbank nur als „diese
+-- Person fährt an diesem Tag" existiert; die Autos selbst rechnet `planWeek`
+-- und speichert sie nie. Daraus folgt die Regel im Client: Wer für sein Auto
+-- eine Zeit setzt, schreibt den Fahrer fest (`plan_overrides`) — sonst hinge
+-- die Zeit morgen an jemandem, der gar nicht mehr fährt.
+--
+-- Verwaiste Zeilen sind zulässig: Sie fallen beim Auflösen heraus und wirken
+-- nicht. Ein Aufräum-Trigger müsste den Plan nachrechnen, also `planWeek` in
+-- SQL — genau die zweite Wahrheit, die der Ausgangskorb vermeidet.
+create table public.plan_car_defaults (
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  plan_date date not null,
+  driver_id uuid not null references public.persons(id) on delete cascade,
+  outbound_time time,
+  return_time time,
+  meeting_point text
+    check (char_length(btrim(meeting_point)) between 1 and 120),
+  updated_at timestamptz not null default now(),
+  primary key (group_id, plan_date, driver_id)
+);
+
 create table public.plan_overrides (
   group_id uuid not null default auth.uid()
     references public.groups(id) on delete cascade,
@@ -1375,6 +1400,7 @@ alter table public.trip_participations enable row level security;
 alter table public.settings            enable row level security;
 alter table public.group_defaults      enable row level security;
 alter table public.plan_defaults       enable row level security;
+alter table public.plan_car_defaults   enable row level security;
 alter table public.plan_availability   enable row level security;
 alter table public.plan_overrides      enable row level security;
 alter table public.plan_notes          enable row level security;
@@ -1419,6 +1445,10 @@ create policy plan_availability_isolated on public.plan_availability
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy plan_defaults_isolated on public.plan_defaults
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy plan_car_defaults_isolated on public.plan_car_defaults
   for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());

@@ -171,6 +171,12 @@ DateTime outboxKeepFrom(DateTime now) {
 /// [dayDefaults] sind die Abweichungen einzelner Tage (#183), auf Tagesbeginn
 /// normiert. Sie schlagen [defaults] feldweise; was ein Tag nicht setzt,
 /// kommt weiter aus der Vorgabe der Gruppe.
+///
+/// [carDefaults] sind die Abweichungen einzelner **Autos** (Tag → Fahrer),
+/// die dritte und stärkste Ebene: `Auto → Tag → Gruppe`. Ein Eintrag zu
+/// einem Fahrer, der an dem Tag nicht (mehr) fährt, fällt beim Auflösen
+/// heraus — nachgeräumt wird er nie, denn dafür müsste jemand den Plan
+/// nachrechnen.
 List<OutboxEntry> outboxEntries({
   required List<PlannedDay> week,
   required Map<String, Person> persons,
@@ -178,6 +184,7 @@ List<OutboxEntry> outboxEntries({
   List<PlanNote> notes = const [],
   GroupDefaults defaults = const GroupDefaults(),
   Map<DateTime, GroupDefaults> dayDefaults = const {},
+  Map<DateTime, Map<String, GroupDefaults>> carDefaults = const {},
   String? suppressPersonId,
 }) {
   final entries = <OutboxEntry>[];
@@ -186,10 +193,31 @@ List<OutboxEntry> outboxEntries({
     // Digest bekommt NUR die Abweichung — nähme er die aufgelöste Zeit,
     // stünde die Gruppen-Vorgabe wieder drin, und jede Änderung im
     // Parameter-Screen weckte die halbe Gruppe.
-    final deviation =
-        dayDefaults[DateTime(day.date.year, day.date.month, day.date.day)];
-    final effective = effectiveDefaults(defaults, deviation);
+    final dayKey = DateTime(day.date.year, day.date.month, day.date.day);
+    final dayDeviation = dayDefaults[dayKey];
+    final carsOfDay = carDefaults[dayKey] ?? const <String, GroupDefaults>{};
     for (final personId in persons.keys) {
+      // Ab Stufe B hängt die wirksame Zeit daran, in welchem Auto jemand
+      // sitzt: `Auto → Tag → Gruppe`, feldweise. Zwei Personen desselben
+      // Tages tragen dadurch verschiedene Zeiten in ihren Zeilen — genau
+      // deshalb steht die Zeit je Zeile im Korb und nicht in `push_due()`.
+      final car = carOf(day, personId);
+      final carDeviation = car == null ? null : carsOfDay[car.driverId];
+      // **Was für DIESE Person abweicht**: Tag und Auto verschmolzen, und
+      // nichts sonst. Leer heißt „nichts abweichend", egal aus welcher der
+      // beiden Ebenen — deshalb genügt dem Digest ein Wert. Und weil hier
+      // keine Gruppen-Vorgabe einfließt, kommt sie auch nicht über die
+      // Hintertür in den Digest zurück.
+      //
+      // Der Nebeneffekt ist der gewollte: Verschiebt Auto 2 seine Abfahrt,
+      // ändert sich der Digest **nur** bei denen, die darin sitzen. Eine
+      // Meldung an den ganzen Tag wäre falsch — die anderen fahren
+      // unverändert.
+      final deviation = effectiveDefaults(
+        dayDeviation ?? const GroupDefaults(),
+        carDeviation,
+      );
+      final effective = effectiveDefaults(defaults, deviation);
       final digest = dayDigestFor(
         day,
         personId,

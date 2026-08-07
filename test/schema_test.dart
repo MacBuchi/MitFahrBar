@@ -59,6 +59,7 @@ void main() {
   for (final table in [
     'plan_availability',
     'plan_defaults',
+    'plan_car_defaults',
     'plan_overrides',
     'notification_prefs',
     'push_log',
@@ -111,6 +112,31 @@ void main() {
       expect(
         primaryKeyOf('plan_defaults').replaceAll(' ', ''),
         'group_id,plan_date',
+      );
+    });
+
+    test('die Auto-Ebene ist mandantengetrennt und richtig geschlüsselt', () {
+      expect(
+        schema,
+        contains(
+          'create policy plan_car_defaults_isolated on public.plan_car_defaults',
+        ),
+      );
+      expect(
+        primaryKeyOf('plan_car_defaults').replaceAll(' ', ''),
+        'group_id,plan_date,driver_id',
+        reason:
+            'Derselbe Schlüssel wie `plan_overrides`, und das ist keine '
+            'Analogie: Ein Auto existiert in der Datenbank nur als „diese '
+            'Person fährt an diesem Tag".',
+      );
+      expect(
+        repository,
+        contains("onConflict: 'group_id,plan_date,driver_id'"),
+        reason:
+            'Weicht das Konfliktziel ab, meldet Postgres „no unique or '
+            'exclusion constraint matching the ON CONFLICT specification" — '
+            'und zwar erst beim zweiten Speichern desselben Autos.',
       );
     });
 

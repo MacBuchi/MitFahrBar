@@ -232,6 +232,53 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   }
 
   @override
+  Future<Map<DateTime, Map<String, GroupDefaults>>> loadCarDefaults(
+    DateTime from, {
+    int days = 7,
+  }) => readTolerant(() async {
+    final rows = await _client
+        .from('plan_car_defaults')
+        .select(
+          'plan_date, driver_id, outbound_time, return_time, '
+          'meeting_point',
+        )
+        .gte('plan_date', _isoDay(from))
+        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))));
+    final byDay = <DateTime, Map<String, GroupDefaults>>{};
+    for (final row in rows) {
+      final day = DateTime.parse(row['plan_date'] as String);
+      (byDay[day] ??= {})[row['driver_id'] as String] = GroupDefaults.fromJson(
+        row,
+      );
+    }
+    return byDay;
+  });
+
+  @override
+  Future<void> saveCarDefaults(
+    DateTime date,
+    String driverId,
+    GroupDefaults defaults,
+  ) async {
+    final day = _isoDay(date);
+    if (defaults.isEmpty) {
+      await _client
+          .from('plan_car_defaults')
+          .delete()
+          .eq('plan_date', day)
+          .eq('driver_id', driverId);
+      return;
+    }
+    await _client.from('plan_car_defaults').upsert({
+      'group_id': _client.auth.currentUser?.id,
+      'plan_date': day,
+      'driver_id': driverId,
+      ...defaults.toJson(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'group_id,plan_date,driver_id');
+  }
+
+  @override
   Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) =>
       readTolerant(() async {
         final start = _isoDay(from);

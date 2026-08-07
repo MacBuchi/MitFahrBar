@@ -556,6 +556,163 @@ void main() {
     });
   });
 
+  group('Abweichung eines Autos (#183, Stufe B)', () {
+    const group = GroupDefaults(
+      outboundTime: DayTime(7, 30),
+      returnTime: DayTime(16, 30),
+    );
+    // Zwei Autos: Anna fährt Bernd, Clara fährt allein.
+    PlannedDay twoCars() => dayWith(
+      cars: const [
+        PlannedCar(driverId: anna, fullIds: [bernd]),
+        PlannedCar(driverId: clara),
+      ],
+    );
+
+    List<OutboxEntry> boxWith(Map<String, GroupDefaults> cars) => outboxEntries(
+      week: [twoCars()],
+      persons: persons,
+      now: mondayEvening,
+      defaults: group,
+      carDefaults: {tuesday: cars},
+    );
+
+    test('nur das eigene Auto bekommt die abweichende Zeit', () {
+      final box = boxWith({
+        clara: const GroupDefaults(outboundTime: DayTime(6, 45)),
+      });
+      expect(
+        entryFor(box, clara).outboundTime,
+        const DayTime(6, 45),
+        reason: 'Clara fährt ihr eigenes Auto und hat es früher gelegt.',
+      );
+      for (final id in [anna, bernd]) {
+        expect(
+          entryFor(box, id).outboundTime,
+          const DayTime(7, 30),
+          reason:
+              'Anna und Bernd sitzen im anderen Auto und fahren unverändert. '
+              'Genau dafür steht die Zeit je ZEILE im Korb: Der Versand kann '
+              'sie nicht selbst ausrechnen, sie hängt an der Zuordnung aus '
+              '`planWeek`.',
+        );
+      }
+    });
+
+    test('geweckt wird nur, wer in dem Auto sitzt', () {
+      final before = outboxEntries(
+        week: [twoCars()],
+        persons: persons,
+        now: mondayEvening,
+        defaults: group,
+      );
+      final after = boxWith({
+        clara: const GroupDefaults(outboundTime: DayTime(6, 45)),
+      });
+      expect(
+        entryFor(after, clara).digest,
+        isNot(entryFor(before, clara).digest),
+      );
+      for (final id in [anna, bernd]) {
+        expect(
+          entryFor(after, id).digest,
+          entryFor(before, id).digest,
+          reason:
+              'Für sie hat sich nichts geändert. Eine Meldung an den ganzen '
+              'Tag wäre falsch — sie fahren zur selben Zeit wie vorher.',
+        );
+      }
+    });
+
+    test('das Auto schlägt den Tag, der Tag die Gruppe — feldweise', () {
+      final box = outboxEntries(
+        week: [twoCars()],
+        persons: persons,
+        now: mondayEvening,
+        defaults: group,
+        dayDefaults: {
+          tuesday: const GroupDefaults(
+            outboundTime: DayTime(7, 0),
+            returnTime: DayTime(17, 0),
+          ),
+        },
+        carDefaults: {
+          tuesday: {clara: const GroupDefaults(outboundTime: DayTime(6, 45))},
+        },
+      );
+      final entry = entryFor(box, clara);
+      expect(entry.outboundTime, const DayTime(6, 45), reason: 'vom Auto');
+      expect(
+        entry.returnTime,
+        const DayTime(17, 0),
+        reason:
+            'Vom Tag — ihr Auto hat die Rückfahrt nicht angefasst. '
+            'Objektweise ersetzt fiele sie auf die Gruppenzeit zurück oder '
+            'ganz weg, und die Rückfahrt-Erinnerung käme zur falschen Zeit.',
+      );
+      expect(
+        entryFor(box, anna).outboundTime,
+        const DayTime(7, 0),
+        reason: 'Annas Auto hat nichts gesetzt — für sie gilt der Tag.',
+      );
+    });
+
+    test('ein Eintrag zu einem Nicht-Fahrer wirkt nicht', () {
+      final box = boxWith({
+        // Bernd fährt an diesem Tag nicht; seine Zeile ist übrig geblieben,
+        // weil der Vorschlag inzwischen gekippt ist.
+        bernd: const GroupDefaults(outboundTime: DayTime(5, 0)),
+      });
+      for (final id in [anna, bernd, clara]) {
+        expect(
+          entryFor(box, id).outboundTime,
+          const DayTime(7, 30),
+          reason:
+              'Eine verwaiste Zeile fällt beim Auflösen heraus, statt '
+              'irgendjemanden um fünf zu wecken. Aufgeräumt wird sie nie — '
+              'dafür müsste jemand den Plan nachrechnen, und das ist genau '
+              'die zweite Wahrheit, die der Korb vermeidet.',
+        );
+      }
+    });
+
+    test('dueMessages rechnet dasselbe', () {
+      final week = [twoCars()];
+      final cars = {
+        tuesday: {clara: const GroupDefaults(outboundTime: DayTime(6, 45))},
+      };
+      final due = dueMessages(
+        week: week,
+        // Die Erinnerung ist Opt-in und ohne dieses Flag aus — sonst prüfte
+        // der Test einen Zweig, den er nie erreicht.
+        prefs: {
+          for (final id in [anna, bernd, clara])
+            id: NotificationPrefs.initial(id).copyWith(remindersEnabled: true),
+        },
+        sent: const [],
+        persons: persons,
+        // 06:35 ist Claras Vorlauf, für Anna und Bernd passiert nichts.
+        now: DateTime(2026, 7, 28, 6, 35),
+        defaults: group,
+        carDefaults: cars,
+      );
+      // Nur die Erinnerungen: Der Abend-Blick liegt um diese Zeit für alle
+      // im Fenster (bis zur persönlichen departure_time) und gehört nicht
+      // zur Frage.
+      final reminders = due.where((d) => d.kind.isDeparture);
+      expect(
+        reminders.map((d) => d.personId).toSet(),
+        {clara},
+        reason:
+            'Der Dart-Spiegel muss dieselbe Rechnung machen wie `push_due()` '
+            'über die Korb-Zeilen; sonst prüft die Suite einen Weg, den es '
+            'in Produktion nicht gibt. Um 06:35 ist nur Claras Auto dran — '
+            'die anderen fahren erst um 7:30.',
+      );
+      expect(reminders.single.kind, PushKind.departureOut);
+    });
+  });
+
   group('Was der Korb behalten muss (#177)', () {
     // 2026-07-27 ist ein Montag, 2026-07-31 der Freitag, 2026-08-03 der
     // Montag danach.

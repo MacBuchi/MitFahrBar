@@ -184,6 +184,22 @@ Future<int> _handleGroup({
       ),
   };
 
+  // Und je Auto (#183, Stufe B). Ohne sie schriebe dieser Lauf für jeden die
+  // Tageszeit — und überschriebe damit im Korb die Zeit, die für sein Auto
+  // gilt. Der Boden muss dieselbe Rechnung machen wie der schnelle Weg,
+  // sonst repariert er kaputt.
+  final carDefaultRows = await api.rows('plan_car_defaults', {
+    ...scope,
+    'plan_date': 'gte.${_isoDay(week.first)}',
+    'select': 'plan_date, driver_id, outbound_time, return_time, meeting_point',
+  });
+  final carDefaults = <DateTime, Map<String, GroupDefaults>>{};
+  for (final row in carDefaultRows) {
+    final day = DateTime.parse(row['plan_date']! as String);
+    (carDefaults[day] ??= {})[row['driver_id']! as String] =
+        GroupDefaults.fromJson(row.cast<String, Object?>());
+  }
+
   final entries = outboxEntries(
     week: planned,
     persons: active,
@@ -191,6 +207,7 @@ Future<int> _handleGroup({
     notes: notes,
     defaults: defaults,
     dayDefaults: dayDefaults,
+    carDefaults: carDefaults,
   );
   if (dryRun) {
     // Im Probelauf keine Namen ins Protokoll: Der Actions-Log ist

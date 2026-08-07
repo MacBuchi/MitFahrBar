@@ -471,6 +471,12 @@ class PlannedCar {
 
   /// Personen im Auto inklusive Fahrer — das Gegenstück zu [Person.seats].
   int get headcount => 1 + fullIds.length + oneWayIds.length;
+
+  /// Ob [personId] in diesem Auto sitzt — als Fahrer oder als Mitfahrer.
+  bool carries(String personId) =>
+      driverId == personId ||
+      fullIds.contains(personId) ||
+      oneWayIds.contains(personId);
 }
 
 /// Ein Tag im Wochenplan.
@@ -954,6 +960,28 @@ PlannedDay? nextRide(List<PlannedDay> week, DateTime now) {
     if (day.confirmed) continue;
     if (day.availableIds.isEmpty) continue;
     return day;
+  }
+  return null;
+}
+
+/// Das Auto, in dem [personId] an [day] sitzt — `null`, wenn in keinem.
+///
+/// Eine Stelle für eine Frage, die drei Schirme und der Versand stellen: der
+/// Planer für die Auto-Marke (#183), `dayDigestFor`/`composeBody` für „bist du
+/// überhaupt dabei", und der Ausgangskorb für die Zeit, die für dich gilt.
+/// Dreimal nachgebaut wäre sie dreimal verschieden zu beantworten.
+PlannedCar? carOf(PlannedDay day, String personId) {
+  for (final car in day.cars) {
+    if (car.carries(personId)) return car;
+  }
+  return null;
+}
+
+/// Der **Index** desselben Autos, 0-basiert — für alles, was die Autos
+/// durchzählt oder einfärbt.
+int? carIndexOf(PlannedDay day, String personId) {
+  for (final (i, car) in day.cars.indexed) {
+    if (car.carries(personId)) return i;
   }
   return null;
 }

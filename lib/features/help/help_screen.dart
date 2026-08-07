@@ -224,6 +224,16 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
+                    'Fahrt ihr mit mehreren Autos und nicht gleichzeitig los, '
+                    'steht in demselben Schirm oben ein Umschalter: „Ganzer '
+                    'Tag" oder „Auto 2". Dann bekommt jeder seine Erinnerung '
+                    'zur Zeit seines Autos, und bei einer Änderung wird nur '
+                    'geweckt, wer darin sitzt. Damit die Zeit nicht am '
+                    'nächsten Tag am falschen Auto hängt, hält MitFahrBar die '
+                    'Fahrer dieses Tages fest.',
+              ),
+              _Line(
+                text:
                     'MitFahrBar schlägt für jeden Tag vor, wer fährt, und '
                     'denkt dabei die ganze Woche mit — deshalb wechseln '
                     'sich die Namen ab. Wer nur eine Richtung kann, wird '

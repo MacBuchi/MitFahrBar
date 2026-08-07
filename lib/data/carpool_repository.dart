@@ -98,6 +98,31 @@ abstract class CarpoolRepository {
   /// Eintrag stehen, der im Digest anders zählt als keiner.
   Future<void> savePlanDefaults(DateTime date, GroupDefaults defaults);
 
+  /// Abweichungen einzelner **Autos** (#183, Stufe B): Tag → Fahrer →
+  /// Abweichung. Die dritte Ebene über [loadPlanDefaults] und
+  /// [loadGroupDefaults]; aufgelöst wird `Auto → Tag → Gruppe`, feldweise.
+  ///
+  /// Geschlüsselt am Fahrer, weil ein Auto in der Datenbank nur als „diese
+  /// Person fährt an diesem Tag" existiert — die Autos selbst rechnet
+  /// `planWeek` und speichert sie nie.
+  Future<Map<DateTime, Map<String, GroupDefaults>>> loadCarDefaults(
+    DateTime from, {
+    int days = 7,
+  });
+
+  /// Schreibt die Abweichung EINES Autos, vollständig wie
+  /// [savePlanDefaults]: leer heißt, die Zeile verschwindet.
+  ///
+  /// **Der Aufrufer schreibt den Fahrer zusätzlich fest** (siehe
+  /// [setPlanDrivers]). Ohne das hinge die Zeit morgen an einer Person, die
+  /// an dem Tag gar nicht mehr fährt — der Vorschlag kippt, sobald jemand
+  /// seine Verfügbarkeit ändert.
+  Future<void> saveCarDefaults(
+    DateTime date,
+    String driverId,
+    GroupDefaults defaults,
+  );
+
   /// Anmerkungen ab [from] für [days] Tage, älteste zuerst (Issue #127).
   ///
   /// Dieselbe Spanne wie [loadPlan] und aus demselben Grund: Der Planer

@@ -123,6 +123,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
   final Map<DateTime, Map<String, PlanRide>> _availability = {};
   final Map<DateTime, Set<String>> _planDrivers = {};
   final Map<DateTime, GroupDefaults> _dayDefaults = {};
+  final Map<DateTime, Map<String, GroupDefaults>> _carDefaults = {};
 
   @override
   Future<Map<DateTime, GroupDefaults>> loadPlanDefaults(
@@ -135,6 +136,34 @@ class FakeCarpoolRepository implements CarpoolRepository {
       for (final e in _dayDefaults.entries)
         if (!e.key.isBefore(start) && !e.key.isAfter(end)) e.key: e.value,
     };
+  }
+
+  @override
+  Future<Map<DateTime, Map<String, GroupDefaults>>> loadCarDefaults(
+    DateTime from, {
+    int days = 7,
+  }) async {
+    final start = _day(from);
+    final end = start.add(Duration(days: days - 1));
+    return {
+      for (final e in _carDefaults.entries)
+        if (!e.key.isBefore(start) && !e.key.isAfter(end)) e.key: e.value,
+    };
+  }
+
+  @override
+  Future<void> saveCarDefaults(
+    DateTime date,
+    String driverId,
+    GroupDefaults defaults,
+  ) async {
+    final day = _day(date);
+    if (defaults.isEmpty) {
+      _carDefaults[day]?.remove(driverId);
+      if (_carDefaults[day]?.isEmpty ?? false) _carDefaults.remove(day);
+      return;
+    }
+    (_carDefaults[day] ??= {})[driverId] = defaults;
   }
 
   @override
