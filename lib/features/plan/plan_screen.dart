@@ -1402,19 +1402,24 @@ class _DayRow extends ConsumerWidget {
             carDeviations[day.cars.single.driverId],
           )
         : (dayDeviation ?? const GroupDefaults());
+    // Vorab als Liste statt als Muster in der Collection: `case final dev?
+    // when …` mit der Variablen als Element stößt im Analyzer der
+    // CI-Flutter-Version (3.41.2) auf `use_null_aware_elements` — der
+    // null-bewusste Marker kann den Guard aber nicht ausdrücken.
+    final carDevsOfDay = <(int, GroupDefaults)>[];
+    if (day.cars.length > 1) {
+      for (final (i, car) in day.cars.indexed) {
+        final dev = carDeviations[car.driverId];
+        if (dev != null && !dev.isEmpty) carDevsOfDay.add((i, dev));
+      }
+    }
     final shownDeviations = <GroupDefaults>[
       if (!effectiveDay.isEmpty) effectiveDay,
-      if (day.cars.length > 1)
-        for (final car in day.cars)
-          if (carDeviations[car.driverId] case final dev? when !dev.isEmpty)
-            dev,
+      for (final (_, dev) in carDevsOfDay) dev,
     ];
     final deviationHint = [
       if (!effectiveDay.isEmpty) devText(effectiveDay),
-      if (day.cars.length > 1)
-        for (final (i, car) in day.cars.indexed)
-          if (carDeviations[car.driverId] case final dev? when !dev.isEmpty)
-            'Auto ${i + 1}: ${devText(dev)}',
+      for (final (i, dev) in carDevsOfDay) 'Auto ${i + 1}: ${devText(dev)}',
     ].join(' · ');
     // Uhr, sobald irgendwo eine Zeit abweicht; nur der Ort → Marker.
     final deviationIcon =
