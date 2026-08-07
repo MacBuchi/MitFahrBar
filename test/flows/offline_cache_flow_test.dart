@@ -83,6 +83,19 @@ class _WiredCarpool implements CarpoolRepository {
       inner.savePlanDefaults(date, defaults);
 
   @override
+  Future<Map<DateTime, Map<String, GroupDefaults>>> loadCarDefaults(
+    DateTime from, {
+    int days = 7,
+  }) => _read(() => inner.loadCarDefaults(from, days: days));
+
+  @override
+  Future<void> saveCarDefaults(
+    DateTime date,
+    String driverId,
+    GroupDefaults defaults,
+  ) => inner.saveCarDefaults(date, driverId, defaults);
+
+  @override
   Future<Person> createPerson(Person person) => inner.createPerson(person);
 
   @override

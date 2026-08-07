@@ -264,6 +264,19 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
       _target.savePlanDefaults(date, defaults);
 
   @override
+  Future<Map<DateTime, Map<String, GroupDefaults>>> loadCarDefaults(
+    DateTime from, {
+    int days = 7,
+  }) => _target.loadCarDefaults(from, days: days);
+
+  @override
+  Future<void> saveCarDefaults(
+    DateTime date,
+    String driverId,
+    GroupDefaults defaults,
+  ) => _target.saveCarDefaults(date, driverId, defaults);
+
+  @override
   Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) =>
       _target.loadPlan(from, days: days);
 

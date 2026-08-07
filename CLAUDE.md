@@ -120,10 +120,33 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     - **Feldweise aufgelöst, nie objektweise** (`effectiveDefaults`). Ein
       Tag, der nur die Hinfahrt verschiebt, behält die Rückfahrt der
       Gruppe; objektweise ersetzt fiele sie auf `null` und die
-      Rückfahrt-Erinnerung entfiele stillschweigend. Stufe B legt die
-      Auto-Ebene als dritte darüber (`car → day → group`) — deshalb ist
-      `plan_defaults` auf `(group_id, plan_date)` geschlüsselt und wird
-      **nicht** umgebaut, wenn Zeiten je Auto kommen.
+      Rückfahrt-Erinnerung entfiele stillschweigend.
+    - **Drei Ebenen seit v0.66.0: `Auto → Tag → Gruppe`**
+      (`plan_car_defaults`, Stufe B). Die Tages-Ebene bleibt daneben
+      bestehen und wurde nicht umgebaut: „heute fahren alle früher" ist eine
+      andere Aussage als „Auto 2 fährt später", und ohne sie müsste man bei
+      zwei Autos dieselbe Zeit zweimal eintragen.
+      - **Geschlüsselt am Fahrer** — `(group_id, plan_date, driver_id)`, der
+        Schlüssel von `plan_overrides`. Das ist keine Analogie: Ein Auto
+        existiert in der Datenbank **nur** als „diese Person fährt an diesem
+        Tag"; die Autos selbst rechnet `planWeek` und speichert sie nie.
+      - **Wer für sein Auto eine Zeit setzt, schreibt den Fahrer fest**, und
+        zwar den ganzen Satz des Tages. Der Vorschlag kippt, sobald jemand
+        seine Verfügbarkeit ändert — die Zeile hinge dann an jemandem, der
+        gar nicht mehr fährt. Nur *einen* festzuhalten genügt nicht: Die
+        Wahl der übrigen verschiebt auch dieses Auto.
+      - **Verwaiste Zeilen bleiben stehen und wirken nicht.** Sie fallen
+        beim Auflösen heraus; kommt der Fahrer zurück, gelten sie wieder.
+        Ein Aufräum-Trigger müsste den Plan nachrechnen — `planWeek` in SQL,
+        genau die zweite Wahrheit, die der Korb vermeidet.
+      - **`push_due()` wurde dafür nicht angefasst.** Die wirksame Zeit
+        steht seit Stufe A je Person in der Korb-Zeile; zwei Personen
+        desselben Tages tragen ab hier verschiedene Zeiten, und der Versand
+        merkt davon nichts. Genau dafür war die Spalte da.
+      - **Geweckt wird nur, wer im Auto sitzt.** In den Digest geht die für
+        *diese Person* anwendbare Abweichung — Auto über Tag verschmolzen,
+        nichts sonst. Eine Meldung an den ganzen Tag wäre falsch: Die
+        anderen fahren unverändert.
     - **Die Abweichung steht im Digest, die Gruppen-Vorgabe nicht** — und
       genau darin liegt die Trennung: Die Vorgabe ist ein *Parameter*
       (ändern weckt niemanden, sonst meldete der Parameter-Screen der

@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.66.0] – 2026-08-07
+
+### Neu
+
+- **Zwei Autos an einem Tag können jetzt verschieden früh losfahren.** Bisher
+  galt eine Zeit für den ganzen Tag — wer im anderen Auto saß, bekam seine
+  Erinnerung zur fremden Zeit. Im Menü einer Zelle steht bei mehreren Autos
+  oben ein Umschalter: „Ganzer Tag" oder „Auto 2". Jeder bekommt seine
+  Erinnerung zur Zeit **seines** Autos, und geweckt wird bei einer Änderung
+  nur, wer darin sitzt.
+
+  Was ihr für euer Auto leer lasst, kommt weiter vom Tag — und was der Tag
+  nicht setzt, aus den festen Vorgaben. Wer also nur die Hinfahrt seines
+  Autos verschiebt, behält Rückfahrt und Treffpunkt wie gehabt.
+
+  Damit die Zeit nicht am nächsten Tag an einem anderen Auto hängt, hält
+  MitFahrBar beim Speichern die Fahrer dieses Tages fest. Der Tag steht dann
+  als „von Hand gesetzt" da; ändern lässt er sich wie immer.
+
 ## [0.65.0] – 2026-08-07
 
 ### Neu
