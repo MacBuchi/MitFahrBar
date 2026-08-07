@@ -212,6 +212,29 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       `plan_overrides`, sonst hinge morgen eine 6:45 an einem Auto, das
       jemand anders fährt. Deshalb erscheint „Ich möchte fahren" nur, wenn
       man nicht ohnehin schon fährt.
+      - **Und deshalb steht „Zeiten & Treffpunkt" nur im Menü eines
+        Fahrers** (#188, seit v0.66.2). Bis dahin stand der Eintrag in
+        JEDER Zelle: Ein Mitfahrer traf damit sein Auto — also ein
+        fremdes — und schrieb über `setDrivers` nebenbei den ganzen
+        Fahrersatz des Tages fest; wer „kann nicht" stand, kam ebenfalls
+        heran. Die Zusage von der anderen Seite gelesen: Wer die Abfahrt
+        verantwortet, setzt sie auch.
+      - **Das gilt für beide Ebenen des Schirms, auch für den ganzen
+        Tag.** Ein Tag ohne Auto hat keine Abfahrt, die man verschieben
+        könnte; und `driverIds` trägt auch den *vorgeschlagenen* Fahrer,
+        der Weg steht also an jedem Tag offen, an dem überhaupt jemand
+        kann. Wer nicht selbst fährt, tippt die Zelle des Fahrers an —
+        die Rückfrage aus #121, keine Sperre. Eine Zugriffskontrolle wäre
+        es ohnehin nicht: „Ich bin" ist ein Geräte-Merkmal.
+      - **Der Geltungsbereich sucht das Auto, das die Person FÄHRT**, nicht
+        das, in dem sie sitzt (`indexWhere` auf `driverId` statt
+        `carIndexOf`). Genau die andere Frage hat den Mitfahrer an ein
+        fremdes Auto gelassen; der zweite Riegel kostet nichts.
+      - Rot verifiziert in beide Richtungen: Mitfahrer und Nicht-Mitfahrer
+        sehen den Eintrag nicht, **der Fahrer aber schon** — sonst könnte
+        niemand mehr eine Zeit setzen. Die Tests **tippen** die Zelle an
+        und prüfen erst, dass das Menü überhaupt offen ist; ein reines
+        `find` wäre auch bei einem toten Tap grün.
     - **„Ich möchte fahren" trägt ZUERST ein** (v0.66.1, gemeldet am
       07.08.): Der Pin allein verfällt in `planWeek` als tote Auswahl —
       das Übersteuern wirkt nur auf Verfügbare, 1-way schließt Fahren aus.

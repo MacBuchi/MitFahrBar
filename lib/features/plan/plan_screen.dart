@@ -327,6 +327,20 @@ class _AvailabilityGrid extends ConsumerWidget {
         // fährt, hat keinen Grund dafür — und an einem eingetragenen Tag ist
         // nichts mehr zu planen.
         canOfferDrive: !day.confirmed && !day.driverIds.contains(person.id),
+        // **Zeiten setzt, wer fährt** (#188). Bis v0.66.1 stand der Eintrag
+        // in JEDER Zelle — auch bei einem Mitfahrer und sogar bei jemandem,
+        // der an dem Tag „kann nicht" steht. Bei einem Mitfahrer traf er
+        // dessen Auto, also ein fremdes: Er verschob die Abfahrt eines
+        // Wagens, den er nicht fährt, und schrieb dabei über `setDrivers`
+        // den ganzen Fahrersatz des Tages fest. Das ist dieselbe Linie wie
+        // „die Zeit zu setzen IST die Fahrer-Zusage" (#183), nur von der
+        // anderen Seite: Wer die Abfahrt verantwortet, setzt sie auch.
+        //
+        // Das gilt für BEIDE Ebenen des Schirms, auch für den ganzen Tag —
+        // ein Tag ohne Auto hat keine Abfahrt, die man verschieben könnte.
+        // Wer nicht selbst fährt und die Zeit ändern will, tippt die Zelle
+        // des Fahrers an; das ist die Rückfrage aus #121, keine Sperre.
+        canEditTimes: day.driverIds.contains(person.id),
         deviates: ref.read(weekPlanDefaultsProvider).value?[day.date] != null,
       ),
     );
@@ -403,8 +417,17 @@ class _AvailabilityGrid extends ConsumerWidget {
     // Nur, wenn es überhaupt etwas zu unterscheiden gibt: Bei einem Auto ist
     // „dieses Auto" dasselbe wie „der Tag", und zwei Wege zum selben Ziel
     // sind einer zu viel.
-    final carIndex = day.cars.length < 2 ? null : carIndexOf(day, personId);
-    final driverId = carIndex == null ? null : day.cars[carIndex].driverId;
+    //
+    // Gesucht wird das Auto, das diese Person **fährt** — nicht das, in dem
+    // sie sitzt (#188). Beim Fahrer ist beides dasselbe, und seit #188 kommt
+    // hier ohnehin nur er an; aber `carIndexOf` beantwortet die andere Frage,
+    // und genau die hat den Mitfahrer an ein fremdes Auto gelassen. Der
+    // zweite Riegel kostet nichts und hält, wenn das Menü je wieder aufmacht.
+    final own = day.cars.length < 2
+        ? -1
+        : day.cars.indexWhere((car) => car.driverId == personId);
+    final carIndex = own < 0 ? null : own;
+    final driverId = carIndex == null ? null : personId;
 
     final result = await showDialog<_DefaultsEdit>(
       context: context,
@@ -702,6 +725,7 @@ class _RidePickerDialog extends StatelessWidget {
     required this.date,
     required this.current,
     required this.canOfferDrive,
+    required this.canEditTimes,
     required this.deviates,
   });
 
@@ -711,6 +735,10 @@ class _RidePickerDialog extends StatelessWidget {
 
   /// Ob „Ich möchte fahren" überhaupt etwas ändern würde.
   final bool canOfferDrive;
+
+  /// Ob diese Person an diesem Tag fährt — nur dann gibt es hier Zeiten zu
+  /// setzen (#188). Die Begründung steht an der aufrufenden Stelle.
+  final bool canEditTimes;
 
   /// Ob für diesen Tag schon eine Abweichung gespeichert ist — nur für den
   /// Wortlaut des Eintrags, die Werte holt der Editor selbst.
@@ -743,15 +771,19 @@ class _RidePickerDialog extends StatelessWidget {
               title: const Text('Ich möchte fahren'),
               onTap: () => Navigator.of(context).pop(const _WantToDrive()),
             ),
-          const Divider(height: AppSpacing.s),
-          ListTile(
-            leading: Icon(Icons.schedule, color: scheme.onSurfaceVariant),
-            title: const Text('Zeiten & Treffpunkt'),
-            subtitle: Text(
-              deviates ? 'weicht an diesem Tag ab' : 'gilt nur für diesen Tag',
+          if (canEditTimes) ...[
+            const Divider(height: AppSpacing.s),
+            ListTile(
+              leading: Icon(Icons.schedule, color: scheme.onSurfaceVariant),
+              title: const Text('Zeiten & Treffpunkt'),
+              subtitle: Text(
+                deviates
+                    ? 'weicht an diesem Tag ab'
+                    : 'gilt nur für diesen Tag',
+              ),
+              onTap: () => Navigator.of(context).pop(const _EditDay()),
             ),
-            onTap: () => Navigator.of(context).pop(const _EditDay()),
-          ),
+          ],
         ],
       ),
       actions: [
