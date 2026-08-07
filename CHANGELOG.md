@@ -4,6 +4,22 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.66.2] – 2026-08-07
+
+### Behoben
+
+- **Abfahrt und Treffpunkt setzt, wer an dem Tag fährt.** „Zeiten &
+  Treffpunkt" stand bisher im Menü *jeder* Zelle — auch bei einem Mitfahrer
+  und sogar bei jemandem, der an dem Tag gar nicht mitfährt. Bei einem
+  Mitfahrer traf der Eintrag sein Auto, also ein fremdes: Er verschob die
+  Abfahrt eines Wagens, den er nicht fährt, und schrieb dabei nebenbei fest,
+  wer an dem Tag fährt. Jetzt steht der Eintrag nur noch im Menü eines
+  Fahrers.
+
+  Wer selbst nicht fährt und die Zeit ändern will, tippt das Feld des
+  Fahrers an — genau wie beim Eintragen für jemand anderen. Gesperrt ist
+  nichts.
+
 ## [0.66.1] – 2026-08-07
 
 ### Behoben

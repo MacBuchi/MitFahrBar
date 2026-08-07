@@ -218,24 +218,25 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 leading: Icon(Icons.schedule),
                 text:
-                    'Im selben Menü stehen Abfahrt und Treffpunkt für '
-                    'genau diesen Tag. Fahrt ihr einmal früher los, tragt '
-                    'ihr es dort ein: Alle, die an dem Tag mitfahren, '
-                    'bekommen ihre Erinnerung dann zur neuen Zeit. Was du '
-                    'leer lässt, bleibt bei euren festen Vorgaben. Ein '
-                    'Uhrsymbol am Tag zeigt, dass dort etwas abweicht.',
+                    'Abfahrt und Treffpunkt für genau diesen Tag setzt, wer '
+                    'an dem Tag fährt — sie stehen im Menü seines Feldes. '
+                    'Fahrt ihr einmal früher los, tragt ihr es dort ein: '
+                    'Alle, die an dem Tag mitfahren, bekommen ihre '
+                    'Erinnerung dann zur neuen Zeit. Was ihr leer lasst, '
+                    'bleibt bei euren festen Vorgaben. Ein Uhrsymbol am Tag '
+                    'zeigt, dass dort etwas abweicht.',
               ),
               _Line(
                 text:
                     'Fahrt ihr mit mehreren Autos und nicht gleichzeitig los, '
                     'steht in demselben Schirm oben ein Umschalter: „Ganzer '
-                    'Tag" oder „Auto 2". Dann bekommt jeder seine Erinnerung '
-                    'zur Zeit seines Autos, und bei einer Änderung wird nur '
-                    'geweckt, wer darin sitzt. Damit die Zeit nicht am '
-                    'nächsten Tag am falschen Auto hängt, hält MitFahrBar die '
-                    'Fahrer dieses Tages fest. Am Fahrer eines abweichenden '
-                    'Autos hängt im Raster eine kleine Uhr, und die '
-                    'Tageszeile nennt die Zeiten.',
+                    'Tag" oder „Auto 2" — also sein eigenes. Dann bekommt '
+                    'jeder seine Erinnerung zur Zeit seines Autos, und bei '
+                    'einer Änderung wird nur geweckt, wer darin sitzt. Damit '
+                    'die Zeit nicht am nächsten Tag am falschen Auto hängt, '
+                    'hält MitFahrBar die Fahrer dieses Tages fest. Am Fahrer '
+                    'eines abweichenden Autos hängt im Raster eine kleine '
+                    'Uhr, und die Tageszeile nennt die Zeiten.',
               ),
               _Line(
                 text:

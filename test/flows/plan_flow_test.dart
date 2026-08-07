@@ -1600,6 +1600,109 @@ void main() {
     });
   });
 
+  // Wer die Zeit setzen darf (#188) — gemeldet am 07.08. aus 0.66.1: Der
+  // Eintrag stand in JEDER Zelle. Ein Mitfahrer traf damit sein Auto, also
+  // ein fremdes: Er verschob die Abfahrt eines Wagens, den er nicht fährt,
+  // und schrieb dabei den ganzen Fahrersatz des Tages fest.
+  //
+  // Geprüft wird am geöffneten Menü, nicht an einem `find` ins Leere: Ein
+  // Test, der nur sucht, wäre auch dann grün, wenn der Tap gar nichts
+  // öffnet — dieselbe Lehre wie beim toten Update-Knopf in 0.37.0.
+  group('Zeiten setzt, wer fährt (#188)', () {
+    testWidgets('ein Mitfahrer bekommt den Eintrag nicht', (tester) async {
+      final handle = tester.ensureSemantics();
+      final backend = await _seatBackend({
+        'Anna': 2,
+        'Bert': 2,
+        'Clara': 2,
+        'Dora': 2,
+      });
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      final names = ['Anna', 'Bert', 'Clara', 'Dora'];
+      for (final name in names) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      // Zwei Autos mit je zwei Plätzen: zwei Fahrer, zwei Mitfahrer.
+      final rider = _personIn('dabei, Auto [12]', monday, names);
+      await tester.tap(_cell(rider, monday));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(AlertDialog),
+        findsOneWidget,
+        reason:
+            'Die Zelle ist gefüllt, der Tap MUSS das Menü öffnen — sonst '
+            'prüft der Rest dieses Tests gar nichts.',
+      );
+      expect(
+        find.widgetWithText(ListTile, 'Ich möchte fahren'),
+        findsOneWidget,
+        reason:
+            'Und es ist das richtige Menü: Ein Mitfahrer darf weiterhin '
+            'alles, was ihn selbst betrifft.',
+      );
+      expect(
+        find.widgetWithText(ListTile, 'Zeiten & Treffpunkt'),
+        findsNothing,
+        reason:
+            'Nur nicht die Abfahrt eines Autos verschieben, das er nicht '
+            'fährt — und schon gar nicht dessen Fahrer festschreiben.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('wer an dem Tag nicht mitfährt, erst recht nicht', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      // Anna fährt, Bert kann nur hin — 1-way schließt das Fahren aus.
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await _pick(tester, 'Bert', monday, 'nur eine Richtung');
+
+      await tester.tap(_cell('Bert', monday, state: 'nur eine Richtung'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.widgetWithText(ListTile, 'Zeiten & Treffpunkt'),
+        findsNothing,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('der Fahrer behält ihn', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(_cell('Anna', monday, state: 'fährt'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.widgetWithText(ListTile, 'Zeiten & Treffpunkt'),
+        findsOneWidget,
+        reason:
+            'Die andere Richtung: Der Riegel darf den Weg nicht ganz '
+            'zumauern — sonst könnte niemand mehr eine Zeit setzen.',
+      );
+      handle.dispose();
+    });
+  });
+
   // Sichtbarkeit der Abweichungen (#183) — der zweite gemeldete Fehler vom
   // 07.08.: Eine gespeicherte Auto-Zeit war NIRGENDS zu sehen; der Push
   // hätte zur neuen Zeit geweckt, aber kein Schirm sagte es.
