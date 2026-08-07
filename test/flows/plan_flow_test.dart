@@ -1867,6 +1867,266 @@ void main() {
     });
   });
 
+  // Sein Auto aussuchen (#199) — der wörtliche Wunsch aus #189, den Stufe B2
+  // offengelassen hatte: Der Pin bestätigte bis v0.67.0 nur den Platz, den
+  // die Automatik ohnehin vergeben hatte. Die Tests TIPPEN, und der
+  // Sperr-Test prüft, dass der Dialog offen BLEIBT — ein Eintrag, der
+  // annimmt und still verfällt, sähe von außen genauso aus.
+  group('Mit wem fahren? (#199)', () {
+    /// Vier Zweisitzer, alle dabei — das ergibt zwei Autos mit je einem
+    /// Mitfahrer.
+    Future<FakeBackend> twoCarBackend() async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert', 'Cora', 'Dirk']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true, seats: 2),
+        );
+        await data.setAvailability(monday, person.id, PlanRide.full);
+      }
+      return backend;
+    }
+
+    /// In welchem Auto [name] laut Raster sitzt — 1 oder 2.
+    int carOfCell(String name, DateTime day) =>
+        _cell(name, day, state: '.*Auto 1').evaluate().isNotEmpty ? 1 : 2;
+
+    testWidgets('ein Mitfahrer wechselt sein Auto', (tester) async {
+      final handle = tester.ensureSemantics();
+      final backend = await twoCarBackend();
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      // Wer fährt, entscheiden die Punkte — der Test hält sich daran, statt
+      // eine Reihenfolge zu behaupten, die eine Formeländerung umwirft.
+      final riders = ['Anna', 'Bert', 'Cora', 'Dirk']
+          .where(
+            (n) => _cell(n, monday, state: 'dabei.*').evaluate().isNotEmpty,
+          )
+          .toList();
+      expect(riders, hasLength(2), reason: 'Aufbau: zwei Autos, zwei Sitze.');
+      final rider = riders.first;
+      final from = carOfCell(rider, monday);
+      final toDriver = ['Anna', 'Bert', 'Cora', 'Dirk'].firstWhere(
+        (n) =>
+            _cell(n, monday, state: 'fährt.*').evaluate().isNotEmpty &&
+            carOfCell(n, monday) != from,
+      );
+
+      await tester.tap(_cell(rider, monday, state: 'dabei.*'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(ListTile, 'Mit wem fahren?'),
+        findsOneWidget,
+        reason: 'Ab zwei Autos gibt es etwas auszusuchen.',
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Mit wem fahren?'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Mit wem fährt $rider?'),
+        findsOneWidget,
+        reason: 'Der Tipp muss den Auswahl-Dialog wirklich öffnen.',
+      );
+      await tester.tap(find.widgetWithText(ListTile, toDriver));
+      await tester.pumpAndSettle();
+
+      expect(
+        carOfCell(rider, monday),
+        carOfCell(toDriver, monday),
+        reason: 'Die Wahl wirkt sofort: $rider sitzt jetzt bei $toDriver.',
+      );
+
+      final choices = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadSeatChoices(monday, days: 1);
+      expect(
+        choices[monday]?.single.accepted,
+        isTrue,
+        reason: 'Eine Wahl ist dieselbe Zeile wie ein „Passt" — ein Pin.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('„Egal" nimmt die Wahl zurück — ohne Fehlermeldung', (
+      tester,
+    ) async {
+      // Die zweite Hälfte ist der eigentliche Test: Der Rückweg lief über
+      // die Liste, die der Notifier selbst hält, und löschte darin — ein
+      // `ConcurrentModificationError`, den der Schirm als „Speichern
+      // fehlgeschlagen" meldete, OBWOHL gespeichert wurde. Im Browser
+      // gefunden, nachdem die Suite grün war; deshalb prüft der Test die
+      // Meldung mit und nicht nur das Ergebnis.
+      final handle = tester.ensureSemantics();
+      final backend = await twoCarBackend();
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      final names = ['Anna', 'Bert', 'Cora', 'Dirk'];
+      final rider = names.firstWhere(
+        (n) => _cell(n, monday, state: 'dabei.*').evaluate().isNotEmpty,
+      );
+      final from = carOfCell(rider, monday);
+      final toDriver = names.firstWhere(
+        (n) =>
+            _cell(n, monday, state: 'fährt.*').evaluate().isNotEmpty &&
+            carOfCell(n, monday) != from,
+      );
+
+      await tester.tap(_cell(rider, monday, state: 'dabei.*'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Mit wem fahren?'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, toDriver));
+      await tester.pumpAndSettle();
+      expect(carOfCell(rider, monday), isNot(from));
+
+      await tester.tap(_cell(rider, monday, state: 'dabei.*'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Mit wem fahren?'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Egal'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Speichern fehlgeschlagen.'),
+        findsNothing,
+        reason: 'Eine Meldung über einen Fehler, den es nicht gab.',
+      );
+      expect(
+        carOfCell(rider, monday),
+        from,
+        reason: 'Ohne Zusage verteilt MitFahrBar wieder wie zuvor.',
+      );
+      final choices = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadSeatChoices(monday, days: 1);
+      expect(choices[monday] ?? const [], isEmpty);
+      handle.dispose();
+    });
+
+    testWidgets('ein volles Auto ist gesperrt, nicht überbucht', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = await twoCarBackend();
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      final names = ['Anna', 'Bert', 'Cora', 'Dirk'];
+      final riders = names
+          .where(
+            (n) => _cell(n, monday, state: 'dabei.*').evaluate().isNotEmpty,
+          )
+          .toList();
+      final rider = riders.first;
+      final other = riders.last;
+      final otherCar = carOfCell(other, monday);
+      final otherDriver = names.firstWhere(
+        (n) =>
+            _cell(n, monday, state: 'fährt.*').evaluate().isNotEmpty &&
+            carOfCell(n, monday) == otherCar,
+      );
+
+      // Der andere Mitfahrer sagt seinem Auto fest zu — der einzige
+      // Mitfahrer-Platz des Zweisitzers ist damit vergeben.
+      await tester.tap(_cell(other, monday, state: 'dabei.*'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Mit wem fahren?'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, otherDriver));
+      await tester.pumpAndSettle();
+
+      await tester.tap(_cell(rider, monday, state: 'dabei.*'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Mit wem fahren?'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ListTile, otherDriver),
+          matching: find.textContaining('voll'),
+        ),
+        findsOneWidget,
+        reason: '„Ausgegraut" allein sagt nicht, warum.',
+      );
+      final entry = tester.widget<ListTile>(
+        find.widgetWithText(ListTile, otherDriver),
+      );
+      expect(entry.enabled, isFalse);
+
+      await tester.tap(find.widgetWithText(ListTile, otherDriver));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Mit wem fährt $rider?'),
+        findsOneWidget,
+        reason:
+            'Der gesperrte Eintrag tut nichts — der Dialog bleibt offen. '
+            'Ein angenommener Pin verfiele in planWeek still, und von '
+            'außen sähe beides gleich aus.',
+      );
+      expect(carOfCell(rider, monday), isNot(otherCar));
+      handle.dispose();
+    });
+
+    testWidgets('bei einem Auto und beim Fahrer fehlt der Eintrag', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true),
+        );
+        await data.setAvailability(monday, person.id, PlanRide.full);
+      }
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      await tester.tap(_cell('Bert', monday, state: 'dabei'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.widgetWithText(ListTile, 'Mit wem fahren?'),
+        findsNothing,
+        reason:
+            'Bei einem Auto sitzen ohnehin alle darin — dieselbe Regel wie '
+            'bei den Auto-Marken.',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Abbrechen'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(_cell('Anna', monday, state: 'fährt'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(ListTile, 'Mit wem fahren?'),
+        findsNothing,
+        reason: 'Ein Fahrer sitzt in seinem eigenen Auto.',
+      );
+      handle.dispose();
+    });
+  });
+
   // Sichtbarkeit der Abweichungen (#183) — der zweite gemeldete Fehler vom
   // 07.08.: Eine gespeicherte Auto-Zeit war NIRGENDS zu sehen; der Push
   // hätte zur neuen Zeit geweckt, aber kein Schirm sagte es.

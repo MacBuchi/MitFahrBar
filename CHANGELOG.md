@@ -4,6 +4,31 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.68.0] – 2026-08-08
+
+### Neu
+
+- **Du kannst dir dein Auto selbst aussuchen.** Fahrt ihr an einem Tag mit
+  zwei oder mehr Autos, steht im Menü deines Feldes „Mit wem fahren?". Dort
+  siehst du jedes Auto mit seinem Fahrer, wer sonst noch drinsitzt und ob es
+  anders losfährt — ein Tipp, und du sitzt drin. Mit „Egal" nimmst du deine
+  Wahl zurück, und MitFahrBar verteilt wieder selbst.
+
+  Bisher ging das nur indirekt: Gefragt wurdest du nur, wenn dein Auto
+  anders losfuhr, und die Antwort bestätigte immer den Platz, den MitFahrBar
+  dir schon gegeben hatte. Zwei Autos, die zur selben Zeit losfahren, ließen
+  dir gar keine Wahl.
+
+  **Ein volles Auto lässt sich nicht wählen** — es steht als „voll" da.
+  Überbucht wird nichts: Wer zuerst zugesagt hat, sitzt drin, wie bisher.
+
+### Behoben
+
+- **Wer sein Auto wechselt, landet wirklich dort.** Hattest du an einem Tag
+  schon einmal einem Auto zugesagt, gewann bisher die ältere Zusage — eine
+  neue Wahl hätte sichtbar nichts getan. Es gilt jetzt immer die zuletzt
+  getroffene Entscheidung.
+
 ## [0.67.1] – 2026-08-07
 
 ### Intern

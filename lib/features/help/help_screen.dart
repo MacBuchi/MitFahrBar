@@ -259,6 +259,18 @@ class HelpScreen extends StatelessWidget {
                     'sitzt drin, wer zuerst zugesagt hat.',
               ),
               _Line(
+                leading: Icon(Icons.groups_outlined),
+                text:
+                    'Du kannst dir dein Auto auch selbst aussuchen: Ab zwei '
+                    'Autos steht im Menü deines Feldes „Mit wem fahren?". '
+                    'Dort siehst du jedes Auto mit seinem Fahrer, wer sonst '
+                    'noch drinsitzt und ob es anders losfährt. Ein Auto, in '
+                    'dem alle Plätze schon fest zugesagt sind, steht als '
+                    '„voll" da und lässt sich nicht wählen. Mit „Egal" '
+                    'nimmst du deine Wahl zurück und MitFahrBar verteilt '
+                    'wieder selbst.',
+              ),
+              _Line(
                 text:
                     'MitFahrBar schlägt für jeden Tag vor, wer fährt, und '
                     'denkt dabei die ganze Woche mit — deshalb wechseln '

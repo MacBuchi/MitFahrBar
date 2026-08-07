@@ -647,6 +647,19 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
           ?.where((c) => c.personId == personId && c.driverId == driverId)
           .firstOrNull;
 
+  /// Alle Entscheidungen eines Tages — für die Auto-Wahl (#199), die wissen
+  /// muss, welche Plätze schon fest vergeben sind. Aus derselben Kopie wie
+  /// [seatChoiceFor], aus demselben Grund.
+  ///
+  /// **Eine Kopie, nicht die Liste selbst.** Der Aufrufer läuft darüber und
+  /// löscht dabei ([clearSeatChoice] greift optimistisch in genau diese
+  /// Liste) — auf dem Original ist das ein `ConcurrentModificationError`, den
+  /// der Schirm als „Speichern fehlgeschlagen" meldet, obwohl gespeichert
+  /// wurde. So gefunden im Browser, nachdem die Testsuite grün war.
+  List<SeatChoice> seatChoicesOn(DateTime date) => [
+    ...?_seatChoices[_day(date)],
+  ];
+
   /// Sitz-Entscheidung setzen oder ersetzen (#189, Stufe B2) — optimistisch
   /// wie jeder Tap: Wer zustimmt, sitzt sofort im Auto, nicht erst nach dem
   /// Roundtrip.

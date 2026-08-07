@@ -867,26 +867,21 @@ List<PlannedDay> planWeek({
     // nicht — dieselbe Verwaisten-Regel wie bei `plan_car_defaults`.
     final dayCarDefaults =
         carDefaultsByDay[key] ?? const <String, GroupDefaults>{};
-    final pins = <SeatChoice>[];
+    final dayChoices = choicesByDay[key] ?? const <SeatChoice>[];
+    final pins = seatPinsOf(
+      dayChoices,
+      dayCarDefaults,
+      isAvailable: available.contains,
+    );
     final excludedBy = <String, Set<String>>{};
-    for (final choice in choicesByDay[key] ?? const <SeatChoice>[]) {
+    for (final choice in dayChoices) {
+      if (choice.accepted) continue;
       if (!available.contains(choice.personId)) continue;
       if (!choice.isCurrentFor(termsOf(dayCarDefaults[choice.driverId]))) {
         continue;
       }
-      if (choice.accepted) {
-        pins.add(choice);
-      } else {
-        (excludedBy[choice.personId] ??= {}).add(choice.driverId);
-      }
+      (excludedBy[choice.personId] ??= {}).add(choice.driverId);
     }
-    // **Wer zuerst gepinnt hat, bleibt** (entschieden 07.08.): Bei einem
-    // übervollen Auto entscheidet `decided_at`. Der Nachrang fällt in die
-    // automatische Verteilung, nicht aus dem Tag.
-    pins.sort((a, b) {
-      final byTime = a.decidedAt.compareTo(b.decidedAt);
-      return byTime != 0 ? byTime : a.personId.compareTo(b.personId);
-    });
 
     // **Ein Ausschluss kann ein weiteres Auto erzwingen** — das ist sein
     // Zweck: „Zu diesen Bedingungen fahre ich dort nicht mit" heißt, jemand
@@ -1099,6 +1094,84 @@ int? carIndexOf(PlannedDay day, String personId) {
     if (car.carries(personId)) return i;
   }
   return null;
+}
+
+/// Die **wirksamen Pins** eines Tages, in `decided_at`-Reihenfolge (#189).
+///
+/// Gültig ist nur, was zu den aktuellen [carDefaults] passt und zu jemandem
+/// gehört, der an dem Tag überhaupt kann ([isAvailable]) — die Verwaisten-Regel
+/// aus `plan_car_defaults`, hier für Zusagen.
+///
+/// **Je Person höchstens einer, nämlich der zuletzt getroffene.** Ein Mensch
+/// sitzt in einem Auto; von zwei Zusagen kann also nur eine gelten. Ohne diese
+/// Zeile gewänne die **ältere**: [planWeek] setzt Pins in `decided_at`-Folge
+/// und überspringt, wer schon sitzt. Wer sein Auto wechselt (#199), bliebe
+/// damit im alten — der Tipp täte sichtbar nichts, dieselbe Klasse wie der tote
+/// „Ich möchte fahren"-Pin aus v0.66.1.
+///
+/// Aufgeräumt wird auch hier nichts: Die überholte Zeile bleibt stehen und
+/// wirkt einfach nicht mehr.
+List<SeatChoice> seatPinsOf(
+  Iterable<SeatChoice> choices,
+  Map<String, GroupDefaults> carDefaults, {
+  required bool Function(String personId) isAvailable,
+}) {
+  final latest = <String, SeatChoice>{};
+  for (final choice in choices) {
+    if (!choice.accepted) continue;
+    if (!isAvailable(choice.personId)) continue;
+    if (!choice.isCurrentFor(termsOf(carDefaults[choice.driverId]))) continue;
+    final held = latest[choice.personId];
+    if (held == null || choice.decidedAt.isAfter(held.decidedAt)) {
+      latest[choice.personId] = choice;
+    }
+  }
+  // **Wer zuerst gepinnt hat, bleibt** (entschieden 07.08.): Bei einem
+  // übervollen Auto entscheidet `decided_at`. Der Nachrang fällt in die
+  // automatische Verteilung, nicht aus dem Tag.
+  return latest.values.toList()..sort((a, b) {
+    final byTime = a.decidedAt.compareTo(b.decidedAt);
+    return byTime != 0 ? byTime : a.personId.compareTo(b.personId);
+  });
+}
+
+/// Wie viele Plätze ein **neuer** Pin von [personId] auf das Auto von
+/// [driverId] noch vorfindet (#199) — 0 oder weniger heißt „voll".
+///
+/// Spiegelt genau die Bedingung, unter der [planWeek] einen Pin setzt: Ein Pin
+/// greift nur auf einen **freien** Platz, und Pins laufen vor der automatischen
+/// Verteilung. Automatisch zugeteilte Mitfahrer blockieren deshalb nicht — sie
+/// werden hinterher neu verteilt; was blockiert, sind die schon **fest
+/// zugesagten** Plätze. Ein neuer Pin ist der jüngste, steht also hinter allen
+/// bestehenden.
+///
+/// Ohne diese eine Stelle stünde die Frage „passt da noch jemand rein" zweimal
+/// verschieden im Code: einmal hier, einmal in der Verteilung. Der Screen
+/// sperrte dann Autos, in die man gekonnt hätte — oder ließe Tipps zu, die
+/// nichts bewirken.
+int freeSeatsForPin(
+  PlannedDay day, {
+  required String driverId,
+  required String personId,
+  required Map<String, Person> persons,
+  required Iterable<SeatChoice> choices,
+  required Map<String, GroupDefaults> carDefaults,
+}) {
+  final seats = persons[driverId]?.seats ?? defaultSeats;
+  final taken =
+      seatPinsOf(
+        choices,
+        carDefaults,
+        isAvailable: day.availableIds.contains,
+      ).where(
+        (pin) =>
+            pin.driverId == driverId &&
+            pin.personId != personId &&
+            // Ein Fahrer sitzt in seinem eigenen Auto; sein Pin auf ein fremdes
+            // verfällt in `planWeek` und darf hier keinen Platz belegen.
+            !day.driverIds.contains(pin.personId),
+      );
+  return seats - 1 - taken.length;
 }
 
 /// Kalenderwoche nach ISO 8601 — Woche 1 ist die mit dem ersten Donnerstag

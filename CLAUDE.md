@@ -343,6 +343,55 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       dauerhaft aus dem Wunsch-Auto. `decided_at` geht damit in die
       Plan-Rechnung ein; beim Umschreiben derselben Entscheidung bleibt es
       erhalten, nur neue Bedingungen setzen es neu.
+    - **Je Person gilt höchstens EIN Pin, nämlich der zuletzt getroffene**
+      (`seatPinsOf`, seit v0.68.0 mit #199). Ohne diese Zeile gewänne die
+      **ältere** Zusage: `planWeek` setzt Pins in `decided_at`-Reihenfolge
+      und überspringt, wer schon sitzt. Wer sein Auto wechselt, bliebe damit
+      im alten — der Tipp täte sichtbar gar nichts, dieselbe Klasse wie der
+      tote „Ich möchte fahren"-Pin aus v0.66.1. Aufgeräumt wird auch hier
+      nichts: Die überholte Zeile bleibt stehen und greift wieder, wenn die
+      neue verfällt.
+    - **Ein Mitfahrer sucht sich sein Auto aus** („Mit wem fahren?" im
+      Zell-Menü, #199 seit v0.68.0) — der wörtliche Wunsch aus #189, den
+      Stufe B2 offengelassen hatte. Bis dahin bestätigte der Pin immer nur
+      den Platz, den die Automatik ohnehin vergeben hatte (`carOf`), und
+      beide Wege dorthin hingen an einer Abweichung; zwei gleichzeitig
+      abfahrende Autos ließen also gar keine Wahl. **Ablage und Rechnung
+      konnten es längst** — `planWeek` setzt einen Pin über
+      `driverSet.indexOf(pin.driverId)` auf jedes Auto des Tages —, es
+      fehlte allein die Oberfläche.
+      - **Eine Wahl IST die Zusage**: dieselbe Zeile wie „Passt", mit den
+        `terms` des gewählten Autos. Sie veraltet also mit dessen Abfahrt,
+        und ein Auto ohne Abweichung trägt leere `terms` wie eh und je.
+        Der Ausschluss bleibt bei der Rückfrage — „mit wem fahre ich" ist
+        keine Antwort auf eine verschobene Abfahrt.
+      - **Ein volles Auto ist gesperrt, nicht überbucht** (entschieden
+        08.08.). Ein Pin greift in `planWeek` nur auf einen **freien**
+        Platz; angenommen und still verfallen wäre er wieder der tote Tipp.
+        Was blockiert, sind die **festen Zusagen** der anderen, nicht die
+        automatisch verteilten Mitfahrer — die verteilt der Plan hinterher
+        neu, ein Pin läuft davor. Gerechnet wird das in `freeSeatsForPin`,
+        damit Schirm und Verteilung dieselbe Antwort geben; zwei Stellen
+        sperrten Autos, in die man gekonnt hätte, oder umgekehrt. Der
+        Flow-Test **tippt** den gesperrten Eintrag und prüft, dass der
+        Dialog offen **bleibt** — ein angenommener, still verfallender Pin
+        sähe von außen genauso aus.
+      - **„Egal" räumt ALLE Zusagen des Tages weg**, nicht nur die
+        wirksame: Bliebe eine ältere stehen, wäre sie ab sofort die neue
+        wirksame, und „egal" hätte ein Auto gewählt. `seatChoicesOn` gibt
+        dafür eine **Kopie** heraus, nicht die Liste des Notifiers — der
+        Aufrufer löscht beim Darüberlaufen, und optimistisch geschrieben
+        wird in dieselbe Liste. Auf dem Original ist das ein
+        `ConcurrentModificationError`, den der Schirm als „Speichern
+        fehlgeschlagen" meldet, **obwohl gespeichert wurde**. Gefunden im
+        Browser (`.claude/skills/run-web/`), nachdem die Suite grün war;
+        der Flow-Test prüft seither die Meldung mit, nicht nur das
+        Ergebnis.
+      - **Erst ab zwei Autos und nur für Mitfahrer**, dieselbe Regel wie
+        bei den Auto-Marken und bei „Zeiten & Treffpunkt" (#188): Bei einem
+        Auto sitzen ohnehin alle darin, und ein Fahrer sitzt in seinem
+        eigenen. Wer in **keinem** Auto sitzt (allen abgesagt), behält den
+        Eintrag — er ist der Weg zurück.
     - **Gefragt wird am offenen Dialog, nie per Schweigen entschieden.**
       Die Rückfrage kommt beim Eintragen — dort steht die Person vor dem
       Gerät. Ein nicht beantworteter Push darf den Plan nicht sprengen

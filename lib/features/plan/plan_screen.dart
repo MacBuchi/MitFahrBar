@@ -422,6 +422,7 @@ class _AvailabilityGrid extends ConsumerWidget {
     Person person,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
+    final byId = {for (final p in persons) p.id: p};
     final current = !day.availableIds.contains(person.id)
         ? null
         : day.oneWayIds.contains(person.id)
@@ -468,6 +469,24 @@ class _AvailabilityGrid extends ConsumerWidget {
           _ => null,
         },
         deviates: ref.read(weekPlanDefaultsProvider).value?[day.date] != null,
+        // **Ein Auto aussuchen** (#199) — nur, wo es etwas auszusuchen gibt:
+        // ab zwei Autos (bei einem sitzen ohnehin alle darin, dieselbe Regel
+        // wie bei den Marken), nur für Mitfahrer (ein Fahrer sitzt in seinem
+        // eigenen Wagen) und nur an einem Tag, an dem noch geplant wird.
+        carPickSubtitle:
+            !day.confirmed &&
+                day.cars.length > 1 &&
+                day.availableIds.contains(person.id) &&
+                !day.driverIds.contains(person.id)
+            ? switch (carIndexOf(day, person.id)) {
+                final i? =>
+                  'zurzeit Auto ${i + 1} · '
+                      '${byId[day.cars[i].driverId]?.name ?? '—'}',
+                // Wer jedem Auto abgesagt hat, sitzt in keinem — dann ist die
+                // Wahl der Weg zurück und darf nicht verschwinden.
+                _ => 'zurzeit in keinem Auto',
+              }
+            : null,
       ),
     );
     if (picked == null) return;
@@ -528,6 +547,107 @@ class _AvailabilityGrid extends ConsumerWidget {
         // Erneut fragen, auch wenn schon entschieden ist — genau dafür ist
         // der Eintrag da.
         await _maybeAskConsent(context, ref, day.date, person.id, force: true);
+      case _PickCar():
+        await _pickCar(context, ref, day, person, byId);
+    }
+  }
+
+  /// Sich ein Auto aussuchen (#199) — der wörtliche Wunsch aus #189.
+  ///
+  /// Geschrieben wird dieselbe Zeile wie beim „Passt" der Rückfrage: ein Pin
+  /// zu den Bedingungen **dieses** Autos. Damit ist eine Wahl zugleich das
+  /// Einverständnis mit dessen Abfahrt — und veraltet mit ihr, wenn der Fahrer
+  /// sie später verschiebt.
+  Future<void> _pickCar(
+    BuildContext context,
+    WidgetRef ref,
+    PlannedDay day,
+    Person person,
+    Map<String, Person> byId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final date = day.date;
+    final notifier = ref.read(weekPlanProvider.notifier);
+    final deviations =
+        ref.read(weekCarDefaultsProvider).value?[date] ??
+        const <String, GroupDefaults>{};
+    // Aus dem Notifier, nicht aus einem eigenen Provider — dieselbe Kopie,
+    // mit der gerechnet wird, samt optimistischer Schreibvorgänge (#189).
+    final choices = notifier.seatChoicesOn(date);
+    final pinned = seatPinsOf(
+      choices,
+      deviations,
+      isAvailable: day.availableIds.contains,
+    ).where((pin) => pin.personId == person.id).firstOrNull;
+
+    final picked = await showDialog<_CarPickResult>(
+      context: context,
+      builder: (_) => _CarPickerDialog(
+        person: person,
+        cars: [
+          for (final (i, car) in day.cars.indexed)
+            _CarOption(
+              driverId: car.driverId,
+              number: i + 1,
+              title: byId[car.driverId]?.name ?? '—',
+              riders: [
+                for (final id in [...car.fullIds, ...car.oneWayIds])
+                  if (id != person.id) byId[id]?.name ?? '—',
+              ].join(', '),
+              deviation: switch (deviations[car.driverId]) {
+                final dev? when !dev.isEmpty => _deviationSentence(dev),
+                _ => null,
+              },
+              free: freeSeatsForPin(
+                day,
+                driverId: car.driverId,
+                personId: person.id,
+                persons: byId,
+                choices: choices,
+                carDefaults: deviations,
+              ),
+              pinned: pinned?.driverId == car.driverId,
+            ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+
+    try {
+      switch (picked) {
+        case _CarChosen(:final driverId):
+          final terms = termsOf(deviations[driverId]);
+          final existing = notifier.seatChoiceFor(date, person.id, driverId);
+          await notifier.setSeatChoice(
+            SeatChoice(
+              date: date,
+              personId: person.id,
+              driverId: driverId,
+              accepted: true,
+              terms: terms,
+              // Dieselbe Wahl noch einmal behält ihren Rang — nur eine neue
+              // Entscheidung stellt sich hinten an (#189).
+              decidedAt:
+                  existing != null &&
+                      existing.accepted &&
+                      existing.terms == terms
+                  ? existing.decidedAt
+                  : DateTime.now(),
+            ),
+          );
+        case _CarAuto():
+          // **Alle** Zusagen dieses Tages, nicht nur die wirksame: Bliebe eine
+          // ältere stehen, wäre sie ab sofort die neue wirksame — „egal" hätte
+          // dann ein Auto gewählt.
+          for (final row in choices) {
+            if (row.personId != person.id || !row.accepted) continue;
+            await notifier.clearSeatChoice(date, person.id, row.driverId);
+          }
+      }
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+      );
     }
   }
 
@@ -850,6 +970,11 @@ class _DecideSeat extends _MenuAction {
   const _DecideSeat();
 }
 
+/// Sich ein Auto aussuchen (#199).
+class _PickCar extends _MenuAction {
+  const _PickCar();
+}
+
 /// Das Menü einer Zelle (#183, vorher die Rückfrage aus #121).
 ///
 /// Es fragt nicht nur, es erledigt es gleich: Ein Tipp öffnet, ein zweiter
@@ -869,6 +994,7 @@ class _RidePickerDialog extends StatelessWidget {
     required this.canEditTimes,
     required this.deviates,
     this.seatTerms,
+    this.carPickSubtitle,
   });
 
   final Person person;
@@ -890,6 +1016,11 @@ class _RidePickerDialog extends StatelessWidget {
   /// `null`, wenn es keine gibt oder sie selbst fährt (#189). Nur mit Wert
   /// erscheint der Eintrag zum Zustimmen/Ablehnen.
   final String? seatTerms;
+
+  /// Wo diese Person gerade sitzt — `null`, wenn es nichts zu wählen gibt
+  /// (#199). Nur mit Wert erscheint der Eintrag „Mit wem fahren?"; der Text
+  /// ist seine Unterzeile.
+  final String? carPickSubtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -918,6 +1049,20 @@ class _RidePickerDialog extends StatelessWidget {
               title: const Text('Ich möchte fahren'),
               onTap: () => Navigator.of(context).pop(const _WantToDrive()),
             ),
+          if (carPickSubtitle case final where?) ...[
+            const Divider(height: AppSpacing.s),
+            // **Sein Auto aussuchen** (#199) — der wörtliche Wunsch aus #189.
+            // Er steht neben der Zustimmung und ersetzt sie nicht: „Passt dir
+            // das?" beantwortet eine andere Frage als „mit wem fahre ich",
+            // und ein Auto zu wählen ist keine Antwort auf eine verschobene
+            // Abfahrt.
+            ListTile(
+              leading: Icon(Icons.groups_outlined, color: scheme.primary),
+              title: const Text('Mit wem fahren?'),
+              subtitle: Text(where),
+              onTap: () => Navigator.of(context).pop(const _PickCar()),
+            ),
+          ],
           if (seatTerms case final terms?) ...[
             const Divider(height: AppSpacing.s),
             // Das eigene Auto fährt anders — hier steht, wie, und der Tipp
@@ -1271,23 +1416,148 @@ class _Cell extends StatelessWidget {
   }
 }
 
+/// Ein Auto in der Auswahl (#199) — alles, was der Dialog anzeigen muss.
+class _CarOption {
+  const _CarOption({
+    required this.driverId,
+    required this.number,
+    required this.title,
+    required this.riders,
+    required this.deviation,
+    required this.free,
+    required this.pinned,
+  });
+
+  final String driverId;
+
+  /// 1-basiert — dieselbe Nummer wie die Marke im Raster.
+  final int number;
+
+  /// Der Fahrer, mit seinen Plätzen.
+  final String title;
+
+  /// Wer sonst noch drinsitzt; leer = niemand.
+  final String riders;
+
+  /// Abweichende Bedingungen dieses Autos als Satz — `null`, wenn keine.
+  final String? deviation;
+
+  /// Freie Plätze für einen neuen Pin. `<= 0` sperrt den Eintrag.
+  final int free;
+
+  /// Ob genau dieses Auto bereits fest zugesagt ist.
+  final bool pinned;
+}
+
+/// Was aus der Auto-Wahl zurückkommt (#199).
+sealed class _CarPickResult {
+  const _CarPickResult();
+}
+
+class _CarChosen extends _CarPickResult {
+  const _CarChosen(this.driverId);
+  final String driverId;
+}
+
+/// „Egal" — die Zusage fällt weg, MitFahrBar verteilt wieder selbst.
+class _CarAuto extends _CarPickResult {
+  const _CarAuto();
+}
+
+/// Mit wem fahre ich heute? (#199)
+///
+/// **Nur eine Zusage, kein Ausschluss.** Ein gewähltes Auto schreibt einen Pin
+/// zu genau dessen Bedingungen — dieselbe Zeile, die auch das „Passt" der
+/// Rückfrage erzeugt (#189). Das „Nein, so nicht" bleibt dort, wo es
+/// hingehört: Es beantwortet eine verschobene Abfahrt, nicht die Frage nach
+/// dem Auto.
+///
+/// **Ein volles Auto ist gesperrt, nicht überbucht** (entschieden 08.08.). Ein
+/// Pin greift in `planWeek` nur auf einen freien Platz; angenommen und still
+/// verfallen wäre er genau der tote Tipp, der schon zweimal gemeldet wurde.
+/// Was einen Platz belegt, sind die **festen Zusagen** der anderen, nicht die
+/// automatisch verteilten Mitfahrer — die verteilt der Plan hinterher neu.
+/// Gerechnet wird das in `freeSeatsForPin`, damit hier und in der Verteilung
+/// dieselbe Antwort steht.
+class _CarPickerDialog extends StatelessWidget {
+  const _CarPickerDialog({required this.person, required this.cars});
+
+  final Person person;
+  final List<_CarOption> cars;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text('Mit wem fährt ${person.name}?'),
+      contentPadding: const EdgeInsets.only(top: AppSpacing.s),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final car in cars)
+            ListTile(
+              leading: _CarBadge(number: car.number, size: 22),
+              title: Text(car.title),
+              // Ein leeres `Text('')` wäre kein leerer Untertitel: Die Zeile
+              // eines Autos ohne Mitfahrer würde niedriger als die daneben.
+              subtitle: switch ([
+                if (car.riders.isNotEmpty) car.riders,
+                ?car.deviation,
+                // Der Grund steht am Eintrag, nicht nur in der Farbe:
+                // „ausgegraut" allein sagt nicht, warum.
+                if (car.free <= 0 && !car.pinned) 'voll',
+              ]) {
+                final parts when parts.isEmpty => null,
+                final parts => Text(parts.join(' · ')),
+              },
+              enabled: car.free > 0 || car.pinned,
+              selected: car.pinned,
+              trailing: car.pinned
+                  ? Icon(Icons.done, color: scheme.primary)
+                  : null,
+              onTap: () => Navigator.of(context).pop(_CarChosen(car.driverId)),
+            ),
+          const Divider(height: AppSpacing.s),
+          ListTile(
+            leading: Icon(Icons.shuffle, color: scheme.onSurfaceVariant),
+            title: const Text('Egal'),
+            subtitle: const Text('MitFahrBar verteilt'),
+            selected: cars.every((car) => !car.pinned),
+            onTap: () => Navigator.of(context).pop(const _CarAuto()),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Abbrechen'),
+        ),
+      ],
+    );
+  }
+}
+
 /// Die Auto-Marke an einer Zelle: Farbe **und** Nummer (#183).
 ///
 /// Beides zusammen, nie eines allein — die Farbe für den Blick übers Raster,
 /// die Nummer für alle, die sie nicht unterscheiden können, und für den
 /// fünften Wagen, für den es keine Farbe mehr gibt.
 class _CarBadge extends StatelessWidget {
-  const _CarBadge({required this.number});
+  const _CarBadge({required this.number, this.size = 14});
 
   final int number;
+
+  /// Kantenlänge — im Raster klein an der Zelle, in der Auto-Wahl (#199) so
+  /// groß wie ein Listen-Symbol.
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final tone = AppCarTones.byIndex(number - 1, Theme.of(context).brightness);
     return Container(
-      width: 14,
-      height: 14,
+      width: size,
+      height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         // Jenseits der Palette ein neutraler Grund: Eine fünfte Farbe zu
@@ -1301,7 +1571,7 @@ class _CarBadge extends StatelessWidget {
         child: Text(
           '$number',
           style: TextStyle(
-            fontSize: 9,
+            fontSize: 9 / 14 * size,
             height: 1,
             fontWeight: FontWeight.w700,
             color: tone?.foreground ?? scheme.onSurface,
