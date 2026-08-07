@@ -1,0 +1,74 @@
+# Lizenz-Gate über ALLE Abhängigkeiten, nicht nur die neuen.
+#
+# Läuft in .github/workflows/security.yml. Bewusst NICHT als
+# dev_dependency: `pubspec.yaml` ist nicht vom Version Guard ausgenommen,
+# eine Zeile dort löste ein Release an die Gruppen aus, nur um einen Linter
+# zu installieren. Deshalb `dart pub global activate` im Runner — das
+# schreibt nach ~/.pub-cache und lässt pubspec.lock in Ruhe.
+#
+# **Warum license_checker und nicht `osv-scanner --licenses`:** Dessen
+# Lizenzdaten kommen aus deps.dev, dessen dokumentierte Ökosysteme npm, Go,
+# Maven, PyPI, Cargo, NuGet und RubyGems sind — `pub` ist dort als
+# *Lizenz*-Ökosystem nicht belegt (als *Schwachstellen*-Ökosystem in
+# osv-scanner dagegen sehr wohl). license_checker liest stattdessen die
+# echten LICENSE-Dateien aus dem pub-Cache und kann strukturell nicht dünn
+# sein.
+#
+# Ergänzt `dependency-review` im selben Workflow, ersetzt es nicht: Das
+# prüft nur, was ein PR NEU hinzufügt, und würde einen Lizenzwechsel in
+# einer bestehenden transitiven Abhängigkeit nie bemerken.
+#
+# Gegen den echten Baum abgestimmt (124 Pakete), nicht von pilzbuddy
+# kopiert — Firebase bringt hier deutlich mehr Apache-2.0 mit, und es gibt
+# kein Paket mit unlesbarer Lizenz, also auch keine Overrides.
+
+# Freizügige Lizenzen — verträglich mit der MIT-Auslieferung dieser App.
+# Ist-Verteilung beim Anlegen: 90× BSD-3-Clause, 18× MIT, 10× Apache-2.0
+# (die app_links-Familie, rxdart, material_color_utilities), 1× MPL-2.0,
+# 1× Zlib, 1× MIT-Modern-Variant.
+permittedLicenses:
+  - MIT
+  - BSD-3-Clause
+  - BSD-2-Clause
+  - Apache-2.0
+  - ISC
+  - Zlib
+  - Unlicense
+  - CC0-1.0
+  # Schwaches Copyleft auf Datei-Ebene: verpflichtet nur, Änderungen AN DER
+  # BIBLIOTHEK offenzulegen, nicht die eigene App. Trägt hier `gtk`, eine
+  # transitive Linux-Desktop-Abhängigkeit.
+  - MPL-2.0
+  # Die von der OSI geführte moderne MIT-Fassung (ohne die
+  # „Software"-Definition der Urfassung). Trägt `sky_engine`, also die
+  # Flutter-Engine selbst — inhaltlich MIT.
+  - MIT-Modern-Variant
+
+# Starkes Copyleft und Nicht-Kommerziell. Beides würde die Auslieferung
+# einer MIT-lizenzierten App über GitHub-Releases und GitHub Pages
+# entweder verbieten oder die ganze App unter dieselbe Lizenz zwingen.
+#
+# CC-BY-NC steht hier bewusst mit drin, obwohl das Preisarchiv unter
+# CC BY-NC-SA 4.0 steht: Das sind DATEN, keine Code-Abhängigkeit, sie
+# kommen nie über pub herein. Träte diese Lizenz je an einem pub-Paket
+# auf, wäre das ein echter Fund und kein Fehlalarm — siehe
+# doc/entscheidung-preisarchiv-lizenz.md.
+rejectedLicenses:
+  - GPL-2.0
+  - GPL-3.0
+  - AGPL-3.0
+  - LGPL-2.1
+  - LGPL-3.0
+  - SSPL-1.0
+  - CC-BY-NC-4.0
+  - CC-BY-NC-SA-4.0
+
+# Pakete ohne eigene LICENSE-Datei. Das sind ausschließlich die
+# SDK-Pseudo-Pakete: Sie liegen IM Flutter-SDK und sind von dessen
+# BSD-3-Clause abgedeckt (`flutter` selbst wird oben korrekt so erkannt).
+# Eine eigene Datei haben sie nie gehabt.
+approvedPackages:
+  no-file:
+    - flutter_localizations
+    - flutter_test
+    - flutter_web_plugins

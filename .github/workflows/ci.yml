@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -35,13 +35,25 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
+      # Die fünf Edge Functions hatten bis hierher GAR KEINEN Compile-Schritt.
+      # Ein Syntaxfehler dort fällt sonst erst live auf, und zwar als
+      # Function, die nie startet — die GitHub-Integration deployt bei jedem
+      # Push auf `main`, ohne vorher zu übersetzen. FWApp hat denselben
+      # Schritt und dokumentiert dort den echten Ausfall, der ihn ausgelöst
+      # hat (v1.9.0, fehlendes „+", Nutzerverwaltung tot).
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+        with:
+          deno-version: v2.x
+      - name: Edge Functions übersetzen
+        run: deno check supabase/functions/*/index.ts
+
   build-web:
     name: Build Web
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -64,7 +76,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -88,10 +100,10 @@ jobs:
       # CLI-Version gepinnt wie Flutter — ein CLI-Upgrade ändert den
       # lokalen Stack (Ports/Sektionen in config.toml) und gehört bewusst
       # zusammen mit einem lokalen Upgrade getestet.
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
         with:
           version: "2.109.1"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -115,10 +127,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
         with:
           version: "2.109.1"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -144,6 +156,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Versions-Bump prüfen
+        # Über `env:` statt direkt in den `run:`-Block interpoliert: Ein
+        # Branch-Name ist von außen wählbar, und `${{ }}` wird VOR der Shell
+        # ersetzt — ein Branch namens `a";rm -rf /;#` liefe sonst als Code.
+        # In der Umgebungsvariable ist er nur noch eine Zeichenkette.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           version=$(sed -n 's/^version: \([0-9][0-9.]*\).*/\1/p' pubspec.yaml)
@@ -159,8 +178,8 @@ jobs:
             # aus. `doc/` steht mit drin, weil dort auch Nicht-Markdown liegt
             # (README-Screenshots) — Doku bleibt Doku, auch als PNG.
             excludes=(':!*.md' ':!.github' ':!doc' ':!test' ':!tool' ':!LICENSE')
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              changed=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- . "${excludes[@]}" || true)
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              changed=$(git diff --name-only "origin/$BASE_REF"...HEAD -- . "${excludes[@]}" || true)
             else
               changed=$(git diff --name-only "$latest"..HEAD -- . "${excludes[@]}" || true)
             fi

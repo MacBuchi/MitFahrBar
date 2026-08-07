@@ -1,0 +1,29 @@
+# Konfiguration für den Actions-Sicherheitslinter (workflow-lint.yml).
+#
+# Nur EINE Abweichung von der Vorgabe, und die ist bewusst:
+#
+# `unpinned-uses` verlangt per Blankett-Regel einen Hash-Pin für jede Action.
+# Für Fremd-Actions ist das genau richtig — sie laufen hier in denselben
+# Jobs wie der Android-Keystore, der Supabase-service_role-Key, die
+# Datenbank-URI samt Passwort, das Backup-Token, das Supabase-Access-Token
+# und die Tankerkönig-Archivzugangsdaten. Ein bewegliches Tag kann jederzeit
+# umgehängt werden; deshalb sind sie alle auf Commit-SHAs festgenagelt.
+#
+# Wie nötig das ist, zeigt `denoland/setup-deno@v2`: Das ist **gar kein
+# Tag**, sondern ein Branch — er wandert mit jedem Push, ist also noch
+# beweglicher als das Tag, für das er sich ausgibt. In den Nachbar-Repos
+# gilt dasselbe für `supabase/setup-cli@v1` und
+# `dtolnay/rust-toolchain@stable`.
+#
+# Für `actions/*` und `github/*` gilt das nicht: Das ist GitHub selbst, also
+# derselbe Vertrauensanker, der die Runner und die Secrets ohnehin
+# bereitstellt. Ein Hash-Pin dort kauft nichts hinzu, kostet aber bei jedem
+# Update einen aufgelösten SHA — und ein veralteter Pin auf `checkout` ist
+# ein realeres Risiko als ein Tag von GitHub.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        actions/*: ref-pin
+        github/*: ref-pin
+        "*": hash-pin
