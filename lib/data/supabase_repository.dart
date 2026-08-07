@@ -8,6 +8,7 @@ import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
+import '../models/seat_choice.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
 import 'read_retry.dart';
@@ -276,6 +277,46 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
       ...defaults.toJson(),
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'group_id,plan_date,driver_id');
+  }
+
+  @override
+  Future<Map<DateTime, List<SeatChoice>>> loadSeatChoices(
+    DateTime from, {
+    int days = 7,
+  }) => readTolerant(() async {
+    final rows = await _client
+        .from('plan_seat_choices')
+        .select('plan_date, person_id, driver_id, accepted, terms, decided_at')
+        .gte('plan_date', _isoDay(from))
+        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))));
+    final byDay = <DateTime, List<SeatChoice>>{};
+    for (final row in rows) {
+      final choice = SeatChoice.fromJson(row);
+      (byDay[choice.date] ??= []).add(choice);
+    }
+    return byDay;
+  });
+
+  @override
+  Future<void> saveSeatChoice(SeatChoice choice) async {
+    await _client.from('plan_seat_choices').upsert({
+      'group_id': _client.auth.currentUser?.id,
+      ...choice.toJson(),
+    }, onConflict: 'group_id,plan_date,person_id,driver_id');
+  }
+
+  @override
+  Future<void> deleteSeatChoice(
+    DateTime date,
+    String personId,
+    String driverId,
+  ) async {
+    await _client
+        .from('plan_seat_choices')
+        .delete()
+        .eq('plan_date', _isoDay(date))
+        .eq('person_id', personId)
+        .eq('driver_id', driverId);
   }
 
   @override

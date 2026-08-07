@@ -245,6 +245,20 @@ class HelpScreen extends StatelessWidget {
                     'Uhr, und die Tageszeile nennt die Zeiten.',
               ),
               _Line(
+                leading: Icon(Icons.event_seat),
+                text:
+                    'Landest du beim Eintragen in einem Auto, das anders '
+                    'fährt als eure festen Zeiten, fragt dich MitFahrBar, ob '
+                    'das passt. Mit „Passt" ist dir dein Platz in genau '
+                    'diesem Auto sicher; mit „Nein, so nicht" fährst du dort '
+                    'nicht mit, und es wird ein weiteres Auto eingeplant. '
+                    'Umentscheiden geht jederzeit über das Menü deines '
+                    'Feldes. Dein Ja gilt für genau die Zeit, der du '
+                    'zugestimmt hast — ändert sie sich, wirst du neu '
+                    'gefragt. Und wollen mehr in ein Auto, als hineinpassen, '
+                    'sitzt drin, wer zuerst zugesagt hat.',
+              ),
+              _Line(
                 text:
                     'MitFahrBar schlägt für jeden Tag vor, wer fährt, und '
                     'denkt dabei die ganze Woche mit — deshalb wechseln '

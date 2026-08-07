@@ -8,6 +8,7 @@ import '../models/notification_prefs.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
+import '../models/seat_choice.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
 
@@ -174,6 +175,46 @@ class FakeCarpoolRepository implements CarpoolRepository {
       return;
     }
     _dayDefaults[_day(date)] = defaults;
+  }
+
+  /// Sitz-Entscheidungen (#189) — Schlüssel wie der PK der Tabelle.
+  final Map<DateTime, Map<String, SeatChoice>> _seatChoices = {};
+
+  static String _choiceKey(String personId, String driverId) =>
+      '$personId|$driverId';
+
+  @override
+  Future<Map<DateTime, List<SeatChoice>>> loadSeatChoices(
+    DateTime from, {
+    int days = 7,
+  }) async {
+    final start = _day(from);
+    final end = start.add(Duration(days: days - 1));
+    return {
+      for (final e in _seatChoices.entries)
+        if (!e.key.isBefore(start) && !e.key.isAfter(end))
+          e.key: e.value.values.toList(),
+    };
+  }
+
+  @override
+  Future<void> saveSeatChoice(SeatChoice choice) async {
+    (_seatChoices[_day(choice.date)] ??= {})[_choiceKey(
+          choice.personId,
+          choice.driverId,
+        )] =
+        choice;
+  }
+
+  @override
+  Future<void> deleteSeatChoice(
+    DateTime date,
+    String personId,
+    String driverId,
+  ) async {
+    final day = _day(date);
+    _seatChoices[day]?.remove(_choiceKey(personId, driverId));
+    if (_seatChoices[day]?.isEmpty ?? false) _seatChoices.remove(day);
   }
 
   static DateTime _day(DateTime date) =>

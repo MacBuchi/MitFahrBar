@@ -319,6 +319,55 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       Zeit-Setzen), sieht weiter „Vorschlag" — `isOverridden` vergleicht
       Mengen. Sichtbar wird der Pin erst, wenn er etwas festhält; genau
       dafür ist er da.
+  - **Die Sitzwahl ist ein Einverständnis, keine freie Auto-Wahl**
+    (`plan_seat_choices`, #189 Stufe B2, seit v0.67.0; entschieden 07.08.).
+    Der Wunsch hieß „Mitfahrer wählen ihr Auto"; gebaut ist der engere
+    Fall, denn der Anlass ist ein anderer: Seit #183 kann ein Fahrer die
+    Abfahrt seines Autos verschieben, und wer zu 07:30 zugesagt hat, darf
+    nicht stillschweigend auf 05:30 gezogen werden. `accepted=true` ist
+    ein **Pin** (dieser Platz, diese Bedingungen), `false` ein
+    **Ausschluss** — und der kann ein weiteres Auto erzwingen: „Zu diesen
+    Bedingungen nicht" heißt, jemand anderes muss fahren; wer, entscheiden
+    exakt die Punkte. Sagt niemand zu, fährt der Spezialfahrer allein.
+    - **`terms` ist der Kern, kein Beiwerk.** Gespeichert wird, WOZU
+      jemand ja oder nein gesagt hat (`termsOf`, kanonischer Text
+      `hh:mm|hh:mm|Ort`; leer = feste Vorgaben). Stimmt er nicht mehr mit
+      der aktuellen Abweichung überein, ist die Entscheidung **veraltet
+      und wirkt nicht** — eine Zusage ist kein Blankoscheck, und ein Nein
+      überlebt die zurückgenommene Abweichung nicht (sonst gäbe es
+      dauerhaft zwei Autos wegen einer Zeit, die es nicht mehr gibt).
+      Aufgeräumt wird nichts: verwaiste Zeilen wirken nicht, wie bei
+      `plan_car_defaults`.
+    - **Wer zuerst gepinnt hat, bleibt** (`decided_at`). Der Nachrang
+      fällt in die automatische Verteilung — nicht aus dem Tag und nicht
+      dauerhaft aus dem Wunsch-Auto. `decided_at` geht damit in die
+      Plan-Rechnung ein; beim Umschreiben derselben Entscheidung bleibt es
+      erhalten, nur neue Bedingungen setzen es neu.
+    - **Gefragt wird am offenen Dialog, nie per Schweigen entschieden.**
+      Die Rückfrage kommt beim Eintragen — dort steht die Person vor dem
+      Gerät. Ein nicht beantworteter Push darf den Plan nicht sprengen
+      (#180: zugestellt ist nicht angezeigt); wer schweigt, bleibt
+      automatisch verteilt und sieht die Abweichung an Tageszeile, Glyph
+      und Banner. Das Nein kostet zwei Taps: Zell-Menü → „Dein Auto fährt
+      anders". Die nachträgliche Push-Rückfrage an bereits Eingetragene
+      (mit Deep-Link in den Planer) ist **Stufe 2 und nicht gebaut**.
+    - **Ohne Entscheidungen rechnet `planWeek` bitgleich wie vorher** —
+      per Test festgenagelt. Daran hängt auch der Soak-Report
+      (`doc/entscheidung-mitfahrer-verteilung.md`): Er misst die
+      **automatische** Verteilung und bleibt dafür gültig; das Verhalten
+      unter vielen Pins/Ausschlüssen ist **nicht** gemessen. Wer die
+      Zusagen ±2 Punkte/±2 pp auf gepinnte Wochen ausdehnen will, misst
+      neu, statt den Report zu zitieren.
+    - Der Boden (`tool/notify.dart`) lädt Entscheidungen UND
+      Auto-Abweichungen und reicht beide an `planWeek` — ohne sie
+      verteilte er die Mitfahrer anders als die App und der Korb trüge je
+      nach Schreiber verschiedene Zeiten.
+    - Die Rückfrage liest die gemerkte Entscheidung **aus dem
+      `WeekPlanNotifier`** (`seatChoiceFor`), nicht aus einem eigenen
+      Provider: Dort liegt die Kopie, mit der gerechnet wird, samt der
+      optimistischen Schreibvorgänge. Ein zweiter Ladepfad hing beim
+      Weiterschalten einen Roundtrip hinterher und fragte genau dann
+      doppelt — so gefunden im Flow-Test, bevor es jemand erlebt hat.
 - **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von

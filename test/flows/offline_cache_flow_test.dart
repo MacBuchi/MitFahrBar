@@ -17,6 +17,7 @@ import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/seat_choice.dart';
 import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -87,6 +88,23 @@ class _WiredCarpool implements CarpoolRepository {
     DateTime from, {
     int days = 7,
   }) => _read(() => inner.loadCarDefaults(from, days: days));
+
+  @override
+  Future<Map<DateTime, List<SeatChoice>>> loadSeatChoices(
+    DateTime from, {
+    int days = 7,
+  }) => _read(() => inner.loadSeatChoices(from, days: days));
+
+  @override
+  Future<void> saveSeatChoice(SeatChoice choice) =>
+      inner.saveSeatChoice(choice);
+
+  @override
+  Future<void> deleteSeatChoice(
+    DateTime date,
+    String personId,
+    String driverId,
+  ) => inner.deleteSeatChoice(date, personId, driverId);
 
   @override
   Future<void> saveCarDefaults(

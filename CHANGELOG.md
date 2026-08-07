@@ -4,6 +4,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.67.0] – 2026-08-07
+
+### Neu
+
+- **Fährt dein Auto zu einer anderen Zeit oder ab einem anderen Treffpunkt
+  los, fragt dich der Wochenplan beim Eintragen** — „Auto 2 fährt anders:
+  Abfahrt hin 06:45. Passt dir das?" Mit „Passt" ist dir dein Platz in
+  genau diesem Auto sicher. Mit „Nein, so nicht" fährst du dort nicht mit:
+  MitFahrBar plant dann ein weiteres Auto ein, damit du trotzdem mitkommst
+  — wer es fährt, entscheiden wie immer die Punkte. Sagt niemand zu, fährt
+  das früher startende Auto allein.
+
+  Umentscheiden geht jederzeit über das Menü deines Feldes („Dein Auto
+  fährt anders"). Und dein Ja gilt genau für die Zeit, der du zugestimmt
+  hast: Verschiebt der Fahrer die Abfahrt danach noch einmal, wirst du neu
+  gefragt.
+
+  Wollen mehr Leute in ein Auto, als hineinpassen, gilt: Wer zuerst
+  zugesagt hat, sitzt drin — die übrigen verteilt MitFahrBar wie bisher.
+
+  Wer nichts entscheidet, für den ändert sich nichts: Ohne Zu- oder Absage
+  plant MitFahrBar genau wie vorher.
+
 ## [0.66.4] – 2026-08-07
 
 ### Geändert

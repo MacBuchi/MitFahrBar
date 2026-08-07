@@ -24,6 +24,7 @@ import '../core/update_check.dart';
 import '../models/app_settings.dart';
 import '../models/group.dart';
 import '../models/group_defaults.dart';
+import '../models/seat_choice.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
@@ -510,6 +511,8 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
   var _trips = const <Trip>[];
   var _settings = const AppSettings();
   var _seats = const <String, int>{};
+  var _seatChoices = <DateTime, List<SeatChoice>>{};
+  var _carDefaults = const <DateTime, Map<String, GroupDefaults>>{};
 
   static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -547,6 +550,21 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
     _overrides = {
       for (final e in raw.overrides.entries) _day(e.key): {...e.value},
     };
+    // Sitz-Entscheidungen (#189, Stufe B2) und die Auto-Abweichungen, gegen
+    // die ihre Gültigkeit geprüft wird — beide per watch: Eine geänderte
+    // Auto-Zeit lässt Zusagen veralten und muss den Plan neu rechnen.
+    _seatChoices = {
+      for (final e
+          in (await ref
+                  .watch(carpoolRepositoryProvider)
+                  .loadSeatChoices(_dates.first, days: 7))
+              .entries)
+        _day(e.key): e.value,
+    };
+    _carDefaults = {
+      for (final e in (await ref.watch(weekCarDefaultsProvider.future)).entries)
+        _day(e.key): e.value,
+    };
     return _plan();
   }
 
@@ -557,6 +575,8 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
     trips: _trips,
     settings: _settings,
     seats: _seats,
+    seatChoices: _seatChoices,
+    carDefaults: _carDefaults,
   );
 
   /// Erst lokal zeigen, dann schreiben; bei Fehler Server-Wahrheit zurück
@@ -612,6 +632,53 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
         _overrides[day] = {...driverIds};
       }
     }, ref.read(carpoolRepositoryProvider).setPlanDrivers(date, driverIds));
+  }
+
+  /// Die gemerkte Entscheidung von [personId] über das Auto von [driverId] —
+  /// für die Rückfrage im Planer (#189): Wer zu genau diesen Bedingungen
+  /// schon entschieden hat, wird nicht noch einmal gefragt.
+  ///
+  /// **Bewusst am Notifier statt an einem eigenen Provider**: Hier liegt die
+  /// Kopie, mit der auch gerechnet wird — inklusive der optimistischen
+  /// Schreibvorgänge. Ein zweiter Ladepfad wäre beim Nachfragen einen
+  /// Roundtrip hinterher und fragte genau dann doppelt.
+  SeatChoice? seatChoiceFor(DateTime date, String personId, String driverId) =>
+      _seatChoices[_day(date)]
+          ?.where((c) => c.personId == personId && c.driverId == driverId)
+          .firstOrNull;
+
+  /// Sitz-Entscheidung setzen oder ersetzen (#189, Stufe B2) — optimistisch
+  /// wie jeder Tap: Wer zustimmt, sitzt sofort im Auto, nicht erst nach dem
+  /// Roundtrip.
+  Future<void> setSeatChoice(SeatChoice choice) {
+    final day = _day(choice.date);
+    return _apply(() {
+      final rows = [...(_seatChoices[day] ?? const <SeatChoice>[])]
+        ..removeWhere(
+          (c) => c.personId == choice.personId && c.driverId == choice.driverId,
+        )
+        ..add(choice);
+      _seatChoices[day] = rows;
+    }, ref.read(carpoolRepositoryProvider).saveSeatChoice(choice));
+  }
+
+  /// Entscheidung zurücknehmen — die Person wird wieder automatisch verteilt.
+  Future<void> clearSeatChoice(
+    DateTime date,
+    String personId,
+    String driverId,
+  ) {
+    final day = _day(date);
+    return _apply(
+      () {
+        _seatChoices[day]?.removeWhere(
+          (c) => c.personId == personId && c.driverId == driverId,
+        );
+      },
+      ref
+          .read(carpoolRepositoryProvider)
+          .deleteSeatChoice(date, personId, driverId),
+    );
   }
 }
 
