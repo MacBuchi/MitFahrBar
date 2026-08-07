@@ -91,6 +91,46 @@ void main() {
       expect(find.text('Heute (Mi, 22.07.)'), findsNothing);
     });
 
+    // #183: Bei EINEM Auto gilt dessen Abweichung allen — das Banner muss
+    // dieselbe Zeit nennen wie die Erinnerung, sonst steht hier 07:30,
+    // während das Handy um 06:45 weckt.
+    testWidgets('die Abweichung des einzigen Autos schlägt die Vorgabe', (
+      tester,
+    ) async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final anna = await data.createPerson(
+        const Person(id: '', name: 'Anna', active: true),
+      );
+      await data.setAvailability(testToday, anna.id, PlanRide.full);
+      await data.saveGroupDefaults(
+        const GroupDefaults(outboundTime: DayTime(7, 30)),
+      );
+      // Anna ist als Einzige verfügbar und damit die Fahrerin des einzigen
+      // Autos — ihre Auto-Zeile gilt dem ganzen Tag.
+      await data.saveCarDefaults(
+        testToday,
+        anna.id,
+        const GroupDefaults(outboundTime: DayTime(6, 45)),
+      );
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      expect(find.textContaining('Abfahrt 06:45'), findsOneWidget);
+      expect(
+        find.textContaining('Abfahrt 07:30'),
+        findsNothing,
+        reason:
+            'Die Vorgabe gilt an diesem Tag nicht — sie zu zeigen hieße, '
+            'zwei Wahrheiten über dieselbe Abfahrt zu verbreiten.',
+      );
+    });
+
     // #139: Die festen Vorgaben stehen im selben Streifen — was das Handy
     // meldet und was die Übersicht zeigt, kommt aus derselben Funktion.
     testWidgets('nennt Abfahrt und Treffpunkt, wenn sie gepflegt sind', (

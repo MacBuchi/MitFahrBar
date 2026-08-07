@@ -145,9 +145,24 @@ class _NextRideBanner extends ConsumerWidget {
     // Quelle wie die Meldung**: Stünde hier die Vorgabe, zeigte das Banner
     // 07:30, während das Handy um 06:45 weckt — und niemand wüsste, welche
     // der beiden Zeiten gilt.
+    //
+    // Bei EINEM Auto gilt dasselbe eine Ebene tiefer: Dessen Abweichung
+    // betrifft alle, die an dem Tag fahren, und der Korb rechnet sie in die
+    // Erinnerung ein — das Banner muss dieselbe Zeit nennen. Ehrliche
+    // Grenze: Bei MEHREREN Autos bleibt hier die Tageszeit stehen; das
+    // Banner ist ein Text für die ganze Gruppe, und zwei Abfahrtszeiten in
+    // einer Zeile wären eine eigene Design-Entscheidung. Die Zeiten je Auto
+    // stehen im Planer.
     final defaults = effectiveDefaults(
-      ref.watch(groupDefaultsProvider).value ?? const GroupDefaults(),
-      ref.watch(weekPlanDefaultsProvider).value?[day.date],
+      effectiveDefaults(
+        ref.watch(groupDefaultsProvider).value ?? const GroupDefaults(),
+        ref.watch(weekPlanDefaultsProvider).value?[day.date],
+      ),
+      day.cars.length == 1
+          ? ref
+                .watch(weekCarDefaultsProvider)
+                .value?[day.date]?[day.cars.single.driverId]
+          : null,
     );
     final iso =
         '${day.date.year.toString().padLeft(4, '0')}-'
