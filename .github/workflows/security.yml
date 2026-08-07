@@ -1,0 +1,119 @@
+name: Security
+
+# Schwachstellen- und Lizenzprüfung über die Lockfiles.
+#
+# Der OSV-Lauf hat ZWEI Gesichter, und der Unterschied ist der ganze Punkt:
+#
+# 1. „OSV (PR)" scannt Ziel-Branch UND PR-Stand und meldet nur, was DIESER
+#    PR neu einführt. Er darf deshalb blockieren: Eine frisch
+#    veröffentlichte CVE in einer transitiven Abhängigkeit kann ihn
+#    konstruktionsbedingt nicht rot färben — sie steht auf beiden Seiten
+#    des Vergleichs.
+# 2. „OSV (wöchentlich)" scannt den Gesamtbestand und ist bewusst KEIN
+#    Pflicht-Check. Genau dort würde eine alte CVE ohne verfügbaren Fix
+#    jeden unbeteiligten PR blockieren, bis jemand aufräumt. Als
+#    Wochenlauf meldet GitHub den Fehlschlag per Mail — das passt zum
+#    Solo-Betrieb und hält niemanden auf.
+#
+# `-r ./` findet `pubspec.lock` selbst und nimmt
+# `tool/browser_e2e/package-lock.json` gratis mit.
+#
+# Alles hier liegt unter `.github/` bzw. `tool/` und ist damit vom Version
+# Guard ausgenommen — diese Datei löst kein Release aus.
+
+on:
+  schedule:
+    - cron: "37 5 * * 1" # montags früh, versetzt zu den anderen Cronjobs
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  # Für den SARIF-Upload nach Security → Code Scanning (im öffentlichen
+  # Repo kostenlos). Die aufgerufenen Workflow-Dateien fordern genau diese
+  # drei an.
+  security-events: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Darf Pflicht-Check sein. Nur neu eingeführte Funde, siehe Kopf.
+  osv-scan-pr:
+    name: OSV (PR)
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+
+  # Berichtend, nie blockierend, siehe Kopf.
+  osv-scan-full:
+    name: OSV (wöchentlich)
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+
+  # Der Lizenz-Riegel für NEU hinzukommende Abhängigkeiten. GitHubs
+  # Dependency Graph wertet pubspec.yaml + pubspec.lock aus; Dart wird
+  # unterstützt, die Lockfile ist eingecheckt.
+  #
+  # **VORBEDINGUNG, und sie ist eine Repo-Einstellung, kein Code:** Der
+  # Dependency Graph muss unter Settings → Code security eingeschaltet sein
+  # (https://github.com/MacBuchi/MitFahrBar/settings/security_analysis).
+  # Ist er aus, bricht dieser Job binnen Sekunden ab mit „Dependency review
+  # is not supported on this repository" — das sieht nach einem kaputten
+  # Workflow aus und ist keiner. In pilzbuddy hat genau das einen PR-Check
+  # rot gemacht (dort #221).
+  #
+  # Bewusst eine DENY- und keine ALLOW-Liste: Eine Allowliste macht jede
+  # unbekannte oder nicht auflösbare Lizenz zum Merge-Blocker, und das
+  # passiert bei pub-Paketen regelmäßig. Verboten ist nur, was mit der
+  # MIT-Auslieferung wirklich kollidiert.
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0, SSPL-1.0
+          comment-summary-in-pr: never
+
+  # Das Gegenstück: `dependency-review` sieht nur, was ein PR NEU
+  # hinzufügt, und bemerkte einen Lizenzwechsel in einer bestehenden
+  # transitiven Abhängigkeit nie. Dieser Job prüft den GANZEN Baum —
+  # Regeln und Begründungen in tool/license_config.yaml.
+  #
+  # `dart pub global activate` statt dev_dependency: `pubspec.yaml` ist
+  # nicht vom Version Guard ausgenommen, eine Zeile dort löste ein Release
+  # an die Gruppen aus, nur um einen Linter zu installieren.
+  #
+  # **Blockierend, und das ist eine übernommene Lehre.** In pilzbuddy stand
+  # hier zuerst `continue-on-error`, damit ein Dependabot-PR mit einer
+  # unlesbaren Lizenz nicht gleich den Merge sperrt. Was es tatsächlich
+  # tat: Der Aufruf war falsch, das Werkzeug brach mit Exit 66 ab, und der
+  # Job meldete trotzdem Erfolg. Ein Check, der Erfolg meldet, ohne etwas
+  # geprüft zu haben, ist schlechter als gar keiner.
+  licenses:
+    name: Lizenzen (Gesamtbestand)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: "3.41.2"
+          cache: true
+      # Die Pakete müssen im Cache liegen: Das Werkzeug liest die echten
+      # LICENSE-Dateien, nicht irgendwelche Metadaten.
+      - run: flutter pub get
+      - run: dart pub global activate license_checker
+      # `paket:skript`, NICHT `paket:binärname` — `lic_ck` ist der Name der
+      # installierten Binärdatei, `dart pub global run` will den Skriptnamen.
+      # Der Unterschied fällt lokal nie auf, weil man dort `lic_ck` über den
+      # PATH aufruft.
+      - name: Lizenzen prüfen
+        run: dart pub global run license_checker:license_checker -c tool/license_config.yaml check-licenses

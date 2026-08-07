@@ -121,7 +121,7 @@ jobs:
 
       # CLI-Version gepinnt wie in ci.yml — ein CLI-Upgrade ändert den
       # lokalen Stack und gehört bewusst zusammen getestet.
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
         if: steps.gate.outputs.ready == 'true'
         with:
           version: "2.109.1"

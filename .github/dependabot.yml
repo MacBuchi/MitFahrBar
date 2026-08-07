@@ -25,6 +25,17 @@ updates:
       - dependency-name: "flutter_riverpod"
         update-types: ["version-update:semver-major"]
 
+  # Playwright für den Browser-E2E der Konsole. Anders als bei `pub` ist
+  # das hier gratis: `tool/` ist vom Version Guard ausgenommen, diese PRs
+  # brauchen also keinen Bump und lösen kein Release aus.
+  - package-ecosystem: "npm"
+    directory: "/tool/browser_e2e"
+    schedule:
+      interval: "monthly"
+    groups:
+      npm:
+        patterns: ["*"]
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

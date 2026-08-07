@@ -1,0 +1,86 @@
+name: Workflow Lint
+
+# Statische Prüfung der Workflows selbst — nicht des App-Codes.
+#
+# Warum das hier mehr wiegt als in einem beliebigen Repo: In diesen
+# Workflows liegen der Android-Keystore (ANDROID_KEYSTORE_*), der
+# Supabase-service_role-Key, die Datenbank-URI mit Passwort, das
+# Backup-Repo-Token und der Claude-OAuth-Token. Eine gekaperte
+# Third-Party-Action oder eine Template-Injection in einem `run:`-Block
+# liest die direkt aus. Der App-Code kann noch so sauber sein — dieser Weg
+# geht an ihm vorbei.
+#
+# Werkzeug ist zizmor: Template-Injection, zu weite Berechtigungen,
+# ungepinnte Actions, gefährliche Trigger.
+#
+# **Bewusst ohne actionlint**, obwohl es gut hierher passen würde: Sein
+# üblicher Installationsweg ist ein `curl | bash` gegen ein Skript im
+# `main`-Branch — also genau die ungepinnte Fremdausführung, die dieser
+# Workflow aufspüren soll. Ein Linter, der die eigene Regel bricht, ist
+# keiner. Kommt zurück, sobald er als versionierte Release-Binärdatei mit
+# Prüfsumme eingebunden wird.
+#
+# **Bewusst noch nicht blockierend — der Stand ist nachgemessen.** Ein
+# lokaler Lauf derselben Fassung meldete zunächst 28 Befunde der höchsten
+# Stufe, praktisch alle „ungepinnte Action". Die sind abgearbeitet:
+# Fremd-Actions hängen jetzt an Commit-SHAs, `.github/zizmor.yml` hält
+# fest, dass `actions/*` bewusst am Tag bleiben darf, und zwei
+# Template-Injections (Branch-Name bzw. Cron-String direkt im
+# `run:`-Block) sind über `env:` entschärft. Übrig bleibt EIN hoher
+# Befund: `contents: write` auf Workflow-Ebene in `release.yml`.
+#
+# Der bleibt offen, und zwar mit Grund: Diese Rechte auf die Jobs zu
+# verteilen, die sie wirklich brauchen, lässt sich nur an einem echten
+# Release prüfen. Greift man daneben, scheitert der Lauf NACH dem Taggen —
+# zurück bliebe ein Tag ohne Release, den die Tag-Entscheidung fortan für
+# „schon veröffentlicht" hält. Heilbar nur von Hand.
+#
+# Solange dieser Befund steht, bleibt `continue-on-error`. Wer ihn löst,
+# nimmt es weg und macht den Job zum Pflicht-Check. Andersherum stünde
+# hier eine dauerhaft rote CI, und der übliche Ausgang davon ist, dass die
+# Prüfung abgeschaltet wird.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/dependabot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Workflow Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # Über PyPI statt über die Action: Eine Action, die die anderen
+      # Actions auf Pinning prüft, müsste sonst selbst ungepinnt hier
+      # stehen. Die Version ist bewusst gedeckelt — ein neuer Audit in
+      # einer neuen zizmor-Fassung soll nicht unangekündigt die Befundlage
+      # ändern.
+      - name: zizmor installieren
+        run: pipx install 'zizmor>=1.0,<2.0'
+
+      - name: zizmor
+        continue-on-error: true # siehe Kopf
+        # Ohne Token bricht der Lauf ab, statt Befunde zu melden: Audits wie
+        # `ref-confusion` und `impostor-commit` fragen GitHub, und ohne
+        # Anmeldung antwortet der 401 — „fatal: no audit was performed"
+        # (lokal nachgestellt). Gerade `impostor-commit` ist der Audit, der
+        # die SHA-Pins gegenprüft, also genau der, den man hier will.
+        # `GITHUB_TOKEN` reicht dafür und braucht im öffentlichen Repo keine
+        # zusätzliche Berechtigung.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: zizmor --persona regular .github/workflows/

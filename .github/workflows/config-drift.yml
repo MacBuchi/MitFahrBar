@@ -12,6 +12,11 @@
 # https://supabase.com/dashboard/account/tokens erzeugen und Secret erneuern).
 name: Config Drift
 
+# Ohne diesen Block erbt der Job die Repo-Vorgabe. Er liest nur — die
+# Management-API-Abfrage braucht das Repo-Secret, nicht das GITHUB_TOKEN.
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: "17 5 * * *"

@@ -50,11 +50,17 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TANKERKOENIG_ARCHIVE_USER: ${{ secrets.TANKERKOENIG_ARCHIVE_USER }}
           TANKERKOENIG_ARCHIVE_PASSWORD: ${{ secrets.TANKERKOENIG_ARCHIVE_PASSWORD }}
+          # Über `env:` statt direkt im `run:`-Block: `${{ }}` wird VOR der
+          # Shell ersetzt, eine Dispatch-Eingabe stünde dort also als Code.
+          # `DRY_RUN` ist leer oder gesetzt — `${DRY_RUN:+--dry-run}` hängt
+          # die Option nur im zweiten Fall an.
+          MAX_WEEKS: ${{ inputs.max_weeks }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
         run: |
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$TANKERKOENIG_ARCHIVE_PASSWORD" ]; then
             echo "::notice::Secrets für den Archivzugang fehlen — übersprungen."
             exit 0
           fi
           python3 tool/import_fuel_history.py \
-            --max-weeks "${{ inputs.max_weeks }}" \
-            ${{ inputs.dry_run && '--dry-run' || '' }}
+            --max-weeks "$MAX_WEEKS" \
+            ${DRY_RUN:+--dry-run}
