@@ -181,6 +181,20 @@ abstract final class AppBannerTones {
           foreground: Color(0xFF0B5D71),
         );
 
+  /// Deckkraft der Fläche unter einer Auto-Zeile im Fahrt-Banner (#189).
+  ///
+  /// **Ein Kontrastwert, keine Optik.** Die Auto-Farben des Planers tragen
+  /// auf dem blanken Verlauf 1,71:1 bis 2,79:1 gegen sein helles Ende — alle
+  /// unter den 3,0:1 einer Grafik. Mit diesem Schleier darunter sind es
+  /// 3,51:1 bis 9,64:1, Weiß darauf 9,56:1 und der Magenta-Chip 3,31:1.
+  /// Weniger Deckkraft lässt Violett und Rosé wieder durchfallen.
+  ///
+  /// Der Wert steht **hier** und nicht im Widget, damit
+  /// `banner_contrast_test.dart` mit demselben rechnet, mit dem gezeichnet
+  /// wird — zwei Stellen wären zwei Wahrheiten, und die Rechnung wäre
+  /// stillschweigend ungültig, sobald jemand eine davon anfasst.
+  static const double carLineScrim = 0.40;
+
   /// Haarlinie um die **flächigen** Banner.
   ///
   /// Sie heben sich nur mit 1,13–1,21:1 vom Untergrund ab — als Fläche
@@ -253,6 +267,22 @@ abstract final class AppCarTones {
     if (index < 0 || index >= count) return null;
     return (brightness == Brightness.dark ? _dark : _light)[index];
   }
+
+  /// Dieselben vier Autos, aber für eine **dunkle Fläche** — unabhängig vom
+  /// Theme (#189).
+  ///
+  /// Gebraucht vom Fahrt-Banner: Dessen Verlauf ist in hell wie dunkel
+  /// derselbe dunkle Teal, also braucht er in beiden Fällen die hellen
+  /// Flächen. `byIndex` nach der Theme-Helligkeit zu fragen gäbe im hellen
+  /// Theme die dunklen Töne — auf dem Verlauf wären sie dunkel auf dunkel.
+  ///
+  /// **Der Farbton ist die Identität, nicht die Helligkeit.** Auto 2 ist in
+  /// beiden Sätzen violett, Auto 3 bernsteinfarben; die Zuordnung
+  /// Planer ↔ Banner trägt also, auch wo die Fläche eine andere Helligkeit
+  /// braucht. Genau dafür hat die Palette überhaupt zwei Fassungen. Und die
+  /// Nummer steht ohnehin daneben — auf die Farbe allein baut nichts.
+  static BannerTone? onDark(int index) =>
+      index < 0 || index >= count ? null : _dark[index];
 }
 
 abstract final class AppAccents {

@@ -91,8 +91,11 @@ class HelpScreen extends StatelessWidget {
                 text:
                     'Ganz oben steht die nächste Fahrt: welcher Tag, wer '
                     'fährt und wer dabei ist. Fahrt ihr mit mehreren Autos, '
-                    'steht jedes für sich da („Auto 2: Dora mit Emil") — '
-                    'samt seiner Zeit, wenn es früher losfährt als der Rest. '
+                    'bekommt jedes seine eigene Zeile — mit derselben Farbe '
+                    'und Nummer wie im Wochenplan. Weicht eines von euren '
+                    'festen Zeiten ab, klebt ein farbiger Hinweis daran: '
+                    'eine Uhr für eine andere Zeit, eine Ortsmarke für '
+                    'einen anderen Treffpunkt. '
                     'Ab 12 Uhr blickt sie auf morgen — der Vormittag gehört '
                     'der heutigen Fahrt. Ein Tipp darauf führt in die Woche '
                     '— die Sprechblase rechts in die Anmerkungen des Tages; '
