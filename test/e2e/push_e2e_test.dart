@@ -534,6 +534,66 @@ void main() {
           skip: e2eConfigured ? false : e2eSkipReason,
         );
 
+        // #183. Im Fake und im Dart-Spiegel ist das nicht zu beweisen: Ob die
+        // Zeile die Gruppenzeit schlägt, entscheidet das `coalesce` im
+        // `values`-Paar von `push_due()` — SQL, das nur echtes Postgres
+        // ausführt.
+        test(
+          'die Zeit der Zeile schlägt die Vorgabe der Gruppe',
+          () async {
+            final (group, personId) = await reminding('outk');
+            // Derselbe Tag, aber eine Dreiviertelstunde früher los. Der
+            // Client rechnet die wirksame Zeit und legt sie mit ab; die
+            // Gruppenzeit (07:30) bleibt unverändert daneben stehen.
+            await group.client.rpc<void>(
+              'publish_push_outbox',
+              params: {
+                'entries': [
+                  {
+                    'person_id': personId,
+                    'plan_date': '2026-07-30',
+                    'digest': 'd2',
+                    'body': 'Anna fährt · dabei: Bert',
+                    'title_evening': 'Morgen (Do, 30.07.)',
+                    'title_change': 'Änderung · Morgen (Do, 30.07.)',
+                    'title_out': 'Abfahrt 06:45 Uhr',
+                    'title_return': 'Rückfahrt 16:30 Uhr',
+                    'outbound_time': '06:45',
+                  },
+                ],
+                'keep_from': '2026-07-27',
+              },
+            );
+
+            expect(
+              (await kindsAt(group.id, '2026-07-30 06:35+02')).toSet(),
+              contains('departure_out'),
+              reason:
+                  'Fünfzehn Minuten vor der Zeit des TAGES. Zöge push_due() '
+                  'die Gruppenzeit, käme hier nichts — und die Erinnerung '
+                  'erst, wenn das Auto längst weg ist.',
+            );
+            expect(
+              (await kindsAt(group.id, '2026-07-30 07:20+02')).toSet(),
+              isNot(contains('departure_out')),
+              reason:
+                  'Und zur alten Zeit gar nicht mehr: Sie gilt an diesem Tag '
+                  'nicht. Ohne diese Hälfte wäre die Prüfung oben auch mit '
+                  'zwei Erinnerungen zufrieden.',
+            );
+            expect(
+              await kindsAt(group.id, '2026-07-30 16:20+02'),
+              ['departure_return'],
+              reason:
+                  'Die Rückfahrt hat der Tag nicht angefasst — sie bleibt bei '
+                  'der Vorgabe der Gruppe. Feldweise aufgelöst, nicht '
+                  'objektweise: Sonst nähme eine verschobene Hinfahrt der '
+                  'Rückfahrt ihre Zeit.',
+            );
+          },
+          skip: e2eConfigured ? false : e2eSkipReason,
+        );
+
         test(
           'sie kommt genau einmal je Richtung',
           () async {

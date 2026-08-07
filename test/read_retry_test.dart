@@ -216,7 +216,10 @@ void main() {
           if (readPrefixes.any(match.group(1)!.startsWith)) reads++;
         }
       }
-      expect(reads, 12);
+      // Wächst mit jeder neuen Lesemethode der Datenschicht — zuletzt
+      // `loadPlanDefaults` (#183). Wer hier hochzählt, ohne die Methode
+      // gesehen zu haben, nimmt dem Kanarienvogel die Luft.
+      expect(reads, 13);
     });
   });
 }

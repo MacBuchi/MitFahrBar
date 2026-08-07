@@ -79,6 +79,25 @@ abstract class CarpoolRepository {
   /// Übersteuern zurück und lässt wieder den Vorschlag gelten.
   Future<void> setPlanDrivers(DateTime date, Set<String> driverIds);
 
+  /// Abweichende Zeiten und Treffpunkt einzelner Tage (#183), ab [from] für
+  /// [days] Tage — Schlüssel auf Tagesbeginn normiert.
+  ///
+  /// Was ein Tag nicht setzt, kommt weiter aus [loadGroupDefaults]; aufgelöst
+  /// wird feldweise in `effectiveDefaults`. Ein Tag ohne Zeile fehlt in der
+  /// Map, statt als leerer Eintrag darin zu stehen — „keine Abweichung" und
+  /// „Abweichung ohne Inhalt" sind dasselbe, und zwei Schreibweisen dafür
+  /// wären zwei Fälle im Digest.
+  Future<Map<DateTime, GroupDefaults>> loadPlanDefaults(
+    DateTime from, {
+    int days = 7,
+  });
+
+  /// Schreibt die Abweichung EINES Tages, vollständig wie
+  /// [saveGroupDefaults]: Ein leeres Feld löscht den alten Wert. Ist gar
+  /// nichts mehr gesetzt, verschwindet die Zeile — sonst bliebe ein leerer
+  /// Eintrag stehen, der im Digest anders zählt als keiner.
+  Future<void> savePlanDefaults(DateTime date, GroupDefaults defaults);
+
   /// Anmerkungen ab [from] für [days] Tage, älteste zuerst (Issue #127).
   ///
   /// Dieselbe Spanne wie [loadPlan] und aus demselben Grund: Der Planer

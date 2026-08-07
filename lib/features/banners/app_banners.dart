@@ -140,8 +140,15 @@ class _NextRideBanner extends ConsumerWidget {
     // Feste Vorgaben (#139). Fehlen sie noch (Ladephase, Fehler), zeigt das
     // Banner den Tag ohne Zeiten statt gar nicht — anders als bei Plan und
     // Personen ist hier nichts halb, sondern nur weniger.
-    final defaults =
-        ref.watch(groupDefaultsProvider).value ?? const GroupDefaults();
+    //
+    // Die Abweichung des Tages (#183) schlägt sie feldweise. **Dieselbe
+    // Quelle wie die Meldung**: Stünde hier die Vorgabe, zeigte das Banner
+    // 07:30, während das Handy um 06:45 weckt — und niemand wüsste, welche
+    // der beiden Zeiten gilt.
+    final defaults = effectiveDefaults(
+      ref.watch(groupDefaultsProvider).value ?? const GroupDefaults(),
+      ref.watch(weekPlanDefaultsProvider).value?[day.date],
+    );
     final iso =
         '${day.date.year.toString().padLeft(4, '0')}-'
         '${day.date.month.toString().padLeft(2, '0')}-'

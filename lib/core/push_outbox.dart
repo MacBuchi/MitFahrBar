@@ -44,6 +44,8 @@ class OutboxEntry {
     this.titleRoster,
     this.kind = 'plan',
     this.suppressRoster = false,
+    this.outboundTime,
+    this.returnTime,
   });
 
   final String personId;
@@ -83,6 +85,19 @@ class OutboxEntry {
   /// jemand nie bekommt.
   final bool suppressRoster;
 
+  /// Die **wirksamen** Abfahrtszeiten dieses Tages (#183) — die Abweichung
+  /// des Tages, sonst die Vorgabe der Gruppe. `null`, solange weder das eine
+  /// noch das andere gepflegt ist.
+  ///
+  /// Sie stehen hier und nicht in `push_due()`, weil die wirksame Zeit ab
+  /// Stufe B davon abhängt, in **welchem Auto** die Person sitzt — und diese
+  /// Zuordnung kommt aus `planWeek`. Sie im Versand nachzurechnen hieße, die
+  /// Fairness-Regel ein zweites Mal zu schreiben, diesmal in SQL. Genau
+  /// dieselbe Arbeitsteilung wie beim Text und den Kopfzeilen: Der Client
+  /// rechnet, die Datenbank entscheidet nur noch *ob* und *wann*.
+  final DayTime? outboundTime;
+  final DayTime? returnTime;
+
   Map<String, Object?> toJson() => {
     'person_id': personId,
     'plan_date':
@@ -98,6 +113,8 @@ class OutboxEntry {
     'title_return': titleReturn,
     'title_roster': titleRoster,
     'suppress_roster': suppressRoster,
+    'outbound_time': outboundTime?.format(),
+    'return_time': returnTime?.format(),
   };
 }
 
@@ -151,29 +168,47 @@ DateTime outboxKeepFrom(DateTime now) {
 /// bekommt keine Eintrag-Meldung (#163). Der stündliche Job übergibt hier
 /// nichts und hebt die Unterdrückung damit wieder auf: Er weiß nicht, wer
 /// getippt hat, und eine Meldung zu viel ist besser als eine verlorene.
+/// [dayDefaults] sind die Abweichungen einzelner Tage (#183), auf Tagesbeginn
+/// normiert. Sie schlagen [defaults] feldweise; was ein Tag nicht setzt,
+/// kommt weiter aus der Vorgabe der Gruppe.
 List<OutboxEntry> outboxEntries({
   required List<PlannedDay> week,
   required Map<String, Person> persons,
   required DateTime now,
   List<PlanNote> notes = const [],
   GroupDefaults defaults = const GroupDefaults(),
+  Map<DateTime, GroupDefaults> dayDefaults = const {},
   String? suppressPersonId,
 }) {
   final entries = <OutboxEntry>[];
   for (final day in week) {
+    // Die Abweichung dieses Tages und die daraus aufgelöste Wahrheit. Der
+    // Digest bekommt NUR die Abweichung — nähme er die aufgelöste Zeit,
+    // stünde die Gruppen-Vorgabe wieder drin, und jede Änderung im
+    // Parameter-Screen weckte die halbe Gruppe.
+    final deviation =
+        dayDefaults[DateTime(day.date.year, day.date.month, day.date.day)];
+    final effective = effectiveDefaults(defaults, deviation);
     for (final personId in persons.keys) {
-      final digest = dayDigestFor(day, personId, notes: notes);
+      final digest = dayDigestFor(
+        day,
+        personId,
+        notes: notes,
+        dayDefaults: deviation,
+      );
       entries.add(
         OutboxEntry(
           personId: personId,
           date: day.date,
           digest: digest,
+          outboundTime: effective.outboundTime,
+          returnTime: effective.returnTime,
           body: composeBody(
             day,
             personId,
             persons,
             notes: notes,
-            defaults: defaults,
+            defaults: effective,
           ),
           // Beide Fassungen, weil die Art erst beim Versand feststeht. Der
           // Abend-Blick geht nie an Ausgetragene, deshalb dort `removed:
@@ -197,13 +232,13 @@ List<OutboxEntry> outboxEntries({
             day.date,
             PushKind.departureOut,
             now,
-            defaults.outboundTime,
+            effective.outboundTime,
           ),
           titleReturn: _legTitle(
             day.date,
             PushKind.departureReturn,
             now,
-            defaults.returnTime,
+            effective.returnTime,
           ),
           titleRoster: composeTitle(
             day.date,

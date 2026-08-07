@@ -15,6 +15,8 @@ import '../../core/tokens.dart';
 import '../../core/widgets/mood_face.dart';
 import '../../data/providers.dart';
 import '../../models/app_settings.dart';
+import '../../models/group_defaults.dart';
+import '../../models/notification_prefs.dart';
 import '../../models/person.dart';
 import '../../models/plan_ride.dart';
 import '../../models/trip.dart';
@@ -252,6 +254,22 @@ class _AvailabilityGrid extends ConsumerWidget {
     }
   }
 
+  /// Entscheidet zwischen „ein Klick trägt ein" und „Menü" (#183).
+  ///
+  /// Die Regel steht an der aufrufenden Stelle ausführlich; hier ist sie eine
+  /// Zeile, damit sie nicht an zwei Orten verschieden gelesen werden kann.
+  Future<void> _open(
+    BuildContext context,
+    WidgetRef ref,
+    PlannedDay day,
+    Person person, {
+    required bool mine,
+  }) {
+    final entered = day.availableIds.contains(person.id);
+    if (mine && !entered) return _cycle(context, ref, day, person.id);
+    return _ask(context, ref, day, person);
+  }
+
   /// Bei einer fremden Zeile wird gefragt, statt weiterzuschalten (#121).
   ///
   /// **Eine Vertipper-Bremse, keine Sperre**: Wer bewusst für jemand anderen
@@ -271,17 +289,76 @@ class _AvailabilityGrid extends ConsumerWidget {
         ? PlanRide.oneWay
         : PlanRide.full;
 
-    final picked = await showDialog<_RideChoice>(
+    final picked = await showDialog<_MenuAction>(
       context: context,
-      builder: (_) =>
-          _RidePickerDialog(person: person, date: day.date, current: current),
+      builder: (_) => _RidePickerDialog(
+        person: person,
+        date: day.date,
+        current: current,
+        // „Ich möchte fahren" nur, wenn es etwas zu ändern gibt: Wer schon
+        // fährt, hat keinen Grund dafür — und an einem eingetragenen Tag ist
+        // nichts mehr zu planen.
+        canOfferDrive: !day.confirmed && !day.driverIds.contains(person.id),
+        deviates: ref.read(weekPlanDefaultsProvider).value?[day.date] != null,
+      ),
     );
     if (picked == null) return;
 
+    if (!context.mounted) return;
+    switch (picked) {
+      case _PickRide(:final choice):
+        try {
+          await ref
+              .read(weekPlanProvider.notifier)
+              .setRide(day.date, person.id, choice.ride);
+        } catch (_) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+          );
+        }
+      case _WantToDrive():
+        // Dieselbe Bedeutung wie „Fahrer ändern" am Tag: Eine gültige Menge
+        // ersetzt den Vorschlag **komplett** und ohne Sitzprüfung — eine
+        // Menschenentscheidung. Reichen die Plätze nicht, sagt das der
+        // Hinweis am Tag, wie bei jedem anderen Übersteuern auch.
+        try {
+          await ref.read(weekPlanProvider.notifier).setDrivers(day.date, {
+            person.id,
+          });
+        } catch (_) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+          );
+        }
+      case _EditDay():
+        await _editDay(context, ref, day.date);
+    }
+  }
+
+  /// Abweichende Zeiten und Treffpunkt für EINEN Tag (#183).
+  ///
+  /// Eigener Schirm statt dreier Felder im Auswahlmenü: Der häufige Weg ist
+  /// „dabei" antippen, und drei Eingabefelder darüber machten genau den laut.
+  Future<void> _editDay(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime date,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final group =
+        ref.read(groupDefaultsProvider).value ?? const GroupDefaults();
+    final current = ref.read(weekPlanDefaultsProvider).value?[date];
+
+    final result = await showDialog<GroupDefaults>(
+      context: context,
+      builder: (_) =>
+          _DayDefaultsDialog(date: date, group: group, current: current),
+    );
+    if (result == null) return;
+
     try {
-      await ref
-          .read(weekPlanProvider.notifier)
-          .setRide(day.date, person.id, picked.ride);
+      await ref.read(carpoolRepositoryProvider).savePlanDefaults(date, result);
+      ref.invalidate(weekPlanDefaultsProvider);
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Speichern fehlgeschlagen.')),
@@ -431,15 +508,34 @@ class _AvailabilityGrid extends ConsumerWidget {
                           // Bereits eingetragene Tage sind Geschichte, keine
                           // Planung mehr.
                           enabled: !day.confirmed,
-                          // Die eigene Zeile schaltet weiter wie immer; bei
-                          // einer fremden wird gefragt (#121). Ohne gewählte
-                          // Person bleibt alles wie vorher — wer die
-                          // Startabfrage überspringt, soll nicht schlechter
-                          // dastehen als vor dem Release.
+                          // **Ein Tap auf die leere eigene Zelle trägt ein,
+                          // jeder andere öffnet das Menü** (#183).
+                          //
+                          // Der Alltagsfall — sich für einen Tag eintragen —
+                          // bleibt damit ein Klick. Alles Weitere (nur eine
+                          // Richtung, fahren wollen, abweichende Zeit) steht
+                          // im Menü, statt den Zyklus auf vier Stufen zu
+                          // verlängern; bei dreien war er schon lästig.
+                          //
+                          // Eine **fremde** Zelle öffnet das Menü auch dann,
+                          // wenn sie leer ist: Sonst träfe ein Fehltipp
+                          // jemand anderen mit einem Klick, und genau das
+                          // verhindert die Rückfrage aus #121.
+                          //
+                          // Ohne gewählte Person zählt jede Zeile als eigene
+                          // — nicht als fremde. Wer die Startabfrage
+                          // übersprungen hat, hatte diese Bremse noch nie,
+                          // und sie ihm jetzt zu geben hieße, ihn für das
+                          // Überspringen zu bestrafen. Im Demo-Modus ist die
+                          // Zuordnung ohnehin aus.
                           onTap: () => unawaited(
-                            me == null || person.id == me.id
-                                ? _cycle(context, ref, day, person.id)
-                                : _ask(context, ref, day, person),
+                            _open(
+                              context,
+                              ref,
+                              day,
+                              person,
+                              mine: me == null || person.id == me.id,
+                            ),
                           ),
                         ),
                       ),
@@ -474,21 +570,57 @@ enum _RideChoice {
   };
 }
 
-/// „Für jemand anderen eintragen?" — die Rückfrage aus #121.
+/// Was aus dem Zell-Menü zurückkommt (#183).
 ///
-/// Sie fragt nicht nur, sie erledigt es gleich: Ein Tipp öffnet, ein zweiter
+/// Ein Ergebnistyp statt dreier Rückgabewege: Der Dialog entscheidet nur, der
+/// Aufrufer führt aus. Ein Dialog, der selbst schreibt, müsste den Fehlerfall
+/// ein zweites Mal beantworten.
+sealed class _MenuAction {
+  const _MenuAction();
+}
+
+class _PickRide extends _MenuAction {
+  const _PickRide(this.choice);
+  final _RideChoice choice;
+}
+
+class _WantToDrive extends _MenuAction {
+  const _WantToDrive();
+}
+
+class _EditDay extends _MenuAction {
+  const _EditDay();
+}
+
+/// Das Menü einer Zelle (#183, vorher die Rückfrage aus #121).
+///
+/// Es fragt nicht nur, es erledigt es gleich: Ein Tipp öffnet, ein zweiter
 /// setzt. Eine reine Ja/Nein-Rückfrage hätte bei jedem Weiterschalten noch
 /// einmal gefragt.
+///
+/// **Hier liegt alles außer dem Alltagsfall.** Sich eintragen ist ein Tap auf
+/// die leere eigene Zelle; nur eine Richtung, fahren wollen und eine
+/// abweichende Zeit stehen hier. Den Zyklus stattdessen zu verlängern hätte
+/// den häufigen Weg für den seltenen bezahlt.
 class _RidePickerDialog extends StatelessWidget {
   const _RidePickerDialog({
     required this.person,
     required this.date,
     required this.current,
+    required this.canOfferDrive,
+    required this.deviates,
   });
 
   final Person person;
   final DateTime date;
   final PlanRide? current;
+
+  /// Ob „Ich möchte fahren" überhaupt etwas ändern würde.
+  final bool canOfferDrive;
+
+  /// Ob für diesen Tag schon eine Abweichung gespeichert ist — nur für den
+  /// Wortlaut des Eintrags, die Werte holt der Editor selbst.
+  final bool deviates;
 
   @override
   Widget build(BuildContext context) {
@@ -509,14 +641,170 @@ class _RidePickerDialog extends StatelessWidget {
               trailing: choice.ride == current
                   ? Icon(Icons.done, color: scheme.primary)
                   : null,
-              onTap: () => Navigator.of(context).pop(choice),
+              onTap: () => Navigator.of(context).pop(_PickRide(choice)),
             ),
+          if (canOfferDrive)
+            ListTile(
+              leading: Icon(Icons.directions_car, color: scheme.primary),
+              title: const Text('Ich möchte fahren'),
+              onTap: () => Navigator.of(context).pop(const _WantToDrive()),
+            ),
+          const Divider(height: AppSpacing.s),
+          ListTile(
+            leading: Icon(Icons.schedule, color: scheme.onSurfaceVariant),
+            title: const Text('Zeiten & Treffpunkt'),
+            subtitle: Text(
+              deviates ? 'weicht an diesem Tag ab' : 'gilt nur für diesen Tag',
+            ),
+            onTap: () => Navigator.of(context).pop(const _EditDay()),
+          ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Abbrechen'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Abweichende Zeiten und Treffpunkt für einen Tag (#183).
+///
+/// Was nicht gesetzt wird, bleibt bei der Vorgabe der Gruppe — deshalb zeigen
+/// die Felder deren Werte als Platzhalter und nicht als Inhalt. Ein Feld zu
+/// leeren heißt „wieder wie immer", nicht „gar keine Zeit": Aufgelöst wird
+/// feldweise.
+class _DayDefaultsDialog extends StatefulWidget {
+  const _DayDefaultsDialog({
+    required this.date,
+    required this.group,
+    required this.current,
+  });
+
+  final DateTime date;
+
+  /// Die Vorgabe der Gruppe — nur zur Anzeige als Platzhalter.
+  final GroupDefaults group;
+
+  /// Die gespeicherte Abweichung dieses Tages, `null` wenn es keine gibt.
+  final GroupDefaults? current;
+
+  @override
+  State<_DayDefaultsDialog> createState() => _DayDefaultsDialogState();
+}
+
+class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
+  late DayTime? _out = widget.current?.outboundTime;
+  late DayTime? _back = widget.current?.returnTime;
+  late final TextEditingController _point = TextEditingController(
+    text: widget.current?.meetingPoint ?? '',
+  );
+
+  @override
+  void dispose() {
+    _point.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pick(bool outbound) async {
+    final start = outbound ? _out : _back;
+    final fallback = outbound
+        ? widget.group.outboundTime
+        : widget.group.returnTime;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: (start ?? fallback)?.hour ?? 7,
+        minute: (start ?? fallback)?.minute ?? 30,
+      ),
+    );
+    if (picked == null) return;
+    setState(() {
+      final value = DayTime(picked.hour, picked.minute);
+      if (outbound) {
+        _out = value;
+      } else {
+        _back = value;
+      }
+    });
+  }
+
+  String _hint(DayTime? own, DayTime? group) =>
+      own?.format() ?? (group == null ? 'nicht gesetzt' : group.format());
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text(DateFormat('EEEE, d.M.', 'de').format(widget.date)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Gilt nur für diesen Tag. Was hier leer bleibt, kommt weiter aus '
+            'den festen Vorgaben.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          for (final (label, own, group, outbound) in [
+            ('Abfahrt hin', _out, widget.group.outboundTime, true),
+            ('Abfahrt zurück', _back, widget.group.returnTime, false),
+          ])
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                Icons.schedule,
+                color: own == null ? scheme.onSurfaceVariant : scheme.primary,
+              ),
+              title: Text(label),
+              subtitle: Text(_hint(own, group)),
+              trailing: own == null
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Wieder wie immer',
+                      onPressed: () => setState(() {
+                        if (outbound) {
+                          _out = null;
+                        } else {
+                          _back = null;
+                        }
+                      }),
+                    ),
+              onTap: () => unawaited(_pick(outbound)),
+            ),
+          TextField(
+            controller: _point,
+            decoration: InputDecoration(
+              labelText: 'Treffpunkt',
+              hintText: widget.group.meetingPoint ?? 'wie immer',
+            ),
+            maxLength: 120,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final point = _point.text.trim();
+            Navigator.of(context).pop(
+              GroupDefaults(
+                outboundTime: _out,
+                returnTime: _back,
+                meetingPoint: point.isEmpty ? null : point,
+              ),
+            );
+          },
+          child: const Text('Speichern'),
         ),
       ],
     );
@@ -831,6 +1119,19 @@ class _DayRow extends ConsumerWidget {
     final notes = _notesHint(
       ref.watch(weekNotesProvider).value?[day.date]?.length ?? 0,
     );
+    // Die Abweichung dieses Tages (#183) — im Text UND als Symbol. Ein Symbol
+    // allein sagte „hier ist etwas anders", ohne zu sagen was; ein Text ohne
+    // Symbol fiele im Raster nicht auf. Die Farbe bleibt neutral: Die
+    // Auto-Farben kommen erst mit der zweiten Stufe, und zwei Akzente in
+    // derselben Zeile sind einer zu viel.
+    final deviation = ref.watch(weekPlanDefaultsProvider).value?[day.date];
+    final deviationHint = deviation == null
+        ? ''
+        : [
+            if (deviation.outboundTime case final t?) 'hin ${t.format()}',
+            if (deviation.returnTime case final t?) 'zurück ${t.format()}',
+            ?deviation.meetingPoint,
+          ].join(', ');
 
     return ListTile(
       // Die Anmerkungen stehen JEDEM Tag offen, auch einem eingetragenen.
@@ -838,7 +1139,20 @@ class _DayRow extends ConsumerWidget {
       // einer versehentlichen Planänderung, und eine Anmerkung berührt sie
       // nicht.
       onTap: () => unawaited(context.push('/notes/$_isoDay')),
-      title: Text(label),
+      title: deviationHint.isEmpty
+          ? Text(label)
+          : Row(
+              children: [
+                Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: AppSpacing.xs),
+                Icon(
+                  Icons.schedule,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  semanticLabel: 'Abweichende Zeiten',
+                ),
+              ],
+            ),
       subtitle: Text(
         '${switch ((day.confirmed, day.cars.length)) {
           (true, 0) => 'Eingetragen',
@@ -859,7 +1173,8 @@ class _DayRow extends ConsumerWidget {
           (false, final k) => '$joined fahren · $k Autos · '
               '${day.isOverridden ? 'von Hand gesetzt' : 'Vorschlag'}'
               '${_seatHint()}',
-        }}$notes',
+        }}$notes'
+        '${deviationHint.isEmpty ? '' : ' · $deviationHint'}',
       ),
       leading: Icon(
         day.confirmed ? Icons.check_circle : Icons.event_available_outlined,

@@ -105,6 +105,34 @@ Finder _cell(String person, DateTime day, {String? state}) {
   );
 }
 
+/// Setzt einen Zustand über das Zell-Menü (#183).
+///
+/// Seit v0.64.0 trägt ein Tap auf die leere Zelle nur noch ein; alles andere
+/// öffnet das Menü. „Zweimal tippen für 1-way" gibt es nicht mehr — der
+/// Zyklus wäre mit vier Stufen unbenutzbar geworden.
+Future<void> _pick(
+  WidgetTester tester,
+  String person,
+  DateTime day,
+  String label,
+) async {
+  // Eine leere Zelle muss erst eingetragen werden, sonst öffnet der Tap kein
+  // Menü, sondern trägt ein.
+  if (_cell(person, day, state: 'kann nicht').evaluate().isNotEmpty) {
+    await tester.tap(_cell(person, day));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(_cell(person, day));
+  await tester.pumpAndSettle();
+  await tester.tap(
+    find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(ListTile, label),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('der Planer zeigt Montag bis Freitag und alle Personen', (
     tester,
@@ -310,17 +338,34 @@ void main() {
     final monday = planningWeek(testToday).first;
     expect(_cell('Anna', monday, state: 'kann nicht'), findsOneWidget);
 
+    // Ein Tap trägt ein — der Alltagsfall bleibt ein Klick (#183).
     await tester.tap(_cell('Anna', monday));
     await tester.pumpAndSettle();
     expect(_cell('Anna', monday, state: 'dabei|fährt'), findsOneWidget);
 
+    // Der zweite Tap schaltet NICHT weiter, sondern öffnet das Menü. Bei drei
+    // Zuständen war das Durchschalten schon lästig; mit „fahren wollen" und
+    // den Zeiten wäre es unbenutzbar geworden.
     await tester.tap(_cell('Anna', monday));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(
+      _cell('Anna', monday, state: 'dabei|fährt'),
+      findsOneWidget,
+      reason: 'Das Öffnen allein darf noch nichts geändert haben.',
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(ListTile, 'nur eine Richtung'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(_cell('Anna', monday, state: 'nur eine Richtung'), findsOneWidget);
 
-    // Dritter Tap zurück auf Anfang — sonst käme man aus 1-way nie heraus.
-    await tester.tap(_cell('Anna', monday));
-    await tester.pumpAndSettle();
+    // Und wieder heraus — aus 1-way muss ein Weg zurückführen.
+    await _pick(tester, 'Anna', monday, 'kann nicht');
     expect(_cell('Anna', monday, state: 'kann nicht'), findsOneWidget);
     handle.dispose();
   });
@@ -333,11 +378,8 @@ void main() {
     await _openPlan(tester);
 
     final monday = planningWeek(testToday).first;
-    // Anna zweimal antippen: dabei → nur eine Richtung. Bert einmal.
-    await tester.tap(_cell('Anna', monday));
-    await tester.pumpAndSettle();
-    await tester.tap(_cell('Anna', monday));
-    await tester.pumpAndSettle();
+    // Anna auf 1-way, Bert einfach dabei.
+    await _pick(tester, 'Anna', monday, 'nur eine Richtung');
     await tester.tap(_cell('Bert', monday));
     await tester.pumpAndSettle();
 
@@ -362,10 +404,7 @@ void main() {
     await _openPlan(tester);
 
     final monday = planningWeek(testToday).first;
-    await tester.tap(_cell('Anna', monday));
-    await tester.pumpAndSettle();
-    await tester.tap(_cell('Anna', monday));
-    await tester.pumpAndSettle();
+    await _pick(tester, 'Anna', monday, 'nur eine Richtung');
 
     expect(_cell('Anna', monday, state: 'nur eine Richtung'), findsOneWidget);
     expect(
@@ -491,13 +530,10 @@ void main() {
     await _openPlan(tester);
 
     final week = planningWeek(testToday);
-    // Montag: Anna fährt, Bert nur eine Richtung (zweiter Tap) → 0,5.
+    // Montag: Anna fährt, Bert nur eine Richtung → 0,5.
     await tester.tap(_cell('Anna', week[0]));
     await tester.pumpAndSettle();
-    await tester.tap(_cell('Bert', week[0]));
-    await tester.pumpAndSettle();
-    await tester.tap(_cell('Bert', week[0]));
-    await tester.pumpAndSettle();
+    await _pick(tester, 'Bert', week[0], 'nur eine Richtung');
     // Dienstag: Bert (schuldet nach Montag am meisten) fährt Clara — 1,0.
     await tester.tap(_cell('Bert', week[1]));
     await tester.pumpAndSettle();
@@ -718,12 +754,8 @@ void main() {
       await tester.tap(_cell(name, monday));
       await tester.pumpAndSettle();
     }
-    // Dora zweimal: nur eine Richtung — sie zählt als Kopf, stellt aber
-    // kein Auto.
-    await tester.tap(_cell('Dora', monday));
-    await tester.pumpAndSettle();
-    await tester.tap(_cell('Dora', monday));
-    await tester.pumpAndSettle();
+    // Dora nur eine Richtung — sie zählt als Kopf, stellt aber kein Auto.
+    await _pick(tester, 'Dora', monday, 'nur eine Richtung');
 
     await tester.tap(find.byTooltip('Fahrer ändern'));
     await tester.pumpAndSettle();
@@ -977,7 +1009,9 @@ void main() {
       return (backend, ids);
     }
 
-    testWidgets('die eigene Zelle schaltet direkt weiter', (tester) async {
+    testWidgets('die leere eigene Zelle trägt mit einem Tap ein', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
       await pumpApp(
@@ -988,18 +1022,50 @@ void main() {
       await _login(tester);
       await _openPlan(tester);
 
-      // Zweimal tippen: Wer als Einzige verfügbar ist, wird sofort als
-      // Fahrerin vorgeschlagen — die Zelle läse dann „fährt". Nach dem
-      // zweiten Tipp ist sie 1-way und kommt als Fahrerin nicht in Frage,
-      // der Zustand ist also eindeutig.
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(AlertDialog),
+        findsNothing,
+        reason:
+            'Der Alltagsfall — sich für einen Tag eintragen — bleibt ein '
+            'Klick. Ein Menü davor machte den häufigen Weg doppelt so teuer.',
+      );
+      // Als einzige Verfügbare wird sie sofort als Fahrerin vorgeschlagen,
+      // die Zelle liest dann „fährt" statt „dabei".
+      expect(_cell('Anna', monday, state: 'dabei|fährt'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('der zweite Tap auf die eigene Zelle öffnet das Menü', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
       final monday = planningWeek(testToday).first;
       await tester.tap(_cell('Anna', monday));
       await tester.pumpAndSettle();
       await tester.tap(_cell('Anna', monday));
       await tester.pumpAndSettle();
 
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(_cell('Anna', monday, state: 'nur eine Richtung'), findsOneWidget);
+      expect(
+        find.byType(AlertDialog),
+        findsOneWidget,
+        reason:
+            'Statt auf eine vierte Zyklus-Stufe: 1-way, fahren wollen und '
+            'die Zeiten des Tages stehen im Menü. Bei drei Stufen war das '
+            'Durchschalten schon lästig.',
+      );
       handle.dispose();
     });
 
@@ -1097,25 +1163,58 @@ void main() {
 
     // Wer die Startabfrage überspringt, soll nicht schlechter dastehen als
     // vor dem Release.
-    testWidgets('ohne gewählte Person bleibt es beim Durchschalten', (
-      tester,
-    ) async {
+    testWidgets('ohne gewählte Person trägt der erste Tap ein', (tester) async {
       final handle = tester.ensureSemantics();
       final (backend, _) = await backendWithIds(['Anna', 'Bert']);
       await pumpApp(tester, backend, identity: DeviceIdentity.skipped);
       await _login(tester);
       await _openPlan(tester);
 
-      // Zweimal, aus demselben Grund wie oben: Als einziger Verfügbarer
-      // würde Bert nach dem ersten Tipp als Fahrer vorgeschlagen.
       final monday = planningWeek(testToday).first;
       await tester.tap(_cell('Bert', monday));
       await tester.pumpAndSettle();
+
+      expect(
+        find.byType(AlertDialog),
+        findsNothing,
+        reason:
+            'Ohne Zuordnung zählt jede Zeile als eigene, nicht als fremde. '
+            'Wer die Startabfrage übersprungen hat, hatte die Rückfrage nie '
+            '— sie ihm jetzt zu geben hieße, ihn dafür zu bestrafen. Im '
+            'Demo-Modus (README-Screenshots) ist die Zuordnung ohnehin aus.',
+      );
+      expect(_cell('Bert', monday, state: 'dabei|fährt'), findsOneWidget);
+      handle.dispose();
+    });
+
+    // Der eigentliche Riegel des neuen Modells (#183): Eine fremde Zelle
+    // öffnet das Menü AUCH LEER. Ohne das träfe ein Fehltipp jemand anderen
+    // mit einem einzigen Klick — genau die Vertipper-Bremse aus #121, die
+    // vorher am Durchschalten hing.
+    testWidgets('eine leere fremde Zelle öffnet das Menü, statt einzutragen', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final (backend, ids) = await backendWithIds(['Anna', 'Bert']);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids['Anna'], asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      expect(_cell('Bert', monday, state: 'kann nicht'), findsOneWidget);
       await tester.tap(_cell('Bert', monday));
       await tester.pumpAndSettle();
 
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(_cell('Bert', monday, state: 'nur eine Richtung'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        _cell('Bert', monday, state: 'kann nicht'),
+        findsOneWidget,
+        reason: 'Der Tipp allein darf für Bert noch nichts geändert haben.',
+      );
       handle.dispose();
     });
 

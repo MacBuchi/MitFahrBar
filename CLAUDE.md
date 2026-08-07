@@ -109,9 +109,62 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     nicht gesetzte Werte als `null` mit. Sonst wäre eine einmal gesetzte
     Uhrzeit nie wieder loszuwerden: Der Screen baut die Vorgaben beim
     Speichern frisch, der Upsert schreibt immer alle drei Felder.
-  - Tages-Abweichungen bleiben **Anmerkungen** (#127) — „komme erst um 9"
-    gehört an den Tag, nicht in die Vorgabe. Wer hier einen Zeitwähler je
-    Tag ergänzt, baut das Raster um, in dem heute ein Tap steht.
+  - **Tages-Abweichungen sind seit v0.64.0 eigene Werte** (`plan_defaults`,
+    #183) — das **revidiert** „Tages-Abweichungen bleiben Anmerkungen"
+    (#127, 2026-08-04). Die Absage galt, solange eine Zeit nur Text war;
+    seit #164 entscheidet sie, wann das Handy klingelt, und eine Anmerkung
+    kann keine Erinnerung verschieben. Im Plan stand „wir fahren um 9",
+    geweckt wurde um 7:10 — die Anmerkung war damit nicht bloß schwächer,
+    sondern irreführend. Dieselbe Form wie die Spritpreis-Revision. Für
+    alles, was weder Zeit noch Ort ist, bleibt die Anmerkung der Weg.
+    - **Feldweise aufgelöst, nie objektweise** (`effectiveDefaults`). Ein
+      Tag, der nur die Hinfahrt verschiebt, behält die Rückfahrt der
+      Gruppe; objektweise ersetzt fiele sie auf `null` und die
+      Rückfahrt-Erinnerung entfiele stillschweigend. Stufe B legt die
+      Auto-Ebene als dritte darüber (`car → day → group`) — deshalb ist
+      `plan_defaults` auf `(group_id, plan_date)` geschlüsselt und wird
+      **nicht** umgebaut, wenn Zeiten je Auto kommen.
+    - **Die Abweichung steht im Digest, die Gruppen-Vorgabe nicht** — und
+      genau darin liegt die Trennung: Die Vorgabe ist ein *Parameter*
+      (ändern weckt niemanden, sonst meldete der Parameter-Screen der
+      halben Gruppe eine Planänderung), die Abweichung eine *Tatsache über
+      diesen Tag* (ändern muss wecken). In den Digest gehört nur die
+      **Abweichung**, nie die aufgelöste Zeit — sonst käme die Vorgabe
+      durch die Hintertür zurück. Beide Hälften sind in
+      `test/push_outbox_test.dart` rot verifiziert.
+    - **Und nur, wenn es sie wirklich gibt.** Eine leere Abweichung darf
+      nichts anhängen: Ein Client von vor v0.64.0 rechnet ohne sie, und
+      unterschieden sich die Digests für einen unveränderten Tag, wäre
+      jeder Wechsel zwischen beiden Clients eine „Änderung"-Meldung an
+      alle Anwesenden. Deshalb schreibt das Repository eine leer gewordene
+      Zeile **weg**, statt sie leer stehen zu lassen.
+    - **Die wirksame Zeit reist im Ausgangskorb**, nicht in `push_due()`:
+      Ab Stufe B hängt sie daran, in welchem Auto jemand sitzt, und das
+      weiß nur `planWeek`. Im Versand nachgerechnet wäre es die zweite
+      Wahrheit über die Fairness-Regel. Die neuen Spalten stehen deshalb
+      **nicht** im Entprell-Vergleich (die `title_out`-Lehre), und
+      `group_defaults` wird in `push_due()` seither **left** gejoint — als
+      innerer Join verschluckte er den Tag, der eine Zeit trägt, ohne dass
+      die Gruppe je eine gesetzt hat.
+  - **Ein Tap auf die leere eigene Zelle trägt ein, jeder andere öffnet das
+    Menü** (#183, seit v0.64.0). Vorher schaltete jeder Tap eine Stufe
+    weiter; mit „fahren wollen" und den Zeiten wären daraus fünf Stufen
+    geworden. Der Alltagsfall bleibt damit **ein** Klick, alles Seltene
+    kostet zwei.
+    - **Eine fremde Zelle öffnet das Menü auch leer.** Vorher hing die
+      Vertipper-Bremse aus #121 am Durchschalten; ohne diese Zeile träfe
+      ein Fehltipp jemand anderen mit einem einzigen Klick. Der Flow-Test
+      dazu **tippt**.
+    - **Ohne „Ich bin" zählt jede Zeile als eigene, nicht als fremde.** Wer
+      die Startabfrage übersprungen hat, hatte die Rückfrage nie — sie ihm
+      jetzt zu geben hieße, ihn dafür zu bestrafen. Im Demo-Modus ist die
+      Zuordnung ohnehin aus, dort entstehen die README-Screenshots.
+    - **Kein Longpress.** Ohne Affordanz, mit der Maus in der PWA
+      Drücken-und-Halten, und ohne Tastatur- oder Screenreader-Weg.
+    - Die Zeit zu setzen ist gleichzeitig die Fahrer-Zusage — sie schreibt
+      `plan_overrides`, sonst hinge morgen eine 6:45 an einem Auto, das
+      jemand anders fährt. Deshalb erscheint „Ich möchte fahren" nur, wenn
+      man nicht ohnehin schon fährt.
 - **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von

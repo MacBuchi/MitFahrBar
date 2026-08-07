@@ -42,12 +42,16 @@ import 'push_outbox.dart';
 /// [suppressPersonId] ist, wer an diesem Gerät sitzt (#121): Wer die Fahrt
 /// selbst geändert hat, braucht keine Meldung darüber. Best effort wie beim
 /// Planer — ein Gerät ohne Zuordnung unterdrückt nichts.
+/// [dayDefaults] sind die Abweichungen einzelner Tage (#183), auf Tagesbeginn
+/// normiert. Sie schlagen [defaults] feldweise — sonst nennte die Meldung
+/// über eine geänderte Fahrt eine andere Zeit als das Banner desselben Tages.
 List<OutboxEntry> tripChangeEntries({
   required List<Trip> previous,
   required List<Trip> next,
   required Map<String, Person> persons,
   required DateTime now,
   GroupDefaults defaults = const GroupDefaults(),
+  Map<DateTime, GroupDefaults> dayDefaults = const {},
   String? suppressPersonId,
 }) {
   final before = {for (final trip in previous) trip.id: trip};
@@ -91,7 +95,10 @@ List<OutboxEntry> tripChangeEntries({
             personId,
             persons,
             removed: removed,
-            defaults: defaults,
+            defaults: effectiveDefaults(
+              defaults,
+              dayDefaults[DateTime(date.year, date.month, date.day)],
+            ),
           ),
           // Für eine Trip-Zeile wählt `push_due()` immer `title_change`;
           // die anderen Kopfzeilen sind Pflichtfelder der Tabelle und

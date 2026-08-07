@@ -4,6 +4,33 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.64.0] – 2026-08-07
+
+### Neu
+
+- **Abfahrt und Treffpunkt lassen sich für einen einzelnen Tag ändern.**
+  Fahrt ihr an einem Tag früher los, tragt ihr das jetzt im Wochenplan ein —
+  und alle, die an dem Tag mitfahren, bekommen ihre Erinnerung zur neuen Zeit.
+  Bisher ging das nur als Anmerkung, und die konnte nichts verschieben: Im
+  Plan stand „wir fahren um 9", das Handy weckte trotzdem um 7:10.
+
+  Was ihr leer lasst, bleibt bei euren festen Vorgaben — wer nur die Hinfahrt
+  verschiebt, behält die gewohnte Rückfahrt. Ein Uhrsymbol am Tag zeigt, dass
+  dort etwas abweicht.
+
+### Geändert
+
+- **Der Wochenplan bedient sich anders — der Normalfall wird dadurch
+  kürzer.** Ein Tipp auf ein leeres Feld deiner Zeile trägt dich ein, fertig.
+  Tippst du noch einmal darauf, geht ein kleines Menü auf: nur eine Richtung,
+  selbst fahren, wieder austragen, und die Zeiten des Tages.
+
+  Vorher schaltete jeder Tipp eine Stufe weiter. Mit den neuen Möglichkeiten
+  wären daraus fünf Stufen geworden, durch die man sich hätte tippen müssen.
+  Bei fremden Zeilen geht das Menü wie bisher sofort auf — jetzt auch bei
+  einem leeren Feld, damit ein Fehltipp niemanden mehr mit einem Klick
+  einträgt.
+
 ## [0.63.1] – 2026-08-06
 
 ### Behoben

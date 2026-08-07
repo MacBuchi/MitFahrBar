@@ -379,6 +379,183 @@ void main() {
     });
   });
 
+  group('Abweichung eines Tages (#183)', () {
+    const group = GroupDefaults(
+      outboundTime: DayTime(7, 30),
+      returnTime: DayTime(16, 30),
+      meetingPoint: 'Parkplatz Rathaus',
+    );
+
+    test('aufgelöst wird feldweise, nicht objektweise', () {
+      final merged = effectiveDefaults(
+        group,
+        const GroupDefaults(outboundTime: DayTime(6, 45)),
+      );
+      expect(merged.outboundTime, const DayTime(6, 45));
+      expect(
+        merged.returnTime,
+        const DayTime(16, 30),
+        reason:
+            'Ein Tag, der nur die Hinfahrt verschiebt, behält die Rückfahrt '
+            'der Gruppe. Objektweise ersetzt fiele sie auf null — und die '
+            'Rückfahrt-Erinnerung entfiele stillschweigend.',
+      );
+      expect(merged.meetingPoint, 'Parkplatz Rathaus');
+    });
+
+    test('ohne Abweichung bleibt die Vorgabe unangetastet', () {
+      expect(effectiveDefaults(group, null), group);
+      expect(effectiveDefaults(group, const GroupDefaults()), group);
+    });
+
+    test('der Digest ändert sich, wenn der TAG eine andere Zeit bekommt', () {
+      final week = [dayWith()];
+      final plain = outboxEntries(
+        week: week,
+        persons: persons,
+        now: mondayEvening,
+        defaults: group,
+      );
+      final moved = outboxEntries(
+        week: week,
+        persons: persons,
+        now: mondayEvening,
+        defaults: group,
+        dayDefaults: {
+          tuesday: const GroupDefaults(outboundTime: DayTime(6, 45)),
+        },
+      );
+      expect(
+        entryFor(moved, anna).digest,
+        isNot(entryFor(plain, anna).digest),
+        reason:
+            'Eine verschobene Abfahrt ist eine Tatsache über diesen Tag. Wer '
+            'sie verschiebt, muss die Mitfahrenden wecken — sonst stünde die '
+            'neue Zeit im Planer und das Handy klingelte zur alten.',
+      );
+    });
+
+    test('der Digest ändert sich NICHT, wenn die GRUPPE ihre Zeit ändert', () {
+      final week = [dayWith()];
+      String digestWith(GroupDefaults defaults) => entryFor(
+        outboxEntries(
+          week: week,
+          persons: persons,
+          now: mondayEvening,
+          defaults: defaults,
+        ),
+        anna,
+      ).digest;
+
+      expect(
+        digestWith(group),
+        digestWith(
+          const GroupDefaults(
+            outboundTime: DayTime(6, 45),
+            returnTime: DayTime(16, 30),
+            meetingPoint: 'Parkplatz Rathaus',
+          ),
+        ),
+        reason:
+            'Die andere Hälfte derselben Regel: Die Vorgabe ist ein '
+            'Parameter. Stünde sie im Digest, bekäme beim Speichern im '
+            'Parameter-Screen die halbe Gruppe eine „Änderung"-Meldung über '
+            'einen Tag, an dem sich nichts getan hat.',
+      );
+    });
+
+    test('eine leere Abweichung zählt wie gar keine', () {
+      final week = [dayWith()];
+      String digestWith(Map<DateTime, GroupDefaults> byDay) => entryFor(
+        outboxEntries(
+          week: week,
+          persons: persons,
+          now: mondayEvening,
+          defaults: group,
+          dayDefaults: byDay,
+        ),
+        anna,
+      ).digest;
+
+      expect(
+        digestWith(const {}),
+        digestWith({tuesday: const GroupDefaults()}),
+        reason:
+            'Sonst hinge an einer inhaltlosen Zeile eine Meldung — und ein '
+            'Client, der die Abweichung noch nicht kennt, rechnete für '
+            'denselben unveränderten Tag einen anderen Digest. Jeder Wechsel '
+            'zwischen beiden wäre eine „Änderung" an alle Anwesenden.',
+      );
+    });
+
+    test('die Zeile trägt die WIRKSAME Zeit, nicht die der Gruppe', () {
+      final box = outboxEntries(
+        week: [dayWith()],
+        persons: persons,
+        now: mondayEvening,
+        defaults: group,
+        dayDefaults: {
+          tuesday: const GroupDefaults(outboundTime: DayTime(6, 45)),
+        },
+      );
+      final entry = entryFor(box, anna);
+      expect(
+        entry.outboundTime,
+        const DayTime(6, 45),
+        reason:
+            'Aus dieser Spalte feuert `push_due()`. Stünde dort die Vorgabe, '
+            'käme die Erinnerung zur alten Zeit — und ab Stufe B kann der '
+            'Versand sie gar nicht selbst ausrechnen: Sie hängt daran, in '
+            'welchem Auto die Person sitzt, und das weiß nur `planWeek`.',
+      );
+      expect(entry.returnTime, const DayTime(16, 30));
+      expect(
+        entry.titleOut,
+        contains('06:45'),
+        reason: 'Die Kopfzeile nennt dieselbe Zeit wie die Spalte daneben.',
+      );
+      expect(
+        entry.body,
+        contains('Abfahrt 06:45'),
+        reason:
+            'Und der Text auch — Banner und Meldung kommen aus derselben '
+            'Funktion, sie dürfen nicht auseinanderlaufen.',
+      );
+    });
+
+    test('dueMessages und der Korb bleiben einig', () {
+      final week = [dayWith()];
+      final dayDefaults = {
+        tuesday: const GroupDefaults(outboundTime: DayTime(6, 45)),
+      };
+      final due = dueMessages(
+        week: week,
+        prefs: prefsFor([anna]),
+        sent: const [],
+        persons: persons,
+        now: mondayEvening,
+        defaults: group,
+        dayDefaults: dayDefaults,
+      );
+      final box = outboxEntries(
+        week: week,
+        persons: persons,
+        now: mondayEvening,
+        defaults: group,
+        dayDefaults: dayDefaults,
+      );
+      expect(due.single.body, entryFor(box, anna).body);
+      expect(
+        due.single.digest,
+        entryFor(box, anna).digest,
+        reason:
+            'Der Dart-Spiegel von `push_due()` muss dieselbe Rechnung machen '
+            'wie der Korb; sonst prüft dieser Test einen Weg, den es in '
+            'Produktion nicht gibt.',
+      );
+    });
+  });
+
   group('Was der Korb behalten muss (#177)', () {
     // 2026-07-27 ist ein Montag, 2026-07-31 der Freitag, 2026-08-03 der
     // Montag danach.
