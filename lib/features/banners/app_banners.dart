@@ -148,21 +148,22 @@ class _NextRideBanner extends ConsumerWidget {
     //
     // Bei EINEM Auto gilt dasselbe eine Ebene tiefer: Dessen Abweichung
     // betrifft alle, die an dem Tag fahren, und der Korb rechnet sie in die
-    // Erinnerung ein — das Banner muss dieselbe Zeit nennen. Ehrliche
-    // Grenze: Bei MEHREREN Autos bleibt hier die Tageszeit stehen; das
-    // Banner ist ein Text für die ganze Gruppe, und zwei Abfahrtszeiten in
-    // einer Zeile wären eine eigene Design-Entscheidung. Die Zeiten je Auto
-    // stehen im Planer.
+    // Erinnerung ein — das Banner muss dieselbe Zeit nennen.
+    //
+    // Bei MEHREREN Autos bleibt hier die Tageszeit stehen — sie ist das,
+    // was allen gemeinsam ist. Die abweichenden Zeiten stehen seit #189
+    // nicht mehr nur im Planer, sondern an ihrem Auto in der Aufzählung
+    // („Auto 2: Dora mit Emil (hin 06:45)"). Zwei Abfahrtszeiten in EINER
+    // Zeile wären weiter falsch; zwei Zeilen mit je einer sind es nicht.
+    final carDeviations =
+        ref.watch(weekCarDefaultsProvider).value?[day.date] ??
+        const <String, GroupDefaults>{};
     final defaults = effectiveDefaults(
       effectiveDefaults(
         ref.watch(groupDefaultsProvider).value ?? const GroupDefaults(),
         ref.watch(weekPlanDefaultsProvider).value?[day.date],
       ),
-      day.cars.length == 1
-          ? ref
-                .watch(weekCarDefaultsProvider)
-                .value?[day.date]?[day.cars.single.driverId]
-          : null,
+      day.cars.length == 1 ? carDeviations[day.cars.single.driverId] : null,
     );
     final iso =
         '${day.date.year.toString().padLeft(4, '0')}-'
@@ -172,7 +173,15 @@ class _NextRideBanner extends ConsumerWidget {
     return _Banner(
       icon: Icons.directions_car,
       text: dayLabel(day.date, ref.watch(nowProvider)()),
-      subtitle: composeGroupBody(day, byId, notes: notes, defaults: defaults),
+      subtitle: composeGroupBody(
+        day,
+        byId,
+        notes: notes,
+        defaults: defaults,
+        // Nur ab zwei Autos ausgewertet — bei einem steckt die Abweichung
+        // schon in `defaults` und stünde sonst zweimal da.
+        carDefaults: carDeviations,
+      ),
       // „Deep Teal Flow" aus dem Design-Set — dort mit genau dieser
       // Überschrift gezeichnet. Der Verlauf läuft hell nach dunkel, weil
       // rechts der Zähler sitzt; die Begründung steht am Token.
@@ -187,10 +196,20 @@ class _NextRideBanner extends ConsumerWidget {
         tooltip: 'Anmerkungen',
         onPressed: () => ref.read(routerProvider).push('/notes/$iso'),
         visualDensity: VisualDensity.compact,
-        // Den Akzent trägt allein der Zähler, nicht die Sprechblase: Er
-        // bringt seine eigene Fläche mit, und „nie zwei Akzente im selben
-        // Banner" ist die Regel des Design-Sets. Frei auf dem Verlauf wäre
-        // Magenta ohnehin unlesbar.
+        // **Die Sprechblase trägt den Akzent mit, sobald es Anmerkungen
+        // gibt** (#189). Bis v0.66.2 blieb sie weiß und der Zähler allein
+        // magenta — nach der Regel „nie zwei Akzente im selben Banner". Es
+        // sind aber keine zwei: Chip und Blase sagen dieselbe Sache, und
+        // gemeldet wurde genau das, „bei Kommentaren auch Chatsymbol in
+        // gleicher Farbe".
+        //
+        // **Leer bleibt sie weiß.** Ein magentafarbenes Symbol ohne
+        // Anmerkung wäre ein Akzent, der auf nichts zeigt.
+        //
+        // Der Ton ist derselbe wie der des Chips und sitzt am **dunklen**
+        // Ende des Verlaufs — dort trägt er 4,06:1. Auf dem hellen Teal
+        // wären es 1,61:1; deshalb steht der Knopf rechts und deshalb läuft
+        // der Verlauf gespiegelt. `banner_contrast_test.dart` misst es.
         icon: Badge(
           isLabelVisible: notes.isNotEmpty,
           backgroundColor: AppAccents.notesChip,
@@ -201,7 +220,7 @@ class _NextRideBanner extends ConsumerWidget {
                 ? Icons.chat_bubble_outline
                 : Icons.chat_bubble_rounded,
             size: 18,
-            color: tone.foreground,
+            color: notes.isEmpty ? tone.foreground : AppAccents.notesChip,
           ),
         ),
       ),

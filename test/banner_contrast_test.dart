@@ -155,6 +155,30 @@ void main() {
         'Zahl im Zähler',
       );
     });
+
+    // #189: Seit v0.66.3 trägt auch die Sprechblase den Akzent, sobald es
+    // Anmerkungen gibt. Sie hat KEINE eigene Fläche — sie liegt frei auf dem
+    // Verlauf, und das ist genau die Rechnung, an der Magenta im Banner
+    // bisher gescheitert ist. Sie geht nur am dunklen Ende auf.
+    test('die Sprechblase trägt den Akzent lesbar', () {
+      _expectContrast(
+        AppAccents.notesChip,
+        gradient.colors.last,
+        _graphic,
+        'Sprechblase gegen das dunkle Verlaufsende',
+      );
+    });
+
+    test('und sie ginge am hellen Ende NICHT auf', () {
+      expect(
+        _contrast(AppAccents.notesChip, gradient.colors.first),
+        lessThan(_graphic),
+        reason:
+            'Der Beleg für die Anordnung: Wer den Knopf nach links schöbe '
+            'oder den Verlauf umdrehte, macht das Symbol unsichtbar. Diese '
+            'Zeile ist die Begründung, kein Wunsch.',
+      );
+    });
   });
 
   group('Push', () {

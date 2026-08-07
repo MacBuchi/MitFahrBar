@@ -90,10 +90,13 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 text:
                     'Ganz oben steht die nächste Fahrt: welcher Tag, wer '
-                    'fährt und wer dabei ist. Ab 12 Uhr blickt sie auf '
-                    'morgen — der Vormittag gehört der heutigen Fahrt. Ein '
-                    'Tipp darauf führt in die Woche — die Sprechblase rechts '
-                    'in die Anmerkungen des Tages.',
+                    'fährt und wer dabei ist. Fahrt ihr mit mehreren Autos, '
+                    'steht jedes für sich da („Auto 2: Dora mit Emil") — '
+                    'samt seiner Zeit, wenn es früher losfährt als der Rest. '
+                    'Ab 12 Uhr blickt sie auf morgen — der Vormittag gehört '
+                    'der heutigen Fahrt. Ein Tipp darauf führt in die Woche '
+                    '— die Sprechblase rechts in die Anmerkungen des Tages; '
+                    'sie färbt sich, sobald jemand etwas geschrieben hat.',
               ),
               _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
