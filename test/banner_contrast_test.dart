@@ -47,6 +47,12 @@ double _contrast(Color a, Color b) {
 String _hex(Color color) =>
     '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
+/// Abstand zweier Farben im Farbkreis, in Grad (0–180).
+double _hueGap(Color a, Color b) {
+  final gap = (HSLColor.fromColor(a).hue - HSLColor.fromColor(b).hue).abs();
+  return gap > 180 ? 360 - gap : gap;
+}
+
 void _expectContrast(Color front, Color back, double minimum, String what) {
   final ratio = _contrast(front, back);
   expect(
@@ -205,4 +211,88 @@ void main() {
       }
     });
   });
+
+  // Die Auto-Farben des Wochenplaners (#183). Die Marke ist eine gefüllte
+  // Scheibe mit einer Ziffer: Die Fläche steht als GRAFIK gegen das Blatt,
+  // die Ziffer als TEXT auf der Fläche. Beides muss tragen — eine Marke, die
+  // man vom Untergrund nicht unterscheidet, sagt so wenig wie eine, deren
+  // Nummer man nicht liest.
+  for (final brightness in Brightness.values) {
+    final name = brightness == Brightness.dark ? 'dunkel' : 'hell';
+
+    group('Auto-Farben ($name)', () {
+      final theme = brightness == Brightness.dark ? darkTheme() : lightTheme();
+
+      test('jede Fläche hebt sich vom Blatt ab', () {
+        for (var i = 0; i < AppCarTones.count; i++) {
+          final tone = AppCarTones.byIndex(i, brightness)!;
+          // Gegen BEIDE Untergründe, auf denen das Raster liegen kann: Die
+          // Karte selbst und das Blatt darunter. Der hellere von beiden ist
+          // der schwierigere Fall, und welcher das ist, hängt am Theme.
+          for (final back in [
+            theme.colorScheme.surface,
+            theme.colorScheme.surfaceContainerLow,
+          ]) {
+            _expectContrast(
+              tone.surface,
+              back,
+              _graphic,
+              'Auto ${i + 1} ($name)',
+            );
+          }
+        }
+      });
+
+      test('jede Nummer steht auf ihrer Fläche lesbar', () {
+        for (var i = 0; i < AppCarTones.count; i++) {
+          final tone = AppCarTones.byIndex(i, brightness)!;
+          _expectContrast(
+            tone.foreground,
+            tone.surface,
+            _text,
+            'Nummer auf Auto ${i + 1} ($name)',
+          );
+        }
+      });
+
+      test('jenseits der Palette gibt es keine erfundene Farbe', () {
+        expect(
+          AppCarTones.byIndex(AppCarTones.count, brightness),
+          isNull,
+          reason:
+              'Ab dem fünften Auto trägt die Nummer allein auf neutralem '
+              'Grund. Eine weitere Farbe zu erfinden hieße, sie ungemessen '
+              'einzuführen — und genau das soll diese Datei verhindern.',
+        );
+      });
+
+      test('die Autos sind voneinander unterscheidbar', () {
+        // **Nicht über das Kontrastverhältnis.** Das misst Helligkeit, und
+        // zwei Autos unterscheiden sich am Farbton: Türkis und Bernstein
+        // liegen beide bei Luminanz 0,15 und stehen sich mit 1,08:1
+        // gegenüber — als Verhältnis gelesen wären sie „gleich", mit bloßem
+        // Auge sind sie es überhaupt nicht. Gefordert ist deshalb ein
+        // Mindestabstand im Farbkreis; 60° ist die übliche Faustregel für
+        // kategoriale Paletten und lässt bei vier Tönen noch Luft.
+        //
+        // Für alle, die Farbtöne nicht unterscheiden, trägt ohnehin die
+        // Ziffer — das hier ist eine Komfort-, keine Zugänglichkeitsschwelle.
+        for (var i = 0; i < AppCarTones.count; i++) {
+          for (var j = i + 1; j < AppCarTones.count; j++) {
+            final apart = _hueGap(
+              AppCarTones.byIndex(i, brightness)!.surface,
+              AppCarTones.byIndex(j, brightness)!.surface,
+            );
+            expect(
+              apart,
+              greaterThanOrEqualTo(60.0),
+              reason:
+                  'Auto ${i + 1} und ${j + 1} ($name) trennen sich nur um '
+                  '${apart.toStringAsFixed(0)}° im Farbkreis.',
+            );
+          }
+        }
+      });
+    });
+  }
 }

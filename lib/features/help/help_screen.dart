@@ -203,6 +203,16 @@ class HelpScreen extends StatelessWidget {
                     'jeden.',
               ),
               _Line(
+                leading: Icon(Icons.looks_two_outlined),
+                text:
+                    'Fahrt ihr an einem Tag mit zwei oder mehr Autos, '
+                    'bekommt jedes eine Farbe und eine Nummer. Die kleine '
+                    'Marke an deinem Feld sagt dir, in welchem Auto du '
+                    'sitzt — dieselbe Nummer wie bei deinem Fahrer. Bei '
+                    'einem Auto steht keine Marke da: Dann fahren ohnehin '
+                    'alle zusammen.',
+              ),
+              _Line(
                 leading: Icon(Icons.schedule),
                 text:
                     'Im selben Menü stehen Abfahrt und Treffpunkt für '

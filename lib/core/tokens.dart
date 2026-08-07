@@ -197,6 +197,64 @@ abstract final class AppBannerTones {
 /// Banner" — sie ist der Grund, warum der Anmerkungs-Akzent ausschließlich
 /// auf dem Zähler sitzt, der seine eigene Fläche mitbringt, und nicht frei
 /// auf dem Verlauf des Fahrt-Banners.
+/// Farben der Autos eines Tages im Wochenplaner (#183).
+///
+/// **Je Auto-Platz, nicht je Person.** Die Frage lautet „mit wem fahre ich
+/// *heute*", nicht „wer ist das". Platz-Farben halten die zwei, drei Autos
+/// eines Tages maximal auseinander; Personen-Farben (`personLineColor`)
+/// könnten zwei benachbarte Töne nebeneinanderlegen. Der Preis ist bewusst:
+/// Dieselbe Person trägt in der Statistik eine andere Farbe als hier — die
+/// beiden beantworten verschiedene Fragen.
+///
+/// **Die Farbe trägt nie allein.** Auf der Fläche steht die Autonummer;
+/// ohne sie verlöre jeder Rot-Grün-Schwache und jeder Graustufen-Screenshot
+/// die Zuordnung. Das löst zugleich den Fall „mehr Autos als Farben": Ab dem
+/// fünften trägt die Nummer allein, auf neutralem Grund.
+///
+/// **Vier, nicht zehn.** Auf der realen Flotte ist die Autozahl 1 bis 3;
+/// jedes weitere Paar müsste durch dieselbe Rechnung wie die Banner, und
+/// daran sind schon zwei Vorschläge gescheitert, die im Bild gut aussahen.
+///
+/// Hell trägt eine dunkle Fläche mit weißer Schrift, dunkel eine helle mit
+/// Marken-Tinte. Ein gemeinsames Palettenpaar gibt es nicht: Für beide
+/// Untergründe zugleich bliebe nur das schmale Luminanz-Band um 0,15, und
+/// darin liegen Violett und Rosé nicht.
+abstract final class AppCarTones {
+  AppCarTones._();
+
+  /// Wie viele Autos eine eigene Farbe bekommen.
+  static const count = 4;
+
+  /// Dunkle Flächen für das helle Theme, Weiß darauf.
+  static const _light = [
+    BannerTone(surface: Color(0xFF0E7490), foreground: Color(0xFFFFFFFF)),
+    BannerTone(surface: Color(0xFF6D28D9), foreground: Color(0xFFFFFFFF)),
+    // Nachbar von `AppColors.oneWay` (#B45309) und deshalb bewusst an
+    // dritter Stelle: Drei-Auto-Tage sind die Ausnahme. Verwechselbar ist es
+    // ohnehin kaum — hier eine gefüllte Scheibe mit Nummer, dort ein Pfeil.
+    BannerTone(surface: Color(0xFFA16207), foreground: Color(0xFFFFFFFF)),
+    BannerTone(surface: Color(0xFFBE185D), foreground: Color(0xFFFFFFFF)),
+  ];
+
+  /// Helle Flächen fürs dunkle Theme, Marken-Tinte darauf. `#22D3EE` ist der
+  /// Verlaufs-Endpunkt, der im Banner an Weiß gescheitert ist — mit dunkler
+  /// Tinte trägt er 9,33:1 und ist hier legal, wie schon auf den
+  /// Insight-Karten.
+  static const _dark = [
+    BannerTone(surface: Color(0xFF22D3EE), foreground: AppColors.ink),
+    BannerTone(surface: Color(0xFFA78BFA), foreground: AppColors.ink),
+    BannerTone(surface: Color(0xFFFBBF24), foreground: AppColors.ink),
+    BannerTone(surface: Color(0xFFF472B6), foreground: AppColors.ink),
+  ];
+
+  /// Die Farbe des [index]-ten Autos — `null` ab dem fünften: Dann trägt die
+  /// Nummer allein, und der Aufrufer nimmt einen neutralen Grund.
+  static BannerTone? byIndex(int index, Brightness brightness) {
+    if (index < 0 || index >= count) return null;
+    return (brightness == Brightness.dark ? _dark : _light)[index];
+  }
+}
+
 abstract final class AppAccents {
   AppAccents._();
 

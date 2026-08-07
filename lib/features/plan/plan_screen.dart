@@ -254,6 +254,23 @@ class _AvailabilityGrid extends ConsumerWidget {
     }
   }
 
+  /// In welchem Auto [personId] an [day] sitzt, 1-basiert — oder `null`.
+  ///
+  /// **Erst ab zwei Autos.** Bei einem sitzen alle darin; eine Marke daran
+  /// wäre Dekoration in einem Raster, das ohnehin dicht ist. Wer an dem Tag
+  /// gar nicht mitfährt, bekommt ebenfalls keine.
+  int? _carNumberOf(PlannedDay day, String personId) {
+    if (day.cars.length < 2) return null;
+    for (final (i, car) in day.cars.indexed) {
+      if (car.driverId == personId ||
+          car.fullIds.contains(personId) ||
+          car.oneWayIds.contains(personId)) {
+        return i + 1;
+      }
+    }
+    return null;
+  }
+
   /// Entscheidet zwischen „ein Klick trägt ein" und „Menü" (#183).
   ///
   /// Die Regel steht an der aufrufenden Stelle ausführlich; hier ist sie eine
@@ -505,6 +522,7 @@ class _AvailabilityGrid extends ConsumerWidget {
                           // Ein Tag kann mehrere Autos haben (Issue #62) —
                           // jeder Fahrer bekommt sein Auto-Symbol.
                           isDriver: day.driverIds.contains(person.id),
+                          carNumber: _carNumberOf(day, person.id),
                           // Bereits eingetragene Tage sind Geschichte, keine
                           // Planung mehr.
                           enabled: !day.confirmed,
@@ -819,6 +837,7 @@ class _Cell extends StatelessWidget {
     required this.isDriver,
     required this.enabled,
     required this.onTap,
+    this.carNumber,
   });
 
   final String label;
@@ -827,6 +846,13 @@ class _Cell extends StatelessWidget {
   final bool isDriver;
   final bool enabled;
   final VoidCallback onTap;
+
+  /// In welchem Auto diese Person an diesem Tag sitzt, 1-basiert (#183).
+  ///
+  /// `null` heißt: nicht zeigen. Das ist der Normalfall — bei EINEM Auto
+  /// sitzen ohnehin alle darin, und eine Marke daran wäre reine Dekoration,
+  /// die das ohnehin dichte Raster verstellt.
+  final int? carNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -843,8 +869,13 @@ class _Cell extends StatelessWidget {
       (_, true, false) => (Icons.check_circle, scheme.primary, 'dabei'),
       _ => (Icons.circle_outlined, scheme.outlineVariant, 'kann nicht'),
     };
+    // Die Nummer gehört in die Vorlesung: „Anna, Mo, fährt" sagt nicht, mit
+    // wem — und genau das ist die Frage, für die es die Marke gibt.
+    final spoken = carNumber == null ? state : '$state, Auto $carNumber';
     return Semantics(
-      label: enabled ? '$label, $state' : '$label, $state, bereits eingetragen',
+      label: enabled
+          ? '$label, $spoken'
+          : '$label, $spoken, bereits eingetragen',
       enabled: enabled,
       button: enabled,
       child: InkWell(
@@ -856,7 +887,62 @@ class _Cell extends StatelessWidget {
           // niemand hier versehentlich an einer gefahrenen Fahrt dreht.
           child: Opacity(
             opacity: enabled ? 1 : 0.38,
-            child: Center(child: Icon(icon, size: 20, color: color)),
+            child: Center(
+              child: carNumber == null
+                  ? Icon(icon, size: 20, color: color)
+                  : Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(icon, size: 20, color: color),
+                        Positioned(
+                          right: -6,
+                          bottom: -4,
+                          child: _CarBadge(number: carNumber!),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Die Auto-Marke an einer Zelle: Farbe **und** Nummer (#183).
+///
+/// Beides zusammen, nie eines allein — die Farbe für den Blick übers Raster,
+/// die Nummer für alle, die sie nicht unterscheiden können, und für den
+/// fünften Wagen, für den es keine Farbe mehr gibt.
+class _CarBadge extends StatelessWidget {
+  const _CarBadge({required this.number});
+
+  final int number;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tone = AppCarTones.byIndex(number - 1, Theme.of(context).brightness);
+    return Container(
+      width: 14,
+      height: 14,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        // Jenseits der Palette ein neutraler Grund: Eine fünfte Farbe zu
+        // erfinden hieße, sie ungemessen einzuführen.
+        color: tone?.surface ?? scheme.surfaceContainerHighest,
+        shape: BoxShape.circle,
+      ),
+      // Die Marke steht schon in der Zellen-Beschriftung; hier spräche der
+      // Screenreader dieselbe Zahl ein zweites Mal.
+      child: ExcludeSemantics(
+        child: Text(
+          '$number',
+          style: TextStyle(
+            fontSize: 9,
+            height: 1,
+            fontWeight: FontWeight.w700,
+            color: tone?.foreground ?? scheme.onSurface,
           ),
         ),
       ),
