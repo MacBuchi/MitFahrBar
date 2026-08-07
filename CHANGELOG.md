@@ -4,6 +4,22 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.67.1] – 2026-08-07
+
+### Intern
+
+- **Für die Gruppen ändert sich nichts Sichtbares.** Unter der Haube prüft
+  das Testsystem ab jetzt auch die fünf Server-Bausteine (Benachrichtigungen,
+  Spritpreise, Ortssuche, Gruppen-Anlage) beim Bauen — bisher wurde dieser
+  Teil überhaupt nie übersetzt, ein Tippfehler dort wäre erst im Betrieb
+  aufgefallen, und zwar als Baustein, der gar nicht erst startet. Die
+  Prüfung fand gleich eine ungenaue Stelle im Push-Baustein, die damit
+  ebenfalls behoben ist.
+
+  Dazu neu: Jede Änderung wird jetzt automatisch auf bekannte
+  Sicherheitslücken in den verwendeten Fremdbibliotheken und auf deren
+  Lizenzen geprüft.
+
 ## [0.67.0] – 2026-08-07
 
 ### Neu

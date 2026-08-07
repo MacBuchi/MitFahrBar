@@ -45,7 +45,15 @@ function serviceAccount(): ServiceAccount {
   return JSON.parse(new TextDecoder().decode(base64ToBytes(raw)))
 }
 
-function base64ToBytes(value: string): Uint8Array {
+// Rückgabetyp bewusst mit `<ArrayBuffer>` statt nacktem `Uint8Array`: Das
+// ist seit TypeScript 5.7 die Kurzform für `Uint8Array<ArrayBufferLike>`,
+// und darin steckt auch `SharedArrayBuffer` — den nimmt
+// `crypto.subtle.importKey` nicht an (TS2769). Zur Laufzeit ändert das
+// nichts, `Uint8Array.from` legt ohnehin einen echten ArrayBuffer an; die
+// Annotation war schlicht weiter als der Wert. Aufgefallen ist es erst,
+// als `deno check` überhaupt in die CI kam — vorher hat diese Datei nie
+// jemand übersetzt.
+function base64ToBytes(value: string): Uint8Array<ArrayBuffer> {
   const binary = atob(value.replace(/\s/g, ''))
   return Uint8Array.from(binary, (c) => c.charCodeAt(0))
 }
