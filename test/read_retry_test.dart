@@ -217,9 +217,9 @@ void main() {
         }
       }
       // Wächst mit jeder neuen Lesemethode der Datenschicht — zuletzt
-      // `loadCarDefaults` (#183, Stufe B). Wer hier hochzählt, ohne die
+      // `loadSeatChoices` (#189, Stufe B2). Wer hier hochzählt, ohne die
       // Methode gesehen zu haben, nimmt dem Kanarienvogel die Luft.
-      expect(reads, 14);
+      expect(reads, 15);
     });
   });
 }

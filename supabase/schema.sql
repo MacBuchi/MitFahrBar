@@ -289,6 +289,31 @@ create table public.plan_overrides (
   primary key (group_id, plan_date, driver_id)
 );
 
+-- Zustimmung eines Mitfahrers zu den Bedingungen eines Autos (#189, Stufe
+-- B2). **Keine freie Auto-Wahl:** `accepted = true` ist ein Pin („mit diesem
+-- Fahrer, zu diesen Bedingungen"), `false` ein Ausschluss — die Person wird
+-- nicht in dieses Auto gesetzt, und reicht der Rest nicht, entsteht dadurch
+-- ein zweites. `terms` hält fest, WOZU entschieden wurde (kanonischer Text
+-- `hh:mm|hh:mm|Ort`, leer = feste Vorgaben): Stimmt er nicht mehr mit der
+-- aktuellen Abweichung des Autos überein, ist die Entscheidung veraltet und
+-- wirkt nicht — eine Zusage ist kein Blankoscheck, ein Nein überlebt die
+-- zurückgenommene Abweichung nicht. `decided_at` entscheidet bei
+-- Überfüllung („wer zuerst gepinnt hat, bleibt") und ist deshalb Teil der
+-- Plan-Rechnung, kein Protokollfeld. Verwaiste Zeilen (Fahrer fährt nicht)
+-- bleiben stehen und wirken nicht — wie bei `plan_car_defaults`.
+create table public.plan_seat_choices (
+  group_id uuid not null default auth.uid()
+    references public.groups(id) on delete cascade,
+  plan_date date not null,
+  person_id uuid not null references public.persons(id) on delete cascade,
+  driver_id uuid not null references public.persons(id) on delete cascade,
+  accepted boolean not null,
+  terms text not null default '',
+  decided_at timestamptz not null default now(),
+  primary key (group_id, plan_date, person_id, driver_id),
+  constraint plan_seat_choices_not_self check (person_id <> driver_id)
+);
+
 -- Anmerkungen zu einem Plantag (Issue #127, deckt #120 mit ab): „komme erst
 -- um 9". **Kein Chat** — keine Threads, kein Gelesen-Status, keine Antworten;
 -- KONZEPT.md §1 („Kommunikation bleibt in WhatsApp") gilt weiter. Der Name
@@ -1403,6 +1428,7 @@ alter table public.plan_defaults       enable row level security;
 alter table public.plan_car_defaults   enable row level security;
 alter table public.plan_availability   enable row level security;
 alter table public.plan_overrides      enable row level security;
+alter table public.plan_seat_choices   enable row level security;
 alter table public.plan_notes          enable row level security;
 alter table public.push_devices        enable row level security;
 alter table public.notification_prefs  enable row level security;
@@ -1453,6 +1479,10 @@ create policy plan_car_defaults_isolated on public.plan_car_defaults
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());
 create policy plan_overrides_isolated on public.plan_overrides
+  for all to authenticated
+  using (group_id = auth.uid() and public.my_group_active())
+  with check (group_id = auth.uid() and public.my_group_active());
+create policy plan_seat_choices_isolated on public.plan_seat_choices
   for all to authenticated
   using (group_id = auth.uid() and public.my_group_active())
   with check (group_id = auth.uid() and public.my_group_active());

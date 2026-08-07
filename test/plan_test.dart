@@ -3,7 +3,10 @@ library;
 
 import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
+import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/seat_choice.dart';
 import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1138,6 +1141,225 @@ void main() {
       // Und wer von Hand genau den Vorschlag wählt, hat nichts übersteuert.
       final same = planDay(rides: ride({'a', 'b'}), override: {'a'});
       expect(same.isOverridden, isFalse);
+    });
+  });
+
+  // #189, Stufe B2: Das Einverständnis eines Mitfahrers mit einer Abfahrt.
+  // Kein freies Auto-Wählen — ein Pin ist ein Ja zu den Bedingungen eines
+  // Autos, ein Ausschluss ein Nein. Entschieden am 07.08.
+  group('Sitz-Entscheidungen (#189)', () {
+    SeatChoice choice(
+      String personId,
+      String driverId, {
+      bool accepted = true,
+      String terms = '',
+      DateTime? decidedAt,
+    }) => SeatChoice(
+      date: week.first,
+      personId: personId,
+      driverId: driverId,
+      accepted: accepted,
+      terms: terms,
+      decidedAt: decidedAt ?? DateTime(2026, 3, 1, 12),
+    );
+
+    PlannedDay planDay({
+      required Map<String, PlanRide> rides,
+      Map<String, int> seats = const {},
+      Set<String> override = const {},
+      List<SeatChoice> choices = const [],
+      Map<String, GroupDefaults> carDefaults = const {},
+    }) => planWeek(
+      dates: [week.first],
+      availability: {week.first: rides},
+      overrides: override.isEmpty ? const {} : {week.first: override},
+      trips: const [],
+      settings: settings,
+      seats: seats,
+      seatChoices: {week.first: choices},
+      carDefaults: {week.first: carDefaults},
+    ).first;
+
+    test('ein Pin setzt die Person in genau dieses Auto', () {
+      // Automatisch säße c bei b — dessen Auto hat mehr freie Plätze. Der
+      // Pin muss also wirklich etwas umbiegen; ein Pin auf das Auto, in dem
+      // man ohnehin landete, bewiese nichts.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+        choices: [choice('c', 'a')],
+      );
+
+      expect(day.driverIds, ['a', 'b']);
+      expect(day.cars[0].fullIds, ['c']);
+      expect(day.cars[1].fullIds, ['d']);
+    });
+
+    test('wer zuerst gepinnt hat, bleibt — der Nachrang wird verteilt', () {
+      // Auto a hat EINEN Mitfahrerplatz; c und d pinnen beide dorthin.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+        choices: [
+          choice('d', 'a', decidedAt: DateTime(2026, 3, 1, 8)),
+          choice('c', 'a', decidedAt: DateTime(2026, 3, 1, 9)),
+        ],
+      );
+
+      expect(day.cars[0].fullIds, ['d'], reason: 'd hat zuerst gepinnt.');
+      expect(
+        day.cars[1].fullIds,
+        ['c'],
+        reason:
+            'c fällt in die automatische Verteilung — nicht aus dem Tag, '
+            'und nicht dauerhaft aus dem Wunsch-Auto.',
+      );
+    });
+
+    test('eine Zusage gilt nur zu ihren Bedingungen', () {
+      // c hat zu 06:45 ja gesagt; das Auto steht inzwischen auf 05:30. Die
+      // Zusage ist veraltet und wirkt nicht — sonst wäre sie ein
+      // Blankoscheck für jede spätere Zeit. Derselbe Aufbau wie beim
+      // Pin-Test: Gültig zöge der Pin c zu a, veraltet läuft c automatisch
+      // zu b.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+        choices: [choice('c', 'a', terms: '06:45||')],
+        carDefaults: const {'a': GroupDefaults(outboundTime: DayTime(5, 30))},
+      );
+
+      expect(day.cars[1].fullIds, contains('c'));
+      expect(day.cars[0].fullIds, isNot(contains('c')));
+    });
+
+    test('ein Ausschluss hält die Person aus dem Auto heraus', () {
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 3, 'b': 3, 'c': 2, 'd': 2},
+        choices: [choice('d', 'a', accepted: false)],
+      );
+
+      expect(day.cars[0].fullIds, isNot(contains('d')));
+      expect(day.cars[1].fullIds, contains('d'));
+    });
+
+    test('ein Nein verfällt, wenn die Abweichung zurückgenommen wurde', () {
+      // d hat zu 05:30 nein gesagt; die Abweichung ist weg. Bliebe das Nein
+      // bestehen, gäbe es dauerhaft zwei Autos wegen einer Zeit, die es
+      // nicht mehr gibt.
+      final day = planDay(
+        rides: ride({'a', 'b'}, oneWay: const {}),
+        seats: const {'a': 5, 'b': 5},
+        choices: [choice('b', 'a', accepted: false, terms: '05:30||')],
+      );
+
+      expect(day.cars, hasLength(1));
+      expect(day.cars[0].fullIds, ['b']);
+    });
+
+    test('schließt jemand das einzige Auto aus, entsteht ein zweites', () {
+      // Der Kern der Entscheidung vom 07.08.: „Zu diesen Bedingungen fahre
+      // ich dort nicht mit" heißt, jemand anderes muss fahren. Wer, sagen
+      // die Punkte.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c'}),
+        seats: const {'a': 5, 'b': 5, 'c': 5},
+        choices: [choice('c', 'a', accepted: false)],
+      );
+
+      expect(day.driverIds, hasLength(2));
+      expect(day.driverIds.first, 'a');
+      expect(
+        day.cars.last.carries('c'),
+        isTrue,
+        reason: 'Das zweite Auto existiert, damit c mitkommt.',
+      );
+      expect(
+        day.isOverridden,
+        isFalse,
+        reason:
+            'Das Zusatzauto ist Teil des VORSCHLAGS — kein Mensch hat die '
+            'Fahrer-Menge gesetzt.',
+      );
+    });
+
+    test('das Zusatzauto entsteht auch an einem übersteuerten Tag', () {
+      // Genau dort entsteht der Fall: Die Zeit zu setzen schreibt die
+      // Fahrer fest (#183), der Tag ist also übersteuert, wenn die
+      // Rückfrage kommt.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c'}),
+        seats: const {'a': 5, 'b': 5, 'c': 5},
+        override: {'a'},
+        carDefaults: const {'a': GroupDefaults(outboundTime: DayTime(5, 30))},
+        choices: [
+          choice('b', 'a', accepted: false, terms: '05:30||'),
+          choice('c', 'a', accepted: false, terms: '05:30||'),
+        ],
+      );
+
+      expect(day.driverIds, hasLength(2));
+      expect(
+        day.cars[0].headcount,
+        1,
+        reason:
+            'Beim Spezialfahrer fährt niemand mit — beide haben nein '
+            'gesagt.',
+      );
+    });
+
+    test('ohne möglichen Zusatzfahrer bleibt die Person sichtbar draußen', () {
+      // b (1-way, kann nicht fahren) lehnt das einzige Auto ab, und außer a
+      // kann niemand fahren: Es gibt kein Auto für b. Sichtbar draußen ist
+      // ehrlich — still hineingesetzt wäre das Nein wertlos.
+      final day = planDay(
+        rides: ride({'a'}, oneWay: {'b'}),
+        seats: const {'a': 5},
+        choices: [choice('b', 'a', accepted: false)],
+      );
+
+      expect(day.cars, hasLength(1));
+      expect(day.cars[0].carries('b'), isFalse);
+    });
+
+    test('ein Pin auf einen Fahrer, der nicht fährt, ist verwaist', () {
+      // Dieselbe Regel wie bei den Auto-Zeiten: Die Zeile wirkt nicht,
+      // solange ihr Fahrer nicht fährt — und niemand räumt sie auf.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c'}),
+        seats: const {'a': 5, 'b': 5, 'c': 5},
+        choices: [choice('c', 'z')],
+      );
+
+      expect(day.cars, hasLength(1));
+      expect(day.cars[0].fullIds, ['b', 'c']);
+    });
+
+    test('ohne Entscheidungen rechnet der Tag wie bisher', () {
+      // Die Rückwärtskompatibilität in eine Zeile gefasst: leere Maps
+      // ändern nichts. Daran hängt auch, dass der Soak-Report gültig
+      // bleibt — er misst die automatische Verteilung.
+      final without = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+      );
+      final withEmpty = planWeek(
+        dates: [week.first],
+        availability: {
+          week.first: ride({'a', 'b', 'c', 'd'}),
+        },
+        overrides: const {},
+        trips: const [],
+        settings: settings,
+        seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+      ).first;
+
+      expect(without.driverIds, withEmpty.driverIds);
+      expect(
+        [for (final car in without.cars) car.fullIds],
+        [for (final car in withEmpty.cars) car.fullIds],
+      );
     });
   });
 
