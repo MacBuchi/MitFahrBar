@@ -161,6 +161,30 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       Zuordnung ohnehin aus, dort entstehen die README-Screenshots.
     - **Kein Longpress.** Ohne Affordanz, mit der Maus in der PWA
       Drücken-und-Halten, und ohne Tastatur- oder Screenreader-Weg.
+    - **Die Autos eines Tages tragen Farbe UND Nummer** (`AppCarTones`, seit
+      v0.65.0). Farbe **je Auto-Platz, nicht je Person**: Gefragt ist „mit
+      wem fahre ich *heute*", und Platz-Farben halten die zwei, drei Autos
+      eines Tages maximal auseinander — `personLineColor` könnte zwei
+      benachbarte Töne nebeneinanderlegen. Der Preis ist bewusst: Dieselbe
+      Person trägt in der Statistik eine andere Farbe.
+      - **Die Nummer ist kein Beiwerk.** Ohne sie verlöre jeder
+        Rot-Grün-Schwache und jeder Graustufen-Screenshot die Zuordnung —
+        und ab dem fünften Auto gibt es keine Farbe mehr. Sie steht auch in
+        der Screenreader-Beschriftung der Zelle („…, fährt, Auto 2"); genau
+        daran hängen die Flow-Tests, nicht an Pixeln.
+      - **Erst ab zwei Autos.** Bei einem sitzen alle darin, eine Marke wäre
+        Dekoration in einem dichten Raster. Rot verifiziert in **beide**
+        Richtungen: Marke ganz weg und Marke auch bei einem Auto.
+      - **Vier Töne, nicht zehn**, und je Theme eine eigene Fassung: Für
+        beide Untergründe zugleich bliebe nur das schmale Luminanz-Band um
+        0,15, und darin liegen Violett und Rosé nicht.
+      - **Unterschieden wird über den Farbton, nicht über das
+        Kontrastverhältnis.** Das misst Helligkeit — Türkis und Bernstein
+        liegen beide bei Luminanz 0,15 und stehen sich mit 1,08:1 gegenüber,
+        als Verhältnis gelesen wären sie „gleich". Gefordert sind 60° im
+        Farbkreis; die Fläche gegen das Blatt bleibt bei WCAG 3:1, die
+        Ziffer darauf bei 4,5:1. Alle drei misst
+        `test/banner_contrast_test.dart`.
     - Die Zeit zu setzen ist gleichzeitig die Fahrer-Zusage — sie schreibt
       `plan_overrides`, sonst hinge morgen eine 6:45 an einem Auto, das
       jemand anders fährt. Deshalb erscheint „Ich möchte fahren" nur, wenn

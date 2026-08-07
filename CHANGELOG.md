@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.65.0] – 2026-08-07
+
+### Neu
+
+- **Bei mehreren Autos zeigt der Wochenplan, wer mit wem fährt.** Jedes Auto
+  des Tages bekommt eine Farbe und eine Nummer; an eurem Feld im Raster sitzt
+  eine kleine Marke mit der Nummer eures Autos — dieselbe, die auch beim
+  Fahrer steht. Bisher stand am Tag nur „2 Autos", und wer in welchem sitzt,
+  musste man raten.
+
+  Bei einem Auto bleibt die Marke weg: Dann fahren ohnehin alle zusammen, und
+  das Raster bleibt so ruhig wie bisher.
+
+  Die Nummer steht bewusst neben der Farbe und nicht statt ihr — so trägt die
+  Zuordnung auch für alle, die Farbtöne schlecht unterscheiden, und ab dem
+  fünften Auto, für das es keine eigene Farbe mehr gibt.
+
 ## [0.64.0] – 2026-08-07
 
 ### Neu

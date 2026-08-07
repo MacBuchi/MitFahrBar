@@ -727,13 +727,82 @@ void main() {
       findsOneWidget,
       reason: 'Vier Leute, lauter Zweisitzer — zwei Autos sind das Minimum.',
     );
-    // Beide Fahrer tragen im Raster das Auto-Symbol.
+    // Beide Fahrer tragen im Raster das Auto-Symbol — und seit #183 die
+    // Nummer ihres Autos dahinter.
     final weekday = DateFormat('E', 'de').format(monday);
     expect(
       find.bySemanticsLabel(
-        RegExp('^[^,]+, ${RegExp.escape(weekday)}, fährt\$'),
+        RegExp('^[^,]+, ${RegExp.escape(weekday)}, fährt, Auto \\d\$'),
       ),
       findsNWidgets(2),
+    );
+    handle.dispose();
+  });
+
+  // #183: Bei mehreren Autos muss man auf einen Blick sehen, mit wem man
+  // fährt. Die Marke trägt Farbe UND Nummer; geprüft wird die Nummer, denn
+  // die ist es, die ein Screenreader vorliest und die auch trägt, wenn
+  // jemand Farbtöne nicht unterscheidet.
+  testWidgets('bei zwei Autos sagt jede Zelle, in welchem sie sitzt', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(
+      tester,
+      await _seatBackend({'Anna': 2, 'Bert': 2, 'Clara': 2, 'Dora': 2}),
+    );
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek(testToday).first;
+    for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+
+    final weekday = DateFormat('E', 'de').format(monday);
+    // Alle vier sitzen in einem der beiden Autos, keiner ohne Zuordnung.
+    expect(
+      find.bySemanticsLabel(
+        RegExp('^[^,]+, ${RegExp.escape(weekday)}, [^,]+, Auto [12]\$'),
+      ),
+      findsNWidgets(4),
+    );
+    // Und beide Autos sind wirklich besetzt — stünde überall „Auto 1",
+    // wäre die Marke da und trotzdem wertlos.
+    for (final number in [1, 2]) {
+      expect(
+        find.bySemanticsLabel(
+          RegExp('^[^,]+, ${RegExp.escape(weekday)}, [^,]+, Auto $number\$'),
+        ),
+        findsNWidgets(2),
+        reason: 'Zwei Zweisitzer: In jedem sitzen Fahrer plus ein Mitfahrer.',
+      );
+    }
+    handle.dispose();
+  });
+
+  testWidgets('bei EINEM Auto bleibt die Marke weg', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpApp(tester, await _backend(['Anna', 'Bert']));
+    await _login(tester);
+    await _openPlan(tester);
+
+    final monday = planningWeek(testToday).first;
+    for (final name in ['Anna', 'Bert']) {
+      await tester.tap(_cell(name, monday));
+      await tester.pumpAndSettle();
+    }
+
+    final weekday = DateFormat('E', 'de').format(monday);
+    expect(
+      find.bySemanticsLabel(
+        RegExp('^[^,]+, ${RegExp.escape(weekday)}, .*Auto \\d\$'),
+      ),
+      findsNothing,
+      reason:
+          'Bei einem Auto sitzen ohnehin alle darin. Eine Marke daran wäre '
+          'Dekoration in einem Raster, das ohnehin dicht ist.',
     );
     handle.dispose();
   });
