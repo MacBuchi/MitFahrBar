@@ -212,6 +212,29 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       `plan_overrides`, sonst hinge morgen eine 6:45 an einem Auto, das
       jemand anders fährt. Deshalb erscheint „Ich möchte fahren" nur, wenn
       man nicht ohnehin schon fährt.
+      - **Und deshalb steht „Zeiten & Treffpunkt" nur im Menü eines
+        Fahrers** (#188, seit v0.66.2). Bis dahin stand der Eintrag in
+        JEDER Zelle: Ein Mitfahrer traf damit sein Auto — also ein
+        fremdes — und schrieb über `setDrivers` nebenbei den ganzen
+        Fahrersatz des Tages fest; wer „kann nicht" stand, kam ebenfalls
+        heran. Die Zusage von der anderen Seite gelesen: Wer die Abfahrt
+        verantwortet, setzt sie auch.
+      - **Das gilt für beide Ebenen des Schirms, auch für den ganzen
+        Tag.** Ein Tag ohne Auto hat keine Abfahrt, die man verschieben
+        könnte; und `driverIds` trägt auch den *vorgeschlagenen* Fahrer,
+        der Weg steht also an jedem Tag offen, an dem überhaupt jemand
+        kann. Wer nicht selbst fährt, tippt die Zelle des Fahrers an —
+        die Rückfrage aus #121, keine Sperre. Eine Zugriffskontrolle wäre
+        es ohnehin nicht: „Ich bin" ist ein Geräte-Merkmal.
+      - **Der Geltungsbereich sucht das Auto, das die Person FÄHRT**, nicht
+        das, in dem sie sitzt (`indexWhere` auf `driverId` statt
+        `carIndexOf`). Genau die andere Frage hat den Mitfahrer an ein
+        fremdes Auto gelassen; der zweite Riegel kostet nichts.
+      - Rot verifiziert in beide Richtungen: Mitfahrer und Nicht-Mitfahrer
+        sehen den Eintrag nicht, **der Fahrer aber schon** — sonst könnte
+        niemand mehr eine Zeit setzen. Die Tests **tippen** die Zelle an
+        und prüfen erst, dass das Menü überhaupt offen ist; ein reines
+        `find` wäre auch bei einem toten Tap grün.
     - **„Ich möchte fahren" trägt ZUERST ein** (v0.66.1, gemeldet am
       07.08.): Der Pin allein verfällt in `planWeek` als tote Auswahl —
       das Übersteuern wirkt nur auf Verfügbare, 1-way schließt Fahren aus.
@@ -236,13 +259,115 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       Zeile, deren Fahrer nicht fährt, erscheint nicht: Sie wirkt auch
       nicht, und sie zu zeigen wäre der gemeldete Fehler mit umgekehrtem
       Vorzeichen. Das Banner löst bei EINEM Auto dessen Abweichung mit auf;
-      bei mehreren nennt es bewusst die Tageszeit — zwei Abfahrtszeiten in
-      einer Banner-Zeile wären eine eigene Design-Entscheidung.
+      bei mehreren nennt es die Tageszeit — zwei Abfahrtszeiten in EINER
+      Banner-Zeile wären eine eigene Design-Entscheidung.
+      - **Seit v0.66.3 sind es aber mehrere Zeilen** (#189): Ab zwei Autos
+        zählt `composeGroupBody` sie einzeln auf („Auto 2: Dora mit Emil
+        (hin 06:45)"), jedes mit seinen Mitfahrern und seiner eigenen
+        Abweichung. Damit ist die offene Design-Entscheidung beantwortet,
+        ohne die Regel zu brechen: Eine Zeile trägt weiter genau eine Zeit.
+        Ohne die Abweichung am Auto wäre die Aufzählung der Fehler aus
+        v0.66.1 an neuer Stelle — eine Zeile je Auto, die für eines davon
+        die falsche Zeit behauptet.
+      - **Erst ab zwei**, wie bei den Auto-Marken im Raster: Bei einem Auto
+        sitzen ohnehin alle darin, „Auto 1:" wäre eine Unterscheidung ohne
+        Unterschied. Das „N Autos" am Ende entfällt dafür — wer „Auto 1"
+        und „Auto 2" liest, hat sie gezählt.
+      - **Seit v0.66.4 sind es abgesetzte Zeilen mit Auto-Marke** (#189,
+        zweite Rückmeldung: „beide Fahrzeuge sind im Banner
+        zusammengewurstelt"). Jede Zeile trägt die Farbe und Nummer ihres
+        Auto-Platzes — dieselbe Marke wie im Raster, damit man an einem
+        Punkt sieht, wo man sitzt.
+      - **Die Zeilen haben eine eigene Fläche, und das ist Kontrast, keine
+        Optik.** Die Auto-Farben tragen auf dem blanken Verlauf gegen
+        dessen helles Ende 1,71:1 (Violett) bis 2,79:1 (Bernstein) — alle
+        unter den 3,0:1 einer Grafik. Mit dem Schleier
+        (`AppBannerTones.carLineScrim`, Schwarz 40 %) sind es 3,51:1 bis
+        9,64:1. **Unterteilen und Farben übernehmen ist dieselbe
+        Entscheidung, nicht zwei** — wer die Fläche „aufräumt", macht die
+        Marken unsichtbar, und im Bild sieht man das nicht.
+      - **Der Schleierwert steht in `tokens.dart`**, nicht im Widget: Der
+        Kontrast-Test rechnet mit demselben Wert, mit dem gezeichnet wird.
+        Zwei Stellen wären zwei Wahrheiten, und die Rechnung wäre
+        stillschweigend ungültig, sobald jemand eine davon senkt.
+      - **Das Banner nimmt `AppCarTones.onDark`, nicht `byIndex`.** Der
+        Verlauf ist in hell wie dunkel derselbe dunkle Teal, braucht also
+        beide Male die hellen Flächen; nach der Theme-Helligkeit gefragt
+        käme im hellen Theme dunkel auf dunkel. Die Zuordnung zum Planer
+        trägt trotzdem: **Der Farbton ist die Identität, nicht die
+        Helligkeit** — Auto 2 ist in beiden Sätzen violett.
+      - **Die Abweichung ist ein Chip, kein Wort** (#189): Als farbige
+        Schrift ginge es nicht, der Untertitel läuft über das helle
+        Verlaufsende. Der Chip bringt seine eigene Fläche mit und trägt
+        den Anmerkungs-Akzent — „Ort und Zeitänderung sind Anmerkungen".
+        Uhr, sobald eine Zeit abweicht; nur der Ort → Marker, dieselbe
+        Regel wie im Planer.
+      - **`subtitle` bleibt Pflicht und wird zur Screenreader-
+        Beschriftung.** `groupBody` liefert die Teile, `composeGroupBody`
+        setzt genau dieselben zum Satz — eine Quelle, zwei Darstellungen.
+        Wer die flache Fassung danebenbaut statt daraus, hat zwei
+        Wortlaute; und wer nichts sieht, hört sonst zusammenhanglose
+        Wortgruppen.
+      - **`composeGroupBody` speist nur das Banner**, nicht den Push
+        (das ist `composeBody`) und nie den Digest — der Wortlaut darf sich
+        hier also ändern, ohne dass jemand eine „Änderung"-Meldung bekommt.
+        Der Wortlaut der Abweichung ist trotzdem **derselbe** wie in der
+        Tageszeile des Planers (`hin 06:45, zurück 16:20, Ort`): zwei
+        Wortlaute für dieselbe Zeile liest man als zwei verschiedene Sachen.
     - **Der Pin ist an der Ablage zu prüfen, nicht am Etikett:** Wer genau
       die vorgeschlagenen Fahrer festschreibt (der Normalfall beim
       Zeit-Setzen), sieht weiter „Vorschlag" — `isOverridden` vergleicht
       Mengen. Sichtbar wird der Pin erst, wenn er etwas festhält; genau
       dafür ist er da.
+  - **Die Sitzwahl ist ein Einverständnis, keine freie Auto-Wahl**
+    (`plan_seat_choices`, #189 Stufe B2, seit v0.67.0; entschieden 07.08.).
+    Der Wunsch hieß „Mitfahrer wählen ihr Auto"; gebaut ist der engere
+    Fall, denn der Anlass ist ein anderer: Seit #183 kann ein Fahrer die
+    Abfahrt seines Autos verschieben, und wer zu 07:30 zugesagt hat, darf
+    nicht stillschweigend auf 05:30 gezogen werden. `accepted=true` ist
+    ein **Pin** (dieser Platz, diese Bedingungen), `false` ein
+    **Ausschluss** — und der kann ein weiteres Auto erzwingen: „Zu diesen
+    Bedingungen nicht" heißt, jemand anderes muss fahren; wer, entscheiden
+    exakt die Punkte. Sagt niemand zu, fährt der Spezialfahrer allein.
+    - **`terms` ist der Kern, kein Beiwerk.** Gespeichert wird, WOZU
+      jemand ja oder nein gesagt hat (`termsOf`, kanonischer Text
+      `hh:mm|hh:mm|Ort`; leer = feste Vorgaben). Stimmt er nicht mehr mit
+      der aktuellen Abweichung überein, ist die Entscheidung **veraltet
+      und wirkt nicht** — eine Zusage ist kein Blankoscheck, und ein Nein
+      überlebt die zurückgenommene Abweichung nicht (sonst gäbe es
+      dauerhaft zwei Autos wegen einer Zeit, die es nicht mehr gibt).
+      Aufgeräumt wird nichts: verwaiste Zeilen wirken nicht, wie bei
+      `plan_car_defaults`.
+    - **Wer zuerst gepinnt hat, bleibt** (`decided_at`). Der Nachrang
+      fällt in die automatische Verteilung — nicht aus dem Tag und nicht
+      dauerhaft aus dem Wunsch-Auto. `decided_at` geht damit in die
+      Plan-Rechnung ein; beim Umschreiben derselben Entscheidung bleibt es
+      erhalten, nur neue Bedingungen setzen es neu.
+    - **Gefragt wird am offenen Dialog, nie per Schweigen entschieden.**
+      Die Rückfrage kommt beim Eintragen — dort steht die Person vor dem
+      Gerät. Ein nicht beantworteter Push darf den Plan nicht sprengen
+      (#180: zugestellt ist nicht angezeigt); wer schweigt, bleibt
+      automatisch verteilt und sieht die Abweichung an Tageszeile, Glyph
+      und Banner. Das Nein kostet zwei Taps: Zell-Menü → „Dein Auto fährt
+      anders". Die nachträgliche Push-Rückfrage an bereits Eingetragene
+      (mit Deep-Link in den Planer) ist **Stufe 2 und nicht gebaut**.
+    - **Ohne Entscheidungen rechnet `planWeek` bitgleich wie vorher** —
+      per Test festgenagelt. Daran hängt auch der Soak-Report
+      (`doc/entscheidung-mitfahrer-verteilung.md`): Er misst die
+      **automatische** Verteilung und bleibt dafür gültig; das Verhalten
+      unter vielen Pins/Ausschlüssen ist **nicht** gemessen. Wer die
+      Zusagen ±2 Punkte/±2 pp auf gepinnte Wochen ausdehnen will, misst
+      neu, statt den Report zu zitieren.
+    - Der Boden (`tool/notify.dart`) lädt Entscheidungen UND
+      Auto-Abweichungen und reicht beide an `planWeek` — ohne sie
+      verteilte er die Mitfahrer anders als die App und der Korb trüge je
+      nach Schreiber verschiedene Zeiten.
+    - Die Rückfrage liest die gemerkte Entscheidung **aus dem
+      `WeekPlanNotifier`** (`seatChoiceFor`), nicht aus einem eigenen
+      Provider: Dort liegt die Kopie, mit der gerechnet wird, samt der
+      optimistischen Schreibvorgänge. Ein zweiter Ladepfad hing beim
+      Weiterschalten einen Roundtrip hinterher und fragte genau dann
+      doppelt — so gefunden im Flow-Test, bevor es jemand erlebt hat.
 - **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von
@@ -372,6 +497,23 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     selbst („nie zwei Akzente im selben Banner") und ist genau daran zu
     spiegeln, nicht zu befolgen. Ebenso entfällt sein heller Endpunkt
     `#22D3EE`: Weiß darauf trägt 1,81:1.
+    - **Seit v0.66.3 trägt auch die Sprechblase den Akzent — aber nur mit
+      Anmerkung** (#189, entschieden am 07.08.: „Ort und Zeitänderung sind
+      Anmerkungen", Chatsymbol in derselben Farbe). Es sind keine zwei
+      Akzente: Chip und Blase sagen dieselbe Sache. Leer bleibt sie weiß,
+      ein Akzent ohne Anmerkung zeigte auf nichts.
+    - **Die Blase hat keine eigene Fläche** — anders als der Chip liegt sie
+      frei auf dem Verlauf, und das ist genau die Rechnung, an der Magenta
+      hier zweimal gescheitert ist. Sie geht nur am dunklen Ende auf
+      (4,06:1 gegen 1,61:1 am hellen). Deshalb steht der Knopf rechts;
+      `banner_contrast_test.dart` misst **beide** Enden, das helle
+      ausdrücklich als Beleg für die Anordnung.
+    - **Im Untertitel geht Magenta deshalb NICHT**, und das ist der Grund,
+      warum die Abweichungen dort weiter in der normalen Schrift stehen:
+      Der Text läuft über die ganze Breite, also auch über das helle Ende.
+      Wer sie hervorheben will, braucht einen Chip mit eigener Fläche —
+      farbige Schrift ist dort keine Option, sie sähe im Bild gut aus und
+      wäre auf halber Strecke unlesbar.
   - **Jedes Paar wird gemessen, nicht geschätzt** —
     `test/banner_contrast_test.dart`, WCAG 4,5:1 für Text und 3,0:1 für
     Grafik. Bei einem Verlauf **jeder Stopp**, nie ein Mittelwert; genau

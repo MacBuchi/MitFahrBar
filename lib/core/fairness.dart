@@ -10,8 +10,10 @@ library;
 import 'dart:math' as math;
 
 import '../models/app_settings.dart';
+import '../models/group_defaults.dart';
 import '../models/plan_ride.dart';
 import '../models/person.dart';
+import '../models/seat_choice.dart';
 import '../models/trip.dart';
 
 class PersonStats {
@@ -645,12 +647,20 @@ List<PlannedDay> planWeek({
   required List<Trip> trips,
   required AppSettings settings,
   Map<String, int> seats = const {},
+  Map<DateTime, List<SeatChoice>> seatChoices = const {},
+  Map<DateTime, Map<String, GroupDefaults>> carDefaults = const {},
 }) {
   final availableByDay = {
     for (final entry in availability.entries) _dayKey(entry.key): entry.value,
   };
   final overrideByDay = {
     for (final entry in overrides.entries) _dayKey(entry.key): entry.value,
+  };
+  final choicesByDay = {
+    for (final entry in seatChoices.entries) _dayKey(entry.key): entry.value,
+  };
+  final carDefaultsByDay = {
+    for (final entry in carDefaults.entries) _dayKey(entry.key): entry.value,
   };
   final realTripsByDay = <int, List<Trip>>{};
   for (final trip in trips) {
@@ -836,27 +846,128 @@ List<PlannedDay> planWeek({
       for (final id in overrideByDay[key] ?? const <String>{})
         if (candidates.contains(id)) id,
     };
-    final driverSet = override.isEmpty
+    var driverSet = override.isEmpty
         ? suggested
         : [
             for (final id in ranked)
               if (override.contains(id)) id,
           ];
 
-    // Mitfahrer deterministisch ausgeglichen verteilen: jede Person ins
-    // Auto mit den meisten freien Plätzen (Gleichstand: erstes Auto). So
-    // teilt sich das „Mitgenommen" des Tages möglichst gleichmäßig auf die
-    // Fahrer, und kein Auto wird überfüllt, solange die Plätze insgesamt
-    // reichen. 1-way belegt dabei einen Sitz — dieselbe Regel wie im
-    // Fahrten-Editor.
+    // Sitz-Entscheidungen des Tages (#189, Stufe B2): Pin und Ausschluss.
+    //
+    // **Gültig ist nur, was zu den AKTUELLEN Bedingungen passt.** `terms`
+    // hält fest, wozu jemand ja oder nein gesagt hat — die Abweichung des
+    // Autos zum Zeitpunkt der Entscheidung. Stimmt sie nicht mehr, wirkt die
+    // Entscheidung nicht: Eine Zusage zu 06:45 ist kein Blankoscheck für
+    // 05:30, und ein Nein zu 05:30 darf nicht bestehen bleiben, wenn der
+    // Fahrer die Abweichung längst zurückgenommen hat — sonst gäbe es
+    // dauerhaft zwei Autos wegen einer Zeit, die es nicht mehr gibt.
+    // Fahrer entscheiden nicht über sich selbst (sie sitzen ohnehin in
+    // ihrem Auto); Zeilen zu Personen, die gar nicht dabei sind, wirken
+    // nicht — dieselbe Verwaisten-Regel wie bei `plan_car_defaults`.
+    final dayCarDefaults =
+        carDefaultsByDay[key] ?? const <String, GroupDefaults>{};
+    final pins = <SeatChoice>[];
+    final excludedBy = <String, Set<String>>{};
+    for (final choice in choicesByDay[key] ?? const <SeatChoice>[]) {
+      if (!available.contains(choice.personId)) continue;
+      if (!choice.isCurrentFor(termsOf(dayCarDefaults[choice.driverId]))) {
+        continue;
+      }
+      if (choice.accepted) {
+        pins.add(choice);
+      } else {
+        (excludedBy[choice.personId] ??= {}).add(choice.driverId);
+      }
+    }
+    // **Wer zuerst gepinnt hat, bleibt** (entschieden 07.08.): Bei einem
+    // übervollen Auto entscheidet `decided_at`. Der Nachrang fällt in die
+    // automatische Verteilung, nicht aus dem Tag.
+    pins.sort((a, b) {
+      final byTime = a.decidedAt.compareTo(b.decidedAt);
+      return byTime != 0 ? byTime : a.personId.compareTo(b.personId);
+    });
+
+    // **Ein Ausschluss kann ein weiteres Auto erzwingen** — das ist sein
+    // Zweck: „Zu diesen Bedingungen fahre ich dort nicht mit" heißt, jemand
+    // anderes muss fahren. Wer dann fährt, entscheiden exakt die Punkte
+    // (der fairness-erste noch nicht fahrende Kandidat, den die blockierte
+    // Person nicht ausgeschlossen hat — oder sie selbst, wenn sie fahren
+    // kann). Das gilt auch an übersteuerten Tagen: Genau dort entsteht der
+    // Fall, denn die Zeit zu setzen schreibt die Fahrer fest (#183). Findet
+    // sich niemand, bleibt die Person unplatziert — eine ehrliche Grenze,
+    // kein stilles Hineinsetzen in ein Auto, dem sie abgesagt hat.
+    driverSet = [...driverSet];
+    while (true) {
+      final blocked = [
+        for (final id in available)
+          if (!driverSet.contains(id) &&
+              driverSet.isNotEmpty &&
+              driverSet.every(
+                (d) => (excludedBy[id] ?? const <String>{}).contains(d),
+              ))
+            id,
+      ];
+      if (blocked.isEmpty) break;
+      String? extra;
+      for (final cand in ranked) {
+        if (driverSet.contains(cand)) continue;
+        final helps = blocked.any(
+          (p) =>
+              p == cand || !(excludedBy[p] ?? const <String>{}).contains(cand),
+        );
+        if (helps) {
+          extra = cand;
+          break;
+        }
+      }
+      if (extra == null) break;
+      driverSet.add(extra);
+    }
+    // An einem Vorschlags-Tag ist das Zusatzauto Teil des VORSCHLAGS — der
+    // Tag bleibt „Vorschlag", denn kein Mensch hat die Fahrer-Menge gesetzt;
+    // sie folgt nur einer anderen menschlichen Entscheidung (dem Nein).
+    if (override.isEmpty) suggested = driverSet;
+
+    // Mitfahrer deterministisch verteilen — in zwei Schritten:
+    //
+    // **Erst die Pins**, in `decided_at`-Reihenfolge und nur auf freie
+    // Plätze: Wer zuerst gepinnt hat, bleibt; wessen Pin kein Platz mehr
+    // erfüllt, fällt in die automatische Verteilung (nicht aus dem Tag) und
+    // darf dort auch im vollen Wunsch-Auto landen — der Pin ist ein
+    // Vorrecht auf einen Platz, kein Ausschluss aus allen anderen. Ein Pin
+    // auf einen Fahrer, der heute nicht fährt, ist verwaist und wirkt nicht.
+    //
+    // **Dann alle Übrigen** wie bisher: jede Person ins Auto mit den
+    // meisten freien Plätzen (Gleichstand: erstes Auto), Ausschlüsse werden
+    // dabei gemieden. So teilt sich das „Mitgenommen" des Tages möglichst
+    // gleichmäßig auf die Fahrer, und kein Auto wird überfüllt, solange die
+    // Plätze insgesamt reichen. 1-way belegt einen Sitz — dieselbe Regel
+    // wie im Fahrten-Editor.
     final carFull = [for (final _ in driverSet) <String>[]];
     final carOneWay = [for (final _ in driverSet) <String>[]];
+    final seated = <String>{};
     if (driverSet.isNotEmpty) {
+      for (final pin in pins) {
+        if (seated.contains(pin.personId)) continue;
+        if (driverSet.contains(pin.personId)) continue;
+        final i = driverSet.indexOf(pin.driverId);
+        if (i < 0) continue;
+        final free =
+            seatOf(driverSet[i]) - 1 - carFull[i].length - carOneWay[i].length;
+        if (free <= 0) continue;
+        (oneWayIds.contains(pin.personId) ? carOneWay : carFull)[i].add(
+          pin.personId,
+        );
+        seated.add(pin.personId);
+      }
       for (final id in available) {
-        if (driverSet.contains(id)) continue;
-        var best = 0;
+        if (driverSet.contains(id) || seated.contains(id)) continue;
+        final excluded = excludedBy[id] ?? const <String>{};
+        var best = -1;
         var bestFree = -n - 1;
         for (var i = 0; i < driverSet.length; i++) {
+          if (excluded.contains(driverSet[i])) continue;
           final free =
               seatOf(driverSet[i]) -
               1 -
@@ -867,6 +978,10 @@ List<PlannedDay> planWeek({
             best = i;
           }
         }
+        // Alle Autos ausgeschlossen und kein Kandidat mehr übrig: Die
+        // Person bleibt sichtbar draußen statt still in einem Auto zu
+        // sitzen, dem sie abgesagt hat.
+        if (best < 0) continue;
         (oneWayIds.contains(id) ? carOneWay : carFull)[best].add(id);
       }
     }
@@ -874,8 +989,8 @@ List<PlannedDay> planWeek({
       for (var i = 0; i < driverSet.length; i++)
         PlannedCar(
           driverId: driverSet[i],
-          fullIds: carFull[i],
-          oneWayIds: carOneWay[i],
+          fullIds: carFull[i]..sort(),
+          oneWayIds: carOneWay[i]..sort(),
         ),
     ];
 

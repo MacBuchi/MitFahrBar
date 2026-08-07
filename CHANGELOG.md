@@ -4,6 +4,86 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.67.0] – 2026-08-07
+
+### Neu
+
+- **Fährt dein Auto zu einer anderen Zeit oder ab einem anderen Treffpunkt
+  los, fragt dich der Wochenplan beim Eintragen** — „Auto 2 fährt anders:
+  Abfahrt hin 06:45. Passt dir das?" Mit „Passt" ist dir dein Platz in
+  genau diesem Auto sicher. Mit „Nein, so nicht" fährst du dort nicht mit:
+  MitFahrBar plant dann ein weiteres Auto ein, damit du trotzdem mitkommst
+  — wer es fährt, entscheiden wie immer die Punkte. Sagt niemand zu, fährt
+  das früher startende Auto allein.
+
+  Umentscheiden geht jederzeit über das Menü deines Feldes („Dein Auto
+  fährt anders"). Und dein Ja gilt genau für die Zeit, der du zugestimmt
+  hast: Verschiebt der Fahrer die Abfahrt danach noch einmal, wirst du neu
+  gefragt.
+
+  Wollen mehr Leute in ein Auto, als hineinpassen, gilt: Wer zuerst
+  zugesagt hat, sitzt drin — die übrigen verteilt MitFahrBar wie bisher.
+
+  Wer nichts entscheidet, für den ändert sich nichts: Ohne Zu- oder Absage
+  plant MitFahrBar genau wie vorher.
+
+## [0.66.4] – 2026-08-07
+
+### Geändert
+
+- **Auf der Übersicht bekommt jedes Auto seine eigene Zeile — mit der Farbe
+  und der Nummer aus dem Wochenplaner.** Bisher standen beide Autos als ein
+  Fließtext untereinandergemischt; jetzt sind es zwei abgesetzte Zeilen, und
+  die Marke am Anfang ist dieselbe, die im Planer an deinem Feld hängt. Du
+  siehst also am selben Farbpunkt, in welchem Auto du sitzt.
+
+- **Weicht ein Auto von euren festen Zeiten ab, steht das jetzt als
+  farbiger Aufkleber an seiner Zeile** — mit Uhr, wenn die Zeit abweicht,
+  mit Ortsmarke, wenn nur der Treffpunkt ein anderer ist. Vorher war es ein
+  Wort mitten im Satz und ging unter, obwohl es genau die Information ist,
+  wegen der man hinsieht. Die Farbe ist dieselbe wie bei den Anmerkungen:
+  Eine geänderte Zeit ist eine Anmerkung zu diesem Tag.
+
+  Wer die Übersicht vorlesen lässt, hört unverändert einen ganzen Satz —
+  Farbe und Anordnung sagen einem Screenreader nichts.
+
+## [0.66.3] – 2026-08-07
+
+### Geändert
+
+- **Fahrt ihr mit mehreren Autos, steht auf der Übersicht jedes für sich.**
+  Bisher hieß es dort „Anna und Clara fahren · dabei: Bernd, Dora, Emil ·
+  2 Autos" — die Frage, die man vor der Abfahrt wirklich hat, ist aber „mit
+  wem fahre ich", und die beantwortete der Satz nicht. Jetzt steht da
+  „Auto 1: Anna mit Bernd · Auto 2: Clara mit Dora, Emil".
+
+  Fährt eines der Autos zu einer anderen Zeit los, steht die an diesem Auto
+  („Auto 2: Clara mit Dora (hin 06:45)") — bisher nannte die Übersicht nur
+  die Zeit des Tages, und für eines der Autos war das die falsche.
+
+  Bei **einem** Auto bleibt alles wie es war: Dort sitzen ohnehin alle
+  drin, und eine Nummer davor wäre eine Unterscheidung ohne Unterschied.
+
+- **Die Sprechblase auf der Übersicht färbt sich, sobald jemand etwas
+  geschrieben hat** — in derselben Farbe wie der Zähler daneben. Vorher
+  blieb sie weiß, und der Hinweis hing allein an der kleinen Zahl.
+
+## [0.66.2] – 2026-08-07
+
+### Behoben
+
+- **Abfahrt und Treffpunkt setzt, wer an dem Tag fährt.** „Zeiten &
+  Treffpunkt" stand bisher im Menü *jeder* Zelle — auch bei einem Mitfahrer
+  und sogar bei jemandem, der an dem Tag gar nicht mitfährt. Bei einem
+  Mitfahrer traf der Eintrag sein Auto, also ein fremdes: Er verschob die
+  Abfahrt eines Wagens, den er nicht fährt, und schrieb dabei nebenbei fest,
+  wer an dem Tag fährt. Jetzt steht der Eintrag nur noch im Menü eines
+  Fahrers.
+
+  Wer selbst nicht fährt und die Zeit ändern will, tippt das Feld des
+  Fahrers an — genau wie beim Eintragen für jemand anderen. Gesperrt ist
+  nichts.
+
 ## [0.66.1] – 2026-08-07
 
 ### Behoben

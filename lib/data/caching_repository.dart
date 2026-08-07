@@ -20,6 +20,7 @@ import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
+import '../models/seat_choice.dart';
 import '../models/trip.dart';
 import 'carpool_repository.dart';
 import 'group_repository.dart';
@@ -253,8 +254,42 @@ class CachingCarpoolRepository implements CarpoolRepository {
     },
   );
 
+  /// Wie [loadCarDefaults] — dieselbe Woche, dieselbe Ablageform.
+  @override
+  Future<Map<DateTime, List<SeatChoice>>> loadSeatChoices(
+    DateTime from, {
+    int days = 7,
+  }) => _layer.read(
+    'seatchoices.${from.toIso8601String().substring(0, 10)}.$days',
+    () => _inner.loadSeatChoices(from, days: days),
+    (byDay) => {
+      for (final day in byDay.entries)
+        day.key.toIso8601String().substring(0, 10): [
+          for (final choice in day.value) choice.toJson(),
+        ],
+    },
+    (raw) => {
+      for (final day in (raw as Map).entries)
+        DateTime.parse(day.key as String): [
+          for (final choice in day.value as List)
+            SeatChoice.fromJson(Map<String, Object?>.from(choice as Map)),
+        ],
+    },
+  );
+
   // Ab hier: alles Schreibende geht unverändert durch. Ohne Netz scheitert
   // es, und die Oberfläche sagt das — siehe Kopf dieser Datei.
+
+  @override
+  Future<void> saveSeatChoice(SeatChoice choice) =>
+      _inner.saveSeatChoice(choice);
+
+  @override
+  Future<void> deleteSeatChoice(
+    DateTime date,
+    String personId,
+    String driverId,
+  ) => _inner.deleteSeatChoice(date, personId, driverId);
 
   @override
   Future<void> savePlanDefaults(DateTime date, GroupDefaults defaults) =>

@@ -148,21 +148,29 @@ class _NextRideBanner extends ConsumerWidget {
     //
     // Bei EINEM Auto gilt dasselbe eine Ebene tiefer: Dessen Abweichung
     // betrifft alle, die an dem Tag fahren, und der Korb rechnet sie in die
-    // Erinnerung ein — das Banner muss dieselbe Zeit nennen. Ehrliche
-    // Grenze: Bei MEHREREN Autos bleibt hier die Tageszeit stehen; das
-    // Banner ist ein Text für die ganze Gruppe, und zwei Abfahrtszeiten in
-    // einer Zeile wären eine eigene Design-Entscheidung. Die Zeiten je Auto
-    // stehen im Planer.
+    // Erinnerung ein — das Banner muss dieselbe Zeit nennen.
+    //
+    // Bei MEHREREN Autos bleibt hier die Tageszeit stehen — sie ist das,
+    // was allen gemeinsam ist. Die abweichenden Zeiten stehen seit #189
+    // nicht mehr nur im Planer, sondern an ihrem Auto in der Aufzählung
+    // („Auto 2: Dora mit Emil (hin 06:45)"). Zwei Abfahrtszeiten in EINER
+    // Zeile wären weiter falsch; zwei Zeilen mit je einer sind es nicht.
+    final carDeviations =
+        ref.watch(weekCarDefaultsProvider).value?[day.date] ??
+        const <String, GroupDefaults>{};
     final defaults = effectiveDefaults(
       effectiveDefaults(
         ref.watch(groupDefaultsProvider).value ?? const GroupDefaults(),
         ref.watch(weekPlanDefaultsProvider).value?[day.date],
       ),
-      day.cars.length == 1
-          ? ref
-                .watch(weekCarDefaultsProvider)
-                .value?[day.date]?[day.cars.single.driverId]
-          : null,
+      day.cars.length == 1 ? carDeviations[day.cars.single.driverId] : null,
+    );
+    final body = groupBody(
+      day,
+      byId,
+      notes: notes,
+      defaults: defaults,
+      carDefaults: carDeviations,
     );
     final iso =
         '${day.date.year.toString().padLeft(4, '0')}-'
@@ -172,7 +180,21 @@ class _NextRideBanner extends ConsumerWidget {
     return _Banner(
       icon: Icons.directions_car,
       text: dayLabel(day.date, ref.watch(nowProvider)()),
-      subtitle: composeGroupBody(day, byId, notes: notes, defaults: defaults),
+      subtitle: composeGroupBody(
+        day,
+        byId,
+        notes: notes,
+        defaults: defaults,
+        // Nur ab zwei Autos ausgewertet — bei einem steckt die Abweichung
+        // schon in `defaults` und stünde sonst zweimal da.
+        carDefaults: carDeviations,
+      ),
+      // Ab zwei Autos zeichnet das Banner die Teile einzeln (#189). Der Satz
+      // oben bleibt trotzdem — er beschriftet den Screenreader-Knoten, wo
+      // Farbe und Anordnung nichts sagen.
+      subtitleChild: body.cars.isEmpty
+          ? null
+          : _CarLines(body: body, foreground: tone.foreground),
       // „Deep Teal Flow" aus dem Design-Set — dort mit genau dieser
       // Überschrift gezeichnet. Der Verlauf läuft hell nach dunkel, weil
       // rechts der Zähler sitzt; die Begründung steht am Token.
@@ -187,10 +209,20 @@ class _NextRideBanner extends ConsumerWidget {
         tooltip: 'Anmerkungen',
         onPressed: () => ref.read(routerProvider).push('/notes/$iso'),
         visualDensity: VisualDensity.compact,
-        // Den Akzent trägt allein der Zähler, nicht die Sprechblase: Er
-        // bringt seine eigene Fläche mit, und „nie zwei Akzente im selben
-        // Banner" ist die Regel des Design-Sets. Frei auf dem Verlauf wäre
-        // Magenta ohnehin unlesbar.
+        // **Die Sprechblase trägt den Akzent mit, sobald es Anmerkungen
+        // gibt** (#189). Bis v0.66.2 blieb sie weiß und der Zähler allein
+        // magenta — nach der Regel „nie zwei Akzente im selben Banner". Es
+        // sind aber keine zwei: Chip und Blase sagen dieselbe Sache, und
+        // gemeldet wurde genau das, „bei Kommentaren auch Chatsymbol in
+        // gleicher Farbe".
+        //
+        // **Leer bleibt sie weiß.** Ein magentafarbenes Symbol ohne
+        // Anmerkung wäre ein Akzent, der auf nichts zeigt.
+        //
+        // Der Ton ist derselbe wie der des Chips und sitzt am **dunklen**
+        // Ende des Verlaufs — dort trägt er 4,06:1. Auf dem hellen Teal
+        // wären es 1,61:1; deshalb steht der Knopf rechts und deshalb läuft
+        // der Verlauf gespiegelt. `banner_contrast_test.dart` misst es.
         icon: Badge(
           isLabelVisible: notes.isNotEmpty,
           backgroundColor: AppAccents.notesChip,
@@ -201,8 +233,162 @@ class _NextRideBanner extends ConsumerWidget {
                 ? Icons.chat_bubble_outline
                 : Icons.chat_bubble_rounded,
             size: 18,
-            color: tone.foreground,
+            color: notes.isEmpty ? tone.foreground : AppAccents.notesChip,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Die Autos des Tages als eigene Zeilen im Fahrt-Banner (#189).
+///
+/// **Warum jede Zeile eine eigene Fläche bekommt, ist keine Optik:** Die
+/// Auto-Farben des Planers sind auf dem blanken Verlauf nicht zu gebrauchen.
+/// Gegen das helle Ende `#0F7F98` gemessen: Türkis 2,58:1, Bernstein 2,79:1,
+/// Violett 1,71:1, Rosé 1,76:1 — alle unter den 3,0:1, die eine Grafik
+/// braucht. Mit dem Schleier darunter tragen sie 3,51:1 bis 9,64:1. Der
+/// Streifen zu unterteilen und die Farben zu übernehmen ist deshalb
+/// **dieselbe** Entscheidung, nicht zwei.
+///
+/// Der Schleier ist Schwarz auf 40 %: darüber trägt Weiß 9,56:1 (hell) bzw.
+/// 16,09:1 (dunkel), der Magenta-Chip 3,31:1 / 5,58:1. Weniger Deckkraft
+/// ließe Violett und Rosé wieder durchfallen. Gemessen wird an **beiden**
+/// Verlaufsenden — dazwischen liegt nichts Dunkleres.
+class _CarLines extends StatelessWidget {
+  const _CarLines({required this.body, required this.foreground});
+
+  final GroupBody body;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final car in body.cars)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(
+                  alpha: AppBannerTones.carLineScrim,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.s),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _CarBadge(number: car.number),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        car.who,
+                        style: TextStyle(color: foreground, fontSize: 13),
+                      ),
+                    ),
+                    // **Die Abweichung als Chip, nicht als Wort** — genau
+                    // das war der gemeldete Punkt: „auf den ersten Blick".
+                    // Als farbige Schrift ginge es nicht, der Untertitel
+                    // läuft über die ganze Breite; ein Chip bringt seine
+                    // eigene Fläche mit. Magenta, weil eine geänderte Zeit
+                    // eine Anmerkung ist (entschieden 07.08.) — dieselbe
+                    // Farbe wie Zähler und Sprechblase.
+                    if (car.deviation case final dev?) ...[
+                      const SizedBox(width: 6),
+                      _DeviationChip(text: dev),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        for (final line in body.tail)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(line, style: TextStyle(color: foreground)),
+          ),
+      ],
+    );
+  }
+}
+
+/// Die Auto-Nummer auf der Farbe ihres Platzes — dieselbe Marke wie im
+/// Wochenplaner, nur für eine dunkle Fläche.
+///
+/// Ab dem fünften Auto gibt es keine Farbe mehr; dann trägt die Nummer allein
+/// auf neutralem Grund. Genau dieselbe Regel wie im Raster.
+class _CarBadge extends StatelessWidget {
+  const _CarBadge({required this.number});
+
+  final int number;
+
+  @override
+  Widget build(BuildContext context) {
+    final car = AppCarTones.onDark(number - 1);
+    return Container(
+      // Die Marke zeigt eine blanke Ziffer — auf der Übersicht stehen
+      // Dutzende. Ein Schlüssel statt eines Textfundes, damit der Test
+      // wirklich diese Marke prüft und nicht die nächstbeste „1".
+      key: ValueKey('car-badge-$number'),
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: car?.surface ?? Colors.white.withValues(alpha: 0.24),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '$number',
+        style: TextStyle(
+          color: car?.foreground ?? Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+class _DeviationChip extends StatelessWidget {
+  const _DeviationChip({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppAccents.notesChip,
+        borderRadius: BorderRadius.circular(AppRadius.s),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              // Uhr, sobald eine Zeit abweicht; nur der Ort → Marker.
+              // Dieselbe Regel und dieselbe Reihenfolge wie im Planer.
+              text.startsWith('hin ') || text.startsWith('zurück ')
+                  ? Icons.schedule
+                  : Icons.place,
+              size: 11,
+              color: AppAccents.notesChipInk,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              text,
+              style: const TextStyle(
+                color: AppAccents.notesChipInk,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -216,6 +402,7 @@ class _Banner extends StatelessWidget {
     required this.tone,
     required this.onTap,
     this.subtitle,
+    this.subtitleChild,
     this.onDismiss,
     this.action,
   });
@@ -225,6 +412,15 @@ class _Banner extends StatelessWidget {
 
   /// Zweite Zeile; ohne sie bleibt das Banner einzeilig wie bisher.
   final String? subtitle;
+
+  /// Statt der zweiten Zeile gezeichnet, wenn gesetzt (#189).
+  ///
+  /// [subtitle] bleibt trotzdem Pflicht und wird zur **Beschriftung** des
+  /// ganzen Streifens: Ein Screenreader liest den Satz, den die Augen als
+  /// Zeilen mit Farbmarken sehen. Ohne diese Kopplung wäre die Aufzählung
+  /// für ihn eine Folge zusammenhangloser Wortgruppen — und die Farbe sagt
+  /// ihm ohnehin nichts.
+  final Widget? subtitleChild;
 
   /// Fläche und Vordergrund als Paar — siehe `core/tokens.dart`.
   final BannerTone tone;
@@ -280,22 +476,30 @@ class _Banner extends StatelessWidget {
                   Expanded(
                     child: subtitle == null
                         ? Text(text, style: TextStyle(color: tone.foreground))
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                text,
-                                style: TextStyle(
-                                  color: tone.foreground,
-                                  fontWeight: FontWeight.bold,
+                        : Semantics(
+                            // Der Satz gilt für den ganzen Streifen; die
+                            // gezeichneten Teile darunter sind für das Auge.
+                            label: subtitleChild == null
+                                ? null
+                                : '$text. ${subtitle!}',
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  text,
+                                  style: TextStyle(
+                                    color: tone.foreground,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                subtitle!,
-                                style: TextStyle(color: tone.foreground),
-                              ),
-                            ],
+                                subtitleChild ??
+                                    Text(
+                                      subtitle!,
+                                      style: TextStyle(color: tone.foreground),
+                                    ),
+                              ],
+                            ),
                           ),
                   ),
                   ?action,

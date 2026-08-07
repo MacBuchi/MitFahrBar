@@ -6,6 +6,7 @@ import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/plan_note.dart';
 import '../models/plan_ride.dart';
+import '../models/seat_choice.dart';
 import '../models/trip.dart';
 
 /// Der Name gehört in dieser Gruppe schon jemandem (Issue #109).
@@ -121,6 +122,30 @@ abstract class CarpoolRepository {
     DateTime date,
     String driverId,
     GroupDefaults defaults,
+  );
+
+  /// Sitz-Entscheidungen (#189, Stufe B2): Tag → Zusagen und Absagen der
+  /// Mitfahrer zu einzelnen Autos. `planWeek` beachtet sie beim Verteilen —
+  /// gültig ist nur, was zu den aktuellen Bedingungen des Autos passt
+  /// (`SeatChoice.terms`).
+  Future<Map<DateTime, List<SeatChoice>>> loadSeatChoices(
+    DateTime from, {
+    int days = 7,
+  });
+
+  /// Schreibt eine Entscheidung — Upsert auf
+  /// `(plan_date, person_id, driver_id)`: Wer umentscheidet, ersetzt seine
+  /// Zeile. `decided_at` kommt vom Aufrufer und bleibt beim Umschreiben
+  /// derselben Entscheidung erhalten (es entscheidet bei Überfüllung, wer
+  /// zuerst gepinnt hat).
+  Future<void> saveSeatChoice(SeatChoice choice);
+
+  /// Nimmt eine Entscheidung zurück — die Person ist wieder ungefragt und
+  /// wird automatisch verteilt.
+  Future<void> deleteSeatChoice(
+    DateTime date,
+    String personId,
+    String driverId,
   );
 
   /// Anmerkungen ab [from] für [days] Tage, älteste zuerst (Issue #127).

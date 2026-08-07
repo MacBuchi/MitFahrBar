@@ -90,10 +90,16 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 text:
                     'Ganz oben steht die nächste Fahrt: welcher Tag, wer '
-                    'fährt und wer dabei ist. Ab 12 Uhr blickt sie auf '
-                    'morgen — der Vormittag gehört der heutigen Fahrt. Ein '
-                    'Tipp darauf führt in die Woche — die Sprechblase rechts '
-                    'in die Anmerkungen des Tages.',
+                    'fährt und wer dabei ist. Fahrt ihr mit mehreren Autos, '
+                    'bekommt jedes seine eigene Zeile — mit derselben Farbe '
+                    'und Nummer wie im Wochenplan. Weicht eines von euren '
+                    'festen Zeiten ab, klebt ein farbiger Hinweis daran: '
+                    'eine Uhr für eine andere Zeit, eine Ortsmarke für '
+                    'einen anderen Treffpunkt. '
+                    'Ab 12 Uhr blickt sie auf morgen — der Vormittag gehört '
+                    'der heutigen Fahrt. Ein Tipp darauf führt in die Woche '
+                    '— die Sprechblase rechts in die Anmerkungen des Tages; '
+                    'sie färbt sich, sobald jemand etwas geschrieben hat.',
               ),
               _Line(
                 leading: Icon(Icons.directions_car, color: AppColors.driver),
@@ -218,24 +224,39 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 leading: Icon(Icons.schedule),
                 text:
-                    'Im selben Menü stehen Abfahrt und Treffpunkt für '
-                    'genau diesen Tag. Fahrt ihr einmal früher los, tragt '
-                    'ihr es dort ein: Alle, die an dem Tag mitfahren, '
-                    'bekommen ihre Erinnerung dann zur neuen Zeit. Was du '
-                    'leer lässt, bleibt bei euren festen Vorgaben. Ein '
-                    'Uhrsymbol am Tag zeigt, dass dort etwas abweicht.',
+                    'Abfahrt und Treffpunkt für genau diesen Tag setzt, wer '
+                    'an dem Tag fährt — sie stehen im Menü seines Feldes. '
+                    'Fahrt ihr einmal früher los, tragt ihr es dort ein: '
+                    'Alle, die an dem Tag mitfahren, bekommen ihre '
+                    'Erinnerung dann zur neuen Zeit. Was ihr leer lasst, '
+                    'bleibt bei euren festen Vorgaben. Ein Uhrsymbol am Tag '
+                    'zeigt, dass dort etwas abweicht.',
               ),
               _Line(
                 text:
                     'Fahrt ihr mit mehreren Autos und nicht gleichzeitig los, '
                     'steht in demselben Schirm oben ein Umschalter: „Ganzer '
-                    'Tag" oder „Auto 2". Dann bekommt jeder seine Erinnerung '
-                    'zur Zeit seines Autos, und bei einer Änderung wird nur '
-                    'geweckt, wer darin sitzt. Damit die Zeit nicht am '
-                    'nächsten Tag am falschen Auto hängt, hält MitFahrBar die '
-                    'Fahrer dieses Tages fest. Am Fahrer eines abweichenden '
-                    'Autos hängt im Raster eine kleine Uhr, und die '
-                    'Tageszeile nennt die Zeiten.',
+                    'Tag" oder „Auto 2" — also sein eigenes. Dann bekommt '
+                    'jeder seine Erinnerung zur Zeit seines Autos, und bei '
+                    'einer Änderung wird nur geweckt, wer darin sitzt. Damit '
+                    'die Zeit nicht am nächsten Tag am falschen Auto hängt, '
+                    'hält MitFahrBar die Fahrer dieses Tages fest. Am Fahrer '
+                    'eines abweichenden Autos hängt im Raster eine kleine '
+                    'Uhr, und die Tageszeile nennt die Zeiten.',
+              ),
+              _Line(
+                leading: Icon(Icons.event_seat),
+                text:
+                    'Landest du beim Eintragen in einem Auto, das anders '
+                    'fährt als eure festen Zeiten, fragt dich MitFahrBar, ob '
+                    'das passt. Mit „Passt" ist dir dein Platz in genau '
+                    'diesem Auto sicher; mit „Nein, so nicht" fährst du dort '
+                    'nicht mit, und es wird ein weiteres Auto eingeplant. '
+                    'Umentscheiden geht jederzeit über das Menü deines '
+                    'Feldes. Dein Ja gilt für genau die Zeit, der du '
+                    'zugestimmt hast — ändert sie sich, wirst du neu '
+                    'gefragt. Und wollen mehr in ein Auto, als hineinpassen, '
+                    'sitzt drin, wer zuerst zugesagt hat.',
               ),
               _Line(
                 text:

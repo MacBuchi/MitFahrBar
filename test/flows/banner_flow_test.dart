@@ -131,6 +131,110 @@ void main() {
       );
     });
 
+    // #189: Ab zwei Autos zählt der Streifen sie einzeln auf — mit ihren
+    // Mitfahrern und ihrer eigenen Zeit. Für diesen Fall gab es bis hierher
+    // gar keinen Test durch die App; gemessen wurde nur der Ein-Auto-Fall.
+    testWidgets('zwei Autos stehen einzeln, jedes mit seiner Zeit', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      // Vier Personen à zwei Sitzen ergeben zwei Autos (Issue #62).
+      final ids = <String, String>{};
+      for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true, seats: 2),
+        );
+        ids[name] = person.id;
+        await data.setAvailability(testToday, person.id, PlanRide.full);
+      }
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      // Gezeichnet sind es Zeilen mit Farbmarken — vorgelesen bleibt es ein
+      // Satz. Beides gehört geprüft: Die Marke sagt einem Screenreader
+      // nichts, und der Satz allein wäre der alte Zustand.
+      expect(
+        find.bySemanticsLabel(RegExp('Auto 1: .* · Auto 2: ')),
+        findsOneWidget,
+        reason:
+            'Die Frage vor der Abfahrt ist „mit wem fahre ich" — ein Topf '
+            'aus den Mitfahrern beider Autos beantwortet sie nicht. Und wer '
+            'nichts sieht, muss denselben Satz hören.',
+      );
+      expect(
+        find.byKey(const ValueKey('car-badge-1')),
+        findsOneWidget,
+        reason:
+            'Die Nummer trägt die Zuordnung mit — ohne sie verlöre jeder '
+            'Rot-Grün-Schwache und jeder Graustufen-Screenshot sie.',
+      );
+      expect(find.byKey(const ValueKey('car-badge-2')), findsOneWidget);
+      expect(
+        find.textContaining('2 Autos'),
+        findsNothing,
+        reason: 'Wer „Auto 1" und „Auto 2" liest, hat sie gezählt.',
+      );
+      handle.dispose();
+    });
+
+    // Der gemeldete Punkt vom 07.08.: „was pro Fahrzeug auf den ersten Blick
+    // hervorgehen sollte, wenn Treffpunkt oder Uhrzeit abweichen — das ist
+    // aktuell nicht der Fall." Als Wort im Fließtext ging es unter.
+    testWidgets('die Abweichung eines Autos steht als eigener Chip da', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final ids = <String>[];
+      for (final name in ['Anna', 'Bert', 'Clara', 'Dora']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true, seats: 2),
+        );
+        ids.add(person.id);
+        await data.setAvailability(testToday, person.id, PlanRide.full);
+      }
+      // Beide möglichen Fahrer bekommen dieselbe Zeit — so trägt der Test
+      // die Abweichung, egal welchen der beiden der Vorschlag wählt.
+      for (final personId in ids) {
+        await data.saveCarDefaults(
+          testToday,
+          personId,
+          const GroupDefaults(outboundTime: DayTime(6, 45)),
+        );
+      }
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      expect(
+        find.text('hin 06:45'),
+        findsWidgets,
+        reason: 'Die abweichende Zeit gehört sichtbar an ihr Auto.',
+      );
+      final glyph = tester.widget<Icon>(find.byIcon(Icons.schedule).first);
+      expect(
+        glyph.color,
+        AppAccents.notesChipInk,
+        reason:
+            'Der Chip trägt den Anmerkungs-Akzent: Eine geänderte Zeit IST '
+            'eine Anmerkung (entschieden 07.08.). Als farbige Schrift ginge '
+            'es nicht — der Untertitel läuft über das helle Verlaufsende.',
+      );
+      handle.dispose();
+    });
+
     // #139: Die festen Vorgaben stehen im selben Streifen — was das Handy
     // meldet und was die Übersicht zeigt, kommt aus derselben Funktion.
     testWidgets('nennt Abfahrt und Treffpunkt, wenn sie gepflegt sind', (
@@ -305,10 +409,61 @@ void main() {
         badge.backgroundColor,
         AppAccents.notesChip,
         reason:
-            'Der Akzent sitzt allein auf dem Zähler, der seine eigene '
-            'Fläche mitbringt. Frei auf dem Verlauf wäre Magenta unlesbar '
-            '(1,61:1 auf dem hellen Teal) — das Design-Set nennt die Regel '
-            '„nie zwei Akzente im selben Banner".',
+            'Der Zähler bringt seine eigene Fläche mit — frei auf dem hellen '
+            'Teal wäre Magenta mit 1,61:1 unlesbar. Deshalb sitzt der Knopf '
+            'am dunklen Ende des Verlaufs.',
+      );
+    });
+
+    // #189: „bei Kommentaren auch Chatsymbol in gleicher Farbe". Die Blase
+    // hat keine eigene Fläche, sie liegt frei auf dem Verlauf — deshalb gilt
+    // das nur am dunklen Ende, und deshalb misst der Kontrast-Test es mit.
+    testWidgets('die Sprechblase wird magenta, sobald es Anmerkungen gibt', (
+      tester,
+    ) async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final anna = await data.createPerson(
+        const Person(id: '', name: 'Anna', active: true),
+      );
+      await data.setAvailability(testToday, anna.id, PlanRide.full);
+      await data.addNote(testToday, anna.id, 'Komme erst um 9');
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      Icon bubble() => tester.widget<Icon>(
+        find
+            .descendant(of: find.byType(Badge), matching: find.byType(Icon))
+            .first,
+      );
+      expect(bubble().color, AppAccents.notesChip);
+      expect(
+        bubble().icon,
+        Icons.chat_bubble_rounded,
+        reason: 'Gefüllt, sobald etwas drinsteht — Farbe UND Form.',
+      );
+    });
+
+    testWidgets('ohne Anmerkung bleibt die Sprechblase weiß', (tester) async {
+      await pumpApp(tester, await _rideBackend());
+      await _login(tester);
+
+      final bubble = tester.widget<Icon>(
+        find
+            .descendant(of: find.byType(Badge), matching: find.byType(Icon))
+            .first,
+      );
+      expect(
+        bubble.color,
+        AppBannerTones.nextRide(Brightness.light).foreground,
+        reason:
+            'Die andere Richtung: Ein Akzent ohne Anmerkung zeigte auf '
+            'nichts. Rot verifiziert.',
       );
     });
 

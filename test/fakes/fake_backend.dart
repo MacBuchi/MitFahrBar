@@ -28,6 +28,7 @@ import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/seat_choice.dart';
 import 'package:mitfahrbar/models/trip.dart';
 
 class FakeAccount {
@@ -290,6 +291,23 @@ class FakeRoutingCarpoolRepository implements CarpoolRepository {
   @override
   Future<void> setPlanDrivers(DateTime date, Set<String> driverIds) =>
       _target.setPlanDrivers(date, driverIds);
+
+  @override
+  Future<Map<DateTime, List<SeatChoice>>> loadSeatChoices(
+    DateTime from, {
+    int days = 7,
+  }) => _target.loadSeatChoices(from, days: days);
+
+  @override
+  Future<void> saveSeatChoice(SeatChoice choice) =>
+      _target.saveSeatChoice(choice);
+
+  @override
+  Future<void> deleteSeatChoice(
+    DateTime date,
+    String personId,
+    String driverId,
+  ) => _target.deleteSeatChoice(date, personId, driverId);
 
   @override
   Future<List<PlanNote>> loadNotes(DateTime from, {int days = 7}) =>

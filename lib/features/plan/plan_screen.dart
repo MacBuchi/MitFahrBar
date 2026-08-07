@@ -19,6 +19,7 @@ import '../../models/group_defaults.dart';
 import '../../models/notification_prefs.dart';
 import '../../models/person.dart';
 import '../../models/plan_ride.dart';
+import '../../models/seat_choice.dart';
 import '../../models/trip.dart';
 import '../trip_editor/trip_editor_seed.dart';
 
@@ -251,7 +252,117 @@ class _AvailabilityGrid extends ConsumerWidget {
       messenger.showSnackBar(
         const SnackBar(content: Text('Speichern fehlgeschlagen.')),
       );
+      return;
     }
+    if (!context.mounted) return;
+    await _maybeAskConsent(context, ref, day.date, personId);
+  }
+
+  /// Fragt nach, wenn jemand in einem Auto mit abweichenden Bedingungen
+  /// gelandet ist (#189, Stufe B2, entschieden 07.08.).
+  ///
+  /// **Beim Eintragen, nicht beim Verteilen:** Hier steht die Person vor dem
+  /// Gerät, die Antwort ist verlässlich — Schweigen gibt es an einem offenen
+  /// Dialog nicht. Ein Ja pinnt den Platz, ein Nein schließt dieses Auto aus
+  /// (und erzwingt damit ein zweites, wenn sonst keines bleibt). Wegtippen
+  /// entscheidet nichts: Die Person bleibt automatisch verteilt und wird beim
+  /// nächsten Eintragen wieder gefragt.
+  ///
+  /// Gefragt wird nur, wenn es etwas zu fragen gibt: Das eigene Auto trägt
+  /// eine Abweichung, man fährt nicht selbst, und es liegt noch keine
+  /// Entscheidung zu genau diesen Bedingungen vor.
+  Future<void> _maybeAskConsent(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime date,
+    String personId, {
+    bool force = false,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    // Der Notifier hat optimistisch gerechnet — der Zustand kennt das Auto
+    // dieser Person schon.
+    final day = ref
+        .read(weekPlanProvider)
+        .value
+        ?.where((d) => d.date == date)
+        .firstOrNull;
+    if (day == null || day.confirmed) return;
+    final car = carOf(day, personId);
+    if (car == null || car.driverId == personId) return;
+    final deviation = ref
+        .read(weekCarDefaultsProvider)
+        .value?[date]?[car.driverId];
+    if (deviation == null || deviation.isEmpty) return;
+    final terms = termsOf(deviation);
+    // Aus dem Notifier, nicht aus einem eigenen Provider: Dort liegt die
+    // Kopie, mit der gerechnet wird — samt der eben optimistisch
+    // geschriebenen Entscheidung. Ein zweiter Ladepfad hinge einen
+    // Roundtrip hinterher und fragte genau dann doppelt.
+    final existing = ref
+        .read(weekPlanProvider.notifier)
+        .seatChoiceFor(date, personId, car.driverId);
+    if (!force && existing != null && existing.isCurrentFor(terms)) return;
+
+    final carNumber = day.cars.length < 2
+        ? null
+        : (carIndexOf(day, personId) ?? 0) + 1;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          carNumber == null ? 'Andere Abfahrt' : 'Auto $carNumber fährt anders',
+        ),
+        content: Text('${_deviationSentence(deviation)}\n\nPasst dir das?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Nein, so nicht'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Passt'),
+          ),
+        ],
+      ),
+    );
+    if (accepted == null) return;
+
+    try {
+      await ref
+          .read(weekPlanProvider.notifier)
+          .setSeatChoice(
+            SeatChoice(
+              date: date,
+              personId: personId,
+              driverId: car.driverId,
+              accepted: accepted,
+              terms: terms,
+              // Beim Umentscheiden zu NEUEN Bedingungen zählt die neue Zeit;
+              // nur die unveränderte Entscheidung behält ihren Rang.
+              decidedAt: existing != null && existing.terms == terms
+                  ? existing.decidedAt
+                  : DateTime.now(),
+            ),
+          );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+      );
+    }
+  }
+
+  /// `Abfahrt hin 06:45, zurück 16:20 · Treffpunkt Werkstor` — als Satz für
+  /// den Dialog; die Kurzform der Tageszeile wäre hier zu knapp, es ist die
+  /// Grundlage einer Entscheidung.
+  static String _deviationSentence(GroupDefaults deviation) {
+    final times = [
+      if (deviation.outboundTime case final t?) 'hin ${t.format()}',
+      if (deviation.returnTime case final t?) 'zurück ${t.format()}',
+    ];
+    return [
+      if (times.isNotEmpty) 'Abfahrt ${times.join(', ')}',
+      if (deviation.meetingPoint case final p?) 'Treffpunkt $p',
+    ].join(' · ');
   }
 
   /// Die Abweichung, die an der Zelle von [personId] erscheint (#183):
@@ -327,6 +438,35 @@ class _AvailabilityGrid extends ConsumerWidget {
         // fährt, hat keinen Grund dafür — und an einem eingetragenen Tag ist
         // nichts mehr zu planen.
         canOfferDrive: !day.confirmed && !day.driverIds.contains(person.id),
+        // **Zeiten setzt, wer fährt** (#188). Bis v0.66.1 stand der Eintrag
+        // in JEDER Zelle — auch bei einem Mitfahrer und sogar bei jemandem,
+        // der an dem Tag „kann nicht" steht. Bei einem Mitfahrer traf er
+        // dessen Auto, also ein fremdes: Er verschob die Abfahrt eines
+        // Wagens, den er nicht fährt, und schrieb dabei über `setDrivers`
+        // den ganzen Fahrersatz des Tages fest. Das ist dieselbe Linie wie
+        // „die Zeit zu setzen IST die Fahrer-Zusage" (#183), nur von der
+        // anderen Seite: Wer die Abfahrt verantwortet, setzt sie auch.
+        //
+        // Das gilt für BEIDE Ebenen des Schirms, auch für den ganzen Tag —
+        // ein Tag ohne Auto hat keine Abfahrt, die man verschieben könnte.
+        // Wer nicht selbst fährt und die Zeit ändern will, tippt die Zelle
+        // des Fahrers an; das ist die Rückfrage aus #121, keine Sperre.
+        canEditTimes: day.driverIds.contains(person.id),
+        // **Der Weg, ein gegebenes Ja oder Nein zu ändern** (#189): Wer in
+        // einem Auto mit abweichenden Bedingungen sitzt, sieht sie hier und
+        // kann umentscheiden — das ist das „Nein in zwei Taps", auf das die
+        // nachträgliche Rückfrage baut. Nur am Mitfahrer: Der Fahrer stimmt
+        // seiner eigenen Abfahrt nicht zu, und wer nicht im Auto sitzt, hat
+        // nichts zu entscheiden.
+        seatTerms: switch (carOf(day, person.id)) {
+          final car? when car.driverId != person.id => switch (ref
+              .read(weekCarDefaultsProvider)
+              .value?[day.date]?[car.driverId]) {
+            final dev? when !dev.isEmpty => _deviationSentence(dev),
+            _ => null,
+          },
+          _ => null,
+        },
         deviates: ref.read(weekPlanDefaultsProvider).value?[day.date] != null,
       ),
     );
@@ -343,6 +483,12 @@ class _AvailabilityGrid extends ConsumerWidget {
           messenger.showSnackBar(
             const SnackBar(content: Text('Speichern fehlgeschlagen.')),
           );
+          return;
+        }
+        // Auch der Menü-Weg landet womöglich in einem Auto mit abweichenden
+        // Bedingungen — dieselbe Rückfrage wie beim Ein-Tap-Eintragen.
+        if (choice.ride != null && context.mounted) {
+          await _maybeAskConsent(context, ref, day.date, person.id);
         }
       case _WantToDrive():
         try {
@@ -378,6 +524,10 @@ class _AvailabilityGrid extends ConsumerWidget {
         }
       case _EditDay():
         await _editDay(context, ref, day, person.id);
+      case _DecideSeat():
+        // Erneut fragen, auch wenn schon entschieden ist — genau dafür ist
+        // der Eintrag da.
+        await _maybeAskConsent(context, ref, day.date, person.id, force: true);
     }
   }
 
@@ -403,8 +553,17 @@ class _AvailabilityGrid extends ConsumerWidget {
     // Nur, wenn es überhaupt etwas zu unterscheiden gibt: Bei einem Auto ist
     // „dieses Auto" dasselbe wie „der Tag", und zwei Wege zum selben Ziel
     // sind einer zu viel.
-    final carIndex = day.cars.length < 2 ? null : carIndexOf(day, personId);
-    final driverId = carIndex == null ? null : day.cars[carIndex].driverId;
+    //
+    // Gesucht wird das Auto, das diese Person **fährt** — nicht das, in dem
+    // sie sitzt (#188). Beim Fahrer ist beides dasselbe, und seit #188 kommt
+    // hier ohnehin nur er an; aber `carIndexOf` beantwortet die andere Frage,
+    // und genau die hat den Mitfahrer an ein fremdes Auto gelassen. Der
+    // zweite Riegel kostet nichts und hält, wenn das Menü je wieder aufmacht.
+    final own = day.cars.length < 2
+        ? -1
+        : day.cars.indexWhere((car) => car.driverId == personId);
+    final carIndex = own < 0 ? null : own;
+    final driverId = carIndex == null ? null : personId;
 
     final result = await showDialog<_DefaultsEdit>(
       context: context,
@@ -686,6 +845,11 @@ class _EditDay extends _MenuAction {
   const _EditDay();
 }
 
+/// Über die Bedingungen des eigenen Autos entscheiden (#189, Stufe B2).
+class _DecideSeat extends _MenuAction {
+  const _DecideSeat();
+}
+
 /// Das Menü einer Zelle (#183, vorher die Rückfrage aus #121).
 ///
 /// Es fragt nicht nur, es erledigt es gleich: Ein Tipp öffnet, ein zweiter
@@ -702,7 +866,9 @@ class _RidePickerDialog extends StatelessWidget {
     required this.date,
     required this.current,
     required this.canOfferDrive,
+    required this.canEditTimes,
     required this.deviates,
+    this.seatTerms,
   });
 
   final Person person;
@@ -712,9 +878,18 @@ class _RidePickerDialog extends StatelessWidget {
   /// Ob „Ich möchte fahren" überhaupt etwas ändern würde.
   final bool canOfferDrive;
 
+  /// Ob diese Person an diesem Tag fährt — nur dann gibt es hier Zeiten zu
+  /// setzen (#188). Die Begründung steht an der aufrufenden Stelle.
+  final bool canEditTimes;
+
   /// Ob für diesen Tag schon eine Abweichung gespeichert ist — nur für den
   /// Wortlaut des Eintrags, die Werte holt der Editor selbst.
   final bool deviates;
+
+  /// Die abweichenden Bedingungen des Autos, in dem diese Person sitzt —
+  /// `null`, wenn es keine gibt oder sie selbst fährt (#189). Nur mit Wert
+  /// erscheint der Eintrag zum Zustimmen/Ablehnen.
+  final String? seatTerms;
 
   @override
   Widget build(BuildContext context) {
@@ -743,15 +918,31 @@ class _RidePickerDialog extends StatelessWidget {
               title: const Text('Ich möchte fahren'),
               onTap: () => Navigator.of(context).pop(const _WantToDrive()),
             ),
-          const Divider(height: AppSpacing.s),
-          ListTile(
-            leading: Icon(Icons.schedule, color: scheme.onSurfaceVariant),
-            title: const Text('Zeiten & Treffpunkt'),
-            subtitle: Text(
-              deviates ? 'weicht an diesem Tag ab' : 'gilt nur für diesen Tag',
+          if (seatTerms case final terms?) ...[
+            const Divider(height: AppSpacing.s),
+            // Das eigene Auto fährt anders — hier steht, wie, und der Tipp
+            // fragt nach Zustimmung (#189). Der Weg, ein früheres Ja oder
+            // Nein zu ändern, ohne sich neu einzutragen.
+            ListTile(
+              leading: Icon(Icons.event_seat, color: scheme.onSurfaceVariant),
+              title: const Text('Dein Auto fährt anders'),
+              subtitle: Text(terms),
+              onTap: () => Navigator.of(context).pop(const _DecideSeat()),
             ),
-            onTap: () => Navigator.of(context).pop(const _EditDay()),
-          ),
+          ],
+          if (canEditTimes) ...[
+            const Divider(height: AppSpacing.s),
+            ListTile(
+              leading: Icon(Icons.schedule, color: scheme.onSurfaceVariant),
+              title: const Text('Zeiten & Treffpunkt'),
+              subtitle: Text(
+                deviates
+                    ? 'weicht an diesem Tag ab'
+                    : 'gilt nur für diesen Tag',
+              ),
+              onTap: () => Navigator.of(context).pop(const _EditDay()),
+            ),
+          ],
         ],
       ),
       actions: [

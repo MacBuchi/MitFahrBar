@@ -39,6 +39,7 @@ import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_note.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/seat_choice.dart';
 import 'package:mitfahrbar/models/trip.dart';
 
 Future<void> main(List<String> args) async {
@@ -325,6 +326,34 @@ Future<List<PlannedDay>> _plan(
     overrides.putIfAbsent(date, () => {}).add(driverId);
   }
 
+  // Sitz-Entscheidungen samt der Auto-Abweichungen, an denen ihre Gültigkeit
+  // hängt (#189, Stufe B2). Ohne beide verteilte der Boden die Mitfahrer
+  // anders als die App — zwei Wahrheiten über denselben Tag, und der Korb
+  // trüge je nach Schreiber verschiedene Zeiten.
+  final choiceRows = await api.rows('plan_seat_choices', {
+    ...scope,
+    'plan_date': 'gte.$from',
+    'select': '*',
+  });
+  final seatChoices = <DateTime, List<SeatChoice>>{};
+  for (final row in choiceRows) {
+    final choice = SeatChoice.fromJson(row.cast<String, dynamic>());
+    if (_isoDay(choice.date).compareTo(to) > 0) continue;
+    if (!active.containsKey(choice.personId)) continue;
+    seatChoices.putIfAbsent(choice.date, () => []).add(choice);
+  }
+  final carDefaultRows = await api.rows('plan_car_defaults', {
+    ...scope,
+    'plan_date': 'gte.$from',
+    'select': 'plan_date, driver_id, outbound_time, return_time, meeting_point',
+  });
+  final carDefaults = <DateTime, Map<String, GroupDefaults>>{};
+  for (final row in carDefaultRows) {
+    final day = DateTime.parse(row['plan_date']! as String);
+    (carDefaults[day] ??= {})[row['driver_id']! as String] =
+        GroupDefaults.fromJson(row.cast<String, Object?>());
+  }
+
   return planWeek(
     dates: week,
     availability: availability,
@@ -332,6 +361,8 @@ Future<List<PlannedDay>> _plan(
     trips: trips,
     settings: settings,
     seats: {for (final entry in active.entries) entry.key: entry.value.seats},
+    seatChoices: seatChoices,
+    carDefaults: carDefaults,
   );
 }
 

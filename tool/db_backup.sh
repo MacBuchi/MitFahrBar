@@ -94,7 +94,7 @@ for table in \
   public.groups public.persons public.trips public.trip_participations \
   public.settings public.group_defaults public.feedback public.app_config \
   public.plan_availability public.plan_overrides public.plan_notes \
-  public.plan_defaults public.plan_car_defaults \
+  public.plan_defaults public.plan_car_defaults public.plan_seat_choices \
   public.push_devices public.notification_prefs public.push_log \
   public.push_outbox public.group_admins public.error_reports \
   public.price_area public.price_sample public.price_week \

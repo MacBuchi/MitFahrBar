@@ -1600,6 +1600,273 @@ void main() {
     });
   });
 
+  // Wer die Zeit setzen darf (#188) — gemeldet am 07.08. aus 0.66.1: Der
+  // Eintrag stand in JEDER Zelle. Ein Mitfahrer traf damit sein Auto, also
+  // ein fremdes: Er verschob die Abfahrt eines Wagens, den er nicht fährt,
+  // und schrieb dabei den ganzen Fahrersatz des Tages fest.
+  //
+  // Geprüft wird am geöffneten Menü, nicht an einem `find` ins Leere: Ein
+  // Test, der nur sucht, wäre auch dann grün, wenn der Tap gar nichts
+  // öffnet — dieselbe Lehre wie beim toten Update-Knopf in 0.37.0.
+  group('Zeiten setzt, wer fährt (#188)', () {
+    testWidgets('ein Mitfahrer bekommt den Eintrag nicht', (tester) async {
+      final handle = tester.ensureSemantics();
+      final backend = await _seatBackend({
+        'Anna': 2,
+        'Bert': 2,
+        'Clara': 2,
+        'Dora': 2,
+      });
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      final names = ['Anna', 'Bert', 'Clara', 'Dora'];
+      for (final name in names) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      // Zwei Autos mit je zwei Plätzen: zwei Fahrer, zwei Mitfahrer.
+      final rider = _personIn('dabei, Auto [12]', monday, names);
+      await tester.tap(_cell(rider, monday));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(AlertDialog),
+        findsOneWidget,
+        reason:
+            'Die Zelle ist gefüllt, der Tap MUSS das Menü öffnen — sonst '
+            'prüft der Rest dieses Tests gar nichts.',
+      );
+      expect(
+        find.widgetWithText(ListTile, 'Ich möchte fahren'),
+        findsOneWidget,
+        reason:
+            'Und es ist das richtige Menü: Ein Mitfahrer darf weiterhin '
+            'alles, was ihn selbst betrifft.',
+      );
+      expect(
+        find.widgetWithText(ListTile, 'Zeiten & Treffpunkt'),
+        findsNothing,
+        reason:
+            'Nur nicht die Abfahrt eines Autos verschieben, das er nicht '
+            'fährt — und schon gar nicht dessen Fahrer festschreiben.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('wer an dem Tag nicht mitfährt, erst recht nicht', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      // Anna fährt, Bert kann nur hin — 1-way schließt das Fahren aus.
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await _pick(tester, 'Bert', monday, 'nur eine Richtung');
+
+      await tester.tap(_cell('Bert', monday, state: 'nur eine Richtung'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.widgetWithText(ListTile, 'Zeiten & Treffpunkt'),
+        findsNothing,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('der Fahrer behält ihn', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Anna', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(_cell('Anna', monday, state: 'fährt'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.widgetWithText(ListTile, 'Zeiten & Treffpunkt'),
+        findsOneWidget,
+        reason:
+            'Die andere Richtung: Der Riegel darf den Weg nicht ganz '
+            'zumauern — sonst könnte niemand mehr eine Zeit setzen.',
+      );
+      handle.dispose();
+    });
+  });
+
+  // Das Einverständnis mit einer Abfahrt (#189, Stufe B2, entschieden
+  // 07.08.): Wer sich in ein Auto mit abweichenden Bedingungen einträgt,
+  // wird gefragt. Ja pinnt, Nein schließt aus — und erzwingt notfalls ein
+  // zweites Auto. Die Tests TIPPEN und prüfen erst, dass der Dialog
+  // überhaupt offen ist; ein reines `find` wäre auch bei einem toten Tap
+  // grün (die 0.37.0-Lehre).
+  group('Einverständnis mit einer Abfahrt (#189)', () {
+    Future<FakeBackend> deviatingBackend() async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final anna = await data.createPerson(
+        const Person(id: '', name: 'Anna', active: true),
+      );
+      await data.createPerson(const Person(id: '', name: 'Bert', active: true));
+      final monday = planningWeek(testToday).first;
+      await data.setAvailability(monday, anna.id, PlanRide.full);
+      // Annas Auto fährt früher — die Bedingung, um die es geht.
+      await data.saveCarDefaults(
+        monday,
+        anna.id,
+        const GroupDefaults(outboundTime: DayTime(6, 45)),
+      );
+      return backend;
+    }
+
+    testWidgets('Eintragen in ein abweichendes Auto fragt nach — Ja pinnt', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = await deviatingBackend();
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Andere Abfahrt'),
+        findsOneWidget,
+        reason:
+            'Der Tap trägt ein UND muss fragen: Bert landet in einem Auto, '
+            'das früher fährt als die festen Vorgaben.',
+      );
+      expect(find.textContaining('06:45'), findsWidgets);
+      await tester.tap(find.widgetWithText(FilledButton, 'Passt'));
+      await tester.pumpAndSettle();
+
+      final choices = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadSeatChoices(monday, days: 1);
+      expect(
+        choices[monday]?.single.accepted,
+        isTrue,
+        reason: 'Das Ja ist ein Pin und muss in der Ablage stehen.',
+      );
+      expect(
+        choices[monday]?.single.terms,
+        '06:45||',
+        reason:
+            'Gespeichert wird, WOZU zugestimmt wurde — sonst wäre die '
+            'Zusage ein Blankoscheck für jede spätere Zeit.',
+      );
+
+      // Erneut durchschalten (dabei → 1-way) fragt NICHT noch einmal: Die
+      // Entscheidung zu genau diesen Bedingungen liegt vor.
+      await tester.tap(_cell('Bert', monday, state: 'dabei'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(ListTile, 'nur eine Richtung'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('Nein schließt aus — und erzwingt das zweite Auto', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = await deviatingBackend();
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.pumpAndSettle();
+
+      expect(
+        _cell('Bert', monday, state: 'fährt, Auto 2.*'),
+        findsOneWidget,
+        reason:
+            '„Zu diesen Bedingungen nicht" heißt: jemand anderes muss '
+            'fahren — hier kann das nur Bert selbst sein. Beim '
+            'Spezialfahrer fährt niemand mit.',
+      );
+      expect(_cell('Anna', monday, state: 'fährt, Auto 1.*'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('das Menü zeigt die Bedingungen und lässt umentscheiden', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = await deviatingBackend();
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Passt'));
+      await tester.pumpAndSettle();
+
+      // Der Weg zum Umentscheiden: das eigene Zell-Menü.
+      await tester.tap(_cell('Bert', monday, state: 'dabei'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.widgetWithText(ListTile, 'Dein Auto fährt anders'),
+        findsOneWidget,
+        reason:
+            'Ohne diesen Eintrag gäbe es kein „Nein in zwei Taps" — die '
+            'Rückfrage beim Eintragen wäre die einzige Gelegenheit.',
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Dein Auto fährt anders'));
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.pumpAndSettle();
+
+      expect(
+        _cell('Bert', monday, state: 'fährt, Auto 2.*'),
+        findsOneWidget,
+        reason: 'Das Umentscheiden wirkt sofort: eigenes Auto.',
+      );
+
+      // Der Fahrer selbst sieht den Eintrag nicht — er stimmt seiner
+      // eigenen Abfahrt nicht zu.
+      await tester.tap(_cell('Anna', monday, state: 'fährt, Auto 1.*'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.widgetWithText(ListTile, 'Dein Auto fährt anders'),
+        findsNothing,
+      );
+      handle.dispose();
+    });
+  });
+
   // Sichtbarkeit der Abweichungen (#183) — der zweite gemeldete Fehler vom
   // 07.08.: Eine gespeicherte Auto-Zeit war NIRGENDS zu sehen; der Push
   // hätte zur neuen Zeit geweckt, aber kein Schirm sagte es.
