@@ -4,6 +4,28 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.69.0] – 2026-08-08
+
+### Neu
+
+- **Verschiebt dein Fahrer die Abfahrt, nachdem du zugesagt hast, fragt
+  MitFahrBar dich neu.** Bisher galt deine Zusage in dem Fall zwar zu Recht
+  nicht mehr — erfahren hast du es aber nur, wenn du von selbst nachgesehen
+  hast. Jetzt steht die Frage da, sobald du den Wochenplan öffnest: „Auto 2
+  fährt anders: Abfahrt hin 05:30. Passt dir das?"
+
+  Wegtippen entscheidet weiterhin nichts und kostet nichts: Du bleibst
+  automatisch verteilt und wirst nicht in einer Schleife weitergefragt.
+  Verschiebt dein Fahrer die Abfahrt aber noch einmal, ist das eine neue
+  Frage — und die kommt.
+
+### Behoben
+
+- **Ein Tipp auf eine Benachrichtigung zeigt jetzt den aktuellen Plan.**
+  Kam die App aus dem Hintergrund, stand dort der Stand von vorhin — also
+  ausgerechnet die Abfahrtszeit, über deren Änderung die Meldung eben
+  informiert hatte.
+
 ## [0.68.0] – 2026-08-08
 
 ### Neu

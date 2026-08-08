@@ -1867,6 +1867,223 @@ void main() {
     });
   });
 
+  // Die nachträgliche Rückfrage (#200, Stufe 2 der Sitzwahl): Verschiebt der
+  // Fahrer die Abfahrt, NACHDEM jemand zugesagt hat, veraltet die Zusage und
+  // wirkt nicht mehr — bis v0.68.0 erfuhr man das nur passiv. Die Tests
+  // tippen die echte Benachrichtigung an (`backend.tapPush`) und laufen
+  // damit durch die Verdrahtung in `app.dart`, nicht an ihr vorbei.
+  group('Erneut fragen, wenn die zugesagte Abfahrt sich verschiebt (#200)', () {
+    /// Anna fährt und weicht ab (06:45), Bert kann ebenfalls — der Aufbau,
+    /// in dem eine Zusage überhaupt entstehen kann.
+    Future<(FakeBackend, String)> consentBackend() async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final anna = await data.createPerson(
+        const Person(id: '', name: 'Anna', active: true),
+      );
+      final bert = await data.createPerson(
+        const Person(id: '', name: 'Bert', active: true),
+      );
+      final monday = planningWeek(testToday).first;
+      await data.setAvailability(monday, anna.id, PlanRide.full);
+      await data.saveCarDefaults(
+        monday,
+        anna.id,
+        const GroupDefaults(outboundTime: DayTime(6, 45)),
+      );
+      return (backend, bert.id);
+    }
+
+    /// Bert trägt sich ein und sagt der Abfahrt zu.
+    Future<void> consent(WidgetTester tester, DateTime monday) async {
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Passt'));
+      await tester.pumpAndSettle();
+    }
+
+    /// Anna verschiebt ihre Abfahrt — **am Backend**, wie es ihr eigenes
+    /// Gerät täte. Berts App weiß davon noch nichts.
+    Future<void> moveDeparture(FakeBackend backend, DateTime monday) async {
+      final data = backend.dataFor(backend.currentGroupId!);
+      final anna = (await data.loadPersons()).firstWhere(
+        (p) => p.name == 'Anna',
+      );
+      await data.saveCarDefaults(
+        monday,
+        anna.id,
+        const GroupDefaults(outboundTime: DayTime(5, 30)),
+      );
+    }
+
+    testWidgets('eine verschobene Abfahrt fragt den Zusager neu', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final (backend, bertId) = await consentBackend();
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: bertId, asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await consent(tester, monday);
+      expect(
+        find.text('Andere Abfahrt'),
+        findsNothing,
+        reason: 'Aufbau: Bert hat zu 06:45 zugesagt, es ist Ruhe.',
+      );
+
+      await moveDeparture(backend, monday);
+      backend.tapPush();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Andere Abfahrt'),
+        findsOneWidget,
+        reason:
+            'Berts Zusage galt 06:45 und gilt nicht mehr. Ohne die Frage '
+            'würde er stillschweigend auf 05:30 gezogen — genau das, was '
+            'die Zusage verhindern soll.',
+      );
+      expect(find.textContaining('05:30'), findsWidgets);
+      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.pumpAndSettle();
+
+      final choices = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadSeatChoices(monday, days: 1);
+      expect(
+        choices[monday]?.single.accepted,
+        isFalse,
+        reason: 'Die neue Antwort gilt der neuen Zeit, nicht der alten.',
+      );
+      expect(choices[monday]?.single.terms, '05:30||');
+      handle.dispose();
+    });
+
+    testWidgets('der Tipp holt den Plan frisch — sonst fragt niemand', (
+      tester,
+    ) async {
+      // Die zweite Hälfte des Features und die unsichtbare: Die
+      // Plan-Provider überleben den Seitenwechsel. Ohne das Auffrischen
+      // beim Tipp sähe Bert den Stand von vorhin — und die Rückfrage
+      // wüsste gar nicht, dass seine Zusage überholt ist.
+      final handle = tester.ensureSemantics();
+      final (backend, bertId) = await consentBackend();
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: bertId, asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await consent(tester, monday);
+      await moveDeparture(backend, monday);
+
+      // Ohne Tipp bleibt der Schirm auf dem alten Stand — das ist der
+      // Zustand, den das Auffrischen behebt.
+      await tester.tap(find.text('Übersicht'));
+      await tester.pumpAndSettle();
+      await _openPlan(tester);
+      expect(find.text('Andere Abfahrt'), findsNothing);
+
+      backend.tapPush();
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('wer wegtippt, wird nicht in Dauerschleife gefragt', (
+      tester,
+    ) async {
+      // „Wegtippen entscheidet nichts" (#189) heißt: automatisch verteilt
+      // bleiben — nicht bei jedem Neuaufbau des Schirms erneut gefragt
+      // werden. Ohne den Merker wäre die Rückfrage eine Falle.
+      final handle = tester.ensureSemantics();
+      final (backend, bertId) = await consentBackend();
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: bertId, asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await consent(tester, monday);
+      await moveDeparture(backend, monday);
+      backend.tapPush();
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsOneWidget);
+
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsNothing);
+
+      // Jeder weitere Tipp lädt den Plan neu — ohne Riegel stünde die Frage
+      // damit sofort wieder da, und zwar unbegrenzt oft.
+      backend.tapPush();
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Andere Abfahrt'),
+        findsNothing,
+        reason:
+            'Ein Wegtippen bleibt eine Nicht-Entscheidung, keine Einladung '
+            'zur Dauerschleife.',
+      );
+
+      // **Verschiebt der Fahrer aber ERNEUT, ist es eine neue Frage.** Der
+      // Riegel hängt an den Bedingungen, nicht am Tag — sonst bliebe die
+      // Rückfrage für diesen Tag auf immer stumm.
+      final data = backend.dataFor(backend.currentGroupId!);
+      final anna = (await data.loadPersons()).firstWhere(
+        (p) => p.name == 'Anna',
+      );
+      await data.saveCarDefaults(
+        monday,
+        anna.id,
+        const GroupDefaults(outboundTime: DayTime(4, 15)),
+      );
+      backend.tapPush();
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsOneWidget);
+      expect(find.textContaining('04:15'), findsWidgets);
+      handle.dispose();
+    });
+
+    testWidgets('ohne „Ich bin" fragt niemand nach', (tester) async {
+      // Die Zuordnung ist ein Geräte-Merkmal (#121) — ohne sie weiß der
+      // Schirm nicht, WESSEN Zusage überholt ist, und darf niemanden
+      // ansprechen. Im Demo-Modus ist sie ohnehin aus; dort entstehen die
+      // README-Screenshots.
+      final handle = tester.ensureSemantics();
+      final (backend, _) = await consentBackend();
+      await pumpApp(tester, backend, identity: DeviceIdentity.skipped);
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      await consent(tester, monday);
+      await moveDeparture(backend, monday);
+      backend.tapPush();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Andere Abfahrt'), findsNothing);
+      handle.dispose();
+    });
+  });
+
   // Sein Auto aussuchen (#199) — der wörtliche Wunsch aus #189, den Stufe B2
   // offengelassen hatte: Der Pin bestätigte bis v0.67.0 nur den Platz, den
   // die Automatik ohnehin vergeben hatte. Die Tests TIPPEN, und der

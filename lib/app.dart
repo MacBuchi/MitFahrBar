@@ -40,9 +40,16 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
     // Nachricht dieses Features handelt von einem Tag darin (Issue #101).
     // Auch aus dem kalten Start heraus, deshalb hier und nicht im Router.
     unawaited(
-      ref.read(pushTapListenerProvider)(
-        () => ref.read(routerProvider).go(pushTapRoute),
-      ),
+      ref.read(pushTapListenerProvider)(() {
+        // **Erst frische Daten, dann hinschauen** (#200). Die Plan-Provider
+        // überleben den Seitenwechsel; wer die App aus dem Hintergrund holt,
+        // sähe sonst den Stand von vorhin — ausgerechnet in dem Moment, in
+        // dem eine Meldung sagt, dass sich etwas geändert hat. Und die
+        // Rückfrage nach einer überholten Zusage könnte gar nicht wissen,
+        // dass sie überholt ist.
+        refreshPlanning(ref);
+        ref.read(routerProvider).go(pushTapRoute);
+      }),
     );
     // Und was eintrifft, während die App vorne ist, zeigt sonst niemand an
     // (siehe listenForPushMessages) — bis 0.39.0 verschwanden diese

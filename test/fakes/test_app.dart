@@ -92,7 +92,9 @@ Future<void> pumpApp(
         pushTokenProvider.overrideWithValue(
           ({required bool ask}) async => 'test-token',
         ),
-        pushTapListenerProvider.overrideWithValue((onTap) async {}),
+        pushTapListenerProvider.overrideWithValue((onTap) async {
+          backend.pushTapSink = onTap;
+        }),
         // Der Fake merkt sich den Empfänger, damit ein Test eine Nachricht
         // zustellen kann (`backend.deliverPush`). Ohne Override griffe die
         // App beim Start auf FirebaseMessaging zu.

@@ -398,8 +398,47 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       (#180: zugestellt ist nicht angezeigt); wer schweigt, bleibt
       automatisch verteilt und sieht die Abweichung an Tageszeile, Glyph
       und Banner. Das Nein kostet zwei Taps: Zell-Menü → „Dein Auto fährt
-      anders". Die nachträgliche Push-Rückfrage an bereits Eingetragene
-      (mit Deep-Link in den Planer) ist **Stufe 2 und nicht gebaut**.
+      anders".
+    - **Und noch einmal, wenn die zugesagte Abfahrt sich verschiebt**
+      (#200, seit v0.69.0 — Stufe 2). Die veraltete Zusage wirkt schon
+      seit v0.67.0 nicht mehr; was fehlte, war der Anstoß. Beim Ankommen
+      im Planer wird neu gefragt.
+      - **Keine neue `PushKind`, und das ist der Kern.** Genau dieses
+        Ereignis ändert bereits den Digest (die anwendbare Abweichung
+        steht darin) und löst die `change`-Meldung aus — eine zweite Art
+        wäre eine zweite Nachricht zum selben Vorgang, müsste die
+        Empfängerfrage neu beantworten und bräuchte ein Gegenstück zu
+        `removedDigest` (das #127-Argument). Gefragt wird stattdessen beim
+        **Ankommen**, und das trägt weiter als ein Deep-Link: Es wirkt
+        auch, wenn die Meldung nie angezeigt wurde (#180) oder der
+        Abend-Blick abgeschaltet ist.
+      - **Ein Push-Tipp frischt die Planung auf** (`refreshPlanning`,
+        `app.dart`). Die Plan-Provider sind bewusst nicht `autoDispose`;
+        wer die App aus dem Hintergrund holt, sah sonst den Stand von
+        vorhin — ausgerechnet in dem Moment, in dem eine Meldung sagt,
+        dass sich etwas geändert hat, und die Rückfrage könnte gar nicht
+        wissen, dass sie fällig ist. Alle vier Ebenen zusammen: Ein halb
+        aufgefrischter Plan sähe aktuell aus.
+      - **Der Anlass ist die überholte Entscheidung, nicht die
+        Abweichung.** Wer nie etwas entschieden hat, wird weiterhin nur
+        beim Eintragen gefragt — ihn hier anzusprechen wäre eine neue,
+        ungefragte Unterbrechung.
+      - **Der Merker gegen die Dauerschleife hängt an den BEDINGUNGEN,
+        nicht am Tag.** Nur am Tag gemerkt bliebe die Frage für diesen Tag
+        auf immer stumm, sobald einmal weggetippt wurde; ohne Merker
+        stünde sie nach jedem Push-Tipp wieder da (der lädt ja neu). Rot
+        verifiziert in **beide** Richtungen. Er lebt nur im Speicher: Beim
+        nächsten Start ist die Frage wieder offen, und das ist richtig —
+        die Abfahrt ist es auch.
+      - **Ohne „Ich bin" fragt niemand nach.** Ohne die Geräte-Zuordnung
+        (#121) ist nicht bekannt, WESSEN Zusage überholt ist; im
+        Demo-Modus ist sie ohnehin aus, dort entstehen die
+        README-Screenshots.
+      - **Bekannte Grenze:** Die Zusage hängt an der **Auto**-Abweichung.
+        Bei nur EINEM Auto schreibt der Zeiten-Schirm bewusst die
+        Tages-Ebene (`_editDay`) — dort entsteht also gar keine Zusage und
+        folglich auch keine Rückfrage. Wer das ändern will, ändert #189,
+        nicht #200.
     - **Ohne Entscheidungen rechnet `planWeek` bitgleich wie vorher** —
       per Test festgenagelt. Daran hängt auch der Soak-Report
       (`doc/entscheidung-mitfahrer-verteilung.md`): Er misst die

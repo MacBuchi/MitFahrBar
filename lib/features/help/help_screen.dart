@@ -253,10 +253,18 @@ class HelpScreen extends StatelessWidget {
                     'diesem Auto sicher; mit „Nein, so nicht" fährst du dort '
                     'nicht mit, und es wird ein weiteres Auto eingeplant. '
                     'Umentscheiden geht jederzeit über das Menü deines '
-                    'Feldes. Dein Ja gilt für genau die Zeit, der du '
-                    'zugestimmt hast — ändert sie sich, wirst du neu '
-                    'gefragt. Und wollen mehr in ein Auto, als hineinpassen, '
+                    'Feldes. Und wollen mehr in ein Auto, als hineinpassen, '
                     'sitzt drin, wer zuerst zugesagt hat.',
+              ),
+              _Line(
+                text:
+                    'Dein Ja gilt für genau die Zeit, der du zugestimmt '
+                    'hast. Verschiebt dein Fahrer die Abfahrt danach noch '
+                    'einmal, fragt MitFahrBar dich beim nächsten Öffnen des '
+                    'Wochenplans neu — auch wenn du über die '
+                    'Benachrichtigung hereinkommst. Bis du antwortest, wirst '
+                    'du wie alle anderen automatisch verteilt; wegtippen '
+                    'entscheidet also nichts und kostet nichts.',
               ),
               _Line(
                 leading: Icon(Icons.groups_outlined),
