@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.70.1] – 2026-08-08
+
+### Intern
+
+- **Für die Gruppen ändert sich nichts Sichtbares.** Die Android-Bauakte
+  hält jetzt zwei Einstellungen fest, die das Flutter-Werkzeug bisher bei
+  jedem Bau neu ergänzt hat. Damit bauen der Rechner des Entwicklers und
+  der Server nachweislich dasselbe — vorher lagen sie drei Versionen
+  auseinander, ohne dass es auffiel.
+
 ## [0.70.0] – 2026-08-08
 
 ### Geändert
