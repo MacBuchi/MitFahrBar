@@ -258,13 +258,21 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
-                    'Dein Ja gilt für genau die Zeit, der du zugestimmt '
-                    'hast. Verschiebt dein Fahrer die Abfahrt danach noch '
-                    'einmal, fragt MitFahrBar dich beim nächsten Öffnen des '
-                    'Wochenplans neu — auch wenn du über die '
-                    'Benachrichtigung hereinkommst. Bis du antwortest, wirst '
-                    'du wie alle anderen automatisch verteilt; wegtippen '
-                    'entscheidet also nichts und kostet nichts.',
+                    'Wegtippen zählt als Zusage — wer nicht ablehnt, fährt '
+                    'mit. So bleibt es bei einem Auto, solange niemand '
+                    'widerspricht. Dein Ja gilt aber für genau die Zeit, der '
+                    'du zugestimmt hast: Verschiebt dein Fahrer die Abfahrt '
+                    'danach noch einmal, fragt MitFahrBar dich beim nächsten '
+                    'Öffnen des Wochenplans neu — auch wenn du über die '
+                    'Benachrichtigung hereinkommst.',
+              ),
+              _Line(
+                text:
+                    'Sagt jemand ab, braucht es für ihn ein zweites Auto. '
+                    'Dieser Fahrer lässt sich unter „Fahrer ändern" dann '
+                    'nicht abwählen; dort steht, wer ihn braucht. Wer das '
+                    'zweite Auto loswerden will, spricht mit dieser Person — '
+                    'sagt sie doch zu, verschwindet es von selbst.',
               ),
               _Line(
                 leading: Icon(Icons.groups_outlined),

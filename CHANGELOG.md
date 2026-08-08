@@ -4,6 +4,32 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.70.0] – 2026-08-08
+
+### Geändert
+
+- **Wegtippen zählt jetzt als Zusage.** Fragt MitFahrBar dich, ob die
+  abweichende Abfahrt deines Autos passt, und du tippst die Frage weg, gilt
+  das als „ja" — du fährst mit, und es bleibt bei einem Auto. Nur ein
+  ausdrückliches „Nein, so nicht" plant ein weiteres ein.
+
+  Das klingt nach einer Kleinigkeit und war eine Lücke: Vorher wurde beim
+  Wegtippen **nichts** gemerkt. Verschob dein Fahrer die Abfahrt später
+  noch einmal — von 05:30 auf 04:00 —, fand die Rückfrage nichts, was
+  veraltet wäre, und schwieg. Du wurdest mitgezogen, ohne je zugestimmt zu
+  haben. Jetzt wirst du gefragt, weil deine stille Zusage der alten Zeit
+  galt.
+
+### Behoben
+
+- **„Fahrer ändern" verwirft keine Eingabe mehr stillschweigend.** Wenn ein
+  zweites Auto nur deshalb existiert, weil jemand abgesagt hat, ließ sich
+  dessen Fahrer bisher abwählen — die Planung setzte ihn im selben Moment
+  zurück, ohne ein Wort. Jetzt ist der Haken fest, und daneben steht, wer
+  ihn braucht: „wird gebraucht — Bert fährt sonst nicht mit". Wer das zweite
+  Auto loswerden will, spricht mit dieser Person; sagt sie doch zu,
+  verschwindet es von selbst.
+
 ## [0.69.0] – 2026-08-08
 
 ### Neu

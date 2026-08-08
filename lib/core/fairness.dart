@@ -490,6 +490,7 @@ class PlannedDay {
     this.suggestedDriverIds = const [],
     this.cars = const [],
     this.confirmed = false,
+    this.forcedFor = const {},
   });
 
   final DateTime date;
@@ -512,6 +513,19 @@ class PlannedDay {
   /// Für diesen Tag existiert bereits mindestens eine echte Fahrt. Dann ist
   /// nichts mehr zu planen und der Tag zählt regulär in die Statistik.
   final bool confirmed;
+
+  /// Fahrer, die **nur** wegen einer Absage im Satz stehen — Fahrer → die
+  /// Personen, die ihn brauchen (#203).
+  ///
+  /// Berechnet wie alles hier, nie gespeichert. Der Umschalter „Wer fährt?"
+  /// liest sie, um eine Abwahl gar nicht erst anzubieten, die die Rechnung
+  /// im selben Atemzug überstimmen würde: Wer „zu diesen Bedingungen nicht"
+  /// gesagt hat, braucht ein anderes Auto, und das nimmt ihm niemand nebenbei
+  /// weg. Bis v0.69.0 verschwand die Abwahl kommentarlos.
+  ///
+  /// Leer ist der Normalfall — die Zusatzautos aus reiner Platznot stehen
+  /// **nicht** darin, die sind eine Kapazitätsfrage und frei abwählbar.
+  final Map<String, List<String>> forcedFor;
 
   /// Alle Fahrer des Tages, in Auto-Reihenfolge.
   List<String> get driverIds => [for (final car in cars) car.driverId];
@@ -893,6 +907,11 @@ List<PlannedDay> planWeek({
     // sich niemand, bleibt die Person unplatziert — eine ehrliche Grenze,
     // kein stilles Hineinsetzen in ein Auto, dem sie abgesagt hat.
     driverSet = [...driverSet];
+    // Wer nur deshalb fährt — Fahrer → die Personen, die ihn brauchen (#203).
+    // Ohne diese Notiz kann der Umschalter „Wer fährt?" nicht unterscheiden,
+    // ob eine Abwahl gewirkt hat oder von der Rechnung sofort überstimmt
+    // wurde; bis v0.69.0 verwarf er sie stillschweigend.
+    final forcedFor = <String, List<String>>{};
     while (true) {
       final blocked = [
         for (final id in available)
@@ -917,6 +936,12 @@ List<PlannedDay> planWeek({
         }
       }
       if (extra == null) break;
+      forcedFor[extra] = [
+        for (final p in blocked)
+          if (p == extra ||
+              !(excludedBy[p] ?? const <String>{}).contains(extra))
+            p,
+      ];
       driverSet.add(extra);
     }
     // An einem Vorschlags-Tag ist das Zusatzauto Teil des VORSCHLAGS — der
@@ -996,6 +1021,7 @@ List<PlannedDay> planWeek({
         oneWayIds: oneWayIds,
         suggestedDriverIds: suggested,
         cars: cars,
+        forcedFor: forcedFor,
       ),
     );
 

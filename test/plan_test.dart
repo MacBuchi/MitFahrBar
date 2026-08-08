@@ -1310,6 +1310,43 @@ void main() {
       );
     });
 
+    test('das Zusatzauto ist als erzwungen markiert — Platznot nicht', () {
+      // Der Umschalter „Wer fährt?" muss beides unterscheiden können (#203):
+      // Ein Fahrer, den eine Absage erzwingt, ist nicht abwählbar (die
+      // Rechnung setzte ihn sofort zurück); ein Fahrer, der nur wegen der
+      // Sitzplätze dazukam, sehr wohl.
+      final forced = planDay(
+        rides: ride({'a', 'b', 'c'}),
+        seats: const {'a': 5, 'b': 5, 'c': 5},
+        choices: [choice('c', 'a', accepted: false)],
+      );
+      expect(forced.driverIds, hasLength(2));
+      expect(
+        forced.forcedFor.keys,
+        [forced.driverIds.last],
+        reason: 'Nur der Zusatzfahrer steht drin, nicht der erste.',
+      );
+      expect(
+        forced.forcedFor[forced.driverIds.last],
+        ['c'],
+        reason: 'Und wer ihn braucht — das ist der Text am Eintrag.',
+      );
+
+      // Zwei Autos aus reiner Kapazität: nichts erzwungen, alles abwählbar.
+      final tight = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 2, 'b': 2, 'c': 2, 'd': 2},
+      );
+      expect(tight.driverIds, hasLength(2));
+      expect(
+        tight.forcedFor,
+        isEmpty,
+        reason:
+            'Platznot ist eine Kapazitätsfrage, keine Absage — hier darf '
+            'der Umschalter alles.',
+      );
+    });
+
     test('ohne möglichen Zusatzfahrer bleibt die Person sichtbar draußen', () {
       // b (1-way, kann nicht fahren) lehnt das einzige Auto ab, und außer a
       // kann niemand fahren: Es gibt kein Auto für b. Sichtbar draußen ist

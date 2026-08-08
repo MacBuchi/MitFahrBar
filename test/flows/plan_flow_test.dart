@@ -1889,8 +1889,16 @@ void main() {
       final bert = await data.createPerson(
         const Person(id: '', name: 'Bert', active: true),
       );
+      // Clara ist dabei, damit ein Nein überhaupt jemanden zum Fahren übrig
+      // lässt — sonst wäre der Ersatzfahrer Bert selbst, und die Begründung
+      // am gesperrten Eintrag läse „Bert wird gebraucht, Bert fährt sonst
+      // nicht mit".
+      final clara = await data.createPerson(
+        const Person(id: '', name: 'Clara', active: true),
+      );
       final monday = planningWeek(testToday).first;
       await data.setAvailability(monday, anna.id, PlanRide.full);
+      await data.setAvailability(monday, clara.id, PlanRide.full);
       await data.saveCarDefaults(
         monday,
         anna.id,
@@ -2004,12 +2012,15 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('wer wegtippt, wird nicht in Dauerschleife gefragt', (
+    testWidgets('Wegtippen ist eine Zusage — und fragt nicht wieder', (
       tester,
     ) async {
-      // „Wegtippen entscheidet nichts" (#189) heißt: automatisch verteilt
-      // bleiben — nicht bei jedem Neuaufbau des Schirms erneut gefragt
-      // werden. Ohne den Merker wäre die Rückfrage eine Falle.
+      // **Opt-out** (entschieden 08.08.): Wer nicht ablehnt, ist zugesagt.
+      // Vorher schrieb ein Wegtippen gar nichts, und die Folge war still und
+      // teuer — bei der nächsten Verschiebung fand die Rückfrage nichts
+      // Veraltetes und schwieg, die Person wurde mitgezogen. Beide Hälften
+      // hängen an diesem Test: die abgelegte Zusage UND dass sie die Frage
+      // beruhigt, ohne dass es dafür einen Merker im Schirm braucht.
       final handle = tester.ensureSemantics();
       final (backend, bertId) = await consentBackend();
       await pumpApp(
@@ -2031,21 +2042,33 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Andere Abfahrt'), findsNothing);
 
-      // Jeder weitere Tipp lädt den Plan neu — ohne Riegel stünde die Frage
-      // damit sofort wieder da, und zwar unbegrenzt oft.
+      final afterDismiss = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadSeatChoices(monday, days: 1);
+      expect(
+        afterDismiss[monday]?.single.accepted,
+        isTrue,
+        reason: 'Wer nicht ablehnt, ist zugesagt — das gehört in die Ablage.',
+      );
+      expect(
+        afterDismiss[monday]?.single.terms,
+        '05:30||',
+        reason: 'Und zwar zu den Bedingungen, die auf dem Schirm standen.',
+      );
+
+      // Jeder weitere Tipp lädt den Plan neu. Die Frage bleibt trotzdem
+      // weg — nicht durch einen Merker im Schirm, sondern weil jetzt eine
+      // gültige Entscheidung in der Ablage steht.
       backend.tapPush();
       await tester.pumpAndSettle();
       expect(
         find.text('Andere Abfahrt'),
         findsNothing,
-        reason:
-            'Ein Wegtippen bleibt eine Nicht-Entscheidung, keine Einladung '
-            'zur Dauerschleife.',
+        reason: 'Eine beantwortete Frage kommt nicht zurück.',
       );
 
-      // **Verschiebt der Fahrer aber ERNEUT, ist es eine neue Frage.** Der
-      // Riegel hängt an den Bedingungen, nicht am Tag — sonst bliebe die
-      // Rückfrage für diesen Tag auf immer stumm.
+      // **Verschiebt der Fahrer aber ERNEUT, ist es eine neue Frage.** Die
+      // Zusage galt 05:30 und gilt für 04:15 nicht.
       final data = backend.dataFor(backend.currentGroupId!);
       final anna = (await data.loadPersons()).firstWhere(
         (p) => p.name == 'Anna',
@@ -2059,6 +2082,65 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Andere Abfahrt'), findsOneWidget);
       expect(find.textContaining('04:15'), findsWidgets);
+      handle.dispose();
+    });
+
+    testWidgets('ein erzwungenes Auto ist im Umschalter gesperrt (#203)', (
+      tester,
+    ) async {
+      // Gemeldet am 08.08.: Das Abwählen des zweiten Fahrers wirkte nicht.
+      // Es KONNTE nicht wirken — jemand hat dem ersten Auto abgesagt und
+      // muss irgendwo sitzen, also setzt die Rechnung den Fahrer sofort
+      // zurück. Der Dialog nahm die Anweisung trotzdem an und verwarf sie
+      // stumm; das ist die Klasse „toter Knopf" aus 0.37.0. Jetzt steht der
+      // Grund am Eintrag, und abwählen geht gar nicht erst.
+      final handle = tester.ensureSemantics();
+      final (backend, bertId) = await consentBackend();
+      final monday = planningWeek(testToday).first;
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: bertId, asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+
+      // Bert lehnt Annas Abfahrt ab — das erzwingt ein zweites Auto.
+      await tester.tap(_cell('Bert', monday));
+      await tester.pumpAndSettle();
+      expect(find.text('Andere Abfahrt'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Fahrer ändern').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Wer fährt?'), findsOneWidget);
+
+      final forced = tester
+          .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+          .where((t) => t.onChanged == null)
+          .toList();
+      expect(
+        forced,
+        hasLength(1),
+        reason:
+            'Genau ein Fahrer steht nur wegen der Absage im Satz — und der '
+            'ist nicht abwählbar.',
+      );
+      expect(
+        find.textContaining('wird gebraucht — Bert fährt sonst nicht mit'),
+        findsOneWidget,
+        reason:
+            '„Ausgegraut" allein sagt nicht, warum — und schon gar nicht, '
+            'mit wem man reden muss.',
+      );
+
+      // Und die Gegenprobe im selben Dialog: Annas Auto hat niemand
+      // erzwungen, es bleibt abwählbar.
+      final free = tester
+          .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+          .where((t) => t.onChanged != null);
+      expect(free, isNotEmpty);
       handle.dispose();
     });
 
