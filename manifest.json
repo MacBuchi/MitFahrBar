@@ -1,0 +1,35 @@
+{
+    "name": "MitFahrBar",
+    "short_name": "MitFahrBar",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#06171C",
+    "theme_color": "#0F7F98",
+    "description": "Die faire App für eure Fahrgemeinschaft — Fahrten dokumentieren, Punkte zählen, wissen wer als Nächstes dran ist.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
