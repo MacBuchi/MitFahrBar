@@ -60,24 +60,16 @@ class _Content extends ConsumerStatefulWidget {
 }
 
 class _ContentState extends ConsumerState<_Content> {
-  /// Was in dieser Sitzung schon einmal auf dem Schirm stand — Tag **und
-  /// Bedingungen** (#200).
-  ///
-  /// **Ein Wegtippen darf nicht in eine Endlosschleife führen.** „Wegtippen
-  /// entscheidet nichts" (#189) heißt: automatisch verteilt bleiben, nicht
-  /// bei jedem Neuladen des Plans erneut gefragt werden — und ein Push-Tipp
-  /// lädt neu.
-  ///
-  /// **Geschlüsselt an den Bedingungen, nicht am Tag**, aus demselben Grund,
-  /// aus dem eine Zusage an ihnen hängt: Verschiebt der Fahrer die Abfahrt
-  /// ein zweites Mal, ist das eine neue Frage und muss durchkommen. Nur am
-  /// Tag gemerkt bliebe sie für immer stumm.
-  ///
-  /// Der Merker lebt nur im Speicher: Beim nächsten Start ist die Frage
-  /// wieder offen, und das ist richtig — die Abfahrt ist es auch.
-  final _asked = <String>{};
-
   /// Solange ein Dialog offen ist, stößt kein Neuaufbau einen zweiten an.
+  ///
+  /// Der Merker gegen eine Dauerschleife, den v0.69.0 hier noch hatte, ist
+  /// mit dem Opt-out (08.08.) **entfallen**: Seit ein Wegtippen selbst eine
+  /// Zusage zu den aktuellen Bedingungen ablegt, findet die Rückfrage danach
+  /// nichts Veraltetes mehr und schweigt von allein. Er wurde nicht
+  /// „aufgeräumt", sondern unerreichbar — sein Test konnte nicht mehr rot
+  /// werden, und ein Riegel, der nicht mehr fehlschlagen kann, ist keiner.
+  /// Bleibt der Schreib stecken, wird beim nächsten Mal wieder gefragt, und
+  /// das ist richtig: Beantwortet wurde dann nichts.
   var _asking = false;
 
   @override
@@ -132,21 +124,15 @@ class _ContentState extends ConsumerState<_Content> {
           )
           .isNotEmpty;
       if (!stale) continue;
-      // Die Bedingungen, um die es ginge — dieselbe Frage, die die Rückfrage
-      // gleich stellt. Stand sie schon einmal auf dem Schirm, bleibt es
-      // dabei.
-      final car = carOf(day, me.id);
-      final key =
-          '${day.date}|${termsOf(car == null ? null : dayCars[car.driverId])}';
-      if (_asked.contains(key)) continue;
       _asking = true;
       try {
         // Die Rückfrage selbst entscheidet, ob es etwas zu fragen GIBT: Sitzt
         // die Person inzwischen in einem Auto ohne Abweichung, ist die
         // überholte Zeile einfach gegenstandslos und niemand wird behelligt.
-        // Sie meldet zurück, wonach sie gefragt hat.
-        final asked = await _maybeAskConsent(context, ref, day.date, me.id);
-        if (asked != null) _asked.add('${day.date}|$asked');
+        // Und sie legt in jedem Ausgang eine Entscheidung zu den AKTUELLEN
+        // Bedingungen ab — auch beim Wegtippen. Genau deshalb braucht es hier
+        // keinen Merker: Beim nächsten Durchlauf ist nichts mehr veraltet.
+        await _maybeAskConsent(context, ref, day.date, me.id);
       } finally {
         _asking = false;
       }
@@ -971,10 +957,7 @@ String _deviationSentence(GroupDefaults deviation) {
 /// Gefragt wird nur, wenn es etwas zu fragen gibt: Das eigene Auto trägt
 /// eine Abweichung, man fährt nicht selbst, und es liegt noch keine
 /// Entscheidung zu genau diesen Bedingungen vor.
-/// Gibt die **Bedingungen** zurück, zu denen gefragt wurde — oder `null`,
-/// wenn es nichts zu fragen gab. Die nachträgliche Rückfrage (#200) merkt
-/// sich daran, was schon einmal auf dem Schirm stand.
-Future<String?> _maybeAskConsent(
+Future<void> _maybeAskConsent(
   BuildContext context,
   WidgetRef ref,
   DateTime date,
@@ -989,13 +972,13 @@ Future<String?> _maybeAskConsent(
       .value
       ?.where((d) => d.date == date)
       .firstOrNull;
-  if (day == null || day.confirmed) return null;
+  if (day == null || day.confirmed) return;
   final car = carOf(day, personId);
-  if (car == null || car.driverId == personId) return null;
+  if (car == null || car.driverId == personId) return;
   final deviation = ref
       .read(weekCarDefaultsProvider)
       .value?[date]?[car.driverId];
-  if (deviation == null || deviation.isEmpty) return null;
+  if (deviation == null || deviation.isEmpty) return;
   final terms = termsOf(deviation);
   // Aus dem Notifier, nicht aus einem eigenen Provider: Dort liegt die
   // Kopie, mit der gerechnet wird — samt der eben optimistisch
@@ -1004,12 +987,12 @@ Future<String?> _maybeAskConsent(
   final existing = ref
       .read(weekPlanProvider.notifier)
       .seatChoiceFor(date, personId, car.driverId);
-  if (!force && existing != null && existing.isCurrentFor(terms)) return null;
+  if (!force && existing != null && existing.isCurrentFor(terms)) return;
 
   final carNumber = day.cars.length < 2
       ? null
       : (carIndexOf(day, personId) ?? 0) + 1;
-  final accepted = await showDialog<bool>(
+  final answer = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(
@@ -1028,7 +1011,20 @@ Future<String?> _maybeAskConsent(
       ],
     ),
   );
-  if (accepted == null) return terms;
+  // **Wer nicht ablehnt, ist zugesagt** (entschieden 08.08., Opt-out). Bis
+  // v0.69.0 schrieb ein Wegtippen gar nichts — die Person saß im
+  // abweichenden Auto, ohne dass eine Entscheidung in der Ablage stand. Die
+  // Folge war still und teuer: Verschob der Fahrer später von 05:30 auf
+  // 04:00, fand die nachträgliche Rückfrage (#200) nichts Veraltetes und
+  // fragte NICHT — die Person wurde mitgezogen, ohne je zugestimmt zu haben.
+  //
+  // Das kippt „nie per Schweigen entschieden" (#189) nicht, sondern
+  // schärft es: Schweigen erzeugt weiterhin **kein zweites Auto** — das war
+  // der Schaden, vor dem die Regel schützen sollte. Es hält die Person
+  // dort, wo sie ohnehin säße, und macht sie nur ansprechbar, wenn sich die
+  // Bedingungen ändern. Ein ausdrückliches Nein bleibt das Einzige, was
+  // etwas umwirft.
+  final accepted = answer ?? true;
 
   try {
     await ref
@@ -1052,7 +1048,6 @@ Future<String?> _maybeAskConsent(
       const SnackBar(content: Text('Speichern fehlgeschlagen.')),
     );
   }
-  return terms;
 }
 
 /// Was aus dem Zell-Menü zurückkommt (#183).
@@ -1707,6 +1702,14 @@ class _DayRow extends ConsumerWidget {
   bool _confirmable(WidgetRef ref) =>
       canConfirmPlan(day.date, ref.read(nowProvider)());
 
+  /// „Clara", „Clara und David" — für den Grund am gesperrten Fahrer (#203).
+  static String _names(List<String> ids, Map<String, Person> byId) {
+    final names = [for (final id in ids) byId[id]?.name ?? id]..sort();
+    return names.length == 1
+        ? names.single
+        : '${names.sublist(0, names.length - 1).join(', ')} und ${names.last}';
+  }
+
   Future<void> _pickDrivers(BuildContext context, WidgetRef ref) async {
     // 1-way-Personen stellen kein Auto — sie stehen gar nicht erst zur Wahl.
     // (Bisher standen sie im Dialog und die Auswahl verfiel still in
@@ -1733,15 +1736,32 @@ class _DayRow extends ConsumerWidget {
                 for (final id in candidates)
                   CheckboxListTile(
                     value: selected.contains(id),
-                    onChanged: (checked) => setState(() {
-                      if (checked ?? false) {
-                        selected.add(id);
-                      } else {
-                        selected.remove(id);
-                      }
-                    }),
+                    // **Wer nur wegen einer Absage fährt, ist nicht
+                    // abwählbar** (#203). Die Abwahl wäre folgenlos: Die
+                    // Rechnung setzt ihn im selben Atemzug zurück, weil
+                    // jemand seinem Auto abgesagt hat und irgendwo sitzen
+                    // muss. Bis v0.69.0 nahm der Dialog die Anweisung an und
+                    // verwarf sie stumm — dieselbe Klasse wie der tote
+                    // Update-Knopf in 0.37.0. Der Weg dahin führt über die
+                    // Person, die abgesagt hat, nicht über den Planer.
+                    onChanged: day.forcedFor.containsKey(id)
+                        ? null
+                        : (checked) => setState(() {
+                            if (checked ?? false) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
                     title: Text(byId[id]?.name ?? id),
-                    subtitle: Text('${byId[id]?.seats ?? defaultSeats} Plätze'),
+                    subtitle: Text(switch (day.forcedFor[id]) {
+                      final needed? when needed.isNotEmpty =>
+                        'wird gebraucht — '
+                            '${_names(needed, byId)} '
+                            '${needed.length == 1 ? 'fährt' : 'fahren'} '
+                            'sonst nicht mit',
+                      _ => '${byId[id]?.seats ?? defaultSeats} Plätze',
+                    }),
                   ),
                 const SizedBox(height: AppSpacing.s),
                 // Live-Rechnung statt Sperre: Zu klein wählen bleibt

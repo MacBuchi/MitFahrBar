@@ -338,6 +338,33 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       dauerhaft zwei Autos wegen einer Zeit, die es nicht mehr gibt).
       Aufgeräumt wird nichts: verwaiste Zeilen wirken nicht, wie bei
       `plan_car_defaults`.
+    - **Ein erzwungener Fahrer ist im Umschalter gesperrt, nicht abwählbar**
+      (#203, seit v0.70.0; `PlannedDay.forcedFor`). Gemeldet als „das
+      Zurücknehmen des zweiten Fahrers wirkt nicht" — es *konnte* nicht
+      wirken: Wer abgesagt hat, muss irgendwo sitzen, also setzt `planWeek`
+      den Fahrer im selben Atemzug zurück. Der Dialog nahm die Anweisung
+      trotzdem an und verwarf sie stumm, die Klasse „toter Knopf" aus
+      0.37.0. Drei Dinge daran:
+      - **`forcedFor` ist berechnet, nie gespeichert** — wie der
+        Fahrer-Vorschlag selbst. Es hält Fahrer → wer ihn braucht, damit am
+        Eintrag der Name steht: „wird gebraucht — Bert fährt sonst nicht
+        mit". „Ausgegraut" allein sagt nicht, mit wem man reden muss.
+      - **Nur Absage-Zwang, nicht Platznot.** Zwei Autos aus Kapazität sind
+        eine Kapazitätsfrage und bleiben frei abwählbar; `forcedFor` ist
+        dort leer. Beide Richtungen nagelt `test/plan_test.dart` fest.
+      - **Der Weg hinaus führt über die Person, nicht über den Planer.** Die
+        Absage mit abzuwählen wäre der eine Weg, der nicht in Frage kommt:
+        Ein Dritter überstimmte damit still die Entscheidung eines
+        Mitfahrers über seine eigene Fahrt — genau das, wogegen #189 gebaut
+        wurde. Sagt die Person doch zu (Zell-Menü oder „Mit wem fahren?"),
+        verschwindet das Auto von selbst; ist sie nicht mehr verfügbar oder
+        ihre Absage veraltet, ebenso. Ein Weg bleibt also immer offen.
+      - **Der Spezialfahrer selbst ist davon nicht betroffen**, und das ist
+        gemessen: Nimmt man IHN zurück, fallen seine Mitfahrer auf die
+        Standardzeit zurück und es entsteht **kein** Ersatzauto — seine
+        Abweichung existiert nicht mehr, also auch die Absage dagegen
+        nicht. Wer hier „aufräumt" und Entscheidungen löscht, nimmt sich
+        die Rückkehr: Kommt er wieder, gelten sie wieder.
     - **Wer zuerst gepinnt hat, bleibt** (`decided_at`). Der Nachrang
       fällt in die automatische Verteilung — nicht aus dem Tag und nicht
       dauerhaft aus dem Wunsch-Auto. `decided_at` geht damit in die
@@ -392,13 +419,32 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         Auto sitzen ohnehin alle darin, und ein Fahrer sitzt in seinem
         eigenen. Wer in **keinem** Auto sitzt (allen abgesagt), behält den
         Eintrag — er ist der Weg zurück.
-    - **Gefragt wird am offenen Dialog, nie per Schweigen entschieden.**
+    - **Gefragt wird am offenen Dialog, nie per Schweigen ein zweites Auto.**
       Die Rückfrage kommt beim Eintragen — dort steht die Person vor dem
       Gerät. Ein nicht beantworteter Push darf den Plan nicht sprengen
-      (#180: zugestellt ist nicht angezeigt); wer schweigt, bleibt
-      automatisch verteilt und sieht die Abweichung an Tageszeile, Glyph
-      und Banner. Das Nein kostet zwei Taps: Zell-Menü → „Dein Auto fährt
-      anders".
+      (#180: zugestellt ist nicht angezeigt). Das Nein kostet zwei Taps:
+      Zell-Menü → „Dein Auto fährt anders".
+      - **Seit v0.70.0 gilt Opt-out: Wer nicht ablehnt, ist zugesagt**
+        (entschieden 08.08., `answer ?? true`). Das **revidiert** „Wegtippen
+        entscheidet nichts", und zwar auf dieselbe Weise wie die
+        Spritpreis- und die Anmerkungs-Revision: Der Grund fiel weg, nicht
+        die Regel war falsch. Getragen hatte sie „ein Schweigen darf keinen
+        Plan sprengen" — und das gilt weiter, denn Schweigen erzeugt nach
+        wie vor **kein zweites Auto**; es hält die Person dort, wo sie
+        ohnehin säße. Was daran teuer war, war die leere Ablage: Ohne Zeile
+        fand die nachträgliche Rückfrage (#200) nichts Veraltetes und
+        **schwieg**, wenn der Fahrer später von 05:30 auf 04:00 ging — die
+        Person wurde mitgezogen, ohne je zugestimmt zu haben. Genau der
+        Schaden, den #189 verhindern sollte, durch die Hintertür.
+        Nebeneffekt, der die Gruppe freut: weniger Autos (Opt-out spart
+        CO₂).
+      - **Der Dauerschleifen-Merker aus v0.69.0 ist damit entfallen** — und
+        zwar weil er *unerreichbar* wurde, nicht weil er störte: Seit jeder
+        Ausgang des Dialogs eine gültige Entscheidung ablegt, schweigt die
+        Rückfrage von allein. Sein Test konnte nicht mehr rot werden, und
+        ein Riegel, der nicht mehr fehlschlagen kann, ist keiner. Bleibt
+        der Schreib stecken, wird wieder gefragt — richtig so, beantwortet
+        wurde dann nichts.
     - **Und noch einmal, wenn die zugesagte Abfahrt sich verschiebt**
       (#200, seit v0.69.0 — Stufe 2). Die veraltete Zusage wirkt schon
       seit v0.67.0 nicht mehr; was fehlte, war der Anstoß. Beim Ankommen
@@ -423,13 +469,12 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         Abweichung.** Wer nie etwas entschieden hat, wird weiterhin nur
         beim Eintragen gefragt — ihn hier anzusprechen wäre eine neue,
         ungefragte Unterbrechung.
-      - **Der Merker gegen die Dauerschleife hängt an den BEDINGUNGEN,
-        nicht am Tag.** Nur am Tag gemerkt bliebe die Frage für diesen Tag
-        auf immer stumm, sobald einmal weggetippt wurde; ohne Merker
-        stünde sie nach jedem Push-Tipp wieder da (der lädt ja neu). Rot
-        verifiziert in **beide** Richtungen. Er lebt nur im Speicher: Beim
-        nächsten Start ist die Frage wieder offen, und das ist richtig —
-        die Abfahrt ist es auch.
+      - **Gegen die Dauerschleife schützt die Ablage, nicht ein Merker im
+        Schirm** (seit v0.70.0). v0.69.0 hatte dafür ein `_asked` am
+        `_ContentState`; mit dem Opt-out legt jeder Dialog-Ausgang eine
+        gültige Entscheidung ab, und `_maybeAskConsent` steigt beim nächsten
+        Durchlauf von selbst aus. Wer den Merker wieder einführt, verdeckt
+        damit nur, dass das Schreiben nicht ankommt.
       - **Ohne „Ich bin" fragt niemand nach.** Ohne die Geräte-Zuordnung
         (#121) ist nicht bekannt, WESSEN Zusage überholt ist; im
         Demo-Modus ist sie ohnehin aus, dort entstehen die
