@@ -1513,9 +1513,22 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Doku-, CI-, Test- oder Tooling-Arbeit soll kein Release auslösen.
 - **Zu jedem Versions-Bump gehört ein `CHANGELOG.md`-Eintrag** (Nutzersicht,
   Deutsch: was ändert sich für die Gruppen — nicht die Commit-Liste).
-- Flutter-Version in CI gepinnt (3.41.2) — bei lokalem Upgrade auch
+- Flutter-Version in CI gepinnt (3.44.8) — bei lokalem Upgrade auch
   `.github/workflows/*.yml` anpassen. Lokales SDK:
   `/Volumes/MacStore/Programming/Flutter/SDK/flutter`.
+  **Es sind SECHS Dateien** (`ci`, `release`, `notify`, `screenshots`,
+  `security`, `usage-report`), und alle sechs halten den Wert jetzt als
+  `env: FLUTTER_VERSION`. In `security.yml` stand er bis 08.08. als Literal
+  am Job — genau so entsteht ein halber Drift: Wer nach dem Muster der
+  anderen fünf sucht, findet die sechste nicht. Am 08.08. war der Abstand
+  auf drei Minor angewachsen (lokal 3.44.8, CI 3.41.2); getestet wurde
+  damit auf einer anderen Toolchain als ausgeliefert. **Der Pin ist
+  release-frei** (`.github/` steht in den Guard-Ausnahmen) — er kostet also
+  nichts außer dem Nachziehen, und liegen zu bleiben ist der eigentliche
+  Preis. Der `android/gradle.properties`-Migrator hängt daran: Auf der
+  neueren Toolchain schreibt `flutter build` dort
+  `android.builtInKotlin=false` und `android.newDsl=false` zurück, sobald
+  sie fehlen.
 - **Zum Ausprobieren in der echten App:** `.claude/skills/run-web/SKILL.md`
   (Demo-Build → lokal ausliefern → Playwright). Flutter-Web zeichnet auf
   Canvas, es gibt also keinen DOM-Text — geprüft wird über Screenshots, die
