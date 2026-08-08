@@ -766,6 +766,27 @@ final weekNotesProvider = FutureProvider<Map<DateTime, List<PlanNote>>>((
   return byDay;
 });
 
+/// Die Wochenplanung frisch vom Server holen (#200).
+///
+/// **Der Grund ist ein Tipp auf eine Benachrichtigung.** Die Plan-Provider
+/// sind bewusst nicht `autoDispose` — sie überleben den Seitenwechsel, damit
+/// der Planer nicht bei jedem Öffnen lädt. Der Preis: Wer die App aus dem
+/// Hintergrund holt, sieht den Stand von vorhin. Genau dann ist die Meldung
+/// „Änderung" aber gerade eingetroffen, und der Plan darunter zeigte die
+/// Abfahrt, die es nicht mehr gibt — die Nachricht widerspräche dem Schirm,
+/// den sie öffnet.
+///
+/// **Alle vier Ebenen zusammen**, weil eine Planänderung jede von ihnen
+/// betreffen kann und ein halb aufgefrischter Plan schlechter ist als ein
+/// ganz alter: Er sähe aktuell aus.
+void refreshPlanning(WidgetRef ref) {
+  ref
+    ..invalidate(weekPlanProvider)
+    ..invalidate(weekPlanDefaultsProvider)
+    ..invalidate(weekCarDefaultsProvider)
+    ..invalidate(weekNotesProvider);
+}
+
 /// Hält den Ausgangskorb (#132) am Stand der Dinge.
 ///
 /// **Warum ein Zuhörer und keine Aufrufe an den Mutationsstellen.** Der Text

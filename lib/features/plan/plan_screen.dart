@@ -49,14 +49,122 @@ class PlanScreen extends ConsumerWidget {
   }
 }
 
-class _Content extends ConsumerWidget {
+class _Content extends ConsumerStatefulWidget {
   const _Content({required this.days, required this.persons});
 
   final List<PlannedDay> days;
   final List<Person> persons;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Content> createState() => _ContentState();
+}
+
+class _ContentState extends ConsumerState<_Content> {
+  /// Was in dieser Sitzung schon einmal auf dem Schirm stand — Tag **und
+  /// Bedingungen** (#200).
+  ///
+  /// **Ein Wegtippen darf nicht in eine Endlosschleife führen.** „Wegtippen
+  /// entscheidet nichts" (#189) heißt: automatisch verteilt bleiben, nicht
+  /// bei jedem Neuladen des Plans erneut gefragt werden — und ein Push-Tipp
+  /// lädt neu.
+  ///
+  /// **Geschlüsselt an den Bedingungen, nicht am Tag**, aus demselben Grund,
+  /// aus dem eine Zusage an ihnen hängt: Verschiebt der Fahrer die Abfahrt
+  /// ein zweites Mal, ist das eine neue Frage und muss durchkommen. Nur am
+  /// Tag gemerkt bliebe sie für immer stumm.
+  ///
+  /// Der Merker lebt nur im Speicher: Beim nächsten Start ist die Frage
+  /// wieder offen, und das ist richtig — die Abfahrt ist es auch.
+  final _asked = <String>{};
+
+  /// Solange ein Dialog offen ist, stößt kein Neuaufbau einen zweiten an.
+  var _asking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleReask();
+  }
+
+  /// **Nach dem Bild, nicht währenddessen.** Ein `showDialog` aus dem Aufbau
+  /// heraus stieße eine Provider-Invalidierung mitten in der Build-Phase an —
+  /// genau der Grund, warum Riverpod hier auf 2.x steht.
+  void _scheduleReask() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_reask());
+    });
+  }
+
+  /// Erneut fragen, wo eine Zusage durch eine verschobene Abfahrt überholt
+  /// wurde (#200).
+  ///
+  /// **Der Anlass ist die überholte Entscheidung, nicht die Abweichung.** Wer
+  /// nie etwas entschieden hat, wird weiterhin nur beim Eintragen gefragt —
+  /// ihn hier anzusprechen wäre eine neue, ungefragte Unterbrechung. Wer
+  /// dagegen zu 07:30 zugesagt hat und dessen Fahrer auf 05:30 verschoben
+  /// hat, hat eine Entscheidung getroffen, die nicht mehr gilt; ihm gehört
+  /// die Frage noch einmal gestellt.
+  ///
+  /// **Gefragt wird beim Ankommen, nicht per Push beantwortet.** Ein
+  /// zugestellter Push ist kein angezeigter (#180) — die Antwort muss am
+  /// offenen Dialog fallen. Dass der Tipp auf eine Meldung hier landet
+  /// (`pushTapRoute`), genügt deshalb: Wer über die Benachrichtigung kommt,
+  /// wird gefragt; wer sie nie gesehen hat, beim nächsten Öffnen ebenso.
+  Future<void> _reask() async {
+    if (_asking) return;
+    // Ohne Geräte-Zuordnung wissen wir nicht, WESSEN Zusage überholt ist —
+    // und die Zuordnung ist ein Geräte-Merkmal, kein Login (#121).
+    final me = ref.read(myPersonProvider);
+    if (me == null) return;
+    final carDefaults = ref.read(weekCarDefaultsProvider).value;
+    if (carDefaults == null) return;
+    final notifier = ref.read(weekPlanProvider.notifier);
+
+    for (final day in widget.days) {
+      if (day.confirmed) continue;
+      final dayCars = carDefaults[day.date] ?? const <String, GroupDefaults>{};
+      final stale = notifier
+          .seatChoicesOn(day.date)
+          .where(
+            (c) =>
+                c.personId == me.id &&
+                !c.isCurrentFor(termsOf(dayCars[c.driverId])),
+          )
+          .isNotEmpty;
+      if (!stale) continue;
+      // Die Bedingungen, um die es ginge — dieselbe Frage, die die Rückfrage
+      // gleich stellt. Stand sie schon einmal auf dem Schirm, bleibt es
+      // dabei.
+      final car = carOf(day, me.id);
+      final key =
+          '${day.date}|${termsOf(car == null ? null : dayCars[car.driverId])}';
+      if (_asked.contains(key)) continue;
+      _asking = true;
+      try {
+        // Die Rückfrage selbst entscheidet, ob es etwas zu fragen GIBT: Sitzt
+        // die Person inzwischen in einem Auto ohne Abweichung, ist die
+        // überholte Zeile einfach gegenstandslos und niemand wird behelligt.
+        // Sie meldet zurück, wonach sie gefragt hat.
+        final asked = await _maybeAskConsent(context, ref, day.date, me.id);
+        if (asked != null) _asked.add('${day.date}|$asked');
+      } finally {
+        _asking = false;
+      }
+      if (!mounted) return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // **Der Auslöser ist die geänderte Abweichung, nicht der Neuaufbau.**
+    // `PlanScreen` beobachtet die Auto-Zeiten gar nicht — es hängt an Plan
+    // und Personen. Über `didUpdateWidget` käme die Rückfrage deshalb nur
+    // zufällig, nämlich wenn das Festschreiben der Fahrer nebenbei den Plan
+    // anfasst. Hier steht sie an der Quelle. Läuft die Ladung noch, kommt
+    // `_reask` folgenlos zurück und dieser Horcher holt es nach.
+    ref.listen(weekCarDefaultsProvider, (_, _) => _scheduleReask());
+    final persons = widget.persons;
+    final days = widget.days;
     if (persons.isEmpty) {
       return const Center(
         child: Padding(
@@ -256,113 +364,6 @@ class _AvailabilityGrid extends ConsumerWidget {
     }
     if (!context.mounted) return;
     await _maybeAskConsent(context, ref, day.date, personId);
-  }
-
-  /// Fragt nach, wenn jemand in einem Auto mit abweichenden Bedingungen
-  /// gelandet ist (#189, Stufe B2, entschieden 07.08.).
-  ///
-  /// **Beim Eintragen, nicht beim Verteilen:** Hier steht die Person vor dem
-  /// Gerät, die Antwort ist verlässlich — Schweigen gibt es an einem offenen
-  /// Dialog nicht. Ein Ja pinnt den Platz, ein Nein schließt dieses Auto aus
-  /// (und erzwingt damit ein zweites, wenn sonst keines bleibt). Wegtippen
-  /// entscheidet nichts: Die Person bleibt automatisch verteilt und wird beim
-  /// nächsten Eintragen wieder gefragt.
-  ///
-  /// Gefragt wird nur, wenn es etwas zu fragen gibt: Das eigene Auto trägt
-  /// eine Abweichung, man fährt nicht selbst, und es liegt noch keine
-  /// Entscheidung zu genau diesen Bedingungen vor.
-  Future<void> _maybeAskConsent(
-    BuildContext context,
-    WidgetRef ref,
-    DateTime date,
-    String personId, {
-    bool force = false,
-  }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    // Der Notifier hat optimistisch gerechnet — der Zustand kennt das Auto
-    // dieser Person schon.
-    final day = ref
-        .read(weekPlanProvider)
-        .value
-        ?.where((d) => d.date == date)
-        .firstOrNull;
-    if (day == null || day.confirmed) return;
-    final car = carOf(day, personId);
-    if (car == null || car.driverId == personId) return;
-    final deviation = ref
-        .read(weekCarDefaultsProvider)
-        .value?[date]?[car.driverId];
-    if (deviation == null || deviation.isEmpty) return;
-    final terms = termsOf(deviation);
-    // Aus dem Notifier, nicht aus einem eigenen Provider: Dort liegt die
-    // Kopie, mit der gerechnet wird — samt der eben optimistisch
-    // geschriebenen Entscheidung. Ein zweiter Ladepfad hinge einen
-    // Roundtrip hinterher und fragte genau dann doppelt.
-    final existing = ref
-        .read(weekPlanProvider.notifier)
-        .seatChoiceFor(date, personId, car.driverId);
-    if (!force && existing != null && existing.isCurrentFor(terms)) return;
-
-    final carNumber = day.cars.length < 2
-        ? null
-        : (carIndexOf(day, personId) ?? 0) + 1;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          carNumber == null ? 'Andere Abfahrt' : 'Auto $carNumber fährt anders',
-        ),
-        content: Text('${_deviationSentence(deviation)}\n\nPasst dir das?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Nein, so nicht'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Passt'),
-          ),
-        ],
-      ),
-    );
-    if (accepted == null) return;
-
-    try {
-      await ref
-          .read(weekPlanProvider.notifier)
-          .setSeatChoice(
-            SeatChoice(
-              date: date,
-              personId: personId,
-              driverId: car.driverId,
-              accepted: accepted,
-              terms: terms,
-              // Beim Umentscheiden zu NEUEN Bedingungen zählt die neue Zeit;
-              // nur die unveränderte Entscheidung behält ihren Rang.
-              decidedAt: existing != null && existing.terms == terms
-                  ? existing.decidedAt
-                  : DateTime.now(),
-            ),
-          );
-    } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
-      );
-    }
-  }
-
-  /// `Abfahrt hin 06:45, zurück 16:20 · Treffpunkt Werkstor` — als Satz für
-  /// den Dialog; die Kurzform der Tageszeile wäre hier zu knapp, es ist die
-  /// Grundlage einer Entscheidung.
-  static String _deviationSentence(GroupDefaults deviation) {
-    final times = [
-      if (deviation.outboundTime case final t?) 'hin ${t.format()}',
-      if (deviation.returnTime case final t?) 'zurück ${t.format()}',
-    ];
-    return [
-      if (times.isNotEmpty) 'Abfahrt ${times.join(', ')}',
-      if (deviation.meetingPoint case final p?) 'Treffpunkt $p',
-    ].join(' · ');
   }
 
   /// Die Abweichung, die an der Zelle von [personId] erscheint (#183):
@@ -941,6 +942,117 @@ enum _RideChoice {
     _RideChoice.oneWay => AppColors.oneWay,
     _RideChoice.none => scheme.outlineVariant,
   };
+}
+
+/// `Abfahrt hin 06:45, zurück 16:20 · Treffpunkt Werkstor` — als Satz für
+/// den Dialog; die Kurzform der Tageszeile wäre hier zu knapp, es ist die
+/// Grundlage einer Entscheidung.
+String _deviationSentence(GroupDefaults deviation) {
+  final times = [
+    if (deviation.outboundTime case final t?) 'hin ${t.format()}',
+    if (deviation.returnTime case final t?) 'zurück ${t.format()}',
+  ];
+  return [
+    if (times.isNotEmpty) 'Abfahrt ${times.join(', ')}',
+    if (deviation.meetingPoint case final p?) 'Treffpunkt $p',
+  ].join(' · ');
+}
+
+/// Fragt nach, wenn jemand in einem Auto mit abweichenden Bedingungen
+/// gelandet ist (#189, Stufe B2, entschieden 07.08.).
+///
+/// **Beim Eintragen, nicht beim Verteilen:** Hier steht die Person vor dem
+/// Gerät, die Antwort ist verlässlich — Schweigen gibt es an einem offenen
+/// Dialog nicht. Ein Ja pinnt den Platz, ein Nein schließt dieses Auto aus
+/// (und erzwingt damit ein zweites, wenn sonst keines bleibt). Wegtippen
+/// entscheidet nichts: Die Person bleibt automatisch verteilt und wird beim
+/// nächsten Eintragen wieder gefragt.
+///
+/// Gefragt wird nur, wenn es etwas zu fragen gibt: Das eigene Auto trägt
+/// eine Abweichung, man fährt nicht selbst, und es liegt noch keine
+/// Entscheidung zu genau diesen Bedingungen vor.
+/// Gibt die **Bedingungen** zurück, zu denen gefragt wurde — oder `null`,
+/// wenn es nichts zu fragen gab. Die nachträgliche Rückfrage (#200) merkt
+/// sich daran, was schon einmal auf dem Schirm stand.
+Future<String?> _maybeAskConsent(
+  BuildContext context,
+  WidgetRef ref,
+  DateTime date,
+  String personId, {
+  bool force = false,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  // Der Notifier hat optimistisch gerechnet — der Zustand kennt das Auto
+  // dieser Person schon.
+  final day = ref
+      .read(weekPlanProvider)
+      .value
+      ?.where((d) => d.date == date)
+      .firstOrNull;
+  if (day == null || day.confirmed) return null;
+  final car = carOf(day, personId);
+  if (car == null || car.driverId == personId) return null;
+  final deviation = ref
+      .read(weekCarDefaultsProvider)
+      .value?[date]?[car.driverId];
+  if (deviation == null || deviation.isEmpty) return null;
+  final terms = termsOf(deviation);
+  // Aus dem Notifier, nicht aus einem eigenen Provider: Dort liegt die
+  // Kopie, mit der gerechnet wird — samt der eben optimistisch
+  // geschriebenen Entscheidung. Ein zweiter Ladepfad hinge einen
+  // Roundtrip hinterher und fragte genau dann doppelt.
+  final existing = ref
+      .read(weekPlanProvider.notifier)
+      .seatChoiceFor(date, personId, car.driverId);
+  if (!force && existing != null && existing.isCurrentFor(terms)) return null;
+
+  final carNumber = day.cars.length < 2
+      ? null
+      : (carIndexOf(day, personId) ?? 0) + 1;
+  final accepted = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(
+        carNumber == null ? 'Andere Abfahrt' : 'Auto $carNumber fährt anders',
+      ),
+      content: Text('${_deviationSentence(deviation)}\n\nPasst dir das?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Nein, so nicht'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Passt'),
+        ),
+      ],
+    ),
+  );
+  if (accepted == null) return terms;
+
+  try {
+    await ref
+        .read(weekPlanProvider.notifier)
+        .setSeatChoice(
+          SeatChoice(
+            date: date,
+            personId: personId,
+            driverId: car.driverId,
+            accepted: accepted,
+            terms: terms,
+            // Beim Umentscheiden zu NEUEN Bedingungen zählt die neue Zeit;
+            // nur die unveränderte Entscheidung behält ihren Rang.
+            decidedAt: existing != null && existing.terms == terms
+                ? existing.decidedAt
+                : DateTime.now(),
+          ),
+        );
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+    );
+  }
+  return terms;
 }
 
 /// Was aus dem Zell-Menü zurückkommt (#183).
