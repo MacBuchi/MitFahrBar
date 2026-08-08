@@ -27,7 +27,7 @@ permissions:
   issues: write
 
 env:
-  FLUTTER_VERSION: "3.41.2"
+  FLUTTER_VERSION: "3.44.8"
   # Der Wochenschnitt (Montag) muss in deutscher Zeit fallen, nicht in UTC —
   # sonst zählt eine Sonntagsfahrt kurz vor Mitternacht zur falschen Woche.
   TZ: Europe/Berlin

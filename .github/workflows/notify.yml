@@ -39,7 +39,7 @@ permissions:
   contents: read
 
 env:
-  FLUTTER_VERSION: "3.41.2"
+  FLUTTER_VERSION: "3.44.8"
   # Ohne das rechnet der Job in UTC: Ein Runner steht auf UTC, `DateTime.now()`
   # und `DayTime.on()` in push_digest.dart aber sind lokale Zeit. Die
   # eingestellten 21:00 feuerten dann um 23 Uhr deutscher Zeit — im Sommer.

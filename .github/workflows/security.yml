@@ -39,6 +39,13 @@ concurrency:
   group: security-${{ github.ref }}
   cancel-in-progress: true
 
+# Dieselbe Form wie in den übrigen Workflows. Vorher stand die Version hier
+# als Literal am Job — und genau so entsteht ein halber Drift: Wer die
+# anderen fünf Dateien nachzieht, übersieht die sechste, weil sie nicht
+# nach demselben Muster sucht.
+env:
+  FLUTTER_VERSION: "3.44.8"
+
 jobs:
   # Darf Pflicht-Check sein. Nur neu eingeführte Funde, siehe Kopf.
   osv-scan-pr:
@@ -105,7 +112,7 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
-          flutter-version: "3.41.2"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       # Die Pakete müssen im Cache liegen: Das Werkzeug liest die echten
       # LICENSE-Dateien, nicht irgendwelche Metadaten.
