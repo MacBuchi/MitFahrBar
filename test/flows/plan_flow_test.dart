@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
+import 'package:mitfahrbar/models/app_settings.dart';
 import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
@@ -2421,6 +2422,202 @@ void main() {
         find.widgetWithText(ListTile, 'Mit wem fahren?'),
         findsNothing,
         reason: 'Ein Fahrer sitzt in seinem eigenen Auto.',
+      );
+      handle.dispose();
+    });
+  });
+
+  // Der Gruppen-Schalter (#213). Aus heißt: feste Zeiten für alle, und im
+  // Planer ist von der Zuordnung nichts zu sehen. Die Autos selbst bleiben —
+  // dass ein voller Tag zwei braucht, ist Kapazität (#62) und keine
+  // Zuweisung; sie zu verstecken wäre eine Lüge über den Tag.
+  group('Der Gruppen-Schalter (#213)', () {
+    /// Drei Personen, je zwei Sitze — das erzwingt zwei Autos, also genau
+    /// die Lage, in der es etwas zu wählen und zu verschieben gäbe.
+    Future<FakeBackend> backendWith({
+      required bool on,
+      bool deviation = false,
+    }) async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final monday = planningWeek(testToday).first;
+      for (final name in ['Anna', 'Bert', 'Clara']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true, seats: 2),
+        );
+        await data.setAvailability(monday, person.id, PlanRide.full);
+      }
+      // Eine wirklich abgelegte Abweichung — der Fall, um den es geht: Sie
+      // bleibt in der Datenbank stehen (inert, nicht gelöscht) und darf
+      // ausgeschaltet trotzdem nirgends auftauchen.
+      if (deviation) {
+        await data.savePlanDefaults(
+          monday,
+          const GroupDefaults(outboundTime: DayTime(6, 45)),
+        );
+      }
+      await data.saveSettings(AppSettings(carAssignmentEnabled: on));
+      return backend;
+    }
+
+    /// Öffnet nacheinander jede Zelle des Montags und sammelt, welche der
+    /// Zuordnungs-Einträge dort auftauchen. Bewusst über ALLE Zellen: Ein
+    /// Test, der nur eine prüft, übersieht den Fahrer oder den Mitfahrer —
+    /// je nachdem, wen die Punkte gerade vorschlagen.
+    Future<Set<String>> entriesInMenus(WidgetTester tester) async {
+      final monday = planningWeek(testToday).first;
+      final seen = <String>{};
+      for (final name in ['Anna', 'Bert', 'Clara']) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(AlertDialog),
+          findsOneWidget,
+          reason: 'Ohne offenes Menü prüft der Test nichts.',
+        );
+        for (final label in [
+          'Zeiten & Treffpunkt',
+          'Mit wem fahren?',
+          'Dein Auto fährt anders',
+        ]) {
+          if (find.widgetWithText(ListTile, label).evaluate().isNotEmpty) {
+            seen.add(label);
+          }
+        }
+        await tester.tap(find.widgetWithText(TextButton, 'Abbrechen'));
+        await tester.pumpAndSettle();
+      }
+      return seen;
+    }
+
+    testWidgets('an: es gibt etwas zu verschieben und zu wählen', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await backendWith(on: true));
+      await _login(tester);
+      await _openPlan(tester);
+
+      expect(
+        await entriesInMenus(tester),
+        containsAll(['Zeiten & Treffpunkt', 'Mit wem fahren?']),
+        reason:
+            'Gegenprobe zum Test darunter: Ohne sie wäre auch ein Planer, der '
+            'die Einträge NIE zeigt, grün.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('aus: im Planer ist von der Zuordnung nichts zu sehen', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await backendWith(on: false));
+      await _login(tester);
+      await _openPlan(tester);
+
+      expect(
+        await entriesInMenus(tester),
+        isEmpty,
+        reason:
+            'Weder Zeiten je Auto noch Auto-Wahl noch die Zusage — sonst '
+            'verspräche der Planer etwas, das im Push nicht ankommt.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('aus: eine abgelegte Abweichung ist nirgends zu sehen', (
+      tester,
+    ) async {
+      // Der teure Fall: Die Zeile steht noch in der Datenbank (sie wird ja
+      // inert und nicht gelöscht). Zeigte der Planer sie trotzdem, stünde
+      // dort „hin 06:45", während die Erinnerung um 07:30 klingelt — genau
+      // der Widerspruch, gegen den #183 gebaut wurde, mit umgekehrtem
+      // Vorzeichen.
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await backendWith(on: false, deviation: true));
+      await _login(tester);
+      await _openPlan(tester);
+
+      expect(find.textContaining('hin 06:45'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('an: dieselbe Abweichung steht sehr wohl da', (tester) async {
+      // Gegenprobe. Ohne sie wäre der Test darüber auch dann grün, wenn der
+      // Planer Abweichungen NIE anzeigt.
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await backendWith(on: true, deviation: true));
+      await _login(tester);
+      await _openPlan(tester);
+
+      expect(find.textContaining('hin 06:45'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('umgelegt wirkt sofort — ohne Neustart', (tester) async {
+      // Die Fehlerklasse „toter Knopf": Der Schalter ließe sich umlegen,
+      // speichern, und der Planer zeigte bis zum nächsten Start unverändert
+      // weiter. Deshalb wird hier wirklich getippt und danach derselbe
+      // Screen erneut betrachtet — ein Test, der den Wert vor dem Start
+      // setzt (wie die Tests darüber), kann das nicht finden.
+      final handle = tester.ensureSemantics();
+      tester.view.physicalSize = const Size(420, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await pumpApp(tester, await backendWith(on: true, deviation: true));
+      await _login(tester);
+      await _openPlan(tester);
+      expect(
+        find.textContaining('hin 06:45'),
+        findsOneWidget,
+        reason: 'Ausgangslage: eingeschaltet steht die Abweichung da.',
+      );
+
+      // Das Menü hängt an der Übersicht, nicht am Wochen-Tab.
+      await tester.tap(find.text('Übersicht'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.account_circle_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Parameter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Speichern'));
+      await tester.pumpAndSettle();
+
+      await _openPlan(tester);
+      expect(
+        find.textContaining('hin 06:45'),
+        findsNothing,
+        reason:
+            'Der Plan hängt über `settingsProvider` am Schalter; würde er '
+            'nicht neu gerechnet, bliebe die Abweichung stehen und der '
+            'Schalter wäre ein Versprechen ohne Wirkung.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('aus: die Autos des Tages bleiben trotzdem', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(tester, await backendWith(on: false));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      expect(
+        _cell('Anna', monday, state: '.*Auto [12]'),
+        findsOneWidget,
+        reason:
+            'Zwei Autos entstehen hier aus der Sitzzahl (#62), nicht aus der '
+            'Zuordnung. Sie zu verstecken wäre eine Lüge über den Tag — man '
+            'wüsste nicht mehr, mit wem man fährt.',
       );
       handle.dispose();
     });

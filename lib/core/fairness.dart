@@ -670,11 +670,25 @@ List<PlannedDay> planWeek({
   final overrideByDay = {
     for (final entry in overrides.entries) _dayKey(entry.key): entry.value,
   };
+  // Der Gruppen-Schalter (#213) wirkt genau hier, an EINER Stelle: Ist die
+  // Auto-Zuordnung aus, sind Zusagen und Auto-Abweichungen schlicht nicht da.
+  //
+  // Warum hier und nicht bei den Aufrufern: `settings` reicht ohnehin jeder
+  // Aufrufer durch — die App wie `tool/notify.dart`. Gefiltert am Aufrufer
+  // müssten es beide tun, und täte es einer nicht, verteilte er die Mitfahrer
+  // anders als der andere; der Korb trüge dann je nach Schreiber verschiedene
+  // Zeiten. Genau diese zweite Wahrheit soll der Schalter nicht erzeugen.
+  //
+  // Die Zeilen werden dabei **inert, nicht gelöscht** — Wiedereinschalten
+  // stellt her, was dastand (dieselbe Regel wie bei verwaisten Zeilen).
+  final on = settings.carAssignmentEnabled;
   final choicesByDay = {
-    for (final entry in seatChoices.entries) _dayKey(entry.key): entry.value,
+    if (on)
+      for (final entry in seatChoices.entries) _dayKey(entry.key): entry.value,
   };
   final carDefaultsByDay = {
-    for (final entry in carDefaults.entries) _dayKey(entry.key): entry.value,
+    if (on)
+      for (final entry in carDefaults.entries) _dayKey(entry.key): entry.value,
   };
   final realTripsByDay = <int, List<Trip>>{};
   for (final trip in trips) {

@@ -90,6 +90,12 @@ class _FormState extends ConsumerState<_Form> {
   late DayTime? _outbound = widget.defaults.outboundTime;
   late DayTime? _return = widget.defaults.returnTime;
 
+  /// Der Gruppen-Schalter (#213). Er steht hier, obwohl er kein Preis ist:
+  /// Das Kriterium dieses Screens ist „der Wert darf die Punkte nie
+  /// berühren", und das hält er ein — er verschiebt keine einzige
+  /// eingetragene Fahrt, nur künftige Vorschläge.
+  late bool _carAssignment = widget.settings.carAssignmentEnabled;
+
   String? _error;
   bool _saving = false;
 
@@ -142,6 +148,7 @@ class _FormState extends ConsumerState<_Form> {
       electricityPricePerKwh: prices['Strompreis'],
       dieselPricePerLiter: prices['Dieselpreis'],
       petrolPricePerLiter: prices['Benzinpreis'],
+      carAssignmentEnabled: _carAssignment,
     );
 
     // Frisch gebaut statt kopiert: Ein geleertes Feld muss den alten Wert
@@ -322,6 +329,38 @@ class _FormState extends ConsumerState<_Form> {
             labelText: 'Treffpunkt',
             helperText: 'Zum Beispiel „Parkplatz Rathaus".',
           ),
+        ),
+        const Divider(height: 40),
+        Text('Autos & Zuordnung', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'An: Wer fährt, kann die Abfahrt seines Autos für einen einzelnen '
+          'Tag verschieben; Mitfahrende sagen zu oder ab und suchen sich ihr '
+          'Auto aus.\n'
+          'Aus: Für alle gilt die Abfahrt von oben — auch in den '
+          'Benachrichtigungen.',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.s),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _carAssignment,
+          onChanged: (value) => setState(() => _carAssignment = value),
+          title: const Text('Leute einzelnen Autos zuordnen'),
+          subtitle: Text(
+            _carAssignment
+                // Der Rückweg ist der halbe Zweck des Schalters: Abgelegte
+                // Zeiten und Zusagen werden inert, nicht gelöscht.
+                ? 'Ausschalten nimmt nichts weg — eingetragene Zeiten und '
+                      'Zusagen gelten wieder, sobald ihr es erneut einschaltet.'
+                : 'Zeiten je Auto und Zusagen sind ausgeblendet und wirken '
+                      'nicht. Gespeichert bleiben sie.',
+          ),
+        ),
+        Text(
+          'Umgelegt mitten in der Woche gilt es sofort — auch für Tage, zu '
+          'denen schon eine Erinnerung verschickt wurde.',
+          style: theme.textTheme.bodySmall,
         ),
         if (_error case final error?) ...[
           const SizedBox(height: AppSpacing.m),

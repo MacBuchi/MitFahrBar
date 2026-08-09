@@ -410,6 +410,13 @@ class _AvailabilityGrid extends ConsumerWidget {
   ) async {
     final messenger = ScaffoldMessenger.of(context);
     final byId = {for (final p in persons) p.id: p};
+    // Der Gruppen-Schalter (#213). `seatTerms` und `deviates` brauchen ihn
+    // nicht: Sie hängen an den Abweichungs-Providern, und die geben
+    // ausgeschaltet ohnehin leer zurück. Diese beiden hier hängen an der
+    // Auto-Zahl, und Autos gibt es auch ohne Zuordnung — ein voller Tag
+    // braucht zwei, das ist Kapazität (#62) und keine Zuweisung.
+    final carAssignment =
+        ref.read(settingsProvider).valueOrNull?.carAssignmentEnabled ?? false;
     final current = !day.availableIds.contains(person.id)
         ? null
         : day.oneWayIds.contains(person.id)
@@ -439,7 +446,7 @@ class _AvailabilityGrid extends ConsumerWidget {
         // ein Tag ohne Auto hat keine Abfahrt, die man verschieben könnte.
         // Wer nicht selbst fährt und die Zeit ändern will, tippt die Zelle
         // des Fahrers an; das ist die Rückfrage aus #121, keine Sperre.
-        canEditTimes: day.driverIds.contains(person.id),
+        canEditTimes: carAssignment && day.driverIds.contains(person.id),
         // **Der Weg, ein gegebenes Ja oder Nein zu ändern** (#189): Wer in
         // einem Auto mit abweichenden Bedingungen sitzt, sieht sie hier und
         // kann umentscheiden — das ist das „Nein in zwei Taps", auf das die
@@ -461,7 +468,8 @@ class _AvailabilityGrid extends ConsumerWidget {
         // wie bei den Marken), nur für Mitfahrer (ein Fahrer sitzt in seinem
         // eigenen Wagen) und nur an einem Tag, an dem noch geplant wird.
         carPickSubtitle:
-            !day.confirmed &&
+            carAssignment &&
+                !day.confirmed &&
                 day.cars.length > 1 &&
                 day.availableIds.contains(person.id) &&
                 !day.driverIds.contains(person.id)
