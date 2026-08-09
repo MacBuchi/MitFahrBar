@@ -244,12 +244,50 @@ Leute je Fahrt, muss er zum Punkte-Ausgleich häufiger fahren. Seine Fahrrate
 wandert damit weiter vom Mittel weg, nicht näher heran — und die
 Punkte-Spreizung folgt.
 
-**Das Punkte-Ziel (|Punkte| < 5) hält überall.** Gerissen ist allein die
-Fahrraten-Schranke, auf **einem von zehn Seeds**, um **0,1 pp** (2,6 statt
-2,5). Marcus hat das am 09.08.2026 abgewogen und angenommen: Der praktische
-Gewinn — der Sonderfahrer sitzt nicht allein — wiegt schwerer als eine
-Nachkommastelle auf einem Wurf. Die Schranke in `plan_soak_test.dart` steht
-seither auf 26 ‰, mit dieser Begründung im Kommentar.
+**Das Punkte-Ziel (|Punkte| < 5) hält überall.** Die Fahrraten-Schranke riss
+zunächst auf einem von zehn Seeds um 0,1 pp — siehe aber den Nachtrag
+unmittelbar darunter: Mit zwei weiteren Würfen und einer Kontrolle gegen die
+alte Regel löst sich dieser Befund auf.
+
+## Nachtrag 2026-08-09 (2): zwei mutierte Seeds — und eine Revision
+
+Marcus wollte die Stichprobe verbreitern. Die beiden neuen Seeds sind aus dem
+Haupt-Seed **mutiert**: zwei Xorshift-Schritte von `0xDAC1A` aus, also
+dieselbe Kette, die auch die Würfel erzeugt — reproduzierbar statt ausgedacht
+(`0x4586D7D`, `0x370EF946`).
+
+Nebenbei geklärt: **Der Haupt-Seed ist ein Wortspiel („DACIA"), keine
+Messung.** Aus der Gruppe stammen die Anwesenheits-Gewichte, die
+Tagesgrößen-Verteilung und die 1-way-Quote — der Seed würfelt nur, welche
+konkrete Folge daraus gezogen wird.
+
+Der erste neue Wurf riss die Schranke deutlich: p4 (der 7-Sitzer) landet bei
+**30 ‰**. Die entscheidende Frage war damit nicht „wie hoch setzen wir die
+Schranke", sondern **„liegt das an der Regel oder am Würfel"** — also die
+Kontrolle: dieselben zwölf Seeds noch einmal mit der ALTEN Verteilregel.
+
+| über 12 Seeds | freie Plätze | Kopfzahl |
+| --- | --- | --- |
+| Fahrrate, Mittel | 17,0 ‰ | 17,8 ‰ |
+| Fahrrate, schlechtester Wurf | **30 ‰** | **30 ‰** |
+| `max｜Punkte｜`, Mittel | 2,42 | **2,21** |
+| `max｜Punkte｜`, schlechtester Wurf | 5,5 | **3,0** |
+| besser / schlechter je Seed | — | 3 besser, 5 schlechter, 4 gleich |
+
+**Seed 72904061 liefert unter beiden Regeln exakt 30 ‰.** Der Ausreißer
+gehört also zum Anwesenheitsmuster, nicht zur Verteilregel.
+
+**Damit ist der Zwischenbefund des vorigen Nachtrags revidiert.** „Die
+Kopfzahl-Verteilung macht die Drift größer" stützte sich auf *eine* Kennzahl
+(`spreadAtEnd`) auf *einem* Seed. Über zwölf Würfe und beide Kennzahlen ist es
+ein Unentschieden — und beim schlechtesten Punktestand ist die neue Regel
+sogar klar besser (3,0 statt 5,5). Die Zahlen der Tabelle im vorigen Nachtrag
+stimmen weiterhin; falsch war die Verallgemeinerung.
+
+Die Schranke steht deshalb auf **30 ‰**, und zwar als struktureller Boden
+dieser Kalibrierung — nicht als Zugeständnis an die neue Regel. Wer sie
+anfasst, wiederholt die Kontrolle gegen die andere Regel; sonst wird aus einem
+Akzeptanzmaß eine Formsache.
 
 **Nicht gemessen ist weiterhin das Verhalten unter vielen Zusagen und
 Absagen.** Dieser Report misst die **automatische** Verteilung; Pins und
