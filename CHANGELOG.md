@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.75.0] – 2026-08-09
+
+### Geändert
+
+- **Abfahrtszeiten gehören jetzt immer zu einem Auto.** Bisher gab es zwei
+  Wege: eine Zeit „für den ganzen Tag" und eine „für dein Auto". Bei nur
+  einem Auto landete der Eintrag stillschweigend beim Tag — und dann wurde
+  niemand gefragt, ob ihm die neue Zeit passt. Genau das war der häufigste
+  Fall. Jetzt gibt es nur noch den einen Weg, und die Rückfrage kommt
+  zuverlässig.
+- Der Umschalter „Ganzer Tag / Auto N" entfällt damit; bei zwei Autos zeigt
+  der Schirm stattdessen, um welches es geht.
+- **Was ihr früher eingetragen habt, gilt weiter** — bestehende Zeiten für
+  einen ganzen Tag werden weiterhin berücksichtigt.
+
+### Hinweis
+
+- Eine Zeit zu setzen legt ab jetzt immer auch den Fahrer des Tages fest —
+  auch dann, wenn nur ein Auto fährt. „Wir fahren früher, wer fährt, sehen
+  wir noch" geht damit nicht mehr; wer das braucht, schreibt eine Anmerkung.
+
 ## [0.74.0] – 2026-08-09
 
 ### Geändert

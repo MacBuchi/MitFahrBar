@@ -2798,11 +2798,16 @@ void main() {
   // 07.08.: Eine gespeicherte Auto-Zeit war NIRGENDS zu sehen; der Push
   // hätte zur neuen Zeit geweckt, aber kein Schirm sagte es.
   group('Abweichungen sichtbar', () {
-    testWidgets('eine Tages-Abweichung steht an der Tageszeile', (
+    testWidgets('bei EINEM Auto entsteht eine Auto-Abweichung (#211)', (
       tester,
     ) async {
+      // Der Kern von #211/#206: Bis v0.74.0 landete der Eintrag bei einem
+      // Auto stillschweigend auf der Tages-Ebene — und weil eine Zusage am
+      // AUTO hängt, wurde dann niemand gefragt. Jetzt gibt es nur noch die
+      // Auto-Ebene, der Fall existiert also nicht mehr.
       final handle = tester.ensureSemantics();
-      await pumpApp(tester, await _backend(['Anna', 'Bert']));
+      final backend = await _backend(['Anna', 'Bert']);
+      await pumpApp(tester, backend);
       await _login(tester);
       await _openPlan(tester);
 
@@ -2810,7 +2815,7 @@ void main() {
       await tester.tap(_cell('Anna', monday));
       await tester.pumpAndSettle();
       await _openTimes(tester, 'Anna', monday);
-      // Ein Auto: kein Umschalter, der Schirm bearbeitet den Tag.
+      // Kein Geltungsbereich mehr — die Zeit gehört immer einem Auto.
       expect(find.text('Ganzer Tag'), findsNothing);
       await tester.tap(find.widgetWithText(ListTile, 'Abfahrt hin'));
       await tester.pumpAndSettle();
@@ -2828,6 +2833,22 @@ void main() {
         find.bySemanticsLabel(RegExp('Abweichende Zeiten')),
         findsOneWidget,
         reason: '… und als Uhr am Datum.',
+      );
+
+      final data = backend.dataFor(backend.currentGroupId!);
+      final cars = await data.loadCarDefaults(monday, days: 1);
+      expect(
+        cars[monday]?.values.single.outboundTime,
+        isNotNull,
+        reason:
+            'Die Ablage entscheidet, nicht das Aussehen: Landete die Zeit '
+            'weiter auf der Tages-Ebene, wäre #206 nur unsichtbar geworden.',
+      );
+      final dayLevel = await data.loadPlanDefaults(monday, days: 1);
+      expect(
+        dayLevel[monday],
+        isNull,
+        reason: 'Die Tages-Ebene wird nicht mehr geschrieben.',
       );
       handle.dispose();
     });
@@ -2854,8 +2875,10 @@ void main() {
       }
       final driver = _personIn('fährt, Auto [12]', monday, names);
       await _openTimes(tester, driver, monday);
-      // Zwei Autos: Umschalter da, das eigene Auto ist vorgewählt.
-      expect(find.text('Ganzer Tag'), findsOneWidget);
+      // Seit #211 kein Umschalter mehr — stattdessen zeigt der Schirm, um
+      // welches Auto es geht.
+      expect(find.text('Ganzer Tag'), findsNothing);
+      expect(find.textContaining(RegExp('^Auto [12]\$')), findsOneWidget);
       await tester.tap(find.widgetWithText(ListTile, 'Abfahrt hin'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('OK'));
