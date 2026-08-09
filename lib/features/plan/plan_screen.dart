@@ -655,10 +655,11 @@ class _AvailabilityGrid extends ConsumerWidget {
   /// Eigener Schirm statt dreier Felder im Auswahlmenü: Der häufige Weg ist
   /// „dabei" antippen, und drei Eingabefelder darüber machten genau den laut.
   ///
-  /// **Ein Schirm mit Geltungsbereich, nicht zwei Einträge im Menü.** Sobald
-  /// der Tag zwei Autos hat, steht oben ein Umschalter „Ganzer Tag / Auto N";
-  /// das macht die Schichtung sichtbar, statt sie auf zwei Wege zu verteilen,
-  /// zwischen denen man raten müsste.
+  /// **Die Zeit gehört seit #211 immer einem Auto**, auch wenn der Tag nur
+  /// eines hat. Bis v0.74.0 gab es daneben eine Tages-Ebene; bei EINEM Auto
+  /// landete der Eintrag stillschweigend dort — und weil eine Zusage am Auto
+  /// hängt, wurde dann niemand gefragt (#206). Mit nur einer Ebene existiert
+  /// dieser Fall nicht mehr.
   Future<void> _editDay(
     BuildContext context,
     WidgetRef ref,
@@ -669,53 +670,49 @@ class _AvailabilityGrid extends ConsumerWidget {
     final date = day.date;
     final group =
         ref.read(groupDefaultsProvider).value ?? const GroupDefaults();
-    // Nur, wenn es überhaupt etwas zu unterscheiden gibt: Bei einem Auto ist
-    // „dieses Auto" dasselbe wie „der Tag", und zwei Wege zum selben Ziel
-    // sind einer zu viel.
-    //
     // Gesucht wird das Auto, das diese Person **fährt** — nicht das, in dem
     // sie sitzt (#188). Beim Fahrer ist beides dasselbe, und seit #188 kommt
     // hier ohnehin nur er an; aber `carIndexOf` beantwortet die andere Frage,
     // und genau die hat den Mitfahrer an ein fremdes Auto gelassen. Der
     // zweite Riegel kostet nichts und hält, wenn das Menü je wieder aufmacht.
-    final own = day.cars.length < 2
-        ? -1
-        : day.cars.indexWhere((car) => car.driverId == personId);
-    final carIndex = own < 0 ? null : own;
-    final driverId = carIndex == null ? null : personId;
+    final own = day.cars.indexWhere((car) => car.driverId == personId);
+    if (own < 0) return;
+    // Die Marke nur ab zwei Autos — dieselbe Regel wie im Raster und im
+    // Banner: Bei einem sitzen ohnehin alle darin.
+    final carNumber = day.cars.length > 1 ? own + 1 : null;
 
     final result = await showDialog<_DefaultsEdit>(
       context: context,
       builder: (_) => _DayDefaultsDialog(
         date: date,
         group: group,
+        // Die Tages-Ebene wird nicht mehr geschrieben, aber weiter gelesen:
+        // Altzeilen sollen nicht stillschweigend ihre Wirkung verlieren.
         day: ref.read(weekPlanDefaultsProvider).value?[date],
-        car: driverId == null
-            ? null
-            : ref.read(weekCarDefaultsProvider).value?[date]?[driverId],
-        carNumber: carIndex == null ? null : carIndex + 1,
+        car: ref.read(weekCarDefaultsProvider).value?[date]?[personId],
+        carNumber: carNumber,
       ),
     );
     if (result == null) return;
 
     try {
       final repository = ref.read(carpoolRepositoryProvider);
-      if (result.forCar && driverId != null) {
-        await repository.saveCarDefaults(date, driverId, result.defaults);
-        // **Die Zeit zu setzen schreibt den Fahrer fest.** Der Vorschlag
-        // kippt, sobald jemand seine Verfügbarkeit ändert — die Zeile hinge
-        // dann an einer Person, die an dem Tag gar nicht mehr fährt. Fixiert
-        // wird der GANZE Satz Fahrer des Tages: Wer nur einen festhielte,
-        // ließe die Wahl der übrigen weiterlaufen, und die verschiebt auch
-        // dieses Auto.
-        await ref
-            .read(weekPlanProvider.notifier)
-            .setDrivers(date, day.driverIds.toSet());
-        ref.invalidate(weekCarDefaultsProvider);
-      } else {
-        await repository.savePlanDefaults(date, result.defaults);
-        ref.invalidate(weekPlanDefaultsProvider);
-      }
+      await repository.saveCarDefaults(date, personId, result.defaults);
+      // **Die Zeit zu setzen schreibt den Fahrer fest.** Der Vorschlag
+      // kippt, sobald jemand seine Verfügbarkeit ändert — die Zeile hinge
+      // dann an einer Person, die an dem Tag gar nicht mehr fährt. Fixiert
+      // wird der GANZE Satz Fahrer des Tages: Wer nur einen festhielte,
+      // ließe die Wahl der übrigen weiterlaufen, und die verschiebt auch
+      // dieses Auto.
+      //
+      // Seit #211 gilt das auch bei EINEM Auto. Das ist der eine Preis der
+      // Vereinfachung: „Wir fahren früher, wer fährt, sehen wir noch" lässt
+      // sich nicht mehr sagen — konsequent zu #183 („die Zeit zu setzen ist
+      // die Fahrer-Zusage"), aber es ist eine Einschränkung.
+      await ref
+          .read(weekPlanProvider.notifier)
+          .setDrivers(date, day.driverIds.toSet());
+      ref.invalidate(weekCarDefaultsProvider);
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Speichern fehlgeschlagen.')),
@@ -1326,9 +1323,8 @@ class _RidePickerDialog extends StatelessWidget {
 /// feldweise.
 /// Was der Schirm zurückgibt: die Werte **und** wofür sie gelten.
 class _DefaultsEdit {
-  const _DefaultsEdit({required this.forCar, required this.defaults});
+  const _DefaultsEdit({required this.defaults});
 
-  final bool forCar;
   final GroupDefaults defaults;
 }
 
@@ -1352,8 +1348,8 @@ class _DayDefaultsDialog extends StatefulWidget {
   /// Die des eigenen Autos, `null` wenn es keine gibt.
   final GroupDefaults? car;
 
-  /// Nummer des eigenen Autos — `null` heißt: Es gibt nichts zu
-  /// unterscheiden, der Umschalter bleibt weg.
+  /// Nummer des eigenen Autos — `null` bei nur einem Auto, dann trägt der
+  /// Schirm keine Marke (dieselbe Regel wie Raster und Banner).
   final int? carNumber;
 
   @override
@@ -1361,27 +1357,17 @@ class _DayDefaultsDialog extends StatefulWidget {
 }
 
 class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
-  /// Beginnt beim Auto, sobald es eines gibt: Wer bei zwei Autos die Zeit
-  /// ändert, meint fast immer seines. Der ganze Tag ist einen Tipp entfernt.
-  late bool _forCar = widget.carNumber != null;
-
+  // **Nur noch die Auto-Ebene** (#211). Bis v0.74.0 stand hier ein
+  // Umschalter „Ganzer Tag / Auto N"; die Tages-Ebene ist ersatzlos
+  // entfallen, weil „heute fahren alle früher" keine eigene Aussage ist,
+  // sondern die Folge davon, dass alle der Abfahrt eines Fahrers zustimmen.
   late DayTime? _out = _source?.outboundTime;
   late DayTime? _back = _source?.returnTime;
   late final TextEditingController _point = TextEditingController(
     text: _source?.meetingPoint ?? '',
   );
 
-  GroupDefaults? get _source => _forCar ? widget.car : widget.day;
-
-  /// Der Umschalter wechselt die BEARBEITETE Ebene, also auch die Werte im
-  /// Formular — sonst schriebe man die Zeit des Tages versehentlich als die
-  /// des Autos fort.
-  void _switchScope(bool forCar) => setState(() {
-    _forCar = forCar;
-    _out = _source?.outboundTime;
-    _back = _source?.returnTime;
-    _point.text = _source?.meetingPoint ?? '';
-  });
+  GroupDefaults? get _source => widget.car;
 
   @override
   void dispose() {
@@ -1392,8 +1378,10 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
   /// Was gälte, wenn dieses Feld leer bliebe: die nächsttiefere Ebene.
   /// Beim Auto also der Tag, sonst die Gruppe — dieselbe Kette wie im
   /// Ausgangskorb, nur zur Anzeige.
-  GroupDefaults get _fallback =>
-      _forCar ? effectiveDefaults(widget.group, widget.day) : widget.group;
+  /// Die Tages-Ebene steht hier weiter drin, obwohl sie niemand mehr
+  /// schreiben kann: Altzeilen aus der Zeit vor #211 gelten weiter, und der
+  /// Schirm muss zeigen, was tatsächlich greift.
+  GroupDefaults get _fallback => effectiveDefaults(widget.group, widget.day);
 
   Future<void> _pick(bool outbound) async {
     final start = outbound ? _out : _back;
@@ -1429,26 +1417,22 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (widget.carNumber case final number?) ...[
-            SegmentedButton<bool>(
-              segments: [
-                const ButtonSegment(value: false, label: Text('Ganzer Tag')),
-                ButtonSegment(value: true, label: Text('Auto $number')),
+            Row(
+              children: [
+                _CarBadge(number: number, size: 18),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'Auto $number',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ],
-              selected: {_forCar},
-              onSelectionChanged: (selection) => _switchScope(selection.single),
-              showSelectedIcon: false,
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
             ),
             const SizedBox(height: AppSpacing.s),
           ],
           Text(
-            _forCar
-                ? 'Gilt nur für dein Auto an diesem Tag. Was hier leer '
-                      'bleibt, kommt vom Tag — und sonst aus den festen '
-                      'Vorgaben. Damit die Zeit nicht an einem anderen Auto '
-                      'landet, wird der Fahrer des Tages festgehalten.'
-                : 'Gilt für alle an diesem Tag. Was hier leer bleibt, kommt '
-                      'weiter aus den festen Vorgaben.',
+            'Gilt nur für dein Auto an diesem Tag. Was hier leer bleibt, '
+            'kommt aus den festen Vorgaben. Damit die Zeit nicht an einem '
+            'anderen Auto landet, wird der Fahrer des Tages festgehalten.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -1501,7 +1485,6 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
             final point = _point.text.trim();
             Navigator.of(context).pop(
               _DefaultsEdit(
-                forCar: _forCar,
                 defaults: GroupDefaults(
                   outboundTime: _out,
                   returnTime: _back,

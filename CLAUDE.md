@@ -121,11 +121,32 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       Tag, der nur die Hinfahrt verschiebt, behält die Rückfahrt der
       Gruppe; objektweise ersetzt fiele sie auf `null` und die
       Rückfahrt-Erinnerung entfiele stillschweigend.
-    - **Drei Ebenen seit v0.66.0: `Auto → Tag → Gruppe`**
-      (`plan_car_defaults`, Stufe B). Die Tages-Ebene bleibt daneben
-      bestehen und wurde nicht umgebaut: „heute fahren alle früher" ist eine
-      andere Aussage als „Auto 2 fährt später", und ohne sie müsste man bei
-      zwei Autos dieselbe Zeit zweimal eintragen.
+    - **Seit v0.75.0 nur noch ZWEI Ebenen: `Auto → Gruppe`** (#211). Von
+      v0.66.0 bis v0.74.0 lag dazwischen eine Tages-Ebene
+      (`plan_defaults`), begründet mit: „heute fahren alle früher" sei eine
+      andere Aussage als „Auto 2 fährt später".
+      - **Diese Begründung ist widerlegt, nicht bloß aufgegeben** (Gruppe,
+        09.08.2026): „Heute fahren alle früher" ist keine Abweichung, die
+        jemand einträgt, sondern die **Folge** davon, dass alle der Abfahrt
+        eines Fahrers zustimmen. Zwei Ebenen für eine Aussage sind eine zu
+        viel — dieselbe Form wie die Spritpreis- und die Anmerkungs-Revision:
+        Der tragende Grund fiel weg, nicht die Regel war von Anfang an falsch.
+      - **Damit existiert #206 nicht mehr, statt behoben zu sein.** Bei EINEM
+        Auto schrieb der Zeiten-Schirm stillschweigend die Tages-Ebene; weil
+        eine Zusage am **Auto** hängt, wurde dann niemand gefragt — und zwar
+        am häufigsten Tag überhaupt. Mit nur einer Ebene kann der Fall nicht
+        wieder entstehen.
+      - **Gelesen wird die Tages-Ebene weiter, geschrieben nicht mehr.**
+        `effectiveDefaults` und `outboxEntries` lösen `Auto → Tag → Gruppe`
+        unverändert auf, damit Altzeilen nicht stillschweigend ihre Wirkung
+        verlieren. Die Tabelle fällt erst in einer späteren Migration — sie
+        jetzt zu droppen hieße, etwas zu entfernen, das ein veröffentlichter
+        Client liest, und damit die Mindestversion zu heben.
+      - **Der eine Preis, ausgesprochen:** Eine Zeit zu setzen schreibt ab
+        jetzt IMMER einen Fahrer fest, auch bei einem Auto. „Wir fahren
+        früher, wer fährt, sehen wir noch" lässt sich nicht mehr sagen. Das
+        ist konsequent zu #183 („die Zeit zu setzen ist die Fahrer-Zusage"),
+        aber es ist eine Einschränkung und gehört so in den Changelog.
       - **Geschlüsselt am Fahrer** — `(group_id, plan_date, driver_id)`, der
         Schlüssel von `plan_overrides`. Das ist keine Analogie: Ein Auto
         existiert in der Datenbank **nur** als „diese Person fährt an diesem
