@@ -903,7 +903,11 @@ List<PlannedDay> planWeek({
     );
     final excludedBy = <String, Set<String>>{};
     for (final choice in dayChoices) {
-      if (choice.accepted) continue;
+      // Nur ein ausdrückliches Nein schließt aus. Über `accepted` gelesen
+      // käme dasselbe heraus — aber die Spalte ist seit #210 die Mitschrift
+      // für alte Clients, und wer hier ihren Namen liest, hält sie für die
+      // Wahrheit.
+      if (choice.answer != SeatAnswer.no) continue;
       if (!available.contains(choice.personId)) continue;
       if (!choice.isCurrentFor(termsOf(dayCarDefaults[choice.driverId]))) {
         continue;
@@ -972,11 +976,26 @@ List<PlannedDay> planWeek({
     // Vorrecht auf einen Platz, kein Ausschluss aus allen anderen. Ein Pin
     // auf einen Fahrer, der heute nicht fährt, ist verwaist und wirkt nicht.
     //
-    // **Dann alle Übrigen** wie bisher: jede Person ins Auto mit den
-    // meisten freien Plätzen (Gleichstand: erstes Auto), Ausschlüsse werden
-    // dabei gemieden. So teilt sich das „Mitgenommen" des Tages möglichst
-    // gleichmäßig auf die Fahrer, und kein Auto wird überfüllt, solange die
-    // Plätze insgesamt reichen. 1-way belegt einen Sitz — dieselbe Regel
+    // **Dann alle Übrigen: ins Auto mit den WENIGSTEN Insassen** (#210,
+    // Gruppe am 09.08.2026). Erst wenn dort kein Platz mehr frei ist, gewinnt
+    // ein anderes Auto mit freiem Platz — „nur bei Erreichen des Limits
+    // gewinnen zusätzlich freie Plätze in anderen Fahrzeugen".
+    //
+    // Bis v0.71.0 entschieden die **meisten freien Plätze**. Das erklärte
+    // Ziel war schon damals, das „Mitgenommen" gleichmäßig auf die Fahrer zu
+    // verteilen — bei ungleich großen Autos erreicht es das aber gerade
+    // nicht: Ein 7-Sitzer und ein 4-Sitzer enden mit gleich vielen FREIEN
+    // Plätzen, also trägt der große systematisch mehr. Genau das ist im
+    // Soak-Report als Grenze notiert („bei dauerhaftem Kapazitäts-Gefälle
+    // driften die Punkte unbegrenzt"). Nach Kopfzahl verteilt entfällt der
+    // Antrieb dafür; **ob die Drift wirklich kleiner wird, sagt erst die
+    // Neumessung** (#212) — hier wird nichts dergleichen behauptet.
+    //
+    // Gleichstand geht an das frühere Auto, und das ist der bedürftigste
+    // Fahrer: `driverSet` steht in `ranked`-Reihenfolge. Der Punkte-Anteil
+    // der Verteilung steckt allein darin.
+    //
+    // Ausschlüsse werden gemieden. 1-way belegt einen Sitz — dieselbe Regel
     // wie im Fahrten-Editor.
     final carFull = [for (final _ in driverSet) <String>[]];
     final carOneWay = [for (final _ in driverSet) <String>[]];
@@ -998,25 +1017,37 @@ List<PlannedDay> planWeek({
       for (final id in available) {
         if (driverSet.contains(id) || seated.contains(id)) continue;
         final excluded = excludedBy[id] ?? const <String>{};
+        // Zwei Kandidaten nebeneinander: das leerste Auto MIT freiem Platz,
+        // und — falls keines mehr Platz hat — das leerste überhaupt.
+        //
+        // Der zweite ist die Rückfalllinie aus #62 und darf nicht wegfallen:
+        // Reichen die Sitze des Tages insgesamt nicht, wird überfüllt statt
+        // jemanden stillschweigend stehen zu lassen. Ohne ihn verschwänden
+        // Leute aus dem Plan, sobald ein Auto zu klein ist — und niemand
+        // sähe, warum.
         var best = -1;
-        var bestFree = -n - 1;
+        var bestTaken = -1;
+        var anyCar = -1;
+        var anyTaken = -1;
         for (var i = 0; i < driverSet.length; i++) {
           if (excluded.contains(driverSet[i])) continue;
-          final free =
-              seatOf(driverSet[i]) -
-              1 -
-              carFull[i].length -
-              carOneWay[i].length;
-          if (free > bestFree) {
-            bestFree = free;
+          final taken = carFull[i].length + carOneWay[i].length;
+          if (anyCar < 0 || taken < anyTaken) {
+            anyCar = i;
+            anyTaken = taken;
+          }
+          if (seatOf(driverSet[i]) - 1 - taken <= 0) continue;
+          if (best < 0 || taken < bestTaken) {
             best = i;
+            bestTaken = taken;
           }
         }
+        final target = best >= 0 ? best : anyCar;
         // Alle Autos ausgeschlossen und kein Kandidat mehr übrig: Die
         // Person bleibt sichtbar draußen statt still in einem Auto zu
         // sitzen, dem sie abgesagt hat.
-        if (best < 0) continue;
-        (oneWayIds.contains(id) ? carOneWay : carFull)[best].add(id);
+        if (target < 0) continue;
+        (oneWayIds.contains(id) ? carOneWay : carFull)[target].add(id);
       }
     }
     final cars = [
@@ -1158,7 +1189,13 @@ List<SeatChoice> seatPinsOf(
 }) {
   final latest = <String, SeatChoice>{};
   for (final choice in choices) {
-    if (!choice.accepted) continue;
+    // **Nur „ja unbedingt" pinnt** (#210). Das ist der Unterschied zu
+    // v0.71.0, wo Schweigen als Zusage abgelegt wurde und damit festhielt:
+    // „Egal" heißt jetzt wörtlich egal, die Verteilung entscheidet. Über
+    // `accepted` geprüft wäre es weiter ein Pin — die Spalte ist seit #210
+    // nur noch die Mitschrift für alte Clients und sagt „nicht abgelehnt",
+    // nicht „hierher".
+    if (choice.answer != SeatAnswer.yes) continue;
     if (!isAvailable(choice.personId)) continue;
     if (!choice.isCurrentFor(termsOf(carDefaults[choice.driverId]))) continue;
     final held = latest[choice.personId];

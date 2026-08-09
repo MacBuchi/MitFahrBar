@@ -441,7 +441,12 @@ void main() {
       expect(r.totalTrips, 2003);
       expect(r.soloTrips, 0);
       expect(r.spreadAt100, closeTo(4.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
+      // 3,5 → 4,5 mit der Kopfzahl-Verteilung (#210). Die Spreizung wächst
+      // also leicht, statt zu schrumpfen — die naheliegende Vermutung („der
+      // große Wagen trägt nicht mehr systematisch mehr, also driftet weniger")
+      // ist damit gemessen widerlegt. Das Punkte-Ziel (|Punkte| < 5) hält
+      // unverändert; verschoben hat sich nur der aufgezeichnete Messwert.
+      expect(r.spreadAtEnd, closeTo(4.5, 1e-9));
       expect(r.maxLateSpread, closeTo(8.0, 1e-9));
       expect(r.sharePermille['p4'], -16, reason: 'Bus: seltener, aber voller.');
       expect(r.points['p4'], closeTo(0.0, 1e-9));
@@ -466,10 +471,24 @@ void main() {
             lessThan(7),
             reason: 'Seed $seed: Endstand $p muss um 0 pendeln.',
           );
+          // **26 statt 25 seit #210**, und das ist eine bewusst angenommene
+          // Verschlechterung, kein Aufräumen: Die Verteilung nach Kopfzahl
+          // schiebt p4 (den 7-Sitzer) auf Seed 6221061 von 25 auf 26 ‰ —
+          // 2,6 statt 2,5 pp, auf EINEM von zehn Würfen. Marcus hat das am
+          // 09.08.2026 abgewogen und angenommen.
+          //
+          // Der Mechanismus: Trägt der große Wagen nicht mehr systematisch
+          // mehr Leute je Fahrt, muss er zum Punkte-Ausgleich häufiger
+          // fahren — seine Rate wandert also weiter vom Mittel weg. Genau
+          // deshalb ist die Vermutung „Kopfzahl verkleinert die Drift"
+          // widerlegt; siehe die Punkte-Spreizungen unten.
+          //
+          // Wer hier weiter lockert, ohne neu zu messen, macht aus einem
+          // Akzeptanzmaß eine Formsache.
           expect(
             rr.sharePermille[p]!.abs(),
-            lessThanOrEqualTo(25),
-            reason: 'Seed $seed: Fahrrate $p muss am Boden (±2,5 pp) bleiben.',
+            lessThanOrEqualTo(26),
+            reason: 'Seed $seed: Fahrrate $p muss am Boden (±2,6 pp) bleiben.',
           );
         }
       }
@@ -516,11 +535,11 @@ void main() {
       // Exakte Regressions-Pins (Datensatz ist deterministisch).
       expect(r.totalTrips, 1945);
       expect(r.soloTrips, 205);
-      expect(r.spreadAt100, closeTo(6.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
-      expect(r.maxLateSpread, closeTo(16.5, 1e-9));
-      expect(r.sharePermille['p8'], -91);
-      expect(r.points['p8'], closeTo(-1.0, 1e-9));
+      expect(r.spreadAt100, closeTo(6.5, 1e-9));
+      expect(r.spreadAtEnd, closeTo(4.5, 1e-9));
+      expect(r.maxLateSpread, closeTo(14.0, 1e-9));
+      expect(r.sharePermille['p8'], -93);
+      expect(r.points['p8'], closeTo(-2.5, 1e-9));
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
@@ -604,12 +623,12 @@ void main() {
 
       // Exakte Regressions-Pins (Datensatz ist deterministisch).
       expect(r.totalTrips, 2070);
-      expect(r.soloTrips, 85);
-      expect(r.spreadAt100, closeTo(289.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(1141.5, 1e-9));
-      expect(r.points['p1'], closeTo(-831.0, 1e-9));
+      expect(r.soloTrips, 84);
+      expect(r.spreadAt100, closeTo(288.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(1130.5, 1e-9));
+      expect(r.points['p1'], closeTo(-821.5, 1e-9));
       expect(r.sharePermille['p1'], -115);
-      expect(r.sharePermille['p8'], 51);
+      expect(r.sharePermille['p8'], 49);
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
@@ -641,10 +660,10 @@ void main() {
       // Exakte Regressions-Pins.
       expect(r.totalTrips, 2679);
       expect(r.soloTrips, 0);
-      expect(r.spreadAt100, closeTo(1269.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(5148.5, 1e-9));
-      expect(r.points['p8'], closeTo(4205.0, 1e-9));
-      expect(r.sharePermille['p8'], 450);
+      expect(r.spreadAt100, closeTo(1283.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(5170.0, 1e-9));
+      expect(r.points['p8'], closeTo(4234.5, 1e-9));
+      expect(r.sharePermille['p8'], 454);
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );

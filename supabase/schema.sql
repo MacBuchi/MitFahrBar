@@ -313,7 +313,17 @@ create table public.plan_seat_choices (
   plan_date date not null,
   person_id uuid not null references public.persons(id) on delete cascade,
   driver_id uuid not null references public.persons(id) on delete cascade,
+  -- Mitschrift für Clients von vor v0.72.0 (#210). `answer` ist die Wahrheit;
+  -- hier steht nur „nicht abgelehnt". Genau EIN Schreiber leitet sie ab
+  -- (SeatChoice.accepted in Dart) — wer sie anderswo setzt, macht daraus die
+  -- zweite Wahrheit.
   accepted boolean not null,
+  -- Die eigentliche Antwort (#210). **NULL heißt „von einem alten Client"**
+  -- und wird über `accepted` gelesen; deshalb kein Default, siehe
+  -- 20260809140000_seat_answer_three_way.sql.
+  answer text
+    constraint plan_seat_choices_answer_valid
+      check (answer is null or answer in ('yes', 'no', 'dontcare')),
   terms text not null default '',
   decided_at timestamptz not null default now(),
   primary key (group_id, plan_date, person_id, driver_id),

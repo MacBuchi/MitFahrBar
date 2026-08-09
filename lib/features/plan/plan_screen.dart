@@ -618,7 +618,11 @@ class _AvailabilityGrid extends ConsumerWidget {
               date: date,
               personId: person.id,
               driverId: driverId,
-              accepted: true,
+              // Ein ausgesuchtes Auto ist die stärkste Aussage, die es gibt:
+              // „genau dieses" (#199). Deshalb `yes` und nicht `indifferent`
+              // — egal hieße, die Verteilung dürfte einen woanders hinsetzen,
+              // und der Tipp täte sichtbar nichts.
+              answer: SeatAnswer.yes,
               terms: terms,
               // Dieselbe Wahl noch einmal behält ihren Rang — nur eine neue
               // Entscheidung stellt sich hinten an (#189).
@@ -965,6 +969,82 @@ String _deviationSentence(GroupDefaults deviation) {
 /// Gefragt wird nur, wenn es etwas zu fragen gibt: Das eigene Auto trägt
 /// eine Abweichung, man fährt nicht selbst, und es liegt noch keine
 /// Entscheidung zu genau diesen Bedingungen vor.
+/// Die drei Antworten auf eine abweichende Abfahrt (#210).
+///
+/// Als Liste statt als Knopfreihe: Drei Knöpfe nebeneinander passen auf einem
+/// schmalen Schirm nicht, und vor allem wirken die drei **verschieden stark** —
+/// „auf keinen Fall" kann ein weiteres Auto erzwingen, „ja unbedingt" ist nur
+/// eine Bevorzugung. Ohne die Unterzeilen liest man sie als Gegensatzpaar mit
+/// einem Mittelweg, und das sind sie nicht.
+class _SeatAnswerDialog extends StatelessWidget {
+  const _SeatAnswerDialog({
+    required this.title,
+    required this.deviation,
+    this.current,
+  });
+
+  final String title;
+  final String deviation;
+  final SeatAnswer? current;
+
+  static const _options = <(SeatAnswer, String, String, IconData)>[
+    (
+      SeatAnswer.indifferent,
+      'Egal',
+      'Du fährst mit, wo Platz ist.',
+      Icons.done_all,
+    ),
+    (
+      SeatAnswer.yes,
+      'Ja, unbedingt',
+      'Du kommst bevorzugt in dieses Auto.',
+      Icons.event_seat,
+    ),
+    (
+      SeatAnswer.no,
+      'Auf keinen Fall',
+      'Dann fährt jemand anderes zur normalen Zeit.',
+      Icons.block,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text(title),
+      contentPadding: const EdgeInsets.only(top: AppSpacing.s),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+            child: Text(deviation),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          for (final (answer, label, hint, icon) in _options)
+            ListTile(
+              leading: Icon(
+                icon,
+                color: answer == SeatAnswer.no
+                    ? scheme.error
+                    : scheme.onSurfaceVariant,
+              ),
+              title: Text(label),
+              subtitle: Text(hint),
+              selected: answer == current,
+              trailing: answer == current
+                  ? Icon(Icons.done, color: scheme.primary)
+                  : null,
+              onTap: () => Navigator.of(context).pop(answer),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 Future<void> _maybeAskConsent(
   BuildContext context,
   WidgetRef ref,
@@ -1000,23 +1080,14 @@ Future<void> _maybeAskConsent(
   final carNumber = day.cars.length < 2
       ? null
       : (carIndexOf(day, personId) ?? 0) + 1;
-  final answer = await showDialog<bool>(
+  final answer = await showDialog<SeatAnswer>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(
-        carNumber == null ? 'Andere Abfahrt' : 'Auto $carNumber fährt anders',
-      ),
-      content: Text('${_deviationSentence(deviation)}\n\nPasst dir das?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Nein, so nicht'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Passt'),
-        ),
-      ],
+    builder: (context) => _SeatAnswerDialog(
+      title: carNumber == null
+          ? 'Andere Abfahrt'
+          : 'Auto $carNumber fährt anders',
+      deviation: _deviationSentence(deviation),
+      current: existing?.answer,
     ),
   );
   // **Wer nicht ablehnt, ist zugesagt** (entschieden 08.08., Opt-out). Bis
@@ -1032,7 +1103,13 @@ Future<void> _maybeAskConsent(
   // dort, wo sie ohnehin säße, und macht sie nur ansprechbar, wenn sich die
   // Bedingungen ändern. Ein ausdrückliches Nein bleibt das Einzige, was
   // etwas umwirft.
-  final accepted = answer ?? true;
+  //
+  // Seit #210 ist der stille Ausgang „egal" statt „Zusage". Für den Platz
+  // ändert das fast nichts — die Person sitzt weiter, wo sie ohnehin säße —,
+  // aber die Verteilung darf sie jetzt verschieben, statt sie festzuhalten.
+  // Abgelegt wird er trotzdem: Genau daran erkennt die Rückfrage aus #200
+  // später eine veraltete Entscheidung.
+  final chosen = answer ?? SeatAnswer.indifferent;
 
   try {
     await ref
@@ -1042,7 +1119,7 @@ Future<void> _maybeAskConsent(
             date: date,
             personId: personId,
             driverId: car.driverId,
-            accepted: accepted,
+            answer: chosen,
             terms: terms,
             // Beim Umentscheiden zu NEUEN Bedingungen zählt die neue Zeit;
             // nur die unveränderte Entscheidung behält ihren Rang.
