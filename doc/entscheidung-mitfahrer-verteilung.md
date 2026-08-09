@@ -294,6 +294,73 @@ Absagen.** Dieser Report misst die **automatische** Verteilung; Pins und
 Ausschlüsse laufen davor. Wer die ±2-Zusage auf gepinnte Wochen ausdehnen
 will, misst neu.
 
+## Nachtrag 2026-08-09 (3): Raten-Trim von 6 auf 12 — gegen die echte Historie
+
+Marcus' Frage war: „Können wir mehr Punkte-Abweichung erlauben, um die
+Fahrraten näher zusammenzubringen?" Antwort: ja — aber der Preis fällt anders
+aus als vermutet, und die Grenze liegt woanders.
+
+### Zwei Datensätze, nicht einer
+
+Neu ist, dass nicht nur simuliert wurde: Die **echte 401-Tage-Historie** der
+Gruppe (`.donotsync/seed/seed.json`) lässt sich als Verfügbarkeits-Muster
+wieder abspielen — für jeden Tag steht fest, wer dabei war; wer davon fährt,
+entscheidet der Planer neu.
+
+**Fallstrick dabei, teuer gelernt:** Ein tageweiser Replay misst
+stillschweigend `k = 0`. `dayFactorOf` normiert die Tagesgröße gegen das
+**Wochen**mittel; bei einer Ein-Tages-„Woche" ist `maxDeviation` null, damit
+`dayFactor` null, und die Engine überspringt den Trim komplett. Der erste Lauf
+lieferte deshalb für k=6 und k=40 byte-identische Zahlen — das war der
+Hinweis, nicht das Ergebnis. Replays laufen wochenweise.
+
+### Ergebnis auf der echten Historie (Stammfahrer, ≥ 50 gemeinsame Tage)
+
+| k | schlechteste Abweichung | Mittel | max｜Punkte｜ |
+| --- | --- | --- | --- |
+| 0 (Trim aus) | 52 ‰ | 23,4 ‰ | 2,5 |
+| 6 (bis v0.73.0) | 52 ‰ | 18,7 ‰ | 2,5 |
+| **12 (neu)** | **32 ‰** | **10,6 ‰** | 3,5 |
+| 20 | 32 ‰ | 10,0 ‰ | 2,5 |
+| 40 | 32 ‰ | 9,9 ‰ | 6,5 |
+| 60 | 32 ‰ | 7,3 ‰ | 6,5 |
+| 100 | 109 ‰ | 21,1 ‰ | 6,5 |
+
+Zum Vergleich: Was die Gruppe **von Hand** geplant hat, liegt bei 41 ‰
+schlechtestem Fall und 14,1 ‰ im Mittel. Ab k=12 ist der Planer also besser
+als die menschliche Praxis.
+
+Die Spalte ist **nicht monoton** (k=30 schlechter als k=20, k=100 schlechter
+als k=60). Unterschiede zwischen benachbarten Werten sind teilweise Zufall
+dieser einen Historie; wer den Bestwert pickt, überanpasst.
+
+### Warum nicht weiter als 12
+
+Ab etwa k=20 kippt die **Auslegung** des Trims. Im Extremfall — einer fuhr
+immer, einer nie, zwölf Punkte Abstand — schickt der Planer bei k=40 am
+**kleinen** Tag den Vielfahrer statt den Wenigfahrer: genau umgekehrt zu
+„wer selten fährt, bekommt die kleinen Tage".
+
+Der Mechanismus: Unter Stammfahrern liegt Δ-Rate um 0,03, die Autorität also
+bei 1,2 Punkten. Bei **unregelmäßiger** Teilnahme sind es eher 0,2 — und damit
+8 Punkte, genug, um die beobachtete Punkte-Spanne von ±2,5 zu überstimmen.
+Zwei Tests in `plan_test.dart` halten beide Invarianten fest; sie kippen bei
+20 und bei 40, nicht bei 12.
+
+Der Gewinn von 40 gegenüber 12 ist auf der echten Historie eine
+Nachkommastelle (9,9 statt 10,6 ‰) — der Unterschied im Verhalten ist ein
+Vorzeichen. Deshalb 12.
+
+### Wer den Preis zahlt
+
+Wer selten dabei ist, fährt anteilig etwas öfter. Bei 13 Teilnahmetagen
+schlägt eine einzelne Fahrt um 77 ‰ aus, der Regler liest dort also ein großes
+und zugleich unsicheres Signal. Die Gruppe hat das ausdrücklich als
+**erwünscht** eingeordnet („regelmäßiges Mitfahren belohnen") und die
+Punkte-Schranke vorsorglich auf ±7 geöffnet. **Gebraucht wird sie bei k=12
+nicht** — der gemessene Höchstwert bleibt bei 3,5 —, deshalb steht sie weiter
+auf ±5. Ein Grenzwert, der lockerer ist als nötig, fängt nichts mehr.
+
 ## Wiedervorlage-Kriterien
 
 - Die Flotte bekommt ein dauerhaftes Groß-/Kleinwagen-Gefälle **und** volle

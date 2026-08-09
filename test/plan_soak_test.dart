@@ -446,9 +446,9 @@ void main() {
       // große Wagen trägt nicht mehr systematisch mehr, also driftet weniger")
       // ist damit gemessen widerlegt. Das Punkte-Ziel (|Punkte| < 5) hält
       // unverändert; verschoben hat sich nur der aufgezeichnete Messwert.
-      expect(r.spreadAtEnd, closeTo(4.5, 1e-9));
-      expect(r.maxLateSpread, closeTo(8.0, 1e-9));
-      expect(r.sharePermille['p4'], -16, reason: 'Bus: seltener, aber voller.');
+      expect(r.spreadAtEnd, closeTo(2.5, 1e-9));
+      expect(r.maxLateSpread, closeTo(7.5, 1e-9));
+      expect(r.sharePermille['p4'], -21, reason: 'Bus: seltener, aber voller.');
       expect(r.points['p4'], closeTo(0.0, 1e-9));
 
       // Robustheit: neun weitere Seeds nur gegen die Ziele (beobachtet:
@@ -556,11 +556,11 @@ void main() {
       // Exakte Regressions-Pins (Datensatz ist deterministisch).
       expect(r.totalTrips, 1945);
       expect(r.soloTrips, 205);
-      expect(r.spreadAt100, closeTo(6.5, 1e-9));
-      expect(r.spreadAtEnd, closeTo(4.5, 1e-9));
-      expect(r.maxLateSpread, closeTo(14.0, 1e-9));
-      expect(r.sharePermille['p8'], -93);
-      expect(r.points['p8'], closeTo(-2.5, 1e-9));
+      expect(r.spreadAt100, closeTo(5.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(5.0, 1e-9));
+      expect(r.maxLateSpread, closeTo(17.0, 1e-9));
+      expect(r.sharePermille['p8'], -86);
+      expect(r.points['p8'], closeTo(-1.0, 1e-9));
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
@@ -595,9 +595,9 @@ void main() {
       // Exakte Regressions-Pins.
       expect(r.totalTrips, 1968);
       expect(r.soloTrips, 205);
-      expect(r.spreadAt100, closeTo(4.5, 1e-9));
+      expect(r.spreadAt100, closeTo(6.0, 1e-9));
       expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
-      expect(r.maxLateSpread, closeTo(6.0, 1e-9));
+      expect(r.maxLateSpread, closeTo(6.5, 1e-9));
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
@@ -681,10 +681,10 @@ void main() {
       // Exakte Regressions-Pins.
       expect(r.totalTrips, 2679);
       expect(r.soloTrips, 0);
-      expect(r.spreadAt100, closeTo(1283.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(5170.0, 1e-9));
-      expect(r.points['p8'], closeTo(4234.5, 1e-9));
-      expect(r.sharePermille['p8'], 454);
+      expect(r.spreadAt100, closeTo(1275.0, 1e-9));
+      expect(r.spreadAtEnd, closeTo(5195.5, 1e-9));
+      expect(r.points['p8'], closeTo(4261.5, 1e-9));
+      expect(r.sharePermille['p8'], 457);
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );

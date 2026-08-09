@@ -292,16 +292,41 @@ String? suggestDriver(
 
 /// Verstärkung des Fahrraten-Trims im Wochenvorschlag — und zugleich seine
 /// **Autoritätsgrenze**: Zwei Kandidaten können höchstens
-/// `kRateBalance · Δ-Fahrrate · |dayFactor|` Punkte überbrücken, also nie
-/// mehr als 6 (Raten liegen in 0..1). Jenseits dieses Bandes entscheiden
-/// exakt die Punkte — die Grenze steckt in der Verstärkung selbst, nicht in
-/// einer Sonderklausel (Muster entschieden 2026-07-22 mit Deckel 2; auf 6
-/// gehoben 2026-07-24, weil das im Zielflotten-Soak den Raten-Worst-Case
-/// von ±2,7 auf ±2,2 pp senkt — den strukturellen Boden. Die PRAKTISCHE
-/// Autorität bleibt winzig: Reale Δ-Raten liegen um 0,03, der Trim bewegt
-/// also ~0,2 Punkte. Details in
-/// `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 3).
-const kRateBalance = 6.0;
+/// `kRateBalance · Δ-Fahrrate · |dayFactor|` Punkte überbrücken. Jenseits
+/// dieses Bandes entscheiden exakt die Punkte; die Grenze steckt in der
+/// Verstärkung selbst, nicht in einer Sonderklausel.
+///
+/// Geschichte: Muster entschieden 2026-07-22 mit Deckel 2, auf 6 gehoben
+/// 2026-07-24, **auf 12 gehoben 2026-08-09** (Marcus).
+///
+/// **Warum 12 — gemessen an ZWEI Datensätzen.** Gegen die echte
+/// 401-Tage-Historie der Gruppe halbiert der Schritt die Abweichung der
+/// Stammfahrer vom mittleren Fahranteil: **18,7 → 10,6 ‰**, bei
+/// unveränderten Punkten. Der Zwölf-Seed-Soak bestätigt die Richtung
+/// schwächer. Bewusst nicht nach dem Bestwert eines Datensatzes gewählt:
+/// Die Kennzahl schwankt nicht monoton (auf der Historie ist k=30
+/// schlechter als k=20, k=100 schlechter als k=60), und wer den Spitzenwert
+/// pickt, überanpasst an dessen Zufall.
+///
+/// **Warum nicht 40, obwohl es auf der Historie minimal besser wäre**
+/// (9,9 statt 10,6 ‰): Ab k≈20 kippt die Auslegung des Trims. Im Extremfall
+/// — einer fuhr immer, einer nie, zwölf Punkte Abstand — schickt der Planer
+/// bei k=40 am **kleinen** Tag den Vielfahrer statt den Wenigfahrer, also
+/// genau umgekehrt zur Absicht „wer selten fährt, bekommt die kleinen Tage".
+/// Der Grund: Bei unregelmäßiger Teilnahme liegt Δ-Rate um 0,2 statt 0,03,
+/// die Autorität also bei 8 statt 1,2 Punkten — genug, um die beobachtete
+/// Punkte-Spanne von ±2,5 zu überstimmen. Zwei Tests in `plan_test.dart`
+/// nageln beide Invarianten fest; sie kippen bei 20 und bei 40, nicht bei
+/// 12. **Wer den Wert erhöht, sieht sie fallen und weiß dann, was er tut.**
+///
+/// Nebenbefund: Die Punkte-Schranke des Soak durfte auf ±7 geöffnet werden
+/// (Marcus, 09.08.2026), **wird aber nicht gebraucht** — bei 12 bleibt der
+/// gemessene Höchstwert bei 3,5. Sie steht deshalb weiter auf ±5; ein
+/// Grenzwert, der lockerer ist als nötig, fängt nichts mehr.
+///
+/// Alle Zahlen in `doc/entscheidung-mitfahrer-verteilung.md`, Nachträge 3
+/// und 2026-08-09 (3).
+const kRateBalance = 12.0;
 
 /// Volle Fairness-Reihenfolge für einen **Plan-Tag**: Punkte zuerst, dazu ein
 /// begrenzter Fahrraten-Trim (nur hier — Dashboard und Fahrten-Editor bleiben

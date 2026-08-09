@@ -1192,20 +1192,40 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   eine Fahrt eingetragen ist — und alle fünf Tage schlagen dieselbe Person
   vor. Tage mit echter Fahrt werden nicht zusätzlich simuliert, sonst zählen
   sie doppelt. Beides ist in `test/plan_test.dart` festgenagelt.
-- **Der Planer trimmt die Fahrrate — begrenzt auf ±6 Punkte** (Muster
+- **Der Planer trimmt die Fahrrate — begrenzt auf ±12 Punkte** (Muster
   entschieden 2026-07-22 mit Deckel 2; auf 6 gehoben 2026-07-24 nach dem
-  Zielflotten-Soak, `suggestPlanDriver`): Wer selten fährt, bekommt bei
-  fast gleichem Punktestand eher die kleinen Tage, Vielfahrer die vollen —
-  so gleichen sich die Fahranteile an. Das ist eine Kaskadenregelung mit
-  begrenzter Autorität: reiner P-Regler auf der Raten-Abweichung
-  (bewusst **kein** I-Anteil — die Rate ist selbst ein integrierender
-  Zustand, ein Integrator darauf schwänge), Verstärkung `kRateBalance = 6`
-  ist zugleich der harte Deckel; praktisch bewegt der Trim ~0,2 Punkte,
-  weil reale Δ-Raten klein sind. Jenseits des Bandes entscheiden exakt die
-  Punkte; Dashboard/„Wer ist dran?" (`rankPresent`) bleiben unberührt.
-  Wer den Trim „vereinfacht" (Deckel raus, I-Anteil rein, auch fürs
-  Dashboard), bricht den Punkte-Vorrang oder baut Schwingen ein —
+  Zielflotten-Soak, **auf 12 gehoben 2026-08-09**, `suggestPlanDriver`):
+  Wer selten fährt, bekommt bei fast gleichem Punktestand eher die kleinen
+  Tage, Vielfahrer die vollen — so gleichen sich die Fahranteile an. Das ist
+  eine Kaskadenregelung mit begrenzter Autorität: reiner P-Regler auf der
+  Raten-Abweichung (bewusst **kein** I-Anteil — die Rate ist selbst ein
+  integrierender Zustand, ein Integrator darauf schwänge), Verstärkung
+  `kRateBalance` ist zugleich der harte Deckel. Jenseits des Bandes
+  entscheiden exakt die Punkte; Dashboard/„Wer ist dran?" (`rankPresent`)
+  bleiben unberührt. Wer den Trim „vereinfacht" (Deckel raus, I-Anteil rein,
+  auch fürs Dashboard), bricht den Punkte-Vorrang oder baut Schwingen ein —
   `test/plan_test.dart` nagelt Deckel und Zuordnung fest.
+  - **Der Hub auf 12 ist an EUREN echten Daten gemessen**, nicht nur
+    simuliert: Auf der 401-Tage-Historie halbiert er die Abweichung der
+    Stammfahrer vom mittleren Fahranteil (18,7 → 10,6 ‰) und schlägt damit
+    auch die von Hand geplante Praxis (14,1 ‰).
+  - **Nach oben ist bei 12 Schluss, obwohl 40 minimal besser misst**
+    (9,9 ‰). Ab k≈20 kippt die Auslegung: Im Extremfall schickt der Planer
+    am **kleinen** Tag den Vielfahrer statt den Wenigfahrer — umgekehrt zur
+    Absicht. Grund ist die Δ-Rate: unter Stammfahrern 0,03 (Autorität 1,2
+    Punkte), bei unregelmäßiger Teilnahme aber 0,2 (Autorität 8 Punkte), und
+    das überstimmt die beobachtete Punkte-Spanne von ±2,5. Die zwei
+    Trim-Tests kippen bei 20 und 40, nicht bei 12 — **wer erhöht, sieht sie
+    fallen und weiß dann, was er tut.**
+  - **Die Soak-Punkte-Schranke durfte auf ±7, blieb aber bei ±5.** Bei 12
+    liegt der gemessene Höchstwert bei 3,5; ein Grenzwert, der lockerer ist
+    als nötig, fängt nichts mehr. Zahlen in
+    `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 2026-08-09 (3).
+  - **Replays der echten Historie laufen wochenweise, nie tageweise.**
+    `dayFactorOf` normiert gegen das Wochenmittel; bei einer Ein-Tages-Woche
+    ist `maxDeviation` null, `dayFactor` null — und der Trim fällt komplett
+    aus. Ein tageweiser Replay misst also stillschweigend `k = 0` und
+    liefert für JEDEN Wert dieselben Zahlen.
 - **Der Wochenplan schreibt optimistisch** (`WeekPlanNotifier` in
   `data/providers.dart`): Ein Tap wird lokal eingerechnet und sofort
   gezeigt, der Netz-Schreib läuft hinterher; scheitert er, holt
