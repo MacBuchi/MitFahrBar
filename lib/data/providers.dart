@@ -726,10 +726,25 @@ final nextRideProvider = Provider<AsyncValue<PlannedDay?>>((ref) {
 /// Ein Tag ohne Abweichung fehlt in der Map. „Keine Abweichung" und „leere
 /// Abweichung" sind dasselbe — zwei Schreibweisen dafür wären zwei Fälle im
 /// Digest, und einer davon würde vergessen.
+/// Ist die Auto-Zuordnung der Gruppe aus (#213), geben beide
+/// Abweichungs-Provider **leer** zurück statt der abgelegten Zeilen.
+///
+/// Das ist der Riegel für die ganze Oberfläche an EINER Stelle: Ohne ihn
+/// müsste jede Anzeigestelle einzeln fragen — Tageszeile, Fahrer-Glyph,
+/// Zell-Beschriftung, Banner-Chip —, und die eine, die man vergisst, zeigt
+/// dann „hin 06:45", während die Erinnerung um 07:30 klingelt. Genau diese
+/// Sorte Widerspruch ist der Fehler, gegen den #183 und #189 gebaut wurden.
+///
+/// Gelesen wird der Schalter über [settingsProvider]; solange der lädt, gilt
+/// „aus" — das zeigt kurz zu wenig statt kurz das Falsche.
+bool _carAssignmentOn(Ref ref) =>
+    ref.watch(settingsProvider).valueOrNull?.carAssignmentEnabled ?? false;
+
 final weekPlanDefaultsProvider = FutureProvider<Map<DateTime, GroupDefaults>>((
   ref,
 ) async {
   ref.watch(currentUserIdProvider);
+  if (!_carAssignmentOn(ref)) return const {};
   final dates = planningWeek(ref.read(nowProvider)());
   return ref
       .watch(carpoolRepositoryProvider)
@@ -744,6 +759,7 @@ final weekPlanDefaultsProvider = FutureProvider<Map<DateTime, GroupDefaults>>((
 final weekCarDefaultsProvider =
     FutureProvider<Map<DateTime, Map<String, GroupDefaults>>>((ref) async {
       ref.watch(currentUserIdProvider);
+      if (!_carAssignmentOn(ref)) return const {};
       final dates = planningWeek(ref.read(nowProvider)());
       return ref
           .watch(carpoolRepositoryProvider)
@@ -824,11 +840,17 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
   // Und je Auto (Stufe B): Zwei Autos desselben Tages können verschieden
   // früh losfahren.
   final carDefaults = ref.watch(weekCarDefaultsProvider).valueOrNull;
+  // Der Gruppen-Schalter (#213): Ist die Auto-Zuordnung aus, gehen nur die
+  // Zeiten der Gruppe in den Korb. Er steht hier und in `tool/notify.dart` —
+  // beide füllen denselben Korb, und ein Schreiber, der ihn nicht liest,
+  // trüge andere Zeiten ein als der andere.
+  final settings = ref.watch(settingsProvider).valueOrNull;
   // Ein halb geladener Stand schriebe einen halben Text. Lieber gar nichts —
   // der stündliche Job holt es nach.
   if (week == null ||
       persons == null ||
       notes == null ||
+      settings == null ||
       defaults == null ||
       dayDefaults == null ||
       carDefaults == null) {
@@ -854,6 +876,7 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
     // keine Meldung darüber (#163). Best effort: ohne Geräte-Zuordnung
     // wird nichts unterdrückt, und der stündliche Job hebt es wieder auf.
     suppressPersonId: ref.watch(myPersonProvider)?.id,
+    carAssignment: settings.carAssignmentEnabled,
   );
   unawaited(
     ref

@@ -186,7 +186,26 @@ List<OutboxEntry> outboxEntries({
   Map<DateTime, GroupDefaults> dayDefaults = const {},
   Map<DateTime, Map<String, GroupDefaults>> carDefaults = const {},
   String? suppressPersonId,
+  bool carAssignment = true,
 }) {
+  // Der Gruppen-Schalter (#213). Aus heißt hier wörtlich, was der Screen
+  // verspricht: **im Push stehen nur die Zeiten der Gruppe.** Beide
+  // Abweichungs-Ebenen fallen weg, also auch aus dem Digest — sonst meldete
+  // ein ausgeschaltetes Feature weiter Änderungen an einer Zeit, die niemand
+  // mehr angezeigt bekommt.
+  //
+  // Anders als [planWeek] hat diese Funktion kein `AppSettings`, aus dem sie
+  // den Schalter selbst lesen könnte; er muss also von den Aufrufern kommen —
+  // und davon gibt es zwei (App und `tool/notify.dart`), die denselben Korb
+  // füllen. Genau dort driftet so etwas. Die Vorgabe ist deshalb der
+  // *bisherige* Zustand (an), damit ein vergessener Aufrufer nichts still
+  // abschaltet, und `test/push_outbox_test.dart` prüft am Quelltext, dass
+  // beide ihn wirklich durchreichen — dieselbe Bauart wie
+  // `test/read_retry_test.dart`.
+  if (!carAssignment) {
+    dayDefaults = const {};
+    carDefaults = const {};
+  }
   final entries = <OutboxEntry>[];
   for (final day in week) {
     // Die Abweichung dieses Tages und die daraus aufgelöste Wahrheit. Der

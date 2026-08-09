@@ -501,6 +501,58 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       optimistischen Schreibvorgänge. Ein zweiter Ladepfad hing beim
       Weiterschalten einen Roundtrip hinterher und fragte genau dann
       doppelt — so gefunden im Flow-Test, bevor es jemand erlebt hat.
+- **Die ganze Auto-Zuordnung hat einen Gruppen-Schalter** (#213, seit
+  v0.71.0): `settings.car_assignment_enabled` (0/1), im Parameter-Screen.
+  Der Grund ist keine Bequemlichkeit: Es gibt **keinen Stable-/Latest-Kanal**
+  — ein Merge mit Versions-Bump *ist* die Veröffentlichung und erreicht alle
+  Gruppen zugleich. Ein Wert, den die Gruppe selbst umlegt, ist damit der
+  einzige Rückweg, der kein neues Release braucht. Er ist die erste Fahne
+  dieser Art; das Kriterium des Parameter-Screens hält er ein (er verschiebt
+  keine eingetragene Fahrt, nur künftige Vorschläge).
+  - **Aus heißt: feste Zeiten für alle.** Keine Abfahrt je Auto, keine
+    Zusage, keine Auto-Wahl, und im Push ausschließlich `group_defaults`.
+    Die **Autos bleiben** — dass ein voller Tag zwei braucht, ist Kapazität
+    (#62) und keine Zuweisung; sie zu verstecken wäre eine Lüge über den Tag.
+  - **Der Schalter wirkt an drei Stellen, und jede ist bewusst gewählt:**
+    - **`planWeek` liest ihn selbst** aus `settings` und leert `seatChoices`
+      und `carDefaults` beim Normalisieren. Nicht bei den Aufrufern gefiltert:
+      Es gibt zwei (App und `tool/notify.dart`), und filterte einer nicht,
+      verteilte er die Mitfahrer anders — der Korb trüge je nach Schreiber
+      verschiedene Zeiten. Weil beide `settings` ohnehin durchreichen, ist die
+      Falle hier konstruktiv erledigt.
+    - **`outboxEntries` bekommt ihn als Parameter**, weil es dort kein
+      `AppSettings` gibt. Vorgabe ist der *bisherige* Zustand (an), damit ein
+      vergessener Aufrufer nichts still abschaltet — und genau deshalb prüft
+      `test/push_outbox_test.dart` **am Quelltext**, dass beide Schreiber ihn
+      übergeben (Bauart wie `test/read_retry_test.dart`).
+    - **Die beiden Abweichungs-Provider geben leer zurück.** Das ist der
+      Riegel für die ganze Oberfläche an einer Stelle; ohne ihn müsste jede
+      Anzeigestelle einzeln fragen, und die eine, die man vergisst, zeigt
+      „hin 06:45", während die Erinnerung um 07:30 klingelt — der Fehler aus
+      v0.66.1 mit umgekehrtem Vorzeichen. Beim Laden gilt „aus": kurz zu
+      wenig zeigen ist besser als kurz das Falsche.
+  - **Abgelegte Zeilen werden inert, nie gelöscht** — dieselbe Regel wie bei
+    verwaisten Zeilen. Ein Schalter, der Daten wegwirft, wäre kein Rückweg;
+    Wiedereinschalten stellt her, was dastand.
+  - **Vorgabe aus, aber nur für NEUE Gruppen.** Fehlt die Zeile, gilt aus —
+    deshalb seedet `handle_new_group()` sie bewusst nicht (dasselbe Muster
+    wie `charging_price_per_kwh` und `e10_price_per_liter`). Bestehende
+    Gruppen setzt die Migration ausdrücklich auf 1: Ihnen die Zuordnung per
+    neuer Vorgabe zu nehmen wäre ein Entzug, keine Vorgabe.
+  - **Die Mindestversion bleibt unangetastet**, und das ist geprüft: Es fällt
+    nichts weg, und `saveSettings` ist ein **Upsert je Schlüssel** — ein alter
+    Client kennt `car_assignment_enabled` nicht, schreibt ihn also nicht und
+    lässt die Zeile stehen. **Bekannte Grenze:** Er zeigt die Zuordnung
+    trotzdem und schreibt seine Digests mit Abweichung. Solange der Schalter
+    an steht (überall, wo das Feature heute läuft), ist das richtig; schaltet
+    eine Gruppe ihn ab, während jemand einen alten Client benutzt, wechseln
+    sich die Digests ab und es gäbe „Änderung"-Meldungen. Der Ausweg ist
+    „erst alle aktualisieren, dann abschalten" — **nicht** die Mindestversion
+    zu heben, denn die träfe auch jede Gruppe, bei der nichts falsch ist.
+  - **Der Demo-Modus läuft mit AN** (`FakeCarpoolRepository`), obwohl neue
+    Gruppen aus starten. Kein Widerspruch: Dort entstehen die
+    README-Screenshots, und mit der Vorgabe „aus" verlören sie
+    stillschweigend die Auto-Zeilen und -Marken.
 - **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von

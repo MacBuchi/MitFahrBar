@@ -11,6 +11,7 @@ class AppSettings {
     this.petrolPricePerLiter = 1.78,
     this.e10PricePerLiter = 1.68,
     this.pointsWeight = 1.0,
+    this.carAssignmentEnabled = false,
   });
 
   /// Einfacher Arbeitsweg in km (überall ×2 für Hin/Rück).
@@ -47,6 +48,26 @@ class AppSettings {
   /// bleibt bestehen — er ist der Weg zurück, ohne die Formel anzufassen.
   final double pointsWeight;
 
+  /// Ordnet die Gruppe ihre Leute einzelnen Autos zu? (#213)
+  ///
+  /// Aus heißt: keine Abfahrt je Auto, keine Zusage, keine Auto-Wahl — und
+  /// im Push stehen ausschließlich die Zeiten aus `group_defaults`. Der
+  /// Schalter existiert, weil es **keinen Stable-/Latest-Kanal** gibt: Ein
+  /// Merge mit Versions-Bump *ist* die Veröffentlichung und erreicht alle
+  /// Gruppen zugleich, also ist ein Wert, den die Gruppe selbst umlegen
+  /// kann, der einzige Rückweg ohne neues Release.
+  ///
+  /// **Vorgabe aus, und das ist die Vorgabe für NEUE Gruppen.** Fehlt die
+  /// Zeile, gilt aus; bestehende Gruppen hat die Migration auf 1 gesetzt,
+  /// damit ihnen nichts weggenommen wird, was sie schon benutzen.
+  ///
+  /// Aus wirkt in [planWeek] und im Ausgangskorb — die abgelegten Zeilen in
+  /// `plan_car_defaults` und `plan_seat_choices` werden dabei **inert**, nicht
+  /// gelöscht. Ein Schalter, der Daten wegwirft, wäre kein Rückweg: Beim
+  /// Wiedereinschalten gilt wieder, was dastand. Dieselbe Linie wie bei den
+  /// verwaisten Zeilen.
+  final bool carAssignmentEnabled;
+
   /// Kopie mit geänderten Kosten-Parametern.
   ///
   /// Bewusst **ohne** `oneWayFactor` und `pointsWeight`: Die beiden ändern
@@ -60,6 +81,7 @@ class AppSettings {
     double? dieselPricePerLiter,
     double? petrolPricePerLiter,
     double? e10PricePerLiter,
+    bool? carAssignmentEnabled,
   }) => AppSettings(
     commuteKm: commuteKm ?? this.commuteKm,
     oneWayFactor: oneWayFactor,
@@ -70,6 +92,7 @@ class AppSettings {
     petrolPricePerLiter: petrolPricePerLiter ?? this.petrolPricePerLiter,
     e10PricePerLiter: e10PricePerLiter ?? this.e10PricePerLiter,
     pointsWeight: pointsWeight,
+    carAssignmentEnabled: carAssignmentEnabled ?? this.carAssignmentEnabled,
   );
 
   factory AppSettings.fromMap(Map<String, double> map) => AppSettings(
@@ -81,6 +104,9 @@ class AppSettings {
     petrolPricePerLiter: map['petrol_price_per_liter'] ?? 1.78,
     e10PricePerLiter: map['e10_price_per_liter'] ?? 1.68,
     pointsWeight: map['points_weight'] ?? 1.0,
+    // `settings.value` ist numeric — der Schalter reist als 0/1. Fehlt die
+    // Zeile, ist er aus: Das ist der Zustand einer neuen Gruppe.
+    carAssignmentEnabled: (map['car_assignment_enabled'] ?? 0) != 0,
   );
 
   Map<String, double> toMap() => {
@@ -92,5 +118,6 @@ class AppSettings {
     'petrol_price_per_liter': petrolPricePerLiter,
     'e10_price_per_liter': e10PricePerLiter,
     'points_weight': pointsWeight,
+    'car_assignment_enabled': carAssignmentEnabled ? 1 : 0,
   };
 }

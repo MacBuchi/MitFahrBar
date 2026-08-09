@@ -1164,18 +1164,23 @@ void main() {
       decidedAt: decidedAt ?? DateTime(2026, 3, 1, 12),
     );
 
+    /// Diese Gruppe misst die Auto-Zuordnung, also läuft sie ausdrücklich mit
+    /// eingeschaltetem Schalter (#213) — die Vorgabe einer neuen Gruppe ist
+    /// „aus", und dann darf hier nichts davon wirken. Genau das prüft
+    /// `der Gruppen-Schalter` weiter unten.
     PlannedDay planDay({
       required Map<String, PlanRide> rides,
       Map<String, int> seats = const {},
       Set<String> override = const {},
       List<SeatChoice> choices = const [],
       Map<String, GroupDefaults> carDefaults = const {},
+      AppSettings config = const AppSettings(carAssignmentEnabled: true),
     }) => planWeek(
       dates: [week.first],
       availability: {week.first: rides},
       overrides: override.isEmpty ? const {} : {week.first: override},
       trips: const [],
-      settings: settings,
+      settings: config,
       seats: seats,
       seatChoices: {week.first: choices},
       carDefaults: {week.first: carDefaults},
@@ -1194,6 +1199,80 @@ void main() {
       expect(day.driverIds, ['a', 'b']);
       expect(day.cars[0].fullIds, ['c']);
       expect(day.cars[1].fullIds, ['d']);
+    });
+
+    group('der Gruppen-Schalter (#213)', () {
+      const off = AppSettings();
+      const on = AppSettings(carAssignmentEnabled: true);
+
+      test('aus: der Pin wirkt nicht — geplant wird wie ohne Zusage', () {
+        // Genau der Fall aus „ein Pin setzt die Person in genau dieses Auto":
+        // eingeschaltet biegt er c zu a um. Ausgeschaltet muss dasselbe
+        // herauskommen wie ganz ohne Zusage, sonst wirkt der Pin halb.
+        PlannedDay day({
+          required AppSettings config,
+          List<SeatChoice> choices = const [],
+        }) => planDay(
+          rides: ride({'a', 'b', 'c', 'd'}),
+          seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+          choices: choices,
+          config: config,
+        );
+
+        final pinned = day(config: off, choices: [choice('c', 'a')]);
+        final untouched = day(config: off);
+
+        expect(pinned.cars[0].fullIds, untouched.cars[0].fullIds);
+        expect(pinned.cars[1].fullIds, untouched.cars[1].fullIds);
+        expect(
+          pinned.cars[0].fullIds,
+          isNot(day(config: on, choices: [choice('c', 'a')]).cars[0].fullIds),
+          reason:
+              'Sonst misst der Test nichts: Eingeschaltet MUSS der Pin etwas '
+              'umbiegen, sonst wäre auch ein kaputter Riegel grün.',
+        );
+      });
+
+      test('aus: eine Absage erzwingt kein zweites Auto', () {
+        // Eingeschaltet ist genau das der Kern von #189: „zu diesen
+        // Bedingungen nicht" heißt, jemand anderes muss fahren.
+        Map<String, Object> shape(AppSettings config) {
+          final day = planDay(
+            rides: ride({'a', 'b', 'c'}),
+            seats: const {'a': 5, 'b': 5, 'c': 5},
+            choices: [choice('b', 'a', accepted: false, terms: '05:30||')],
+            carDefaults: const {
+              'a': GroupDefaults(outboundTime: DayTime(5, 30)),
+            },
+            config: config,
+          );
+          return {'fahrer': day.driverIds, 'erzwungen': day.forcedFor.keys};
+        }
+
+        expect(
+          (shape(on)['fahrer']! as List).length,
+          2,
+          reason:
+              'Eingeschaltet entsteht das Zusatzauto — sonst misst der '
+              'ausgeschaltete Fall nichts.',
+        );
+        expect((shape(off)['fahrer']! as List).length, 1);
+        expect(shape(off)['erzwungen'], isEmpty);
+      });
+
+      test('aus: die Auto-Abweichung verfällt, also auch ihre Bedingungen', () {
+        // Die Zusage hängt an `terms`. Ist der Schalter aus, gibt es keine
+        // Abweichung mehr — eine Zusage zu 05:30 darf dann nichts festhalten.
+        final day = planDay(
+          rides: ride({'a', 'b', 'c', 'd'}),
+          seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+          choices: [choice('c', 'a', terms: '05:30||')],
+          carDefaults: const {'a': GroupDefaults(outboundTime: DayTime(5, 30))},
+          config: off,
+        );
+
+        expect(day.cars[0].fullIds, isNot(contains('c')));
+      });
     });
 
     test('wer zuerst gepinnt hat, bleibt — der Nachrang wird verteilt', () {

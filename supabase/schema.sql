@@ -112,7 +112,13 @@ create index persons_group_idx on public.persons (group_id);
 create index trips_group_idx on public.trips (group_id);
 create index trip_participations_group_idx on public.trip_participations (group_id);
 
--- settings pro Gruppe.
+-- settings pro Gruppe. Nur Zahlen — Schlüssel → Wert.
+--
+-- Ein Schlüssel darin ist kein Parameter, sondern ein Schalter:
+-- `car_assignment_enabled` (0/1, #213) entscheidet, ob die Gruppe ihre Leute
+-- einzelnen Autos zuordnet. Fehlt die Zeile, gilt 0 — das ist der Zustand
+-- einer frisch angelegten Gruppe, und deshalb seedet `handle_new_group()`
+-- ihn bewusst nicht.
 create table public.settings (
   group_id uuid not null default auth.uid()
     references public.groups(id) on delete cascade,

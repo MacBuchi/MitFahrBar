@@ -128,8 +128,20 @@ Future<int> _handleGroup({
   });
   if (!prefRows.any((row) => active.containsKey(row['person_id']))) return 0;
 
+  // Einmal geladen, zweimal gebraucht: Die Fairness-Regel rechnet damit, und
+  // der Gruppen-Schalter (#213) darüber entscheidet, ob Abweichungen in den
+  // Korb dürfen. Zwei Lesevorgänge wären zwei Stände derselben Tabelle.
+  final settingRows = await api.rows('settings', {
+    ...scope,
+    'select': 'key, value',
+  });
+  final settings = AppSettings.fromMap({
+    for (final row in settingRows)
+      row['key'] as String: (row['value'] as num).toDouble(),
+  });
+
   final week = planningWeek(now);
-  final planned = await _plan(api, scope, week, active);
+  final planned = await _plan(api, scope, week, active, settings);
 
   // Anmerkungen (#127). `order=created_at` ist Pflicht: Der Digest mischt die
   // Notiz-IDs ein, und ohne zugesicherte Reihenfolge unterschiede er sich
@@ -209,6 +221,7 @@ Future<int> _handleGroup({
     defaults: defaults,
     dayDefaults: dayDefaults,
     carDefaults: carDefaults,
+    carAssignment: settings.carAssignmentEnabled,
   );
   if (dryRun) {
     // Im Probelauf keine Namen ins Protokoll: Der Actions-Log ist
@@ -262,6 +275,7 @@ Future<List<PlannedDay>> _plan(
   Map<String, String> scope,
   List<DateTime> week,
   Map<String, Person> active,
+  AppSettings settings,
 ) async {
   final tripRows = await api.rows('trips', {
     ...scope,
@@ -284,15 +298,6 @@ Future<List<PlannedDay>> _plan(
         },
       ),
   ];
-
-  final settingRows = await api.rows('settings', {
-    ...scope,
-    'select': 'key, value',
-  });
-  final settings = AppSettings.fromMap({
-    for (final row in settingRows)
-      row['key'] as String: (row['value'] as num).toDouble(),
-  });
 
   final from = _isoDay(week.first);
   final to = _isoDay(week.last);

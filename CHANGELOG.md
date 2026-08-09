@@ -4,6 +4,31 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.71.0] – 2026-08-09
+
+### Neu
+
+- **Ihr könnt die Zuordnung zu einzelnen Autos jetzt abschalten** — ein
+  Schalter unter „Parameter", der für die ganze Gruppe gilt. Steht er auf
+  aus, gilt für alle die Abfahrt aus den festen Vorgaben: keine eigenen
+  Zeiten je Auto, keine Rückfrage „passt dir das?", keine Auto-Wahl, und in
+  den Benachrichtigungen stehen nur noch die Zeiten der Gruppe. Wer will,
+  hat den Planer damit wieder so schlicht wie vor der Umstellung.
+- **Nichts geht dabei verloren.** Eingetragene Zeiten und Zusagen bleiben
+  gespeichert und gelten wieder, sobald ihr den Schalter erneut umlegt.
+- **Für euch ändert sich zunächst nichts:** Bei bestehenden Gruppen ist der
+  Schalter an, so wie ihr es kennt. Nur neu angelegte Gruppen starten ohne
+  Zuordnung und können sie bei Bedarf einschalten.
+- Wie viele Autos an einem Tag fahren, entscheidet weiterhin die Zahl der
+  Sitzplätze — das bleibt sichtbar, egal wie der Schalter steht.
+
+### Hinweis
+
+- Legt ihr den Schalter mitten in der Woche um, gilt das sofort — auch für
+  Tage, zu denen schon eine Erinnerung verschickt wurde. Und solange noch
+  jemand eine ältere App-Version benutzt, schaltet ihr am besten erst ab,
+  wenn alle aktualisiert haben.
+
 ## [0.70.1] – 2026-08-08
 
 ### Intern
