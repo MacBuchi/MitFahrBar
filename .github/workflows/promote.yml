@@ -1,0 +1,143 @@
+# Ein Prerelease zum stabilen Release befördern (#217).
+#
+# **Warum es diesen Workflow gibt.** Jeder Merge auf `main` erzeugt ein
+# Release — bei sechs Merges an einem Tag bekam die Gruppe sechs
+# Update-Hinweise. Seit `release.yml` als *Prerelease* veröffentlicht, sieht
+# sie davon nichts: `update_check.dart` fragt `/releases/latest` ab, und
+# GitHub liefert dort keine Prereleases. Dieser Workflow ist der bewusste
+# Handgriff, der einen Stand für alle freigibt — gedacht alle zwei bis drei
+# Wochen.
+#
+# **Drei Dinge passieren hier zusammen, und keines davon ist optional:**
+#
+# 1. Das Release verliert die Prerelease-Markierung und wird „latest" — erst
+#    dadurch meldet sich die App.
+# 2. Die Release-Notizen werden aus ALLEN CHANGELOG-Abschnitten seit dem
+#    letzten stabilen Release zusammengesetzt. Ohne das stünde unter „Was ist
+#    neu" nur der Abschnitt der einen beförderten Version, und alles
+#    dazwischen fehlte der Gruppe.
+# 3. GitHub Pages wird aus genau diesem Tag deployt. Das Web hängt an EINER
+#    URL; deployte weiterhin jeder Merge, bekäme die PWA jede Zwischenversion
+#    und die ganze Trennung gälte nur für Android.
+name: Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version ohne v, z. B. 0.76.0 (leer = neuestes Prerelease)'
+        required: false
+        type: string
+
+env:
+  FLUTTER_VERSION: "3.44.8"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  promote:
+    name: Promote to stable
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Version bestimmen
+        id: pick
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WANTED: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "$WANTED" ]; then
+            version="${WANTED#v}"
+          else
+            # Neuestes Prerelease. `--exclude-drafts` lässt Entwürfe draußen;
+            # sortiert wird von GitHub nach Erstellzeit, nicht nach SemVer —
+            # für unsere monoton steigenden Versionen ist das dasselbe.
+            version=$(gh release list --limit 30 --exclude-drafts \
+              --json tagName,isPrerelease \
+              --jq '[.[] | select(.isPrerelease)] | .[0].tagName // ""')
+            version="${version#v}"
+          fi
+          if [ -z "$version" ]; then
+            echo "::error::Kein Prerelease gefunden und keine Version angegeben."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "Befördere v$version"
+
+      # Der letzte stabile Stand ist die Untergrenze der Notizen. Gibt es
+      # noch keinen, fängt die Sammlung schlicht beim ältesten Abschnitt an.
+      - name: Letztes stabiles Release finden
+        id: previous
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          prev=$(gh release list --limit 60 --exclude-drafts \
+            --json tagName,isPrerelease,isLatest \
+            --jq '[.[] | select(.isPrerelease | not)] | .[0].tagName // ""')
+          echo "tag=$prev" >> "$GITHUB_OUTPUT"
+          echo "Vorheriger stabiler Stand: ${prev:-<keiner>}"
+
+      - name: Notizen seit dem letzten stabilen Stand sammeln
+        env:
+          VERSION: ${{ steps.pick.outputs.version }}
+          PREV: ${{ steps.previous.outputs.tag }}
+        run: |
+          set -euo pipefail
+          prev="${PREV#v}"
+          # Der CHANGELOG steht neueste Version zuerst. Gesammelt wird ab dem
+          # Abschnitt der beförderten Version bis AUSSCHLIESSLICH dem des
+          # letzten stabilen — dazwischen liegt genau das, was die Gruppe
+          # noch nicht gesehen hat.
+          awk -v ver="$VERSION" -v prev="$prev" '
+            $0 ~ "^## \\[" ver "\\]" { hit = 1 }
+            hit && prev != "" && $0 ~ "^## \\[" prev "\\]" { exit }
+            hit { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > release-body.md
+          if [ ! -s release-body.md ]; then
+            echo "::warning::Kein CHANGELOG-Abschnitt für $VERSION — Fallback-Link."
+            echo "Details: https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md" > release-body.md
+          fi
+          echo "--- Release-Notizen ---"
+          cat release-body.md
+
+      - name: Release stabil schalten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.pick.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" \
+            --prerelease=false \
+            --latest \
+            --notes-file release-body.md
+          gh release view "$TAG" --json tagName,isPrerelease,isLatest
+
+      # Pages aus dem beförderten Tag, nicht aus main: Sonst läge auf der
+      # Web-Adresse der Entwicklungsstand, während Android auf stabil zeigt.
+      - name: Auf den Tag wechseln
+        run: git checkout "${{ steps.pick.outputs.tag }}"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build web --release --base-href /MitFahrBar/
+      # SPA-Fallback: GitHub Pages liefert 404.html bei Deep-Links.
+      - run: cp build/web/index.html build/web/404.html
+      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/web
+          force_orphan: true

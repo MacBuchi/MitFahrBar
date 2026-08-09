@@ -4,6 +4,199 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.76.0] – 2026-08-09
+
+### Behoben
+
+- **Eine Absage schafft jetzt auch dann ein weiteres Auto, wenn die übrigen
+  schon voll sind.** Sagte jemand einer abweichenden Abfahrt ab, suchte
+  MitFahrBar bisher nur irgendein anderes Auto — ob dort noch ein Platz frei
+  war, prüfte es nicht. Ergebnis war ein überfülltes Auto statt eines
+  zusätzlichen. Wenn die Sitzplätze des Tages insgesamt nicht reichen, wird
+  weiterhin aufgefüllt wie bisher; das ist der ehrliche Fall.
+
+## [0.75.0] – 2026-08-09
+
+### Geändert
+
+- **Abfahrtszeiten gehören jetzt immer zu einem Auto.** Bisher gab es zwei
+  Wege: eine Zeit „für den ganzen Tag" und eine „für dein Auto". Bei nur
+  einem Auto landete der Eintrag stillschweigend beim Tag — und dann wurde
+  niemand gefragt, ob ihm die neue Zeit passt. Genau das war der häufigste
+  Fall. Jetzt gibt es nur noch den einen Weg, und die Rückfrage kommt
+  zuverlässig.
+- Der Umschalter „Ganzer Tag / Auto N" entfällt damit; bei zwei Autos zeigt
+  der Schirm stattdessen, um welches es geht.
+- **Was ihr früher eingetragen habt, gilt weiter** — bestehende Zeiten für
+  einen ganzen Tag werden weiterhin berücksichtigt.
+
+### Hinweis
+
+- Eine Zeit zu setzen legt ab jetzt immer auch den Fahrer des Tages fest —
+  auch dann, wenn nur ein Auto fährt. „Wir fahren früher, wer fährt, sehen
+  wir noch" geht damit nicht mehr; wer das braucht, schreibt eine Anmerkung.
+
+## [0.74.0] – 2026-08-09
+
+### Geändert
+
+- **Der Planer gleicht die Fahranteile jetzt spürbar besser aus.** Bisher
+  konnte es passieren, dass jemand über Monate deutlich häufiger am Steuer
+  saß als andere, obwohl die Punkte ausgeglichen waren. Dagegen steuert der
+  Planer jetzt kräftiger: Wer selten gefahren ist, bekommt eher die kleinen
+  Tage, wer viel gefahren ist, die vollen.
+- **Gemessen an euren echten Fahrten**, nicht nur simuliert: Über die 401
+  protokollierten Tage halbiert sich der Abstand zwischen den Stammfahrern
+  fast — und liegt damit auch unter dem, was bisher von Hand geplant wurde.
+- An den Punkten ändert sich dabei praktisch nichts; sie bleiben wie gewohnt
+  der erste Maßstab dafür, wer dran ist.
+
+## [0.73.0] – 2026-08-09
+
+### Neu
+
+- **Eure Antwort steht jetzt direkt im Wochenplan.** Fährt ein Auto an einem
+  Tag zu einer anderen Zeit oder von einem anderen Treffpunkt los, findet ihr
+  unter dem Tag einen Schalter mit „Egal / Ja / Nein" — dort seht ihr auf
+  einen Blick, was gerade für euch gilt, und könnt es ohne Umweg ändern.
+  Darunter steht in einem Satz, was eure Wahl bedeutet.
+- **Bei zwei Autos gibt es zwei Zeilen**, jede mit Farbe und Nummer ihres
+  Autos — dieselbe Marke wie im Raster.
+- Die Rückfrage bleibt: Verschiebt jemand eine Abfahrt, zu der ihr schon
+  entschieden hattet, fragt die App weiterhin von sich aus nach. Der Schalter
+  zeigt, was gilt; die Rückfrage meldet sich, wenn sich etwas ändert.
+
+## [0.72.0] – 2026-08-09
+
+### Neu
+
+- **Bei einer verschobenen Abfahrt habt ihr jetzt drei Antworten** statt
+  zwei: „Egal" (die Vorgabe — ihr fahrt mit, wo Platz ist), „Ja, unbedingt"
+  (ihr kommt bevorzugt in dieses Auto) und „Auf keinen Fall" (dann fährt
+  jemand anderes zur normalen Zeit).
+- **Wegtippen heißt jetzt „egal", nicht mehr „passt schon".** Praktisch
+  sitzt ihr weiter da, wo ihr ohnehin säßet — nur hält euch die App dort
+  nicht mehr fest, wenn sich die Planung ändert. Verschiebt der Fahrer die
+  Abfahrt später noch einmal, werdet ihr wie bisher neu gefragt.
+
+### Geändert
+
+- **Mitfahrende verteilen sich jetzt gleichmäßig auf die Autos** — nach
+  Köpfen statt nach freien Plätzen. Vorher füllte sich zuerst der größte
+  Wagen; wer zu einer anderen Zeit losfuhr, saß dann leicht allein. Ist ein
+  Auto voll, geht es wie gewohnt ins nächste mit Platz.
+- Für die Punkte ändert das wenig, aber messbar etwas: Die Abstände werden
+  einen Tick größer statt kleiner. Nachgemessen über 2000 simulierte Tage;
+  Zahlen und Begründung stehen im Entscheidungs-Report unter `doc/`.
+
+## [0.71.0] – 2026-08-09
+
+### Neu
+
+- **Ihr könnt die Zuordnung zu einzelnen Autos jetzt abschalten** — ein
+  Schalter unter „Parameter", der für die ganze Gruppe gilt. Steht er auf
+  aus, gilt für alle die Abfahrt aus den festen Vorgaben: keine eigenen
+  Zeiten je Auto, keine Rückfrage „passt dir das?", keine Auto-Wahl, und in
+  den Benachrichtigungen stehen nur noch die Zeiten der Gruppe. Wer will,
+  hat den Planer damit wieder so schlicht wie vor der Umstellung.
+- **Nichts geht dabei verloren.** Eingetragene Zeiten und Zusagen bleiben
+  gespeichert und gelten wieder, sobald ihr den Schalter erneut umlegt.
+- **Für euch ändert sich zunächst nichts:** Bei bestehenden Gruppen ist der
+  Schalter an, so wie ihr es kennt. Nur neu angelegte Gruppen starten ohne
+  Zuordnung und können sie bei Bedarf einschalten.
+- Wie viele Autos an einem Tag fahren, entscheidet weiterhin die Zahl der
+  Sitzplätze — das bleibt sichtbar, egal wie der Schalter steht.
+
+### Hinweis
+
+- Legt ihr den Schalter mitten in der Woche um, gilt das sofort — auch für
+  Tage, zu denen schon eine Erinnerung verschickt wurde. Und solange noch
+  jemand eine ältere App-Version benutzt, schaltet ihr am besten erst ab,
+  wenn alle aktualisiert haben.
+
+## [0.70.1] – 2026-08-08
+
+### Intern
+
+- **Für die Gruppen ändert sich nichts Sichtbares.** Die Android-Bauakte
+  hält jetzt zwei Einstellungen fest, die das Flutter-Werkzeug bisher bei
+  jedem Bau neu ergänzt hat. Damit bauen der Rechner des Entwicklers und
+  der Server nachweislich dasselbe — vorher lagen sie drei Versionen
+  auseinander, ohne dass es auffiel.
+
+## [0.70.0] – 2026-08-08
+
+### Geändert
+
+- **Wegtippen zählt jetzt als Zusage.** Fragt MitFahrBar dich, ob die
+  abweichende Abfahrt deines Autos passt, und du tippst die Frage weg, gilt
+  das als „ja" — du fährst mit, und es bleibt bei einem Auto. Nur ein
+  ausdrückliches „Nein, so nicht" plant ein weiteres ein.
+
+  Das klingt nach einer Kleinigkeit und war eine Lücke: Vorher wurde beim
+  Wegtippen **nichts** gemerkt. Verschob dein Fahrer die Abfahrt später
+  noch einmal — von 05:30 auf 04:00 —, fand die Rückfrage nichts, was
+  veraltet wäre, und schwieg. Du wurdest mitgezogen, ohne je zugestimmt zu
+  haben. Jetzt wirst du gefragt, weil deine stille Zusage der alten Zeit
+  galt.
+
+### Behoben
+
+- **„Fahrer ändern" verwirft keine Eingabe mehr stillschweigend.** Wenn ein
+  zweites Auto nur deshalb existiert, weil jemand abgesagt hat, ließ sich
+  dessen Fahrer bisher abwählen — die Planung setzte ihn im selben Moment
+  zurück, ohne ein Wort. Jetzt ist der Haken fest, und daneben steht, wer
+  ihn braucht: „wird gebraucht — Bert fährt sonst nicht mit". Wer das zweite
+  Auto loswerden will, spricht mit dieser Person; sagt sie doch zu,
+  verschwindet es von selbst.
+
+## [0.69.0] – 2026-08-08
+
+### Neu
+
+- **Verschiebt dein Fahrer die Abfahrt, nachdem du zugesagt hast, fragt
+  MitFahrBar dich neu.** Bisher galt deine Zusage in dem Fall zwar zu Recht
+  nicht mehr — erfahren hast du es aber nur, wenn du von selbst nachgesehen
+  hast. Jetzt steht die Frage da, sobald du den Wochenplan öffnest: „Auto 2
+  fährt anders: Abfahrt hin 05:30. Passt dir das?"
+
+  Wegtippen entscheidet weiterhin nichts und kostet nichts: Du bleibst
+  automatisch verteilt und wirst nicht in einer Schleife weitergefragt.
+  Verschiebt dein Fahrer die Abfahrt aber noch einmal, ist das eine neue
+  Frage — und die kommt.
+
+### Behoben
+
+- **Ein Tipp auf eine Benachrichtigung zeigt jetzt den aktuellen Plan.**
+  Kam die App aus dem Hintergrund, stand dort der Stand von vorhin — also
+  ausgerechnet die Abfahrtszeit, über deren Änderung die Meldung eben
+  informiert hatte.
+
+## [0.68.0] – 2026-08-08
+
+### Neu
+
+- **Du kannst dir dein Auto selbst aussuchen.** Fahrt ihr an einem Tag mit
+  zwei oder mehr Autos, steht im Menü deines Feldes „Mit wem fahren?". Dort
+  siehst du jedes Auto mit seinem Fahrer, wer sonst noch drinsitzt und ob es
+  anders losfährt — ein Tipp, und du sitzt drin. Mit „Egal" nimmst du deine
+  Wahl zurück, und MitFahrBar verteilt wieder selbst.
+
+  Bisher ging das nur indirekt: Gefragt wurdest du nur, wenn dein Auto
+  anders losfuhr, und die Antwort bestätigte immer den Platz, den MitFahrBar
+  dir schon gegeben hatte. Zwei Autos, die zur selben Zeit losfahren, ließen
+  dir gar keine Wahl.
+
+  **Ein volles Auto lässt sich nicht wählen** — es steht als „voll" da.
+  Überbucht wird nichts: Wer zuerst zugesagt hat, sitzt drin, wie bisher.
+
+### Behoben
+
+- **Wer sein Auto wechselt, landet wirklich dort.** Hattest du an einem Tag
+  schon einmal einem Auto zugesagt, gewann bisher die ältere Zusage — eine
+  neue Wahl hätte sichtbar nichts getan. Es gilt jetzt immer die zuletzt
+  getroffene Entscheidung.
+
 ## [0.67.1] – 2026-08-07
 
 ### Intern

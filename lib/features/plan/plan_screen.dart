@@ -49,14 +49,108 @@ class PlanScreen extends ConsumerWidget {
   }
 }
 
-class _Content extends ConsumerWidget {
+class _Content extends ConsumerStatefulWidget {
   const _Content({required this.days, required this.persons});
 
   final List<PlannedDay> days;
   final List<Person> persons;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Content> createState() => _ContentState();
+}
+
+class _ContentState extends ConsumerState<_Content> {
+  /// Solange ein Dialog offen ist, stößt kein Neuaufbau einen zweiten an.
+  ///
+  /// Der Merker gegen eine Dauerschleife, den v0.69.0 hier noch hatte, ist
+  /// mit dem Opt-out (08.08.) **entfallen**: Seit ein Wegtippen selbst eine
+  /// Zusage zu den aktuellen Bedingungen ablegt, findet die Rückfrage danach
+  /// nichts Veraltetes mehr und schweigt von allein. Er wurde nicht
+  /// „aufgeräumt", sondern unerreichbar — sein Test konnte nicht mehr rot
+  /// werden, und ein Riegel, der nicht mehr fehlschlagen kann, ist keiner.
+  /// Bleibt der Schreib stecken, wird beim nächsten Mal wieder gefragt, und
+  /// das ist richtig: Beantwortet wurde dann nichts.
+  var _asking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleReask();
+  }
+
+  /// **Nach dem Bild, nicht währenddessen.** Ein `showDialog` aus dem Aufbau
+  /// heraus stieße eine Provider-Invalidierung mitten in der Build-Phase an —
+  /// genau der Grund, warum Riverpod hier auf 2.x steht.
+  void _scheduleReask() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_reask());
+    });
+  }
+
+  /// Erneut fragen, wo eine Zusage durch eine verschobene Abfahrt überholt
+  /// wurde (#200).
+  ///
+  /// **Der Anlass ist die überholte Entscheidung, nicht die Abweichung.** Wer
+  /// nie etwas entschieden hat, wird weiterhin nur beim Eintragen gefragt —
+  /// ihn hier anzusprechen wäre eine neue, ungefragte Unterbrechung. Wer
+  /// dagegen zu 07:30 zugesagt hat und dessen Fahrer auf 05:30 verschoben
+  /// hat, hat eine Entscheidung getroffen, die nicht mehr gilt; ihm gehört
+  /// die Frage noch einmal gestellt.
+  ///
+  /// **Gefragt wird beim Ankommen, nicht per Push beantwortet.** Ein
+  /// zugestellter Push ist kein angezeigter (#180) — die Antwort muss am
+  /// offenen Dialog fallen. Dass der Tipp auf eine Meldung hier landet
+  /// (`pushTapRoute`), genügt deshalb: Wer über die Benachrichtigung kommt,
+  /// wird gefragt; wer sie nie gesehen hat, beim nächsten Öffnen ebenso.
+  Future<void> _reask() async {
+    if (_asking) return;
+    // Ohne Geräte-Zuordnung wissen wir nicht, WESSEN Zusage überholt ist —
+    // und die Zuordnung ist ein Geräte-Merkmal, kein Login (#121).
+    final me = ref.read(myPersonProvider);
+    if (me == null) return;
+    final carDefaults = ref.read(weekCarDefaultsProvider).value;
+    if (carDefaults == null) return;
+    final notifier = ref.read(weekPlanProvider.notifier);
+
+    for (final day in widget.days) {
+      if (day.confirmed) continue;
+      final dayCars = carDefaults[day.date] ?? const <String, GroupDefaults>{};
+      final stale = notifier
+          .seatChoicesOn(day.date)
+          .where(
+            (c) =>
+                c.personId == me.id &&
+                !c.isCurrentFor(termsOf(dayCars[c.driverId])),
+          )
+          .isNotEmpty;
+      if (!stale) continue;
+      _asking = true;
+      try {
+        // Die Rückfrage selbst entscheidet, ob es etwas zu fragen GIBT: Sitzt
+        // die Person inzwischen in einem Auto ohne Abweichung, ist die
+        // überholte Zeile einfach gegenstandslos und niemand wird behelligt.
+        // Und sie legt in jedem Ausgang eine Entscheidung zu den AKTUELLEN
+        // Bedingungen ab — auch beim Wegtippen. Genau deshalb braucht es hier
+        // keinen Merker: Beim nächsten Durchlauf ist nichts mehr veraltet.
+        await _maybeAskConsent(context, ref, day.date, me.id);
+      } finally {
+        _asking = false;
+      }
+      if (!mounted) return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // **Der Auslöser ist die geänderte Abweichung, nicht der Neuaufbau.**
+    // `PlanScreen` beobachtet die Auto-Zeiten gar nicht — es hängt an Plan
+    // und Personen. Über `didUpdateWidget` käme die Rückfrage deshalb nur
+    // zufällig, nämlich wenn das Festschreiben der Fahrer nebenbei den Plan
+    // anfasst. Hier steht sie an der Quelle. Läuft die Ladung noch, kommt
+    // `_reask` folgenlos zurück und dieser Horcher holt es nach.
+    ref.listen(weekCarDefaultsProvider, (_, _) => _scheduleReask());
+    final persons = widget.persons;
+    final days = widget.days;
     if (persons.isEmpty) {
       return const Center(
         child: Padding(
@@ -258,113 +352,6 @@ class _AvailabilityGrid extends ConsumerWidget {
     await _maybeAskConsent(context, ref, day.date, personId);
   }
 
-  /// Fragt nach, wenn jemand in einem Auto mit abweichenden Bedingungen
-  /// gelandet ist (#189, Stufe B2, entschieden 07.08.).
-  ///
-  /// **Beim Eintragen, nicht beim Verteilen:** Hier steht die Person vor dem
-  /// Gerät, die Antwort ist verlässlich — Schweigen gibt es an einem offenen
-  /// Dialog nicht. Ein Ja pinnt den Platz, ein Nein schließt dieses Auto aus
-  /// (und erzwingt damit ein zweites, wenn sonst keines bleibt). Wegtippen
-  /// entscheidet nichts: Die Person bleibt automatisch verteilt und wird beim
-  /// nächsten Eintragen wieder gefragt.
-  ///
-  /// Gefragt wird nur, wenn es etwas zu fragen gibt: Das eigene Auto trägt
-  /// eine Abweichung, man fährt nicht selbst, und es liegt noch keine
-  /// Entscheidung zu genau diesen Bedingungen vor.
-  Future<void> _maybeAskConsent(
-    BuildContext context,
-    WidgetRef ref,
-    DateTime date,
-    String personId, {
-    bool force = false,
-  }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    // Der Notifier hat optimistisch gerechnet — der Zustand kennt das Auto
-    // dieser Person schon.
-    final day = ref
-        .read(weekPlanProvider)
-        .value
-        ?.where((d) => d.date == date)
-        .firstOrNull;
-    if (day == null || day.confirmed) return;
-    final car = carOf(day, personId);
-    if (car == null || car.driverId == personId) return;
-    final deviation = ref
-        .read(weekCarDefaultsProvider)
-        .value?[date]?[car.driverId];
-    if (deviation == null || deviation.isEmpty) return;
-    final terms = termsOf(deviation);
-    // Aus dem Notifier, nicht aus einem eigenen Provider: Dort liegt die
-    // Kopie, mit der gerechnet wird — samt der eben optimistisch
-    // geschriebenen Entscheidung. Ein zweiter Ladepfad hinge einen
-    // Roundtrip hinterher und fragte genau dann doppelt.
-    final existing = ref
-        .read(weekPlanProvider.notifier)
-        .seatChoiceFor(date, personId, car.driverId);
-    if (!force && existing != null && existing.isCurrentFor(terms)) return;
-
-    final carNumber = day.cars.length < 2
-        ? null
-        : (carIndexOf(day, personId) ?? 0) + 1;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          carNumber == null ? 'Andere Abfahrt' : 'Auto $carNumber fährt anders',
-        ),
-        content: Text('${_deviationSentence(deviation)}\n\nPasst dir das?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Nein, so nicht'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Passt'),
-          ),
-        ],
-      ),
-    );
-    if (accepted == null) return;
-
-    try {
-      await ref
-          .read(weekPlanProvider.notifier)
-          .setSeatChoice(
-            SeatChoice(
-              date: date,
-              personId: personId,
-              driverId: car.driverId,
-              accepted: accepted,
-              terms: terms,
-              // Beim Umentscheiden zu NEUEN Bedingungen zählt die neue Zeit;
-              // nur die unveränderte Entscheidung behält ihren Rang.
-              decidedAt: existing != null && existing.terms == terms
-                  ? existing.decidedAt
-                  : DateTime.now(),
-            ),
-          );
-    } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
-      );
-    }
-  }
-
-  /// `Abfahrt hin 06:45, zurück 16:20 · Treffpunkt Werkstor` — als Satz für
-  /// den Dialog; die Kurzform der Tageszeile wäre hier zu knapp, es ist die
-  /// Grundlage einer Entscheidung.
-  static String _deviationSentence(GroupDefaults deviation) {
-    final times = [
-      if (deviation.outboundTime case final t?) 'hin ${t.format()}',
-      if (deviation.returnTime case final t?) 'zurück ${t.format()}',
-    ];
-    return [
-      if (times.isNotEmpty) 'Abfahrt ${times.join(', ')}',
-      if (deviation.meetingPoint case final p?) 'Treffpunkt $p',
-    ].join(' · ');
-  }
-
   /// Die Abweichung, die an der Zelle von [personId] erscheint (#183):
   /// die seines Autos, und **nur am Fahrer**.
   ///
@@ -422,6 +409,14 @@ class _AvailabilityGrid extends ConsumerWidget {
     Person person,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
+    final byId = {for (final p in persons) p.id: p};
+    // Der Gruppen-Schalter (#213). `seatTerms` und `deviates` brauchen ihn
+    // nicht: Sie hängen an den Abweichungs-Providern, und die geben
+    // ausgeschaltet ohnehin leer zurück. Diese beiden hier hängen an der
+    // Auto-Zahl, und Autos gibt es auch ohne Zuordnung — ein voller Tag
+    // braucht zwei, das ist Kapazität (#62) und keine Zuweisung.
+    final carAssignment =
+        ref.read(settingsProvider).valueOrNull?.carAssignmentEnabled ?? false;
     final current = !day.availableIds.contains(person.id)
         ? null
         : day.oneWayIds.contains(person.id)
@@ -451,7 +446,7 @@ class _AvailabilityGrid extends ConsumerWidget {
         // ein Tag ohne Auto hat keine Abfahrt, die man verschieben könnte.
         // Wer nicht selbst fährt und die Zeit ändern will, tippt die Zelle
         // des Fahrers an; das ist die Rückfrage aus #121, keine Sperre.
-        canEditTimes: day.driverIds.contains(person.id),
+        canEditTimes: carAssignment && day.driverIds.contains(person.id),
         // **Der Weg, ein gegebenes Ja oder Nein zu ändern** (#189): Wer in
         // einem Auto mit abweichenden Bedingungen sitzt, sieht sie hier und
         // kann umentscheiden — das ist das „Nein in zwei Taps", auf das die
@@ -468,6 +463,25 @@ class _AvailabilityGrid extends ConsumerWidget {
           _ => null,
         },
         deviates: ref.read(weekPlanDefaultsProvider).value?[day.date] != null,
+        // **Ein Auto aussuchen** (#199) — nur, wo es etwas auszusuchen gibt:
+        // ab zwei Autos (bei einem sitzen ohnehin alle darin, dieselbe Regel
+        // wie bei den Marken), nur für Mitfahrer (ein Fahrer sitzt in seinem
+        // eigenen Wagen) und nur an einem Tag, an dem noch geplant wird.
+        carPickSubtitle:
+            carAssignment &&
+                !day.confirmed &&
+                day.cars.length > 1 &&
+                day.availableIds.contains(person.id) &&
+                !day.driverIds.contains(person.id)
+            ? switch (carIndexOf(day, person.id)) {
+                final i? =>
+                  'zurzeit Auto ${i + 1} · '
+                      '${byId[day.cars[i].driverId]?.name ?? '—'}',
+                // Wer jedem Auto abgesagt hat, sitzt in keinem — dann ist die
+                // Wahl der Weg zurück und darf nicht verschwinden.
+                _ => 'zurzeit in keinem Auto',
+              }
+            : null,
       ),
     );
     if (picked == null) return;
@@ -528,6 +542,111 @@ class _AvailabilityGrid extends ConsumerWidget {
         // Erneut fragen, auch wenn schon entschieden ist — genau dafür ist
         // der Eintrag da.
         await _maybeAskConsent(context, ref, day.date, person.id, force: true);
+      case _PickCar():
+        await _pickCar(context, ref, day, person, byId);
+    }
+  }
+
+  /// Sich ein Auto aussuchen (#199) — der wörtliche Wunsch aus #189.
+  ///
+  /// Geschrieben wird dieselbe Zeile wie beim „Passt" der Rückfrage: ein Pin
+  /// zu den Bedingungen **dieses** Autos. Damit ist eine Wahl zugleich das
+  /// Einverständnis mit dessen Abfahrt — und veraltet mit ihr, wenn der Fahrer
+  /// sie später verschiebt.
+  Future<void> _pickCar(
+    BuildContext context,
+    WidgetRef ref,
+    PlannedDay day,
+    Person person,
+    Map<String, Person> byId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final date = day.date;
+    final notifier = ref.read(weekPlanProvider.notifier);
+    final deviations =
+        ref.read(weekCarDefaultsProvider).value?[date] ??
+        const <String, GroupDefaults>{};
+    // Aus dem Notifier, nicht aus einem eigenen Provider — dieselbe Kopie,
+    // mit der gerechnet wird, samt optimistischer Schreibvorgänge (#189).
+    final choices = notifier.seatChoicesOn(date);
+    final pinned = seatPinsOf(
+      choices,
+      deviations,
+      isAvailable: day.availableIds.contains,
+    ).where((pin) => pin.personId == person.id).firstOrNull;
+
+    final picked = await showDialog<_CarPickResult>(
+      context: context,
+      builder: (_) => _CarPickerDialog(
+        person: person,
+        cars: [
+          for (final (i, car) in day.cars.indexed)
+            _CarOption(
+              driverId: car.driverId,
+              number: i + 1,
+              title: byId[car.driverId]?.name ?? '—',
+              riders: [
+                for (final id in [...car.fullIds, ...car.oneWayIds])
+                  if (id != person.id) byId[id]?.name ?? '—',
+              ].join(', '),
+              deviation: switch (deviations[car.driverId]) {
+                final dev? when !dev.isEmpty => _deviationSentence(dev),
+                _ => null,
+              },
+              free: freeSeatsForPin(
+                day,
+                driverId: car.driverId,
+                personId: person.id,
+                persons: byId,
+                choices: choices,
+                carDefaults: deviations,
+              ),
+              pinned: pinned?.driverId == car.driverId,
+            ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+
+    try {
+      switch (picked) {
+        case _CarChosen(:final driverId):
+          final terms = termsOf(deviations[driverId]);
+          final existing = notifier.seatChoiceFor(date, person.id, driverId);
+          await notifier.setSeatChoice(
+            SeatChoice(
+              date: date,
+              personId: person.id,
+              driverId: driverId,
+              // Ein ausgesuchtes Auto ist die stärkste Aussage, die es gibt:
+              // „genau dieses" (#199). Deshalb `yes` und nicht `indifferent`
+              // — egal hieße, die Verteilung dürfte einen woanders hinsetzen,
+              // und der Tipp täte sichtbar nichts.
+              answer: SeatAnswer.yes,
+              terms: terms,
+              // Dieselbe Wahl noch einmal behält ihren Rang — nur eine neue
+              // Entscheidung stellt sich hinten an (#189).
+              decidedAt:
+                  existing != null &&
+                      existing.accepted &&
+                      existing.terms == terms
+                  ? existing.decidedAt
+                  : DateTime.now(),
+            ),
+          );
+        case _CarAuto():
+          // **Alle** Zusagen dieses Tages, nicht nur die wirksame: Bliebe eine
+          // ältere stehen, wäre sie ab sofort die neue wirksame — „egal" hätte
+          // dann ein Auto gewählt.
+          for (final row in choices) {
+            if (row.personId != person.id || !row.accepted) continue;
+            await notifier.clearSeatChoice(date, person.id, row.driverId);
+          }
+      }
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+      );
     }
   }
 
@@ -536,10 +655,11 @@ class _AvailabilityGrid extends ConsumerWidget {
   /// Eigener Schirm statt dreier Felder im Auswahlmenü: Der häufige Weg ist
   /// „dabei" antippen, und drei Eingabefelder darüber machten genau den laut.
   ///
-  /// **Ein Schirm mit Geltungsbereich, nicht zwei Einträge im Menü.** Sobald
-  /// der Tag zwei Autos hat, steht oben ein Umschalter „Ganzer Tag / Auto N";
-  /// das macht die Schichtung sichtbar, statt sie auf zwei Wege zu verteilen,
-  /// zwischen denen man raten müsste.
+  /// **Die Zeit gehört seit #211 immer einem Auto**, auch wenn der Tag nur
+  /// eines hat. Bis v0.74.0 gab es daneben eine Tages-Ebene; bei EINEM Auto
+  /// landete der Eintrag stillschweigend dort — und weil eine Zusage am Auto
+  /// hängt, wurde dann niemand gefragt (#206). Mit nur einer Ebene existiert
+  /// dieser Fall nicht mehr.
   Future<void> _editDay(
     BuildContext context,
     WidgetRef ref,
@@ -550,53 +670,49 @@ class _AvailabilityGrid extends ConsumerWidget {
     final date = day.date;
     final group =
         ref.read(groupDefaultsProvider).value ?? const GroupDefaults();
-    // Nur, wenn es überhaupt etwas zu unterscheiden gibt: Bei einem Auto ist
-    // „dieses Auto" dasselbe wie „der Tag", und zwei Wege zum selben Ziel
-    // sind einer zu viel.
-    //
     // Gesucht wird das Auto, das diese Person **fährt** — nicht das, in dem
     // sie sitzt (#188). Beim Fahrer ist beides dasselbe, und seit #188 kommt
     // hier ohnehin nur er an; aber `carIndexOf` beantwortet die andere Frage,
     // und genau die hat den Mitfahrer an ein fremdes Auto gelassen. Der
     // zweite Riegel kostet nichts und hält, wenn das Menü je wieder aufmacht.
-    final own = day.cars.length < 2
-        ? -1
-        : day.cars.indexWhere((car) => car.driverId == personId);
-    final carIndex = own < 0 ? null : own;
-    final driverId = carIndex == null ? null : personId;
+    final own = day.cars.indexWhere((car) => car.driverId == personId);
+    if (own < 0) return;
+    // Die Marke nur ab zwei Autos — dieselbe Regel wie im Raster und im
+    // Banner: Bei einem sitzen ohnehin alle darin.
+    final carNumber = day.cars.length > 1 ? own + 1 : null;
 
     final result = await showDialog<_DefaultsEdit>(
       context: context,
       builder: (_) => _DayDefaultsDialog(
         date: date,
         group: group,
+        // Die Tages-Ebene wird nicht mehr geschrieben, aber weiter gelesen:
+        // Altzeilen sollen nicht stillschweigend ihre Wirkung verlieren.
         day: ref.read(weekPlanDefaultsProvider).value?[date],
-        car: driverId == null
-            ? null
-            : ref.read(weekCarDefaultsProvider).value?[date]?[driverId],
-        carNumber: carIndex == null ? null : carIndex + 1,
+        car: ref.read(weekCarDefaultsProvider).value?[date]?[personId],
+        carNumber: carNumber,
       ),
     );
     if (result == null) return;
 
     try {
       final repository = ref.read(carpoolRepositoryProvider);
-      if (result.forCar && driverId != null) {
-        await repository.saveCarDefaults(date, driverId, result.defaults);
-        // **Die Zeit zu setzen schreibt den Fahrer fest.** Der Vorschlag
-        // kippt, sobald jemand seine Verfügbarkeit ändert — die Zeile hinge
-        // dann an einer Person, die an dem Tag gar nicht mehr fährt. Fixiert
-        // wird der GANZE Satz Fahrer des Tages: Wer nur einen festhielte,
-        // ließe die Wahl der übrigen weiterlaufen, und die verschiebt auch
-        // dieses Auto.
-        await ref
-            .read(weekPlanProvider.notifier)
-            .setDrivers(date, day.driverIds.toSet());
-        ref.invalidate(weekCarDefaultsProvider);
-      } else {
-        await repository.savePlanDefaults(date, result.defaults);
-        ref.invalidate(weekPlanDefaultsProvider);
-      }
+      await repository.saveCarDefaults(date, personId, result.defaults);
+      // **Die Zeit zu setzen schreibt den Fahrer fest.** Der Vorschlag
+      // kippt, sobald jemand seine Verfügbarkeit ändert — die Zeile hinge
+      // dann an einer Person, die an dem Tag gar nicht mehr fährt. Fixiert
+      // wird der GANZE Satz Fahrer des Tages: Wer nur einen festhielte,
+      // ließe die Wahl der übrigen weiterlaufen, und die verschiebt auch
+      // dieses Auto.
+      //
+      // Seit #211 gilt das auch bei EINEM Auto. Das ist der eine Preis der
+      // Vereinfachung: „Wir fahren früher, wer fährt, sehen wir noch" lässt
+      // sich nicht mehr sagen — konsequent zu #183 („die Zeit zu setzen ist
+      // die Fahrer-Zusage"), aber es ist eine Einschränkung.
+      await ref
+          .read(weekPlanProvider.notifier)
+          .setDrivers(date, day.driverIds.toSet());
+      ref.invalidate(weekCarDefaultsProvider);
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Speichern fehlgeschlagen.')),
@@ -823,6 +939,225 @@ enum _RideChoice {
   };
 }
 
+/// `Abfahrt hin 06:45, zurück 16:20 · Treffpunkt Werkstor` — als Satz für
+/// den Dialog; die Kurzform der Tageszeile wäre hier zu knapp, es ist die
+/// Grundlage einer Entscheidung.
+String _deviationSentence(GroupDefaults deviation) {
+  final times = [
+    if (deviation.outboundTime case final t?) 'hin ${t.format()}',
+    if (deviation.returnTime case final t?) 'zurück ${t.format()}',
+  ];
+  return [
+    if (times.isNotEmpty) 'Abfahrt ${times.join(', ')}',
+    if (deviation.meetingPoint case final p?) 'Treffpunkt $p',
+  ].join(' · ');
+}
+
+/// Fragt nach, wenn jemand in einem Auto mit abweichenden Bedingungen
+/// gelandet ist (#189, Stufe B2, entschieden 07.08.).
+///
+/// **Beim Eintragen, nicht beim Verteilen:** Hier steht die Person vor dem
+/// Gerät, die Antwort ist verlässlich — Schweigen gibt es an einem offenen
+/// Dialog nicht. Ein Ja pinnt den Platz, ein Nein schließt dieses Auto aus
+/// (und erzwingt damit ein zweites, wenn sonst keines bleibt). Wegtippen
+/// entscheidet nichts: Die Person bleibt automatisch verteilt und wird beim
+/// nächsten Eintragen wieder gefragt.
+///
+/// Gefragt wird nur, wenn es etwas zu fragen gibt: Das eigene Auto trägt
+/// eine Abweichung, man fährt nicht selbst, und es liegt noch keine
+/// Entscheidung zu genau diesen Bedingungen vor.
+/// Die drei Antworten auf eine abweichende Abfahrt (#210).
+///
+/// Als Liste statt als Knopfreihe: Drei Knöpfe nebeneinander passen auf einem
+/// schmalen Schirm nicht, und vor allem wirken die drei **verschieden stark** —
+/// „auf keinen Fall" kann ein weiteres Auto erzwingen, „ja unbedingt" ist nur
+/// eine Bevorzugung. Ohne die Unterzeilen liest man sie als Gegensatzpaar mit
+/// einem Mittelweg, und das sind sie nicht.
+class _SeatAnswerDialog extends StatelessWidget {
+  const _SeatAnswerDialog({
+    required this.title,
+    required this.deviation,
+    this.current,
+  });
+
+  final String title;
+  final String deviation;
+  final SeatAnswer? current;
+
+  static const _options = <(SeatAnswer, String, String, IconData)>[
+    (
+      SeatAnswer.indifferent,
+      'Egal',
+      'Du fährst mit, wo Platz ist.',
+      Icons.done_all,
+    ),
+    (
+      SeatAnswer.yes,
+      'Ja, unbedingt',
+      'Du kommst bevorzugt in dieses Auto.',
+      Icons.event_seat,
+    ),
+    (
+      SeatAnswer.no,
+      'Auf keinen Fall',
+      'Dann fährt jemand anderes zur normalen Zeit.',
+      Icons.block,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text(title),
+      contentPadding: const EdgeInsets.only(top: AppSpacing.s),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+            child: Text(deviation),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          for (final (answer, label, hint, icon) in _options)
+            ListTile(
+              leading: Icon(
+                icon,
+                color: answer == SeatAnswer.no
+                    ? scheme.error
+                    : scheme.onSurfaceVariant,
+              ),
+              title: Text(label),
+              subtitle: Text(hint),
+              selected: answer == current,
+              trailing: answer == current
+                  ? Icon(Icons.done, color: scheme.primary)
+                  : null,
+              onTap: () => Navigator.of(context).pop(answer),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _maybeAskConsent(
+  BuildContext context,
+  WidgetRef ref,
+  DateTime date,
+  String personId, {
+  bool force = false,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  // Der Notifier hat optimistisch gerechnet — der Zustand kennt das Auto
+  // dieser Person schon.
+  final day = ref
+      .read(weekPlanProvider)
+      .value
+      ?.where((d) => d.date == date)
+      .firstOrNull;
+  if (day == null || day.confirmed) return;
+  final car = carOf(day, personId);
+  if (car == null || car.driverId == personId) return;
+  final deviation = ref
+      .read(weekCarDefaultsProvider)
+      .value?[date]?[car.driverId];
+  if (deviation == null || deviation.isEmpty) return;
+  final terms = termsOf(deviation);
+  // Aus dem Notifier, nicht aus einem eigenen Provider: Dort liegt die
+  // Kopie, mit der gerechnet wird — samt der eben optimistisch
+  // geschriebenen Entscheidung. Ein zweiter Ladepfad hinge einen
+  // Roundtrip hinterher und fragte genau dann doppelt.
+  final existing = ref
+      .read(weekPlanProvider.notifier)
+      .seatChoiceFor(date, personId, car.driverId);
+  if (!force && existing != null && existing.isCurrentFor(terms)) return;
+
+  final carNumber = day.cars.length < 2
+      ? null
+      : (carIndexOf(day, personId) ?? 0) + 1;
+  final answer = await showDialog<SeatAnswer>(
+    context: context,
+    builder: (context) => _SeatAnswerDialog(
+      title: carNumber == null
+          ? 'Andere Abfahrt'
+          : 'Auto $carNumber fährt anders',
+      deviation: _deviationSentence(deviation),
+      current: existing?.answer,
+    ),
+  );
+  // **Wer nicht ablehnt, ist zugesagt** (entschieden 08.08., Opt-out). Bis
+  // v0.69.0 schrieb ein Wegtippen gar nichts — die Person saß im
+  // abweichenden Auto, ohne dass eine Entscheidung in der Ablage stand. Die
+  // Folge war still und teuer: Verschob der Fahrer später von 05:30 auf
+  // 04:00, fand die nachträgliche Rückfrage (#200) nichts Veraltetes und
+  // fragte NICHT — die Person wurde mitgezogen, ohne je zugestimmt zu haben.
+  //
+  // Das kippt „nie per Schweigen entschieden" (#189) nicht, sondern
+  // schärft es: Schweigen erzeugt weiterhin **kein zweites Auto** — das war
+  // der Schaden, vor dem die Regel schützen sollte. Es hält die Person
+  // dort, wo sie ohnehin säße, und macht sie nur ansprechbar, wenn sich die
+  // Bedingungen ändern. Ein ausdrückliches Nein bleibt das Einzige, was
+  // etwas umwirft.
+  //
+  // Seit #210 ist der stille Ausgang „egal" statt „Zusage". Für den Platz
+  // ändert das fast nichts — die Person sitzt weiter, wo sie ohnehin säße —,
+  // aber die Verteilung darf sie jetzt verschieben, statt sie festzuhalten.
+  // Abgelegt wird er trotzdem: Genau daran erkennt die Rückfrage aus #200
+  // später eine veraltete Entscheidung.
+  final chosen = answer ?? SeatAnswer.indifferent;
+
+  await _saveSeatAnswer(
+    ref,
+    messenger,
+    date: date,
+    personId: personId,
+    driverId: car.driverId,
+    answer: chosen,
+    terms: terms,
+  );
+}
+
+/// Der EINZIGE Schreibweg für eine Sitz-Entscheidung (#210).
+///
+/// Es gibt zwei Auslöser — die Rückfrage beim Ankommen und den Schalter in
+/// der Tageszeile —, und beide müssen dieselbe Regel für `decided_at`
+/// anwenden. Zwei Fassungen wären zwei Antworten auf „behält der Pin seinen
+/// Rang?", und der Unterschied fiele erst bei einem übervollen Auto auf.
+Future<void> _saveSeatAnswer(
+  WidgetRef ref,
+  ScaffoldMessengerState messenger, {
+  required DateTime date,
+  required String personId,
+  required String driverId,
+  required SeatAnswer answer,
+  required String terms,
+}) async {
+  final notifier = ref.read(weekPlanProvider.notifier);
+  final existing = notifier.seatChoiceFor(date, personId, driverId);
+  try {
+    await notifier.setSeatChoice(
+      SeatChoice(
+        date: date,
+        personId: personId,
+        driverId: driverId,
+        answer: answer,
+        terms: terms,
+        // Beim Umentscheiden zu NEUEN Bedingungen zählt die neue Zeit;
+        // nur die unveränderte Entscheidung behält ihren Rang.
+        decidedAt: existing != null && existing.terms == terms
+            ? existing.decidedAt
+            : DateTime.now(),
+      ),
+    );
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Speichern fehlgeschlagen.')),
+    );
+  }
+}
+
 /// Was aus dem Zell-Menü zurückkommt (#183).
 ///
 /// Ein Ergebnistyp statt dreier Rückgabewege: Der Dialog entscheidet nur, der
@@ -850,6 +1185,11 @@ class _DecideSeat extends _MenuAction {
   const _DecideSeat();
 }
 
+/// Sich ein Auto aussuchen (#199).
+class _PickCar extends _MenuAction {
+  const _PickCar();
+}
+
 /// Das Menü einer Zelle (#183, vorher die Rückfrage aus #121).
 ///
 /// Es fragt nicht nur, es erledigt es gleich: Ein Tipp öffnet, ein zweiter
@@ -869,6 +1209,7 @@ class _RidePickerDialog extends StatelessWidget {
     required this.canEditTimes,
     required this.deviates,
     this.seatTerms,
+    this.carPickSubtitle,
   });
 
   final Person person;
@@ -890,6 +1231,11 @@ class _RidePickerDialog extends StatelessWidget {
   /// `null`, wenn es keine gibt oder sie selbst fährt (#189). Nur mit Wert
   /// erscheint der Eintrag zum Zustimmen/Ablehnen.
   final String? seatTerms;
+
+  /// Wo diese Person gerade sitzt — `null`, wenn es nichts zu wählen gibt
+  /// (#199). Nur mit Wert erscheint der Eintrag „Mit wem fahren?"; der Text
+  /// ist seine Unterzeile.
+  final String? carPickSubtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -918,6 +1264,20 @@ class _RidePickerDialog extends StatelessWidget {
               title: const Text('Ich möchte fahren'),
               onTap: () => Navigator.of(context).pop(const _WantToDrive()),
             ),
+          if (carPickSubtitle case final where?) ...[
+            const Divider(height: AppSpacing.s),
+            // **Sein Auto aussuchen** (#199) — der wörtliche Wunsch aus #189.
+            // Er steht neben der Zustimmung und ersetzt sie nicht: „Passt dir
+            // das?" beantwortet eine andere Frage als „mit wem fahre ich",
+            // und ein Auto zu wählen ist keine Antwort auf eine verschobene
+            // Abfahrt.
+            ListTile(
+              leading: Icon(Icons.groups_outlined, color: scheme.primary),
+              title: const Text('Mit wem fahren?'),
+              subtitle: Text(where),
+              onTap: () => Navigator.of(context).pop(const _PickCar()),
+            ),
+          ],
           if (seatTerms case final terms?) ...[
             const Divider(height: AppSpacing.s),
             // Das eigene Auto fährt anders — hier steht, wie, und der Tipp
@@ -963,9 +1323,8 @@ class _RidePickerDialog extends StatelessWidget {
 /// feldweise.
 /// Was der Schirm zurückgibt: die Werte **und** wofür sie gelten.
 class _DefaultsEdit {
-  const _DefaultsEdit({required this.forCar, required this.defaults});
+  const _DefaultsEdit({required this.defaults});
 
-  final bool forCar;
   final GroupDefaults defaults;
 }
 
@@ -989,8 +1348,8 @@ class _DayDefaultsDialog extends StatefulWidget {
   /// Die des eigenen Autos, `null` wenn es keine gibt.
   final GroupDefaults? car;
 
-  /// Nummer des eigenen Autos — `null` heißt: Es gibt nichts zu
-  /// unterscheiden, der Umschalter bleibt weg.
+  /// Nummer des eigenen Autos — `null` bei nur einem Auto, dann trägt der
+  /// Schirm keine Marke (dieselbe Regel wie Raster und Banner).
   final int? carNumber;
 
   @override
@@ -998,27 +1357,17 @@ class _DayDefaultsDialog extends StatefulWidget {
 }
 
 class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
-  /// Beginnt beim Auto, sobald es eines gibt: Wer bei zwei Autos die Zeit
-  /// ändert, meint fast immer seines. Der ganze Tag ist einen Tipp entfernt.
-  late bool _forCar = widget.carNumber != null;
-
+  // **Nur noch die Auto-Ebene** (#211). Bis v0.74.0 stand hier ein
+  // Umschalter „Ganzer Tag / Auto N"; die Tages-Ebene ist ersatzlos
+  // entfallen, weil „heute fahren alle früher" keine eigene Aussage ist,
+  // sondern die Folge davon, dass alle der Abfahrt eines Fahrers zustimmen.
   late DayTime? _out = _source?.outboundTime;
   late DayTime? _back = _source?.returnTime;
   late final TextEditingController _point = TextEditingController(
     text: _source?.meetingPoint ?? '',
   );
 
-  GroupDefaults? get _source => _forCar ? widget.car : widget.day;
-
-  /// Der Umschalter wechselt die BEARBEITETE Ebene, also auch die Werte im
-  /// Formular — sonst schriebe man die Zeit des Tages versehentlich als die
-  /// des Autos fort.
-  void _switchScope(bool forCar) => setState(() {
-    _forCar = forCar;
-    _out = _source?.outboundTime;
-    _back = _source?.returnTime;
-    _point.text = _source?.meetingPoint ?? '';
-  });
+  GroupDefaults? get _source => widget.car;
 
   @override
   void dispose() {
@@ -1029,8 +1378,10 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
   /// Was gälte, wenn dieses Feld leer bliebe: die nächsttiefere Ebene.
   /// Beim Auto also der Tag, sonst die Gruppe — dieselbe Kette wie im
   /// Ausgangskorb, nur zur Anzeige.
-  GroupDefaults get _fallback =>
-      _forCar ? effectiveDefaults(widget.group, widget.day) : widget.group;
+  /// Die Tages-Ebene steht hier weiter drin, obwohl sie niemand mehr
+  /// schreiben kann: Altzeilen aus der Zeit vor #211 gelten weiter, und der
+  /// Schirm muss zeigen, was tatsächlich greift.
+  GroupDefaults get _fallback => effectiveDefaults(widget.group, widget.day);
 
   Future<void> _pick(bool outbound) async {
     final start = outbound ? _out : _back;
@@ -1066,26 +1417,22 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (widget.carNumber case final number?) ...[
-            SegmentedButton<bool>(
-              segments: [
-                const ButtonSegment(value: false, label: Text('Ganzer Tag')),
-                ButtonSegment(value: true, label: Text('Auto $number')),
+            Row(
+              children: [
+                _CarBadge(number: number, size: 18),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'Auto $number',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ],
-              selected: {_forCar},
-              onSelectionChanged: (selection) => _switchScope(selection.single),
-              showSelectedIcon: false,
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
             ),
             const SizedBox(height: AppSpacing.s),
           ],
           Text(
-            _forCar
-                ? 'Gilt nur für dein Auto an diesem Tag. Was hier leer '
-                      'bleibt, kommt vom Tag — und sonst aus den festen '
-                      'Vorgaben. Damit die Zeit nicht an einem anderen Auto '
-                      'landet, wird der Fahrer des Tages festgehalten.'
-                : 'Gilt für alle an diesem Tag. Was hier leer bleibt, kommt '
-                      'weiter aus den festen Vorgaben.',
+            'Gilt nur für dein Auto an diesem Tag. Was hier leer bleibt, '
+            'kommt aus den festen Vorgaben. Damit die Zeit nicht an einem '
+            'anderen Auto landet, wird der Fahrer des Tages festgehalten.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -1138,7 +1485,6 @@ class _DayDefaultsDialogState extends State<_DayDefaultsDialog> {
             final point = _point.text.trim();
             Navigator.of(context).pop(
               _DefaultsEdit(
-                forCar: _forCar,
                 defaults: GroupDefaults(
                   outboundTime: _out,
                   returnTime: _back,
@@ -1271,23 +1617,148 @@ class _Cell extends StatelessWidget {
   }
 }
 
+/// Ein Auto in der Auswahl (#199) — alles, was der Dialog anzeigen muss.
+class _CarOption {
+  const _CarOption({
+    required this.driverId,
+    required this.number,
+    required this.title,
+    required this.riders,
+    required this.deviation,
+    required this.free,
+    required this.pinned,
+  });
+
+  final String driverId;
+
+  /// 1-basiert — dieselbe Nummer wie die Marke im Raster.
+  final int number;
+
+  /// Der Fahrer, mit seinen Plätzen.
+  final String title;
+
+  /// Wer sonst noch drinsitzt; leer = niemand.
+  final String riders;
+
+  /// Abweichende Bedingungen dieses Autos als Satz — `null`, wenn keine.
+  final String? deviation;
+
+  /// Freie Plätze für einen neuen Pin. `<= 0` sperrt den Eintrag.
+  final int free;
+
+  /// Ob genau dieses Auto bereits fest zugesagt ist.
+  final bool pinned;
+}
+
+/// Was aus der Auto-Wahl zurückkommt (#199).
+sealed class _CarPickResult {
+  const _CarPickResult();
+}
+
+class _CarChosen extends _CarPickResult {
+  const _CarChosen(this.driverId);
+  final String driverId;
+}
+
+/// „Egal" — die Zusage fällt weg, MitFahrBar verteilt wieder selbst.
+class _CarAuto extends _CarPickResult {
+  const _CarAuto();
+}
+
+/// Mit wem fahre ich heute? (#199)
+///
+/// **Nur eine Zusage, kein Ausschluss.** Ein gewähltes Auto schreibt einen Pin
+/// zu genau dessen Bedingungen — dieselbe Zeile, die auch das „Passt" der
+/// Rückfrage erzeugt (#189). Das „Nein, so nicht" bleibt dort, wo es
+/// hingehört: Es beantwortet eine verschobene Abfahrt, nicht die Frage nach
+/// dem Auto.
+///
+/// **Ein volles Auto ist gesperrt, nicht überbucht** (entschieden 08.08.). Ein
+/// Pin greift in `planWeek` nur auf einen freien Platz; angenommen und still
+/// verfallen wäre er genau der tote Tipp, der schon zweimal gemeldet wurde.
+/// Was einen Platz belegt, sind die **festen Zusagen** der anderen, nicht die
+/// automatisch verteilten Mitfahrer — die verteilt der Plan hinterher neu.
+/// Gerechnet wird das in `freeSeatsForPin`, damit hier und in der Verteilung
+/// dieselbe Antwort steht.
+class _CarPickerDialog extends StatelessWidget {
+  const _CarPickerDialog({required this.person, required this.cars});
+
+  final Person person;
+  final List<_CarOption> cars;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text('Mit wem fährt ${person.name}?'),
+      contentPadding: const EdgeInsets.only(top: AppSpacing.s),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final car in cars)
+            ListTile(
+              leading: _CarBadge(number: car.number, size: 22),
+              title: Text(car.title),
+              // Ein leeres `Text('')` wäre kein leerer Untertitel: Die Zeile
+              // eines Autos ohne Mitfahrer würde niedriger als die daneben.
+              subtitle: switch ([
+                if (car.riders.isNotEmpty) car.riders,
+                ?car.deviation,
+                // Der Grund steht am Eintrag, nicht nur in der Farbe:
+                // „ausgegraut" allein sagt nicht, warum.
+                if (car.free <= 0 && !car.pinned) 'voll',
+              ]) {
+                final parts when parts.isEmpty => null,
+                final parts => Text(parts.join(' · ')),
+              },
+              enabled: car.free > 0 || car.pinned,
+              selected: car.pinned,
+              trailing: car.pinned
+                  ? Icon(Icons.done, color: scheme.primary)
+                  : null,
+              onTap: () => Navigator.of(context).pop(_CarChosen(car.driverId)),
+            ),
+          const Divider(height: AppSpacing.s),
+          ListTile(
+            leading: Icon(Icons.shuffle, color: scheme.onSurfaceVariant),
+            title: const Text('Egal'),
+            subtitle: const Text('MitFahrBar verteilt'),
+            selected: cars.every((car) => !car.pinned),
+            onTap: () => Navigator.of(context).pop(const _CarAuto()),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Abbrechen'),
+        ),
+      ],
+    );
+  }
+}
+
 /// Die Auto-Marke an einer Zelle: Farbe **und** Nummer (#183).
 ///
 /// Beides zusammen, nie eines allein — die Farbe für den Blick übers Raster,
 /// die Nummer für alle, die sie nicht unterscheiden können, und für den
 /// fünften Wagen, für den es keine Farbe mehr gibt.
 class _CarBadge extends StatelessWidget {
-  const _CarBadge({required this.number});
+  const _CarBadge({required this.number, this.size = 14});
 
   final int number;
+
+  /// Kantenlänge — im Raster klein an der Zelle, in der Auto-Wahl (#199) so
+  /// groß wie ein Listen-Symbol.
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final tone = AppCarTones.byIndex(number - 1, Theme.of(context).brightness);
     return Container(
-      width: 14,
-      height: 14,
+      width: size,
+      height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         // Jenseits der Palette ein neutraler Grund: Eine fünfte Farbe zu
@@ -1301,12 +1772,143 @@ class _CarBadge extends StatelessWidget {
         child: Text(
           '$number',
           style: TextStyle(
-            fontSize: 9,
+            fontSize: 9 / 14 * size,
             height: 1,
             fontWeight: FontWeight.w700,
             color: tone?.foreground ?? scheme.onSurface,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// „Egal / Ja / Nein" zu der abweichenden Abfahrt EINES Autos (#210).
+///
+/// Der Schalter ersetzt die Rückfrage nicht, er steht daneben: Die Rückfrage
+/// spricht an, wenn sich etwas ändert (#200), der Schalter zeigt dauerhaft,
+/// was gerade gilt, und lässt es ohne Umweg ändern. Nur die Rückfrage allein
+/// hieße, dass man seine eigene Entscheidung nirgends nachlesen kann.
+class _SeatAnswerRow extends ConsumerWidget {
+  const _SeatAnswerRow({
+    required this.date,
+    required this.personId,
+    required this.driverId,
+    required this.driverName,
+    required this.carNumber,
+    required this.deviation,
+    required this.terms,
+    required this.current,
+  });
+
+  final DateTime date;
+  final String personId;
+  final String driverId;
+  final String driverName;
+
+  /// `null` bei nur einem Auto — dann wäre die Marke eine Unterscheidung
+  /// ohne Unterschied.
+  final int? carNumber;
+
+  final String deviation;
+  final String terms;
+  final SeatChoice? current;
+
+  /// Was die aktuelle Wahl bedeutet. Die drei wirken **verschieden stark**,
+  /// und ohne diese Zeile liest man sie als Gegensatzpaar mit Mittelweg.
+  static String _consequence(SeatAnswer answer) => switch (answer) {
+    SeatAnswer.indifferent => 'Du fährst mit, wo Platz ist.',
+    SeatAnswer.yes => 'Du kommst bevorzugt in dieses Auto.',
+    SeatAnswer.no => 'Dann fährt jemand anderes zur normalen Zeit.',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    // **Eine veraltete Entscheidung steht auf „egal"** — genau so behandelt
+    // die Engine sie auch. Zeigte der Schalter weiter das alte Ja, behauptete
+    // er eine Zusage, die nicht mehr gilt; und die Rückfrage aus #200 käme
+    // gleich darauf und widerspräche ihm.
+    final answer = current != null && current!.isCurrentFor(terms)
+        ? current!.answer
+        : SeatAnswer.indifferent;
+    final label = carNumber == null
+        ? '$driverName fährt anders'
+        : 'Auto $carNumber · $driverName fährt anders';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.l,
+        0,
+        AppSpacing.l,
+        AppSpacing.s,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (carNumber case final number?) ...[
+                _CarBadge(number: number),
+                const SizedBox(width: AppSpacing.xs),
+              ],
+              Flexible(
+                child: Text(
+                  '$label — $deviation',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          // Volle Breite und kurze Beschriftungen: „Auf keinen Fall" als
+          // Segment-Text sprengt 430 Punkte. Was die Wahl bedeutet, steht
+          // darunter im Klartext — und ändert sich mit ihr.
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<SeatAnswer>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: SeatAnswer.indifferent,
+                  label: Text('Egal'),
+                  tooltip: 'Du fährst mit, wo Platz ist',
+                ),
+                ButtonSegment(
+                  value: SeatAnswer.yes,
+                  label: Text('Ja'),
+                  tooltip: 'Ja, unbedingt in dieses Auto',
+                ),
+                ButtonSegment(
+                  value: SeatAnswer.no,
+                  label: Text('Nein'),
+                  tooltip: 'Auf keinen Fall — dann fährt jemand anderes',
+                ),
+              ],
+              selected: {answer},
+              onSelectionChanged: (selection) => unawaited(
+                _saveSeatAnswer(
+                  ref,
+                  ScaffoldMessenger.of(context),
+                  date: date,
+                  personId: personId,
+                  driverId: driverId,
+                  answer: selection.single,
+                  terms: terms,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _consequence(answer),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: answer == SeatAnswer.no
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1324,6 +1926,14 @@ class _DayRow extends ConsumerWidget {
   // stellen die Uhr fest, sonst prüfen sie samstags etwas anderes.
   bool _confirmable(WidgetRef ref) =>
       canConfirmPlan(day.date, ref.read(nowProvider)());
+
+  /// „Clara", „Clara und David" — für den Grund am gesperrten Fahrer (#203).
+  static String _names(List<String> ids, Map<String, Person> byId) {
+    final names = [for (final id in ids) byId[id]?.name ?? id]..sort();
+    return names.length == 1
+        ? names.single
+        : '${names.sublist(0, names.length - 1).join(', ')} und ${names.last}';
+  }
 
   Future<void> _pickDrivers(BuildContext context, WidgetRef ref) async {
     // 1-way-Personen stellen kein Auto — sie stehen gar nicht erst zur Wahl.
@@ -1351,15 +1961,32 @@ class _DayRow extends ConsumerWidget {
                 for (final id in candidates)
                   CheckboxListTile(
                     value: selected.contains(id),
-                    onChanged: (checked) => setState(() {
-                      if (checked ?? false) {
-                        selected.add(id);
-                      } else {
-                        selected.remove(id);
-                      }
-                    }),
+                    // **Wer nur wegen einer Absage fährt, ist nicht
+                    // abwählbar** (#203). Die Abwahl wäre folgenlos: Die
+                    // Rechnung setzt ihn im selben Atemzug zurück, weil
+                    // jemand seinem Auto abgesagt hat und irgendwo sitzen
+                    // muss. Bis v0.69.0 nahm der Dialog die Anweisung an und
+                    // verwarf sie stumm — dieselbe Klasse wie der tote
+                    // Update-Knopf in 0.37.0. Der Weg dahin führt über die
+                    // Person, die abgesagt hat, nicht über den Planer.
+                    onChanged: day.forcedFor.containsKey(id)
+                        ? null
+                        : (checked) => setState(() {
+                            if (checked ?? false) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
                     title: Text(byId[id]?.name ?? id),
-                    subtitle: Text('${byId[id]?.seats ?? defaultSeats} Plätze'),
+                    subtitle: Text(switch (day.forcedFor[id]) {
+                      final needed? when needed.isNotEmpty =>
+                        'wird gebraucht — '
+                            '${_names(needed, byId)} '
+                            '${needed.length == 1 ? 'fährt' : 'fahren'} '
+                            'sonst nicht mit',
+                      _ => '${byId[id]?.seats ?? defaultSeats} Plätze',
+                    }),
                   ),
                 const SizedBox(height: AppSpacing.s),
                 // Live-Rechnung statt Sperre: Zu klein wählen bleibt
@@ -1620,6 +2247,75 @@ class _DayRow extends ConsumerWidget {
         ? Icons.schedule
         : Icons.place_outlined;
 
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _tile(context, ref, label, joined, notes, deviationHint, deviationIcon),
+        // Der Drei-Wege-Schalter je Auto (#210) — unter der Tageszeile, weil
+        // er zu genau diesem Tag gehört und nicht in ein Menü, das man erst
+        // suchen muss. An einem Tag mit zwei Abfahrten stehen zwei Zeilen
+        // untereinander; das war der Anlass (Gruppe, 09.08.2026: „das macht
+        // es übersichtlicher an so einem unübersichtlichen Tag").
+        ..._answerRows(context, ref, carDeviations),
+      ],
+    );
+  }
+
+  /// Je abweichendem Auto eine Zeile mit „Egal / Ja / Nein" — aber nur, wo es
+  /// wirklich etwas zu entscheiden gibt.
+  ///
+  /// **Nicht an jedem Tag und nicht für jeden.** Der Schalter ist die Antwort
+  /// auf eine abweichende Abfahrt; ohne Abweichung zeigte er auf nichts und
+  /// wäre bloß Lärm in einem ohnehin dichten Raster. Und er gehört dem
+  /// Mitfahrer: Ein Fahrer stimmt seiner eigenen Abfahrt nicht zu, und wer an
+  /// dem Tag gar nicht dabei ist, hat nichts zu entscheiden.
+  ///
+  /// Ohne „Ich bin" (#121) erscheint er nicht — dann ist nicht bekannt,
+  /// WESSEN Entscheidung gemeint wäre. Dieselbe Bedingung wie bei der
+  /// Rückfrage; im Demo-Modus ist die Zuordnung ohnehin aus.
+  List<Widget> _answerRows(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, GroupDefaults> carDeviations,
+  ) {
+    if (day.confirmed) return const [];
+    final me = ref.watch(myPersonProvider)?.id;
+    if (me == null || !day.availableIds.contains(me)) return const [];
+    if (day.driverIds.contains(me)) return const [];
+
+    final rows = <Widget>[];
+    for (final (i, car) in day.cars.indexed) {
+      final deviation = carDeviations[car.driverId];
+      if (deviation == null || deviation.isEmpty) continue;
+      rows.add(
+        _SeatAnswerRow(
+          date: day.date,
+          personId: me,
+          driverId: car.driverId,
+          driverName: byId[car.driverId]?.name ?? '',
+          // Die Marke nur, wo es mehr als ein Auto gibt — dieselbe Regel wie
+          // im Raster und im Banner: Bei einem sitzen ohnehin alle darin.
+          carNumber: day.cars.length > 1 ? i + 1 : null,
+          deviation: _deviationSentence(deviation),
+          terms: termsOf(deviation),
+          current: ref
+              .read(weekPlanProvider.notifier)
+              .seatChoiceFor(day.date, me, car.driverId),
+        ),
+      );
+    }
+    return rows;
+  }
+
+  Widget _tile(
+    BuildContext context,
+    WidgetRef ref,
+    String label,
+    String joined,
+    String notes,
+    String deviationHint,
+    IconData deviationIcon,
+  ) {
     return ListTile(
       // Die Anmerkungen stehen JEDEM Tag offen, auch einem eingetragenen.
       // Das weicht die Sperre oben nicht auf: Sie schützt die Punkte vor

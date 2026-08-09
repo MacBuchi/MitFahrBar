@@ -292,16 +292,41 @@ String? suggestDriver(
 
 /// Verstärkung des Fahrraten-Trims im Wochenvorschlag — und zugleich seine
 /// **Autoritätsgrenze**: Zwei Kandidaten können höchstens
-/// `kRateBalance · Δ-Fahrrate · |dayFactor|` Punkte überbrücken, also nie
-/// mehr als 6 (Raten liegen in 0..1). Jenseits dieses Bandes entscheiden
-/// exakt die Punkte — die Grenze steckt in der Verstärkung selbst, nicht in
-/// einer Sonderklausel (Muster entschieden 2026-07-22 mit Deckel 2; auf 6
-/// gehoben 2026-07-24, weil das im Zielflotten-Soak den Raten-Worst-Case
-/// von ±2,7 auf ±2,2 pp senkt — den strukturellen Boden. Die PRAKTISCHE
-/// Autorität bleibt winzig: Reale Δ-Raten liegen um 0,03, der Trim bewegt
-/// also ~0,2 Punkte. Details in
-/// `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 3).
-const kRateBalance = 6.0;
+/// `kRateBalance · Δ-Fahrrate · |dayFactor|` Punkte überbrücken. Jenseits
+/// dieses Bandes entscheiden exakt die Punkte; die Grenze steckt in der
+/// Verstärkung selbst, nicht in einer Sonderklausel.
+///
+/// Geschichte: Muster entschieden 2026-07-22 mit Deckel 2, auf 6 gehoben
+/// 2026-07-24, **auf 12 gehoben 2026-08-09** (Marcus).
+///
+/// **Warum 12 — gemessen an ZWEI Datensätzen.** Gegen die echte
+/// 401-Tage-Historie der Gruppe halbiert der Schritt die Abweichung der
+/// Stammfahrer vom mittleren Fahranteil: **18,7 → 10,6 ‰**, bei
+/// unveränderten Punkten. Der Zwölf-Seed-Soak bestätigt die Richtung
+/// schwächer. Bewusst nicht nach dem Bestwert eines Datensatzes gewählt:
+/// Die Kennzahl schwankt nicht monoton (auf der Historie ist k=30
+/// schlechter als k=20, k=100 schlechter als k=60), und wer den Spitzenwert
+/// pickt, überanpasst an dessen Zufall.
+///
+/// **Warum nicht 40, obwohl es auf der Historie minimal besser wäre**
+/// (9,9 statt 10,6 ‰): Ab k≈20 kippt die Auslegung des Trims. Im Extremfall
+/// — einer fuhr immer, einer nie, zwölf Punkte Abstand — schickt der Planer
+/// bei k=40 am **kleinen** Tag den Vielfahrer statt den Wenigfahrer, also
+/// genau umgekehrt zur Absicht „wer selten fährt, bekommt die kleinen Tage".
+/// Der Grund: Bei unregelmäßiger Teilnahme liegt Δ-Rate um 0,2 statt 0,03,
+/// die Autorität also bei 8 statt 1,2 Punkten — genug, um die beobachtete
+/// Punkte-Spanne von ±2,5 zu überstimmen. Zwei Tests in `plan_test.dart`
+/// nageln beide Invarianten fest; sie kippen bei 20 und bei 40, nicht bei
+/// 12. **Wer den Wert erhöht, sieht sie fallen und weiß dann, was er tut.**
+///
+/// Nebenbefund: Die Punkte-Schranke des Soak durfte auf ±7 geöffnet werden
+/// (Marcus, 09.08.2026), **wird aber nicht gebraucht** — bei 12 bleibt der
+/// gemessene Höchstwert bei 3,5. Sie steht deshalb weiter auf ±5; ein
+/// Grenzwert, der lockerer ist als nötig, fängt nichts mehr.
+///
+/// Alle Zahlen in `doc/entscheidung-mitfahrer-verteilung.md`, Nachträge 3
+/// und 2026-08-09 (3).
+const kRateBalance = 12.0;
 
 /// Volle Fairness-Reihenfolge für einen **Plan-Tag**: Punkte zuerst, dazu ein
 /// begrenzter Fahrraten-Trim (nur hier — Dashboard und Fahrten-Editor bleiben
@@ -490,6 +515,7 @@ class PlannedDay {
     this.suggestedDriverIds = const [],
     this.cars = const [],
     this.confirmed = false,
+    this.forcedFor = const {},
   });
 
   final DateTime date;
@@ -512,6 +538,19 @@ class PlannedDay {
   /// Für diesen Tag existiert bereits mindestens eine echte Fahrt. Dann ist
   /// nichts mehr zu planen und der Tag zählt regulär in die Statistik.
   final bool confirmed;
+
+  /// Fahrer, die **nur** wegen einer Absage im Satz stehen — Fahrer → die
+  /// Personen, die ihn brauchen (#203).
+  ///
+  /// Berechnet wie alles hier, nie gespeichert. Der Umschalter „Wer fährt?"
+  /// liest sie, um eine Abwahl gar nicht erst anzubieten, die die Rechnung
+  /// im selben Atemzug überstimmen würde: Wer „zu diesen Bedingungen nicht"
+  /// gesagt hat, braucht ein anderes Auto, und das nimmt ihm niemand nebenbei
+  /// weg. Bis v0.69.0 verschwand die Abwahl kommentarlos.
+  ///
+  /// Leer ist der Normalfall — die Zusatzautos aus reiner Platznot stehen
+  /// **nicht** darin, die sind eine Kapazitätsfrage und frei abwählbar.
+  final Map<String, List<String>> forcedFor;
 
   /// Alle Fahrer des Tages, in Auto-Reihenfolge.
   List<String> get driverIds => [for (final car in cars) car.driverId];
@@ -656,11 +695,25 @@ List<PlannedDay> planWeek({
   final overrideByDay = {
     for (final entry in overrides.entries) _dayKey(entry.key): entry.value,
   };
+  // Der Gruppen-Schalter (#213) wirkt genau hier, an EINER Stelle: Ist die
+  // Auto-Zuordnung aus, sind Zusagen und Auto-Abweichungen schlicht nicht da.
+  //
+  // Warum hier und nicht bei den Aufrufern: `settings` reicht ohnehin jeder
+  // Aufrufer durch — die App wie `tool/notify.dart`. Gefiltert am Aufrufer
+  // müssten es beide tun, und täte es einer nicht, verteilte er die Mitfahrer
+  // anders als der andere; der Korb trüge dann je nach Schreiber verschiedene
+  // Zeiten. Genau diese zweite Wahrheit soll der Schalter nicht erzeugen.
+  //
+  // Die Zeilen werden dabei **inert, nicht gelöscht** — Wiedereinschalten
+  // stellt her, was dastand (dieselbe Regel wie bei verwaisten Zeilen).
+  final on = settings.carAssignmentEnabled;
   final choicesByDay = {
-    for (final entry in seatChoices.entries) _dayKey(entry.key): entry.value,
+    if (on)
+      for (final entry in seatChoices.entries) _dayKey(entry.key): entry.value,
   };
   final carDefaultsByDay = {
-    for (final entry in carDefaults.entries) _dayKey(entry.key): entry.value,
+    if (on)
+      for (final entry in carDefaults.entries) _dayKey(entry.key): entry.value,
   };
   final realTripsByDay = <int, List<Trip>>{};
   for (final trip in trips) {
@@ -867,26 +920,25 @@ List<PlannedDay> planWeek({
     // nicht — dieselbe Verwaisten-Regel wie bei `plan_car_defaults`.
     final dayCarDefaults =
         carDefaultsByDay[key] ?? const <String, GroupDefaults>{};
-    final pins = <SeatChoice>[];
+    final dayChoices = choicesByDay[key] ?? const <SeatChoice>[];
+    final pins = seatPinsOf(
+      dayChoices,
+      dayCarDefaults,
+      isAvailable: available.contains,
+    );
     final excludedBy = <String, Set<String>>{};
-    for (final choice in choicesByDay[key] ?? const <SeatChoice>[]) {
+    for (final choice in dayChoices) {
+      // Nur ein ausdrückliches Nein schließt aus. Über `accepted` gelesen
+      // käme dasselbe heraus — aber die Spalte ist seit #210 die Mitschrift
+      // für alte Clients, und wer hier ihren Namen liest, hält sie für die
+      // Wahrheit.
+      if (choice.answer != SeatAnswer.no) continue;
       if (!available.contains(choice.personId)) continue;
       if (!choice.isCurrentFor(termsOf(dayCarDefaults[choice.driverId]))) {
         continue;
       }
-      if (choice.accepted) {
-        pins.add(choice);
-      } else {
-        (excludedBy[choice.personId] ??= {}).add(choice.driverId);
-      }
+      (excludedBy[choice.personId] ??= {}).add(choice.driverId);
     }
-    // **Wer zuerst gepinnt hat, bleibt** (entschieden 07.08.): Bei einem
-    // übervollen Auto entscheidet `decided_at`. Der Nachrang fällt in die
-    // automatische Verteilung, nicht aus dem Tag.
-    pins.sort((a, b) {
-      final byTime = a.decidedAt.compareTo(b.decidedAt);
-      return byTime != 0 ? byTime : a.personId.compareTo(b.personId);
-    });
 
     // **Ein Ausschluss kann ein weiteres Auto erzwingen** — das ist sein
     // Zweck: „Zu diesen Bedingungen fahre ich dort nicht mit" heißt, jemand
@@ -898,14 +950,57 @@ List<PlannedDay> planWeek({
     // sich niemand, bleibt die Person unplatziert — eine ehrliche Grenze,
     // kein stilles Hineinsetzen in ein Auto, dem sie abgesagt hat.
     driverSet = [...driverSet];
+    // Wer nur deshalb fährt — Fahrer → die Personen, die ihn brauchen (#203).
+    // Ohne diese Notiz kann der Umschalter „Wer fährt?" nicht unterscheiden,
+    // ob eine Abwahl gewirkt hat oder von der Rechnung sofort überstimmt
+    // wurde; bis v0.69.0 verwarf er sie stillschweigend.
+    final forcedFor = <String, List<String>>{};
+
+    /// Die Autos, in die [id] nach seinen Absagen überhaupt darf.
+    Set<String> allowedFor(String id) {
+      final out = excludedBy[id] ?? const <String>{};
+      return {
+        for (final d in driverSet)
+          if (!out.contains(d)) d,
+      };
+    }
+
+    /// Passen alle, die NUR in [allowed] dürfen, dort auch hinein?
+    ///
+    /// Ohne diese Prüfung endete die Schleife, sobald für jeden **irgendein**
+    /// nicht ausgeschlossenes Auto existierte — ob dort noch ein Platz frei
+    /// ist, fragte niemand. Ein Nein konnte damit kein weiteres Auto
+    /// erzwingen, wenn die übrigen bloß **voll** waren; die Verteilung stopfte
+    /// die Leute anschließend über die Rückfalllinie hinein.
+    ///
+    /// Das ist ausdrücklich NICHT der Fall aus #62: Dort reichen die Sitze
+    /// des Tages insgesamt nicht, und Überfüllen ist die ehrliche Antwort.
+    /// Hier reichen sie — sie sind nur durch Absagen unerreichbar, und genau
+    /// dafür gibt es das Zusatzauto.
+    ///
+    /// Gezählt wird nach Hall: Wer ausschließlich in [allowed] darf, muss
+    /// dort Platz finden; die Fahrer dieser Autos sitzen in ihrem eigenen und
+    /// belegen je einen Sitz.
+    bool cramped(Set<String> allowed) {
+      if (allowed.isEmpty) return true;
+      var need = 0;
+      for (final q in available) {
+        if (driverSet.contains(q)) {
+          if (allowed.contains(q)) need++;
+        } else if (allowedFor(q).every(allowed.contains)) {
+          need++;
+        }
+      }
+      final have = allowed.fold(0, (sum, d) => sum + seatOf(d));
+      return need > have;
+    }
+
     while (true) {
       final blocked = [
         for (final id in available)
           if (!driverSet.contains(id) &&
               driverSet.isNotEmpty &&
-              driverSet.every(
-                (d) => (excludedBy[id] ?? const <String>{}).contains(d),
-              ))
+              cramped(allowedFor(id)))
             id,
       ];
       if (blocked.isEmpty) break;
@@ -922,6 +1017,12 @@ List<PlannedDay> planWeek({
         }
       }
       if (extra == null) break;
+      forcedFor[extra] = [
+        for (final p in blocked)
+          if (p == extra ||
+              !(excludedBy[p] ?? const <String>{}).contains(extra))
+            p,
+      ];
       driverSet.add(extra);
     }
     // An einem Vorschlags-Tag ist das Zusatzauto Teil des VORSCHLAGS — der
@@ -938,11 +1039,26 @@ List<PlannedDay> planWeek({
     // Vorrecht auf einen Platz, kein Ausschluss aus allen anderen. Ein Pin
     // auf einen Fahrer, der heute nicht fährt, ist verwaist und wirkt nicht.
     //
-    // **Dann alle Übrigen** wie bisher: jede Person ins Auto mit den
-    // meisten freien Plätzen (Gleichstand: erstes Auto), Ausschlüsse werden
-    // dabei gemieden. So teilt sich das „Mitgenommen" des Tages möglichst
-    // gleichmäßig auf die Fahrer, und kein Auto wird überfüllt, solange die
-    // Plätze insgesamt reichen. 1-way belegt einen Sitz — dieselbe Regel
+    // **Dann alle Übrigen: ins Auto mit den WENIGSTEN Insassen** (#210,
+    // Gruppe am 09.08.2026). Erst wenn dort kein Platz mehr frei ist, gewinnt
+    // ein anderes Auto mit freiem Platz — „nur bei Erreichen des Limits
+    // gewinnen zusätzlich freie Plätze in anderen Fahrzeugen".
+    //
+    // Bis v0.71.0 entschieden die **meisten freien Plätze**. Das erklärte
+    // Ziel war schon damals, das „Mitgenommen" gleichmäßig auf die Fahrer zu
+    // verteilen — bei ungleich großen Autos erreicht es das aber gerade
+    // nicht: Ein 7-Sitzer und ein 4-Sitzer enden mit gleich vielen FREIEN
+    // Plätzen, also trägt der große systematisch mehr. Genau das ist im
+    // Soak-Report als Grenze notiert („bei dauerhaftem Kapazitäts-Gefälle
+    // driften die Punkte unbegrenzt"). Nach Kopfzahl verteilt entfällt der
+    // Antrieb dafür; **ob die Drift wirklich kleiner wird, sagt erst die
+    // Neumessung** (#212) — hier wird nichts dergleichen behauptet.
+    //
+    // Gleichstand geht an das frühere Auto, und das ist der bedürftigste
+    // Fahrer: `driverSet` steht in `ranked`-Reihenfolge. Der Punkte-Anteil
+    // der Verteilung steckt allein darin.
+    //
+    // Ausschlüsse werden gemieden. 1-way belegt einen Sitz — dieselbe Regel
     // wie im Fahrten-Editor.
     final carFull = [for (final _ in driverSet) <String>[]];
     final carOneWay = [for (final _ in driverSet) <String>[]];
@@ -964,25 +1080,37 @@ List<PlannedDay> planWeek({
       for (final id in available) {
         if (driverSet.contains(id) || seated.contains(id)) continue;
         final excluded = excludedBy[id] ?? const <String>{};
+        // Zwei Kandidaten nebeneinander: das leerste Auto MIT freiem Platz,
+        // und — falls keines mehr Platz hat — das leerste überhaupt.
+        //
+        // Der zweite ist die Rückfalllinie aus #62 und darf nicht wegfallen:
+        // Reichen die Sitze des Tages insgesamt nicht, wird überfüllt statt
+        // jemanden stillschweigend stehen zu lassen. Ohne ihn verschwänden
+        // Leute aus dem Plan, sobald ein Auto zu klein ist — und niemand
+        // sähe, warum.
         var best = -1;
-        var bestFree = -n - 1;
+        var bestTaken = -1;
+        var anyCar = -1;
+        var anyTaken = -1;
         for (var i = 0; i < driverSet.length; i++) {
           if (excluded.contains(driverSet[i])) continue;
-          final free =
-              seatOf(driverSet[i]) -
-              1 -
-              carFull[i].length -
-              carOneWay[i].length;
-          if (free > bestFree) {
-            bestFree = free;
+          final taken = carFull[i].length + carOneWay[i].length;
+          if (anyCar < 0 || taken < anyTaken) {
+            anyCar = i;
+            anyTaken = taken;
+          }
+          if (seatOf(driverSet[i]) - 1 - taken <= 0) continue;
+          if (best < 0 || taken < bestTaken) {
             best = i;
+            bestTaken = taken;
           }
         }
+        final target = best >= 0 ? best : anyCar;
         // Alle Autos ausgeschlossen und kein Kandidat mehr übrig: Die
         // Person bleibt sichtbar draußen statt still in einem Auto zu
         // sitzen, dem sie abgesagt hat.
-        if (best < 0) continue;
-        (oneWayIds.contains(id) ? carOneWay : carFull)[best].add(id);
+        if (target < 0) continue;
+        (oneWayIds.contains(id) ? carOneWay : carFull)[target].add(id);
       }
     }
     final cars = [
@@ -1001,6 +1129,7 @@ List<PlannedDay> planWeek({
         oneWayIds: oneWayIds,
         suggestedDriverIds: suggested,
         cars: cars,
+        forcedFor: forcedFor,
       ),
     );
 
@@ -1099,6 +1228,90 @@ int? carIndexOf(PlannedDay day, String personId) {
     if (car.carries(personId)) return i;
   }
   return null;
+}
+
+/// Die **wirksamen Pins** eines Tages, in `decided_at`-Reihenfolge (#189).
+///
+/// Gültig ist nur, was zu den aktuellen [carDefaults] passt und zu jemandem
+/// gehört, der an dem Tag überhaupt kann ([isAvailable]) — die Verwaisten-Regel
+/// aus `plan_car_defaults`, hier für Zusagen.
+///
+/// **Je Person höchstens einer, nämlich der zuletzt getroffene.** Ein Mensch
+/// sitzt in einem Auto; von zwei Zusagen kann also nur eine gelten. Ohne diese
+/// Zeile gewänne die **ältere**: [planWeek] setzt Pins in `decided_at`-Folge
+/// und überspringt, wer schon sitzt. Wer sein Auto wechselt (#199), bliebe
+/// damit im alten — der Tipp täte sichtbar nichts, dieselbe Klasse wie der tote
+/// „Ich möchte fahren"-Pin aus v0.66.1.
+///
+/// Aufgeräumt wird auch hier nichts: Die überholte Zeile bleibt stehen und
+/// wirkt einfach nicht mehr.
+List<SeatChoice> seatPinsOf(
+  Iterable<SeatChoice> choices,
+  Map<String, GroupDefaults> carDefaults, {
+  required bool Function(String personId) isAvailable,
+}) {
+  final latest = <String, SeatChoice>{};
+  for (final choice in choices) {
+    // **Nur „ja unbedingt" pinnt** (#210). Das ist der Unterschied zu
+    // v0.71.0, wo Schweigen als Zusage abgelegt wurde und damit festhielt:
+    // „Egal" heißt jetzt wörtlich egal, die Verteilung entscheidet. Über
+    // `accepted` geprüft wäre es weiter ein Pin — die Spalte ist seit #210
+    // nur noch die Mitschrift für alte Clients und sagt „nicht abgelehnt",
+    // nicht „hierher".
+    if (choice.answer != SeatAnswer.yes) continue;
+    if (!isAvailable(choice.personId)) continue;
+    if (!choice.isCurrentFor(termsOf(carDefaults[choice.driverId]))) continue;
+    final held = latest[choice.personId];
+    if (held == null || choice.decidedAt.isAfter(held.decidedAt)) {
+      latest[choice.personId] = choice;
+    }
+  }
+  // **Wer zuerst gepinnt hat, bleibt** (entschieden 07.08.): Bei einem
+  // übervollen Auto entscheidet `decided_at`. Der Nachrang fällt in die
+  // automatische Verteilung, nicht aus dem Tag.
+  return latest.values.toList()..sort((a, b) {
+    final byTime = a.decidedAt.compareTo(b.decidedAt);
+    return byTime != 0 ? byTime : a.personId.compareTo(b.personId);
+  });
+}
+
+/// Wie viele Plätze ein **neuer** Pin von [personId] auf das Auto von
+/// [driverId] noch vorfindet (#199) — 0 oder weniger heißt „voll".
+///
+/// Spiegelt genau die Bedingung, unter der [planWeek] einen Pin setzt: Ein Pin
+/// greift nur auf einen **freien** Platz, und Pins laufen vor der automatischen
+/// Verteilung. Automatisch zugeteilte Mitfahrer blockieren deshalb nicht — sie
+/// werden hinterher neu verteilt; was blockiert, sind die schon **fest
+/// zugesagten** Plätze. Ein neuer Pin ist der jüngste, steht also hinter allen
+/// bestehenden.
+///
+/// Ohne diese eine Stelle stünde die Frage „passt da noch jemand rein" zweimal
+/// verschieden im Code: einmal hier, einmal in der Verteilung. Der Screen
+/// sperrte dann Autos, in die man gekonnt hätte — oder ließe Tipps zu, die
+/// nichts bewirken.
+int freeSeatsForPin(
+  PlannedDay day, {
+  required String driverId,
+  required String personId,
+  required Map<String, Person> persons,
+  required Iterable<SeatChoice> choices,
+  required Map<String, GroupDefaults> carDefaults,
+}) {
+  final seats = persons[driverId]?.seats ?? defaultSeats;
+  final taken =
+      seatPinsOf(
+        choices,
+        carDefaults,
+        isAvailable: day.availableIds.contains,
+      ).where(
+        (pin) =>
+            pin.driverId == driverId &&
+            pin.personId != personId &&
+            // Ein Fahrer sitzt in seinem eigenen Auto; sein Pin auf ein fremdes
+            // verfällt in `planWeek` und darf hier keinen Platz belegen.
+            !day.driverIds.contains(pin.personId),
+      );
+  return seats - 1 - taken.length;
 }
 
 /// Kalenderwoche nach ISO 8601 — Woche 1 ist die mit dem ersten Donnerstag

@@ -5,6 +5,7 @@ import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
 import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
+import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
 import 'package:mitfahrbar/models/seat_choice.dart';
 import 'package:mitfahrbar/models/trip.dart';
@@ -1151,48 +1152,163 @@ void main() {
     SeatChoice choice(
       String personId,
       String driverId, {
-      bool accepted = true,
+      // Die Vorgabe ist `yes`, nicht `indifferent`: Diese Gruppe misst, was
+      // ein **Pin** bewirkt. Mit „egal" täte jeder dieser Tests nichts, und
+      // die Tests wären still wertlos statt rot.
+      SeatAnswer answer = SeatAnswer.yes,
       String terms = '',
       DateTime? decidedAt,
     }) => SeatChoice(
       date: week.first,
       personId: personId,
       driverId: driverId,
-      accepted: accepted,
+      answer: answer,
       terms: terms,
       decidedAt: decidedAt ?? DateTime(2026, 3, 1, 12),
     );
 
+    /// Diese Gruppe misst die Auto-Zuordnung, also läuft sie ausdrücklich mit
+    /// eingeschaltetem Schalter (#213) — die Vorgabe einer neuen Gruppe ist
+    /// „aus", und dann darf hier nichts davon wirken. Genau das prüft
+    /// `der Gruppen-Schalter` weiter unten.
     PlannedDay planDay({
       required Map<String, PlanRide> rides,
       Map<String, int> seats = const {},
       Set<String> override = const {},
       List<SeatChoice> choices = const [],
       Map<String, GroupDefaults> carDefaults = const {},
+      AppSettings config = const AppSettings(carAssignmentEnabled: true),
     }) => planWeek(
       dates: [week.first],
       availability: {week.first: rides},
       overrides: override.isEmpty ? const {} : {week.first: override},
       trips: const [],
-      settings: settings,
+      settings: config,
       seats: seats,
       seatChoices: {week.first: choices},
       carDefaults: {week.first: carDefaults},
     ).first;
 
     test('ein Pin setzt die Person in genau dieses Auto', () {
-      // Automatisch säße c bei b — dessen Auto hat mehr freie Plätze. Der
-      // Pin muss also wirklich etwas umbiegen; ein Pin auf das Auto, in dem
-      // man ohnehin landete, bewiese nichts.
+      // **Der Pin muss wirklich etwas umbiegen** — ein Pin auf das Auto, in
+      // dem man ohnehin landete, bewiese nichts.
+      //
+      // Bis v0.71.0 lief c automatisch zu b (mehr freie Plätze), gepinnt
+      // wurde auf a. Seit die Verteilung nach Kopfzahl geht (#210), ist es
+      // andersherum: Beide Autos starten leer, der Gleichstand geht an das
+      // erste — c landet von allein bei a. Der Pin zeigt also jetzt auf b.
+      //
+      // Das ist genau die Sorte Anpassung, bei der man aufpassen muss: Hätte
+      // ich nur die Erwartung nachgezogen statt das Ziel zu wechseln, wäre
+      // dieser Test still zu einer Tautologie geworden.
       final day = planDay(
         rides: ride({'a', 'b', 'c', 'd'}),
         seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
-        choices: [choice('c', 'a')],
+        choices: [choice('c', 'b')],
       );
 
       expect(day.driverIds, ['a', 'b']);
+      expect(day.cars[1].fullIds, ['c'], reason: 'Der Pin zieht c zu b.');
+      expect(
+        day.cars[0].fullIds,
+        ['d'],
+        reason: 'Und d rutscht in den frei gewordenen Platz bei a.',
+      );
+    });
+
+    test('ohne Pin läuft c von allein zu a — die Gegenprobe', () {
+      // Ohne diesen Test steht nirgends, dass der Pin oben überhaupt etwas
+      // ändert. Er ist der Beleg für „automatisch säße c bei a".
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+      );
+
       expect(day.cars[0].fullIds, ['c']);
       expect(day.cars[1].fullIds, ['d']);
+    });
+
+    group('der Gruppen-Schalter (#213)', () {
+      const off = AppSettings();
+      const on = AppSettings(carAssignmentEnabled: true);
+
+      test('aus: der Pin wirkt nicht — geplant wird wie ohne Zusage', () {
+        // Genau der Fall aus „ein Pin setzt die Person in genau dieses Auto":
+        // eingeschaltet zieht er c zu b. Ausgeschaltet muss dasselbe
+        // herauskommen wie ganz ohne Zusage, sonst wirkt der Pin halb.
+        PlannedDay day({
+          required AppSettings config,
+          List<SeatChoice> choices = const [],
+        }) => planDay(
+          rides: ride({'a', 'b', 'c', 'd'}),
+          seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+          choices: choices,
+          config: config,
+        );
+
+        final pinned = day(config: off, choices: [choice('c', 'b')]);
+        final untouched = day(config: off);
+
+        expect(pinned.cars[0].fullIds, untouched.cars[0].fullIds);
+        expect(pinned.cars[1].fullIds, untouched.cars[1].fullIds);
+        expect(
+          pinned.cars[0].fullIds,
+          isNot(day(config: on, choices: [choice('c', 'b')]).cars[0].fullIds),
+          reason:
+              'Sonst misst der Test nichts: Eingeschaltet MUSS der Pin etwas '
+              'umbiegen, sonst wäre auch ein kaputter Riegel grün.',
+        );
+      });
+
+      test('aus: eine Absage erzwingt kein zweites Auto', () {
+        // Eingeschaltet ist genau das der Kern von #189: „zu diesen
+        // Bedingungen nicht" heißt, jemand anderes muss fahren.
+        Map<String, Object> shape(AppSettings config) {
+          final day = planDay(
+            rides: ride({'a', 'b', 'c'}),
+            seats: const {'a': 5, 'b': 5, 'c': 5},
+            choices: [
+              choice('b', 'a', answer: SeatAnswer.no, terms: '05:30||'),
+            ],
+            carDefaults: const {
+              'a': GroupDefaults(outboundTime: DayTime(5, 30)),
+            },
+            config: config,
+          );
+          return {'fahrer': day.driverIds, 'erzwungen': day.forcedFor.keys};
+        }
+
+        expect(
+          (shape(on)['fahrer']! as List).length,
+          2,
+          reason:
+              'Eingeschaltet entsteht das Zusatzauto — sonst misst der '
+              'ausgeschaltete Fall nichts.',
+        );
+        expect((shape(off)['fahrer']! as List).length, 1);
+        expect(shape(off)['erzwungen'], isEmpty);
+      });
+
+      test('aus: die Auto-Abweichung verfällt, also auch ihre Bedingungen', () {
+        // Die Zusage hängt an `terms`. Ist der Schalter aus, gibt es keine
+        // Abweichung mehr — eine Zusage zu 05:30 darf dann nichts festhalten.
+        final day = planDay(
+          rides: ride({'a', 'b', 'c', 'd'}),
+          seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
+          choices: [choice('c', 'b', terms: '05:30||')],
+          carDefaults: const {'b': GroupDefaults(outboundTime: DayTime(5, 30))},
+          config: off,
+        );
+
+        expect(
+          day.cars[1].fullIds,
+          isNot(contains('c')),
+          reason:
+              'Eingeschaltet zöge die Zusage c zu b. Ausgeschaltet gibt es '
+              'die Abweichung nicht, zu der sie gehört — also auch die '
+              'Zusage nicht, und c läuft automatisch zu a.',
+        );
+      });
     });
 
     test('wer zuerst gepinnt hat, bleibt — der Nachrang wird verteilt', () {
@@ -1220,24 +1336,32 @@ void main() {
       // c hat zu 06:45 ja gesagt; das Auto steht inzwischen auf 05:30. Die
       // Zusage ist veraltet und wirkt nicht — sonst wäre sie ein
       // Blankoscheck für jede spätere Zeit. Derselbe Aufbau wie beim
-      // Pin-Test: Gültig zöge der Pin c zu a, veraltet läuft c automatisch
-      // zu b.
+      // Pin-Test: Gültig zöge der Pin c zu b, veraltet läuft c automatisch
+      // zu a.
       final day = planDay(
         rides: ride({'a', 'b', 'c', 'd'}),
         seats: const {'a': 2, 'b': 3, 'c': 2, 'd': 2},
-        choices: [choice('c', 'a', terms: '06:45||')],
-        carDefaults: const {'a': GroupDefaults(outboundTime: DayTime(5, 30))},
+        choices: [choice('c', 'b', terms: '06:45||')],
+        carDefaults: const {'b': GroupDefaults(outboundTime: DayTime(5, 30))},
       );
 
-      expect(day.cars[1].fullIds, contains('c'));
-      expect(day.cars[0].fullIds, isNot(contains('c')));
+      expect(
+        day.cars[0].fullIds,
+        contains('c'),
+        reason: 'Veraltet wirkt die Zusage nicht — c läuft automatisch zu a.',
+      );
+      expect(
+        day.cars[1].fullIds,
+        isNot(contains('c')),
+        reason: 'Und landet gerade NICHT im zugesagten Auto b.',
+      );
     });
 
     test('ein Ausschluss hält die Person aus dem Auto heraus', () {
       final day = planDay(
         rides: ride({'a', 'b', 'c', 'd'}),
         seats: const {'a': 3, 'b': 3, 'c': 2, 'd': 2},
-        choices: [choice('d', 'a', accepted: false)],
+        choices: [choice('d', 'a', answer: SeatAnswer.no)],
       );
 
       expect(day.cars[0].fullIds, isNot(contains('d')));
@@ -1251,7 +1375,7 @@ void main() {
       final day = planDay(
         rides: ride({'a', 'b'}, oneWay: const {}),
         seats: const {'a': 5, 'b': 5},
-        choices: [choice('b', 'a', accepted: false, terms: '05:30||')],
+        choices: [choice('b', 'a', answer: SeatAnswer.no, terms: '05:30||')],
       );
 
       expect(day.cars, hasLength(1));
@@ -1265,7 +1389,7 @@ void main() {
       final day = planDay(
         rides: ride({'a', 'b', 'c'}),
         seats: const {'a': 5, 'b': 5, 'c': 5},
-        choices: [choice('c', 'a', accepted: false)],
+        choices: [choice('c', 'a', answer: SeatAnswer.no)],
       );
 
       expect(day.driverIds, hasLength(2));
@@ -1294,8 +1418,8 @@ void main() {
         override: {'a'},
         carDefaults: const {'a': GroupDefaults(outboundTime: DayTime(5, 30))},
         choices: [
-          choice('b', 'a', accepted: false, terms: '05:30||'),
-          choice('c', 'a', accepted: false, terms: '05:30||'),
+          choice('b', 'a', answer: SeatAnswer.no, terms: '05:30||'),
+          choice('c', 'a', answer: SeatAnswer.no, terms: '05:30||'),
         ],
       );
 
@@ -1309,6 +1433,90 @@ void main() {
       );
     });
 
+    test('ein Ausschluss erzwingt auch dann ein Auto, wenn die übrigen nur '
+        'VOLL sind', () {
+      // Die Lücke, die bis v0.75.0 offen war: Die Zusatzauto-Schleife hörte
+      // auf, sobald für jeden **irgendein** nicht ausgeschlossenes Auto
+      // existierte — ob dort ein Platz frei ist, fragte niemand. Die
+      // Verteilung stopfte die Leute anschließend über die Rückfalllinie
+      // hinein, und ein Nein bewirkte am Ende ein überfülltes Auto statt
+      // eines zusätzlichen.
+      //
+      // a fährt zu einer Sonderzeit und hat Platz für alle; b, c, d und e
+      // sagen ab. Die möglichen Ersatzautos fassen aber nur je zwei.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd', 'e'}),
+        seats: const {'a': 5, 'b': 2, 'c': 2, 'd': 2, 'e': 2},
+        choices: [
+          for (final p in ['b', 'c', 'd', 'e'])
+            choice(p, 'a', answer: SeatAnswer.no, terms: '05:30||'),
+        ],
+        carDefaults: const {'a': GroupDefaults(outboundTime: DayTime(5, 30))},
+      );
+
+      expect(
+        day.cars.length,
+        3,
+        reason:
+            'Ein Ersatzauto mit zwei Sitzen reicht für vier Absagende nicht — '
+            'es braucht ein zweites. Vorher blieb es bei zweien.',
+      );
+      for (final car in day.cars) {
+        final seats = {'a': 5, 'b': 2, 'c': 2, 'd': 2, 'e': 2}[car.driverId]!;
+        expect(
+          car.fullIds.length + car.oneWayIds.length,
+          lessThanOrEqualTo(seats - 1),
+          reason:
+              'Kein Auto darf überfüllt sein: Die Sitze des Tages REICHEN '
+              'insgesamt, sie waren nur durch die Absagen unerreichbar. Das '
+              'ist nicht der Fall aus #62, wo Überfüllen die ehrliche '
+              'Antwort ist.',
+        );
+      }
+      expect(
+        day.cars.first.driverId,
+        'a',
+        reason: 'Der Sonderfahrer bleibt, seine Absager fahren daneben.',
+      );
+    });
+
+    test('das Zusatzauto ist als erzwungen markiert — Platznot nicht', () {
+      // Der Umschalter „Wer fährt?" muss beides unterscheiden können (#203):
+      // Ein Fahrer, den eine Absage erzwingt, ist nicht abwählbar (die
+      // Rechnung setzte ihn sofort zurück); ein Fahrer, der nur wegen der
+      // Sitzplätze dazukam, sehr wohl.
+      final forced = planDay(
+        rides: ride({'a', 'b', 'c'}),
+        seats: const {'a': 5, 'b': 5, 'c': 5},
+        choices: [choice('c', 'a', answer: SeatAnswer.no)],
+      );
+      expect(forced.driverIds, hasLength(2));
+      expect(
+        forced.forcedFor.keys,
+        [forced.driverIds.last],
+        reason: 'Nur der Zusatzfahrer steht drin, nicht der erste.',
+      );
+      expect(
+        forced.forcedFor[forced.driverIds.last],
+        ['c'],
+        reason: 'Und wer ihn braucht — das ist der Text am Eintrag.',
+      );
+
+      // Zwei Autos aus reiner Kapazität: nichts erzwungen, alles abwählbar.
+      final tight = planDay(
+        rides: ride({'a', 'b', 'c', 'd'}),
+        seats: const {'a': 2, 'b': 2, 'c': 2, 'd': 2},
+      );
+      expect(tight.driverIds, hasLength(2));
+      expect(
+        tight.forcedFor,
+        isEmpty,
+        reason:
+            'Platznot ist eine Kapazitätsfrage, keine Absage — hier darf '
+            'der Umschalter alles.',
+      );
+    });
+
     test('ohne möglichen Zusatzfahrer bleibt die Person sichtbar draußen', () {
       // b (1-way, kann nicht fahren) lehnt das einzige Auto ab, und außer a
       // kann niemand fahren: Es gibt kein Auto für b. Sichtbar draußen ist
@@ -1316,7 +1524,7 @@ void main() {
       final day = planDay(
         rides: ride({'a'}, oneWay: {'b'}),
         seats: const {'a': 5},
-        choices: [choice('b', 'a', accepted: false)],
+        choices: [choice('b', 'a', answer: SeatAnswer.no)],
       );
 
       expect(day.cars, hasLength(1));
@@ -1360,6 +1568,125 @@ void main() {
         [for (final car in without.cars) car.fullIds],
         [for (final car in withEmpty.cars) car.fullIds],
       );
+    });
+
+    // #199: Ein Mitfahrer sucht sich sein Auto aus. Die Ablage kann das
+    // längst — was fehlte, war die Oberfläche. Diese Tests halten die zwei
+    // Regeln fest, ohne die sie nicht tragen würde.
+    group('das Auto wechseln (#199)', () {
+      test('von zwei Zusagen gilt die zuletzt getroffene', () {
+        // Der Kern: c hat gestern a zugesagt und wählt heute b. Ohne die
+        // „je Person höchstens einer"-Regel gewänne die ÄLTERE Zeile —
+        // Pins laufen in `decided_at`-Folge und überspringen, wer schon
+        // sitzt. Der Tipp täte dann sichtbar nichts, dieselbe Klasse wie
+        // der tote „Ich möchte fahren"-Pin aus v0.66.1.
+        final day = planDay(
+          rides: ride({'a', 'b', 'c', 'd'}),
+          seats: const {'a': 3, 'b': 3, 'c': 2, 'd': 2},
+          choices: [
+            choice('c', 'a', decidedAt: DateTime(2026, 3, 1, 8)),
+            choice('c', 'b', decidedAt: DateTime(2026, 3, 1, 9)),
+          ],
+        );
+
+        expect(day.driverIds, ['a', 'b']);
+        expect(
+          day.cars[1].fullIds,
+          contains('c'),
+          reason: 'Die neue Wahl gilt — c sitzt bei b.',
+        );
+        expect(day.cars[0].fullIds, isNot(contains('c')));
+      });
+
+      test('die überholte Zusage bleibt stehen und wirkt nicht', () {
+        // Verwaisten-Regel wie bei `plan_car_defaults`: aufgeräumt wird
+        // nichts. Fällt die neue Wahl weg (hier: veraltete Bedingungen),
+        // greift die alte wieder.
+        final day = planDay(
+          rides: ride({'a', 'b', 'c', 'd'}),
+          seats: const {'a': 3, 'b': 3, 'c': 2, 'd': 2},
+          carDefaults: const {'b': GroupDefaults(outboundTime: DayTime(5, 30))},
+          choices: [
+            choice('c', 'a', decidedAt: DateTime(2026, 3, 1, 8)),
+            // Zu leeren Bedingungen zugesagt, das Auto weicht inzwischen ab.
+            choice('c', 'b', decidedAt: DateTime(2026, 3, 1, 9)),
+          ],
+        );
+
+        expect(day.cars[0].fullIds, contains('c'));
+      });
+
+      test('freeSeatsForPin zählt nur die festen Zusagen, nicht die '
+          'automatisch Verteilten', () {
+        // Was der Auswahl-Dialog fragt: „Passt da noch jemand rein?" Ein Pin
+        // greift VOR der automatischen Verteilung — wer nur automatisch
+        // drinsitzt, wird hinterher neu verteilt und blockiert deshalb
+        // nicht. Sonst sperrte der Schirm Autos, in die man gekonnt hätte.
+        final persons = {
+          for (final id in ['a', 'b', 'c', 'd', 'e'])
+            id: Person(id: id, name: id, active: true, seats: 3),
+        };
+        final day = planDay(
+          rides: ride({'a', 'b', 'c', 'd', 'e'}),
+          seats: const {'a': 3, 'b': 3, 'c': 3, 'd': 3, 'e': 3},
+        );
+        expect(day.driverIds, hasLength(2), reason: 'Aufbau: zwei Autos.');
+        final other = day.driverIds.first;
+
+        expect(
+          freeSeatsForPin(
+            day,
+            driverId: other,
+            personId: 'e',
+            persons: persons,
+            choices: const [],
+            carDefaults: const {},
+          ),
+          2,
+          reason: 'Drei Sitze minus Fahrer, ohne jede Zusage.',
+        );
+
+        // Zwei fremde Zusagen auf dasselbe Auto machen es voll — und genau
+        // dann sperrt der Dialog den Eintrag, statt einen Tipp anzunehmen,
+        // der in `planWeek` still verfiele.
+        final full = freeSeatsForPin(
+          day,
+          driverId: other,
+          personId: 'e',
+          persons: persons,
+          choices: [
+            for (final id in day.availableIds)
+              if (id != other && id != 'e') choice(id, other),
+          ],
+          carDefaults: const {},
+        );
+        expect(full, lessThanOrEqualTo(0));
+      });
+
+      test('die eigene Zusage belegt keinen Platz gegen sich selbst', () {
+        // Sonst wäre das Auto, in dem man schon fest sitzt, als „voll"
+        // gesperrt — und das Häkchen stünde an einem toten Eintrag.
+        final persons = {
+          for (final id in ['a', 'b'])
+            id: Person(id: id, name: id, active: true, seats: 2),
+        };
+        final day = planDay(
+          rides: ride({'a', 'b'}),
+          seats: const {'a': 2, 'b': 2},
+        );
+
+        expect(
+          freeSeatsForPin(
+            day,
+            driverId: 'a',
+            personId: 'b',
+            persons: persons,
+            choices: [choice('b', 'a')],
+            carDefaults: const {},
+          ),
+          1,
+        );
+      });
     });
   });
 

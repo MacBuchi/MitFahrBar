@@ -11,6 +11,8 @@
 /// demselben Digest, demselben Text und derselben Kopfzeile existiert.
 library;
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mitfahrbar/core/fairness.dart';
 import 'package:mitfahrbar/core/push_digest.dart';
@@ -710,6 +712,97 @@ void main() {
             'die anderen fahren erst um 7:30.',
       );
       expect(reminders.single.kind, PushKind.departureOut);
+    });
+  });
+
+  group('Der Gruppen-Schalter (#213)', () {
+    const group = GroupDefaults(
+      outboundTime: DayTime(7, 30),
+      returnTime: DayTime(16, 30),
+    );
+    PlannedDay twoCars() => dayWith(
+      cars: const [
+        PlannedCar(driverId: anna, fullIds: [bernd]),
+        PlannedCar(driverId: clara),
+      ],
+    );
+
+    List<OutboxEntry> box({required bool on, bool withDeviation = true}) =>
+        outboxEntries(
+          week: [twoCars()],
+          persons: persons,
+          now: mondayEvening,
+          defaults: group,
+          dayDefaults: withDeviation
+              ? {tuesday: const GroupDefaults(meetingPoint: 'Netto')}
+              : const {},
+          carDefaults: withDeviation
+              ? {
+                  tuesday: {
+                    clara: const GroupDefaults(outboundTime: DayTime(6, 45)),
+                  },
+                }
+              : const {},
+          carAssignment: on,
+        );
+
+    test('aus: im Push stehen nur die Zeiten der Gruppe', () {
+      final off = box(on: false);
+      for (final id in [anna, bernd, clara]) {
+        expect(
+          entryFor(off, id).outboundTime,
+          const DayTime(7, 30),
+          reason:
+              'Ohne Auto-Zuordnung gibt es keine Abfahrt je Auto — auch nicht '
+              'für Clara, die eine abgelegt hat. Genau das verspricht der '
+              'Screen.',
+        );
+      }
+      expect(
+        entryFor(box(on: true), clara).outboundTime,
+        const DayTime(6, 45),
+        reason:
+            'Sonst misst der Test nichts: Eingeschaltet MUSS Claras Zeile die '
+            'abweichende Zeit tragen.',
+      );
+    });
+
+    test('aus: der Digest ist derselbe wie ganz ohne Abweichung', () {
+      final off = box(on: false);
+      final clean = box(on: false, withDeviation: false);
+      for (final id in [anna, bernd, clara]) {
+        expect(
+          entryFor(off, id).digest,
+          entryFor(clean, id).digest,
+          reason:
+              'Eine liegengebliebene Abweichung darf im ausgeschalteten '
+              'Zustand nichts anhängen — sonst meldete das Feature weiter '
+              '„Änderung" über eine Zeit, die niemand mehr angezeigt bekommt.',
+        );
+      }
+      expect(
+        entryFor(box(on: true), clara).digest,
+        isNot(entryFor(clean, clara).digest),
+        reason: 'Gegenprobe: eingeschaltet zählt sie sehr wohl.',
+      );
+    });
+
+    test('beide Korb-Schreiber reichen den Schalter durch', () {
+      // Am Quelltext geprüft, nicht am Verhalten — dieselbe Bauart wie
+      // `test/read_retry_test.dart`. Die Vorgabe von `carAssignment` ist der
+      // bisherige Zustand (an), damit ein vergessener Aufrufer nichts still
+      // abschaltet; genau deshalb würde ein Vergessen sonst NICHT auffallen.
+      // Beide füllen denselben Korb: Läse einer den Schalter nicht, trüge er
+      // andere Zeiten ein als der andere.
+      for (final path in ['lib/data/providers.dart', 'tool/notify.dart']) {
+        final source = File(path).readAsStringSync();
+        final call = source.substring(source.indexOf('outboxEntries('));
+        expect(
+          call.substring(0, call.indexOf(');')),
+          contains('carAssignment:'),
+          reason: '$path ruft outboxEntries ohne den Gruppen-Schalter auf.',
+        );
+      }
     });
   });
 

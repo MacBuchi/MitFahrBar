@@ -121,11 +121,42 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       Tag, der nur die Hinfahrt verschiebt, behält die Rückfahrt der
       Gruppe; objektweise ersetzt fiele sie auf `null` und die
       Rückfahrt-Erinnerung entfiele stillschweigend.
-    - **Drei Ebenen seit v0.66.0: `Auto → Tag → Gruppe`**
-      (`plan_car_defaults`, Stufe B). Die Tages-Ebene bleibt daneben
-      bestehen und wurde nicht umgebaut: „heute fahren alle früher" ist eine
-      andere Aussage als „Auto 2 fährt später", und ohne sie müsste man bei
-      zwei Autos dieselbe Zeit zweimal eintragen.
+    - **Seit v0.75.0 nur noch ZWEI Ebenen: `Auto → Gruppe`** (#211). Von
+      v0.66.0 bis v0.74.0 lag dazwischen eine Tages-Ebene
+      (`plan_defaults`), begründet mit: „heute fahren alle früher" sei eine
+      andere Aussage als „Auto 2 fährt später".
+      - **Diese Begründung ist widerlegt, nicht bloß aufgegeben** (Gruppe,
+        09.08.2026): „Heute fahren alle früher" ist keine Abweichung, die
+        jemand einträgt, sondern die **Folge** davon, dass alle der Abfahrt
+        eines Fahrers zustimmen. Zwei Ebenen für eine Aussage sind eine zu
+        viel — dieselbe Form wie die Spritpreis- und die Anmerkungs-Revision:
+        Der tragende Grund fiel weg, nicht die Regel war von Anfang an falsch.
+      - **Damit existiert #206 nicht mehr, statt behoben zu sein.** Bei EINEM
+        Auto schrieb der Zeiten-Schirm stillschweigend die Tages-Ebene; weil
+        eine Zusage am **Auto** hängt, wurde dann niemand gefragt — und zwar
+        am häufigsten Tag überhaupt. Mit nur einer Ebene kann der Fall nicht
+        wieder entstehen.
+      - **Gelesen wird die Tages-Ebene weiter, geschrieben nicht mehr.**
+        `effectiveDefaults` und `outboxEntries` lösen `Auto → Tag → Gruppe`
+        unverändert auf, damit Altzeilen nicht stillschweigend ihre Wirkung
+        verlieren. Die Tabelle fällt erst in einer späteren Migration — sie
+        jetzt zu droppen hieße, etwas zu entfernen, das ein veröffentlichter
+        Client liest, und damit die Mindestversion zu heben.
+      - **Das ist Schritt 1 von „erweitern → ausliefern → entfernen"**
+        (allgemein im DocuHub, `guidelines/datenhaltung.md`). Seit den zwei
+        Release-Kanälen (#217) ist der Termin für Schritt 3 präzise
+        benennbar: **nach der ersten Beförderung, die den lesenden Client
+        stabil macht.** Vorher gedroppt bricht es genau die Leute, die brav
+        auf stabil sind — und die Mindestversion hilft dagegen nicht, weil
+        der Sperr-Schirm nur anbieten kann, was veröffentlicht ist.
+        Kontrolle vor dem Drop: `plan_defaults` hatte am 09.08.2026 noch
+        **3 Zeilen** in Produktion (Abfrage-Rezept steht in der Erinnerung
+        `supabase-prod-lesen`).
+      - **Der eine Preis, ausgesprochen:** Eine Zeit zu setzen schreibt ab
+        jetzt IMMER einen Fahrer fest, auch bei einem Auto. „Wir fahren
+        früher, wer fährt, sehen wir noch" lässt sich nicht mehr sagen. Das
+        ist konsequent zu #183 („die Zeit zu setzen ist die Fahrer-Zusage"),
+        aber es ist eine Einschränkung und gehört so in den Changelog.
       - **Geschlüsselt am Fahrer** — `(group_id, plan_date, driver_id)`, der
         Schlüssel von `plan_overrides`. Das ist keine Analogie: Ein Auto
         existiert in der Datenbank **nur** als „diese Person fährt an diesem
@@ -338,19 +369,236 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       dauerhaft zwei Autos wegen einer Zeit, die es nicht mehr gibt).
       Aufgeräumt wird nichts: verwaiste Zeilen wirken nicht, wie bei
       `plan_car_defaults`.
+    - **Ein Ausschluss erzwingt ein Auto auch dann, wenn die übrigen nur
+      VOLL sind** (seit v0.76.0). Bis dahin endete die Zusatzauto-Schleife,
+      sobald für jeden **irgendein** nicht ausgeschlossenes Auto existierte —
+      ob dort ein Platz frei ist, fragte niemand. Die Verteilung stopfte die
+      Leute anschließend über die Rückfalllinie hinein: Ein Nein bewirkte am
+      Ende ein überfülltes Auto statt eines zusätzlichen.
+      - **Das ist ausdrücklich NICHT der Fall aus #62.** Dort reichen die
+        Sitze des Tages insgesamt nicht, und Überfüllen ist die ehrliche
+        Antwort — diese Rückfalllinie bleibt. Hier reichen sie, sie sind nur
+        durch Absagen unerreichbar.
+      - **Gezählt wird nach Hall:** Wer ausschließlich in eine bestimmte Menge
+        Autos darf, muss dort Platz finden; die Fahrer dieser Autos belegen je
+        einen Sitz im eigenen. Reicht es nicht, kommt ein Auto dazu — die
+        Schleife terminiert, weil jedes zusätzliche Auto die Kapazität erhöht.
+      - **Am Soak ändert das nichts, und das ist geprüft**: Er läuft ohne
+        Sitz-Entscheidungen, also ohne Ausschlüsse — `excludedBy` ist dort
+        leer und die Bedingung fällt auf „alle Autos ausgeschlossen" zurück.
+    - **Ein erzwungener Fahrer ist im Umschalter gesperrt, nicht abwählbar**
+      (#203, seit v0.70.0; `PlannedDay.forcedFor`). Gemeldet als „das
+      Zurücknehmen des zweiten Fahrers wirkt nicht" — es *konnte* nicht
+      wirken: Wer abgesagt hat, muss irgendwo sitzen, also setzt `planWeek`
+      den Fahrer im selben Atemzug zurück. Der Dialog nahm die Anweisung
+      trotzdem an und verwarf sie stumm, die Klasse „toter Knopf" aus
+      0.37.0. Drei Dinge daran:
+      - **`forcedFor` ist berechnet, nie gespeichert** — wie der
+        Fahrer-Vorschlag selbst. Es hält Fahrer → wer ihn braucht, damit am
+        Eintrag der Name steht: „wird gebraucht — Bert fährt sonst nicht
+        mit". „Ausgegraut" allein sagt nicht, mit wem man reden muss.
+      - **Nur Absage-Zwang, nicht Platznot.** Zwei Autos aus Kapazität sind
+        eine Kapazitätsfrage und bleiben frei abwählbar; `forcedFor` ist
+        dort leer. Beide Richtungen nagelt `test/plan_test.dart` fest.
+      - **Der Weg hinaus führt über die Person, nicht über den Planer.** Die
+        Absage mit abzuwählen wäre der eine Weg, der nicht in Frage kommt:
+        Ein Dritter überstimmte damit still die Entscheidung eines
+        Mitfahrers über seine eigene Fahrt — genau das, wogegen #189 gebaut
+        wurde. Sagt die Person doch zu (Zell-Menü oder „Mit wem fahren?"),
+        verschwindet das Auto von selbst; ist sie nicht mehr verfügbar oder
+        ihre Absage veraltet, ebenso. Ein Weg bleibt also immer offen.
+      - **Der Spezialfahrer selbst ist davon nicht betroffen**, und das ist
+        gemessen: Nimmt man IHN zurück, fallen seine Mitfahrer auf die
+        Standardzeit zurück und es entsteht **kein** Ersatzauto — seine
+        Abweichung existiert nicht mehr, also auch die Absage dagegen
+        nicht. Wer hier „aufräumt" und Entscheidungen löscht, nimmt sich
+        die Rückkehr: Kommt er wieder, gelten sie wieder.
     - **Wer zuerst gepinnt hat, bleibt** (`decided_at`). Der Nachrang
       fällt in die automatische Verteilung — nicht aus dem Tag und nicht
       dauerhaft aus dem Wunsch-Auto. `decided_at` geht damit in die
       Plan-Rechnung ein; beim Umschreiben derselben Entscheidung bleibt es
       erhalten, nur neue Bedingungen setzen es neu.
-    - **Gefragt wird am offenen Dialog, nie per Schweigen entschieden.**
+    - **Je Person gilt höchstens EIN Pin, nämlich der zuletzt getroffene**
+      (`seatPinsOf`, seit v0.68.0 mit #199). Ohne diese Zeile gewänne die
+      **ältere** Zusage: `planWeek` setzt Pins in `decided_at`-Reihenfolge
+      und überspringt, wer schon sitzt. Wer sein Auto wechselt, bliebe damit
+      im alten — der Tipp täte sichtbar gar nichts, dieselbe Klasse wie der
+      tote „Ich möchte fahren"-Pin aus v0.66.1. Aufgeräumt wird auch hier
+      nichts: Die überholte Zeile bleibt stehen und greift wieder, wenn die
+      neue verfällt.
+    - **Ein Mitfahrer sucht sich sein Auto aus** („Mit wem fahren?" im
+      Zell-Menü, #199 seit v0.68.0) — der wörtliche Wunsch aus #189, den
+      Stufe B2 offengelassen hatte. Bis dahin bestätigte der Pin immer nur
+      den Platz, den die Automatik ohnehin vergeben hatte (`carOf`), und
+      beide Wege dorthin hingen an einer Abweichung; zwei gleichzeitig
+      abfahrende Autos ließen also gar keine Wahl. **Ablage und Rechnung
+      konnten es längst** — `planWeek` setzt einen Pin über
+      `driverSet.indexOf(pin.driverId)` auf jedes Auto des Tages —, es
+      fehlte allein die Oberfläche.
+      - **Eine Wahl IST die Zusage**: dieselbe Zeile wie „Passt", mit den
+        `terms` des gewählten Autos. Sie veraltet also mit dessen Abfahrt,
+        und ein Auto ohne Abweichung trägt leere `terms` wie eh und je.
+        Der Ausschluss bleibt bei der Rückfrage — „mit wem fahre ich" ist
+        keine Antwort auf eine verschobene Abfahrt.
+      - **Ein volles Auto ist gesperrt, nicht überbucht** (entschieden
+        08.08.). Ein Pin greift in `planWeek` nur auf einen **freien**
+        Platz; angenommen und still verfallen wäre er wieder der tote Tipp.
+        Was blockiert, sind die **festen Zusagen** der anderen, nicht die
+        automatisch verteilten Mitfahrer — die verteilt der Plan hinterher
+        neu, ein Pin läuft davor. Gerechnet wird das in `freeSeatsForPin`,
+        damit Schirm und Verteilung dieselbe Antwort geben; zwei Stellen
+        sperrten Autos, in die man gekonnt hätte, oder umgekehrt. Der
+        Flow-Test **tippt** den gesperrten Eintrag und prüft, dass der
+        Dialog offen **bleibt** — ein angenommener, still verfallender Pin
+        sähe von außen genauso aus.
+      - **„Egal" räumt ALLE Zusagen des Tages weg**, nicht nur die
+        wirksame: Bliebe eine ältere stehen, wäre sie ab sofort die neue
+        wirksame, und „egal" hätte ein Auto gewählt. `seatChoicesOn` gibt
+        dafür eine **Kopie** heraus, nicht die Liste des Notifiers — der
+        Aufrufer löscht beim Darüberlaufen, und optimistisch geschrieben
+        wird in dieselbe Liste. Auf dem Original ist das ein
+        `ConcurrentModificationError`, den der Schirm als „Speichern
+        fehlgeschlagen" meldet, **obwohl gespeichert wurde**. Gefunden im
+        Browser (`.claude/skills/run-web/`), nachdem die Suite grün war;
+        der Flow-Test prüft seither die Meldung mit, nicht nur das
+        Ergebnis.
+      - **Erst ab zwei Autos und nur für Mitfahrer**, dieselbe Regel wie
+        bei den Auto-Marken und bei „Zeiten & Treffpunkt" (#188): Bei einem
+        Auto sitzen ohnehin alle darin, und ein Fahrer sitzt in seinem
+        eigenen. Wer in **keinem** Auto sitzt (allen abgesagt), behält den
+        Eintrag — er ist der Weg zurück.
+    - **Gefragt wird am offenen Dialog, nie per Schweigen ein zweites Auto.**
       Die Rückfrage kommt beim Eintragen — dort steht die Person vor dem
       Gerät. Ein nicht beantworteter Push darf den Plan nicht sprengen
-      (#180: zugestellt ist nicht angezeigt); wer schweigt, bleibt
-      automatisch verteilt und sieht die Abweichung an Tageszeile, Glyph
-      und Banner. Das Nein kostet zwei Taps: Zell-Menü → „Dein Auto fährt
-      anders". Die nachträgliche Push-Rückfrage an bereits Eingetragene
-      (mit Deep-Link in den Planer) ist **Stufe 2 und nicht gebaut**.
+      (#180: zugestellt ist nicht angezeigt). Das Nein kostet zwei Taps:
+      Zell-Menü → „Dein Auto fährt anders".
+      - **Seit v0.70.0 gilt Opt-out: Wer nicht ablehnt, ist zugesagt**
+        (entschieden 08.08., `answer ?? true`). Das **revidiert** „Wegtippen
+        entscheidet nichts", und zwar auf dieselbe Weise wie die
+        Spritpreis- und die Anmerkungs-Revision: Der Grund fiel weg, nicht
+        die Regel war falsch. Getragen hatte sie „ein Schweigen darf keinen
+        Plan sprengen" — und das gilt weiter, denn Schweigen erzeugt nach
+        wie vor **kein zweites Auto**; es hält die Person dort, wo sie
+        ohnehin säße. Was daran teuer war, war die leere Ablage: Ohne Zeile
+        fand die nachträgliche Rückfrage (#200) nichts Veraltetes und
+        **schwieg**, wenn der Fahrer später von 05:30 auf 04:00 ging — die
+        Person wurde mitgezogen, ohne je zugestimmt zu haben. Genau der
+        Schaden, den #189 verhindern sollte, durch die Hintertür.
+        Nebeneffekt, der die Gruppe freut: weniger Autos (Opt-out spart
+        CO₂).
+      - **Der Dauerschleifen-Merker aus v0.69.0 ist damit entfallen** — und
+        zwar weil er *unerreichbar* wurde, nicht weil er störte: Seit jeder
+        Ausgang des Dialogs eine gültige Entscheidung ablegt, schweigt die
+        Rückfrage von allein. Sein Test konnte nicht mehr rot werden, und
+        ein Riegel, der nicht mehr fehlschlagen kann, ist keiner. Bleibt
+        der Schreib stecken, wird wieder gefragt — richtig so, beantwortet
+        wurde dann nichts.
+    - **Und noch einmal, wenn die zugesagte Abfahrt sich verschiebt**
+      (#200, seit v0.69.0 — Stufe 2). Die veraltete Zusage wirkt schon
+      seit v0.67.0 nicht mehr; was fehlte, war der Anstoß. Beim Ankommen
+      im Planer wird neu gefragt.
+      - **Keine neue `PushKind`, und das ist der Kern.** Genau dieses
+        Ereignis ändert bereits den Digest (die anwendbare Abweichung
+        steht darin) und löst die `change`-Meldung aus — eine zweite Art
+        wäre eine zweite Nachricht zum selben Vorgang, müsste die
+        Empfängerfrage neu beantworten und bräuchte ein Gegenstück zu
+        `removedDigest` (das #127-Argument). Gefragt wird stattdessen beim
+        **Ankommen**, und das trägt weiter als ein Deep-Link: Es wirkt
+        auch, wenn die Meldung nie angezeigt wurde (#180) oder der
+        Abend-Blick abgeschaltet ist.
+      - **Ein Push-Tipp frischt die Planung auf** (`refreshPlanning`,
+        `app.dart`). Die Plan-Provider sind bewusst nicht `autoDispose`;
+        wer die App aus dem Hintergrund holt, sah sonst den Stand von
+        vorhin — ausgerechnet in dem Moment, in dem eine Meldung sagt,
+        dass sich etwas geändert hat, und die Rückfrage könnte gar nicht
+        wissen, dass sie fällig ist. Alle vier Ebenen zusammen: Ein halb
+        aufgefrischter Plan sähe aktuell aus.
+      - **Der Anlass ist die überholte Entscheidung, nicht die
+        Abweichung.** Wer nie etwas entschieden hat, wird weiterhin nur
+        beim Eintragen gefragt — ihn hier anzusprechen wäre eine neue,
+        ungefragte Unterbrechung.
+      - **Gegen die Dauerschleife schützt die Ablage, nicht ein Merker im
+        Schirm** (seit v0.70.0). v0.69.0 hatte dafür ein `_asked` am
+        `_ContentState`; mit dem Opt-out legt jeder Dialog-Ausgang eine
+        gültige Entscheidung ab, und `_maybeAskConsent` steigt beim nächsten
+        Durchlauf von selbst aus. Wer den Merker wieder einführt, verdeckt
+        damit nur, dass das Schreiben nicht ankommt.
+      - **Ohne „Ich bin" fragt niemand nach.** Ohne die Geräte-Zuordnung
+        (#121) ist nicht bekannt, WESSEN Zusage überholt ist; im
+        Demo-Modus ist sie ohnehin aus, dort entstehen die
+        README-Screenshots.
+      - **Bekannte Grenze:** Die Zusage hängt an der **Auto**-Abweichung.
+        Bei nur EINEM Auto schreibt der Zeiten-Schirm bewusst die
+        Tages-Ebene (`_editDay`) — dort entsteht also gar keine Zusage und
+        folglich auch keine Rückfrage. Wer das ändern will, ändert #189,
+        nicht #200.
+    - **Seit v0.72.0 sind es DREI Antworten** (#210, `SeatAnswer`): „egal"
+      (Vorgabe), „ja unbedingt", „auf keinen Fall". Sie sind **nicht
+      symmetrisch**, und die Etiketten verschweigen das fast: Das Nein ist
+      eine Bedingung (es kann ein Auto erzwingen), das Ja nur eine
+      Bevorzugung — ist das Wunsch-Auto voll, fällt die Person in die normale
+      Verteilung, statt ein zweites Sonderzeit-Auto zu erzwingen.
+      - **„Egal" wird ABGELEGT, nicht weggelassen.** Als fehlende Zeile
+        umgesetzt fände die Rückfrage aus #200 nichts Veraltetes, und wer zu
+        06:00 „egal" gesagt hat, würde bei 04:00 stillschweigend mitgezogen —
+        genau das Loch, das #200 geschlossen hat.
+      - **Die Spalte `answer` ist nullable und hat KEINEN Default**, und das
+        ist der Kern der Verträglichkeit: Ein Client von vor v0.72.0 schreibt
+        sie nicht, sie bleibt NULL, und der neue liest die Zeile über
+        `accepted` — also mit der Bedeutung, die der alte gemeint hat. Mit
+        `default 'dontcare'` ginge jede **Ablehnung** eines alten Clients
+        verloren, mit `'yes'` würde sie zum Pin auf genau das abgelehnte
+        Auto.
+      - **`accepted` bleibt als Mitschrift stehen, mit genau EINEM
+        Schreiber** (`SeatChoice.accepted` in Dart). Sie auf NULL zu öffnen
+        wäre das sauberere Datenmodell gewesen und hätte die Mindestversion
+        gehoben; das trifft jede Gruppe, auch die ohne Problem. Wer die
+        Ableitung anderswo nachbaut, macht aus der Mitschrift die zweite
+        Wahrheit.
+    - **Der Schalter steht seit v0.73.0 in der Tageszeile** (#210,
+      `_SeatAnswerRow`) — je abweichendem Auto eine Zeile mit „Egal / Ja /
+      Nein", darunter ein Satz, was die Wahl bedeutet.
+      - **Er ersetzt die Rückfrage nicht, er steht daneben.** Die Rückfrage
+        spricht an, wenn sich etwas ändert (#200); der Schalter zeigt
+        dauerhaft, was gilt. Nur die Rückfrage hieße, dass man seine eigene
+        Entscheidung nirgends nachlesen kann; nur der Schalter hieße, dass
+        eine verschobene Abfahrt niemanden mehr erreicht.
+      - **Eine veraltete Entscheidung zeigt „Egal"** — genau so behandelt die
+        Engine sie. Zeigte der Schalter das alte Ja, behauptete er eine
+        Zusage, die nicht mehr gilt, und die Rückfrage widerspräche ihm im
+        nächsten Moment.
+      - **Nur bei Abweichung, nur für Mitfahrer, nur mit „Ich bin"** — sonst
+        zeigte er auf nichts, oder es wäre unklar, wessen Entscheidung
+        gemeint ist. Geschrieben wird über `_saveSeatAnswer`, den **einzigen**
+        Schreibweg: Zwei Fassungen wären zwei Antworten auf „behält der Pin
+        seinen Rang?", und der Unterschied fiele erst am vollen Auto auf.
+      - Der Flow-Test setzt eine **hohe Fläche**: Der Schalter steht unter dem
+        Raster, und ein Tipp außerhalb des Sichtbereichs trifft ins Leere,
+        **ohne zu werfen** — der Test wäre grün gewesen, wenn der Schalter
+        gar nichts tut.
+    - **Verteilt wird seit v0.72.0 nach KOPFZAHL** (#210): ins Auto mit den
+      wenigsten Insassen, erst bei vollem Auto gewinnt ein anderes mit freiem
+      Platz. Bis dahin entschieden die meisten freien Plätze — was bei
+      ungleich großen Autos gerade nicht gleichmäßig verteilt, weil ein
+      7-Sitzer und ein 4-Sitzer mit gleich vielen FREIEN Plätzen enden.
+      - **Die Rückfalllinie aus #62 bleibt**: Reichen die Sitze insgesamt
+        nicht, wird überfüllt statt jemanden stillschweigend stehen zu
+        lassen. Ohne sie verschwänden Leute aus dem Plan, sobald ein Auto zu
+        klein ist.
+      - **Der Preis ist gemessen — und über zwölf Seeds ein Unentschieden.**
+        Die erste Messung (zehn Seeds, eine Kennzahl) sah nach einer
+        Verschlechterung aus; mit zwei aus `0xDAC1A` **mutierten** Seeds und
+        einer Kontrolle gegen die alte Regel löst sich das auf: Fahrrate im
+        Mittel 17,0 → 17,8 ‰, `max|Punkte|` im schlechtesten Fall dagegen
+        5,5 → **3,0**. Der schlechteste Fahrraten-Wurf (30 ‰) tritt unter
+        **beiden** Regeln auf demselben Seed auf — er gehört zum
+        Anwesenheitsmuster, nicht zur Verteilregel.
+      - **Die Lehre daraus ist die wichtigere:** Wer aus einer Kennzahl auf
+        einem Seed eine Regel-Eigenschaft macht, misst zu schmal. Die
+        Schranke steht auf 30 ‰ als struktureller Boden dieser Kalibrierung;
+        wer sie anfasst, wiederholt die Kontrolle gegen die andere Regel.
+        Zahlen in beiden Nachträgen von
+        `doc/entscheidung-mitfahrer-verteilung.md`.
     - **Ohne Entscheidungen rechnet `planWeek` bitgleich wie vorher** —
       per Test festgenagelt. Daran hängt auch der Soak-Report
       (`doc/entscheidung-mitfahrer-verteilung.md`): Er misst die
@@ -368,6 +616,58 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       optimistischen Schreibvorgänge. Ein zweiter Ladepfad hing beim
       Weiterschalten einen Roundtrip hinterher und fragte genau dann
       doppelt — so gefunden im Flow-Test, bevor es jemand erlebt hat.
+- **Die ganze Auto-Zuordnung hat einen Gruppen-Schalter** (#213, seit
+  v0.71.0): `settings.car_assignment_enabled` (0/1), im Parameter-Screen.
+  Der Grund ist keine Bequemlichkeit: Es gibt **keinen Stable-/Latest-Kanal**
+  — ein Merge mit Versions-Bump *ist* die Veröffentlichung und erreicht alle
+  Gruppen zugleich. Ein Wert, den die Gruppe selbst umlegt, ist damit der
+  einzige Rückweg, der kein neues Release braucht. Er ist die erste Fahne
+  dieser Art; das Kriterium des Parameter-Screens hält er ein (er verschiebt
+  keine eingetragene Fahrt, nur künftige Vorschläge).
+  - **Aus heißt: feste Zeiten für alle.** Keine Abfahrt je Auto, keine
+    Zusage, keine Auto-Wahl, und im Push ausschließlich `group_defaults`.
+    Die **Autos bleiben** — dass ein voller Tag zwei braucht, ist Kapazität
+    (#62) und keine Zuweisung; sie zu verstecken wäre eine Lüge über den Tag.
+  - **Der Schalter wirkt an drei Stellen, und jede ist bewusst gewählt:**
+    - **`planWeek` liest ihn selbst** aus `settings` und leert `seatChoices`
+      und `carDefaults` beim Normalisieren. Nicht bei den Aufrufern gefiltert:
+      Es gibt zwei (App und `tool/notify.dart`), und filterte einer nicht,
+      verteilte er die Mitfahrer anders — der Korb trüge je nach Schreiber
+      verschiedene Zeiten. Weil beide `settings` ohnehin durchreichen, ist die
+      Falle hier konstruktiv erledigt.
+    - **`outboxEntries` bekommt ihn als Parameter**, weil es dort kein
+      `AppSettings` gibt. Vorgabe ist der *bisherige* Zustand (an), damit ein
+      vergessener Aufrufer nichts still abschaltet — und genau deshalb prüft
+      `test/push_outbox_test.dart` **am Quelltext**, dass beide Schreiber ihn
+      übergeben (Bauart wie `test/read_retry_test.dart`).
+    - **Die beiden Abweichungs-Provider geben leer zurück.** Das ist der
+      Riegel für die ganze Oberfläche an einer Stelle; ohne ihn müsste jede
+      Anzeigestelle einzeln fragen, und die eine, die man vergisst, zeigt
+      „hin 06:45", während die Erinnerung um 07:30 klingelt — der Fehler aus
+      v0.66.1 mit umgekehrtem Vorzeichen. Beim Laden gilt „aus": kurz zu
+      wenig zeigen ist besser als kurz das Falsche.
+  - **Abgelegte Zeilen werden inert, nie gelöscht** — dieselbe Regel wie bei
+    verwaisten Zeilen. Ein Schalter, der Daten wegwirft, wäre kein Rückweg;
+    Wiedereinschalten stellt her, was dastand.
+  - **Vorgabe aus, aber nur für NEUE Gruppen.** Fehlt die Zeile, gilt aus —
+    deshalb seedet `handle_new_group()` sie bewusst nicht (dasselbe Muster
+    wie `charging_price_per_kwh` und `e10_price_per_liter`). Bestehende
+    Gruppen setzt die Migration ausdrücklich auf 1: Ihnen die Zuordnung per
+    neuer Vorgabe zu nehmen wäre ein Entzug, keine Vorgabe.
+  - **Die Mindestversion bleibt unangetastet**, und das ist geprüft: Es fällt
+    nichts weg, und `saveSettings` ist ein **Upsert je Schlüssel** — ein alter
+    Client kennt `car_assignment_enabled` nicht, schreibt ihn also nicht und
+    lässt die Zeile stehen. **Bekannte Grenze:** Er zeigt die Zuordnung
+    trotzdem und schreibt seine Digests mit Abweichung. Solange der Schalter
+    an steht (überall, wo das Feature heute läuft), ist das richtig; schaltet
+    eine Gruppe ihn ab, während jemand einen alten Client benutzt, wechseln
+    sich die Digests ab und es gäbe „Änderung"-Meldungen. Der Ausweg ist
+    „erst alle aktualisieren, dann abschalten" — **nicht** die Mindestversion
+    zu heben, denn die träfe auch jede Gruppe, bei der nichts falsch ist.
+  - **Der Demo-Modus läuft mit AN** (`FakeCarpoolRepository`), obwohl neue
+    Gruppen aus starten. Kein Widerspruch: Dort entstehen die
+    README-Screenshots, und mit der Vorgabe „aus" verlören sie
+    stillschweigend die Auto-Zeilen und -Marken.
 - **Spritpreise kommen seit v0.53.0 doch aus dem Netz — aber genau dort,
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von
@@ -940,20 +1240,40 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   eine Fahrt eingetragen ist — und alle fünf Tage schlagen dieselbe Person
   vor. Tage mit echter Fahrt werden nicht zusätzlich simuliert, sonst zählen
   sie doppelt. Beides ist in `test/plan_test.dart` festgenagelt.
-- **Der Planer trimmt die Fahrrate — begrenzt auf ±6 Punkte** (Muster
+- **Der Planer trimmt die Fahrrate — begrenzt auf ±12 Punkte** (Muster
   entschieden 2026-07-22 mit Deckel 2; auf 6 gehoben 2026-07-24 nach dem
-  Zielflotten-Soak, `suggestPlanDriver`): Wer selten fährt, bekommt bei
-  fast gleichem Punktestand eher die kleinen Tage, Vielfahrer die vollen —
-  so gleichen sich die Fahranteile an. Das ist eine Kaskadenregelung mit
-  begrenzter Autorität: reiner P-Regler auf der Raten-Abweichung
-  (bewusst **kein** I-Anteil — die Rate ist selbst ein integrierender
-  Zustand, ein Integrator darauf schwänge), Verstärkung `kRateBalance = 6`
-  ist zugleich der harte Deckel; praktisch bewegt der Trim ~0,2 Punkte,
-  weil reale Δ-Raten klein sind. Jenseits des Bandes entscheiden exakt die
-  Punkte; Dashboard/„Wer ist dran?" (`rankPresent`) bleiben unberührt.
-  Wer den Trim „vereinfacht" (Deckel raus, I-Anteil rein, auch fürs
-  Dashboard), bricht den Punkte-Vorrang oder baut Schwingen ein —
+  Zielflotten-Soak, **auf 12 gehoben 2026-08-09**, `suggestPlanDriver`):
+  Wer selten fährt, bekommt bei fast gleichem Punktestand eher die kleinen
+  Tage, Vielfahrer die vollen — so gleichen sich die Fahranteile an. Das ist
+  eine Kaskadenregelung mit begrenzter Autorität: reiner P-Regler auf der
+  Raten-Abweichung (bewusst **kein** I-Anteil — die Rate ist selbst ein
+  integrierender Zustand, ein Integrator darauf schwänge), Verstärkung
+  `kRateBalance` ist zugleich der harte Deckel. Jenseits des Bandes
+  entscheiden exakt die Punkte; Dashboard/„Wer ist dran?" (`rankPresent`)
+  bleiben unberührt. Wer den Trim „vereinfacht" (Deckel raus, I-Anteil rein,
+  auch fürs Dashboard), bricht den Punkte-Vorrang oder baut Schwingen ein —
   `test/plan_test.dart` nagelt Deckel und Zuordnung fest.
+  - **Der Hub auf 12 ist an EUREN echten Daten gemessen**, nicht nur
+    simuliert: Auf der 401-Tage-Historie halbiert er die Abweichung der
+    Stammfahrer vom mittleren Fahranteil (18,7 → 10,6 ‰) und schlägt damit
+    auch die von Hand geplante Praxis (14,1 ‰).
+  - **Nach oben ist bei 12 Schluss, obwohl 40 minimal besser misst**
+    (9,9 ‰). Ab k≈20 kippt die Auslegung: Im Extremfall schickt der Planer
+    am **kleinen** Tag den Vielfahrer statt den Wenigfahrer — umgekehrt zur
+    Absicht. Grund ist die Δ-Rate: unter Stammfahrern 0,03 (Autorität 1,2
+    Punkte), bei unregelmäßiger Teilnahme aber 0,2 (Autorität 8 Punkte), und
+    das überstimmt die beobachtete Punkte-Spanne von ±2,5. Die zwei
+    Trim-Tests kippen bei 20 und 40, nicht bei 12 — **wer erhöht, sieht sie
+    fallen und weiß dann, was er tut.**
+  - **Die Soak-Punkte-Schranke durfte auf ±7, blieb aber bei ±5.** Bei 12
+    liegt der gemessene Höchstwert bei 3,5; ein Grenzwert, der lockerer ist
+    als nötig, fängt nichts mehr. Zahlen in
+    `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 2026-08-09 (3).
+  - **Replays der echten Historie laufen wochenweise, nie tageweise.**
+    `dayFactorOf` normiert gegen das Wochenmittel; bei einer Ein-Tages-Woche
+    ist `maxDeviation` null, `dayFactor` null — und der Trim fällt komplett
+    aus. Ein tageweiser Replay misst also stillschweigend `k = 0` und
+    liefert für JEDEN Wert dieselben Zahlen.
 - **Der Wochenplan schreibt optimistisch** (`WeekPlanNotifier` in
   `data/providers.dart`): Ein Tap wird lokal eingerechnet und sofort
   gezeigt, der Netz-Schreib läuft hinterher; scheitert er, holt
@@ -1363,26 +1683,66 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
 
 - **Kein direkter Push auf `main`** (Branch ist geschützt): Feature-Branch
   (`feat/<thema>` / `fix/<thema>`) → PR → CI grün → Squash-Merge.
-- **Wer mergen darf, entscheidet der Versions-Bump** — denn der Merge ist die
-  Veröffentlichung:
+- **Zwei Kanäle seit v0.76.0 (#217): jeder Merge baut, aber nur eine
+  Beförderung veröffentlicht.**
+  - Ein Merge mit Bump erzeugt Tag, APK und ein **Prerelease**. Die Gruppe
+    sieht davon **nichts**: `update_check.dart` fragt `/releases/latest` ab,
+    und GitHub liefert dort grundsätzlich keine Prereleases — weder den
+    Hinweis noch das APK fürs In-App-Update.
+  - **`prerelease: true` UND `make_latest: false` gehören zusammen.** Ohne
+    die zweite Zeile setzt GitHub das neueste Release trotzdem als „latest",
+    und die ganze Trennung wäre wirkungslos.
+  - Freigegeben wird von Hand über den Workflow **Promote** (gedacht alle
+    zwei bis drei Wochen). Er schaltet das Release stabil, setzt die
+    **gesammelten** CHANGELOG-Abschnitte seit dem letzten stabilen Stand als
+    Notizen ein und deployt Pages **aus dem beförderten Tag**.
+  - **GitHub Pages hängt am stabilen Kanal, nicht an `main`.** Das Web hat
+    eine einzige URL; deployte weiter jeder Merge, bekäme die PWA jede
+    Zwischenversion und die Trennung gälte nur für Android. Der Preis ist
+    gewollt: Zwischen zwei Beförderungen steht auf der Web-Adresse der
+    stabile Stand.
+  - Wer den neuesten Stand testen will, lädt das Prerelease-APK von der
+    Releases-Seite — der In-App-Weg führt bewusst nur zu stabilen Ständen.
+  - **`min_supported_version` darf nie über den STABILEN Stand steigen**,
+    sonst sperrt der Schirm genau die aus, die auf stabil sind.
+  - Festgenagelt in `test/release_workflow_test.dart`: Die Riegel sind je
+    eine Zeile YAML, und ihr Verlust fällt sonst erst auf, wenn die Gruppe
+    wieder mehrmals täglich einen Hinweis bekommt.
+- **Wer mergen darf, entscheidet weiterhin der Versions-Bump:**
   - **Ohne Bump** (nur `*.md`, `.github/`, `test/`, `tool/`, `LICENSE`):
-    Claude darf nach grüner CI selbst squash-mergen. Es entsteht kein Release,
-    die Gruppen bekommen nichts davon mit.
-  - **Mit Bump**: **Der Merge gehört dem Menschen.** Er löst Tag, Release,
-    APK und Pages-Deploy aus — das veröffentlicht Marcus selbst.
+    Claude darf nach grüner CI selbst squash-mergen.
+  - **Mit Bump**: **Der Merge gehört dem Menschen.** Die ursprüngliche
+    Begründung („der Merge ist die Veröffentlichung") gilt seit den zwei
+    Kanälen allerdings nicht mehr — ein Merge erreicht die Gruppe nicht,
+    veröffentlicht wird erst mit der Beförderung. Ob die Regel deshalb
+    gelockert wird, ist **Marcus' Entscheidung** und hier bewusst offen
+    gelassen, statt sie stillschweigend nachzuziehen.
 - Commit-/PR-Titel: Conventional Commits. GitHub-Kommunikation Englisch,
   UI-Strings und Nutzer-Doku Deutsch.
 - Release = Versions-Bump in `pubspec.yaml` auf `main` (beide Teile erhöhen,
-  z. B. `0.2.0+3`). Der Release-Workflow taggt `v<version>` und deployt Web
-  auf GitHub Pages. Kein Bump = kein Release.
+  z. B. `0.2.0+3`). Der Release-Workflow taggt `v<version>` und baut das APK.
+  Kein Bump = kein Release.
 - Version Guard in CI: Code-Änderung ohne Versions-Bump blockiert den Merge.
   Ausgenommen sind `*.md`, `.github/`, `test/`, `tool/` und `LICENSE` — reine
   Doku-, CI-, Test- oder Tooling-Arbeit soll kein Release auslösen.
 - **Zu jedem Versions-Bump gehört ein `CHANGELOG.md`-Eintrag** (Nutzersicht,
   Deutsch: was ändert sich für die Gruppen — nicht die Commit-Liste).
-- Flutter-Version in CI gepinnt (3.41.2) — bei lokalem Upgrade auch
+- Flutter-Version in CI gepinnt (3.44.8) — bei lokalem Upgrade auch
   `.github/workflows/*.yml` anpassen. Lokales SDK:
   `/Volumes/MacStore/Programming/Flutter/SDK/flutter`.
+  **Es sind SECHS Dateien** (`ci`, `release`, `notify`, `screenshots`,
+  `security`, `usage-report`), und alle sechs halten den Wert jetzt als
+  `env: FLUTTER_VERSION`. In `security.yml` stand er bis 08.08. als Literal
+  am Job — genau so entsteht ein halber Drift: Wer nach dem Muster der
+  anderen fünf sucht, findet die sechste nicht. Am 08.08. war der Abstand
+  auf drei Minor angewachsen (lokal 3.44.8, CI 3.41.2); getestet wurde
+  damit auf einer anderen Toolchain als ausgeliefert. **Der Pin ist
+  release-frei** (`.github/` steht in den Guard-Ausnahmen) — er kostet also
+  nichts außer dem Nachziehen, und liegen zu bleiben ist der eigentliche
+  Preis. Der `android/gradle.properties`-Migrator hängt daran: Auf der
+  neueren Toolchain schreibt `flutter build` dort
+  `android.builtInKotlin=false` und `android.newDsl=false` zurück, sobald
+  sie fehlen.
 - **Zum Ausprobieren in der echten App:** `.claude/skills/run-web/SKILL.md`
   (Demo-Build → lokal ausliefern → Playwright). Flutter-Web zeichnet auf
   Canvas, es gibt also keinen DOM-Text — geprüft wird über Screenshots, die

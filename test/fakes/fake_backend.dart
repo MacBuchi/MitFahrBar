@@ -67,6 +67,16 @@ class FakeBackend {
   void deliverPush(String title, String body) =>
       pushMessageSink?.call(title, body);
 
+  /// Was passiert, wenn jemand auf eine Benachrichtigung tippt — gesetzt von
+  /// `pumpApp`, die Fake-Entsprechung von
+  /// `FirebaseMessaging.onMessageOpenedApp`.
+  void Function()? pushTapSink;
+
+  /// Tippt auf die Benachrichtigung. Führt durch die **echte** Verdrahtung
+  /// in `app.dart`: erst frische Daten, dann in den Planer (#200). Ein Test,
+  /// der stattdessen selbst invalidiert, prüfte seinen eigenen Nachbau.
+  void tapPush() => pushTapSink?.call();
+
   /// Was der Client zuletzt in den Ausgangskorb geschrieben hat (#132), je
   /// Gruppe — die Fake-Entsprechung von `publish_push_outbox`. Damit kann
   /// ein Flow-Test prüfen, dass eine Änderung im Planer wirklich bis dorthin

@@ -7,13 +7,12 @@
 /// Fahrer die Abfahrt SEINES Autos verschieben. Wer zu 07:30 zugesagt hat,
 /// darf nicht stillschweigend auf 05:30 gezogen werden.
 ///
-/// Zwei Werte, mit sehr verschiedener Wirkung:
-///
-/// - [accepted] `true` — **Pin.** `planWeek` setzt die Person in genau dieses
-///   Auto, solange dort ein Platz frei ist.
-/// - [accepted] `false` — **Ausschluss.** Die Person wird nicht in dieses
-///   Auto gesetzt. Reichen die übrigen nicht, entsteht dadurch ein weiteres —
-///   und genau dafür gibt es den Wert.
+/// **Seit v0.72.0 drei Werte statt zwei** (#210), siehe [SeatAnswer]. Der
+/// dritte („egal") ist kein Beiwerk: Er ist die Vorgabe und trotzdem eine
+/// *abgelegte* Entscheidung. Als Abwesenheit einer Zeile umgesetzt fände die
+/// nachträgliche Rückfrage (#200) nichts Veraltetes, und wer zu 06:00 „egal"
+/// gesagt hat, würde bei 04:00 stillschweigend mitgezogen — genau das Loch,
+/// das #200 geschlossen hat.
 ///
 /// **Reines Dart ohne Flutter-Import**, wie alles unter `models/`:
 /// `tool/notify.dart` importiert die Fairness-Kette und läuft auf der
@@ -26,12 +25,48 @@ library;
 
 import 'group_defaults.dart';
 
+/// Wozu jemand ja, nein oder nichts gesagt hat (#210).
+///
+/// Die drei sind **nicht** symmetrisch, und die Etiketten verschweigen das
+/// fast: [no] ist eine *Bedingung* — „zu diesen Bedingungen nicht" heißt, dass
+/// jemand anderes fahren muss, notfalls in einem zusätzlichen Auto. [yes] ist
+/// nur eine *Bevorzugung*: Ist das Wunsch-Auto voll, fällt die Person in die
+/// normale Verteilung statt ein zweites Sonderzeit-Auto zu erzwingen (Gruppe,
+/// 09.08.2026). [indifferent] überlässt den Platz der Verteilung.
+enum SeatAnswer {
+  /// „Egal" — die Vorgabe. Wirkt weder als Pin noch als Ausschluss, wird aber
+  /// **mit Bedingungen abgelegt**, damit eine spätere Verschiebung als
+  /// Änderung erkannt wird (#200).
+  indifferent('dontcare'),
+
+  /// „Ja unbedingt" — Bevorzugung für dieses Auto, kein Anspruch darauf.
+  yes('yes'),
+
+  /// „Auf keinen Fall" — Ausschluss. Kann ein weiteres Auto erzwingen.
+  no('no');
+
+  const SeatAnswer(this.wire);
+
+  /// Der Wert in `plan_seat_choices.answer`.
+  final String wire;
+
+  /// Tolerant wie [Group.statusFrom]: Ein unbekannter Wert gilt als „egal"
+  /// und nicht als Ausnahme. Ein `byName` würde **werfen**, und der Fehler
+  /// landete mitten in der Plan-Rechnung — jede künftige Erweiterung des
+  /// Wertevorrats wäre damit ein Release-Zwang.
+  static SeatAnswer from(Object? value) => switch (value) {
+    'yes' => SeatAnswer.yes,
+    'no' => SeatAnswer.no,
+    _ => SeatAnswer.indifferent,
+  };
+}
+
 class SeatChoice {
   const SeatChoice({
     required this.date,
     required this.personId,
     required this.driverId,
-    required this.accepted,
+    required this.answer,
     required this.terms,
     required this.decidedAt,
   });
@@ -46,8 +81,25 @@ class SeatChoice {
   /// diesem Tag" — dieselbe Begründung wie bei `plan_car_defaults`.
   final String driverId;
 
-  /// `true` = Pin, `false` = Ausschluss.
-  final bool accepted;
+  /// Was entschieden wurde (#210). Die Wahrheit steht in der Spalte `answer`.
+  final SeatAnswer answer;
+
+  /// Die Mitschrift für Clients von vor v0.72.0 — **kein zweiter Wert**.
+  ///
+  /// Sie kennen nur `accepted` und würden eine `null` nicht überleben
+  /// (`json['accepted'] as bool` wirft). Deshalb bleibt die Spalte stehen und
+  /// wird mitgeschrieben, statt sie auf NULL zu öffnen; das hätte die
+  /// Mindestversion gehoben und jedes nicht aktualisierte Gerät auf den
+  /// Sperr-Schirm geworfen (Entscheidung der Gruppe, 09.08.2026).
+  ///
+  /// **Genau ein Schreiber, genau eine Ableitung** — hier. Wer sie irgendwo
+  /// anders setzt, macht aus der Mitschrift die zweite Wahrheit, vor der
+  /// `CLAUDE.md` warnt.
+  ///
+  /// Der bewusst hingenommene Preis: Ein alter Client liest „egal" als
+  /// Zusage, pinnt also fester als gewollt. Er sieht dabei nie eine falsche
+  /// Zeit — nur eine Verteilung, die weniger nachgibt.
+  bool get accepted => answer != SeatAnswer.no;
 
   /// Die Bedingungen, zu denen entschieden wurde — [termsOf].
   ///
@@ -68,7 +120,14 @@ class SeatChoice {
     date: DateTime.parse(json['plan_date'] as String),
     personId: json['person_id'] as String,
     driverId: json['driver_id'] as String,
-    accepted: json['accepted'] as bool,
+    // `answer` ist die Wahrheit. Fehlt die Spalte im Ergebnis oder steht dort
+    // nichts, ist die Zeile von einem alten Client — dann trägt `accepted`
+    // die Aussage, und mehr als ja/nein wusste er ohnehin nicht.
+    answer: json.containsKey('answer') && json['answer'] != null
+        ? SeatAnswer.from(json['answer'])
+        : (json['accepted'] as bool? ?? false)
+        ? SeatAnswer.yes
+        : SeatAnswer.no,
     terms: json['terms'] as String? ?? '',
     decidedAt: DateTime.parse(json['decided_at'] as String),
   );
@@ -88,6 +147,10 @@ class SeatChoice {
         '${date.day.toString().padLeft(2, '0')}',
     'person_id': personId,
     'driver_id': driverId,
+    'answer': answer.wire,
+    // Die Mitschrift reist im selben Upsert mit. Ließe man sie aus, stünde
+    // für einen alten Client der Stand von vorhin — dieselbe Lehre wie bei
+    // `title_out` (#164).
     'accepted': accepted,
     'terms': terms,
     'decided_at': decidedAt.toUtc().toIso8601String(),

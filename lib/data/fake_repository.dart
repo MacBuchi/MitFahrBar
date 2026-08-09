@@ -19,7 +19,13 @@ class FakeCarpoolRepository implements CarpoolRepository {
     AppSettings? settings,
   }) : _persons = [...?persons],
        _trips = [...?trips],
-       _settings = settings ?? const AppSettings();
+       // Die Auto-Zuordnung ist hier AN, anders als bei einer frisch
+       // angelegten Gruppe (#213). Das ist kein Widerspruch, sondern der
+       // Zweck: Dieses Backend speist den Demo-Modus, und dort entstehen die
+       // README-Screenshots — mit der Vorgabe „aus" verlören sie
+       // stillschweigend die Auto-Zeilen und -Marken. Wer den ausgeschalteten
+       // Zustand prüfen will, übergibt `settings` ausdrücklich.
+       _settings = settings ?? const AppSettings(carAssignmentEnabled: true);
 
   final List<Person> _persons;
   final List<Trip> _trips;

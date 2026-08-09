@@ -647,6 +647,19 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
           ?.where((c) => c.personId == personId && c.driverId == driverId)
           .firstOrNull;
 
+  /// Alle Entscheidungen eines Tages — für die Auto-Wahl (#199), die wissen
+  /// muss, welche Plätze schon fest vergeben sind. Aus derselben Kopie wie
+  /// [seatChoiceFor], aus demselben Grund.
+  ///
+  /// **Eine Kopie, nicht die Liste selbst.** Der Aufrufer läuft darüber und
+  /// löscht dabei ([clearSeatChoice] greift optimistisch in genau diese
+  /// Liste) — auf dem Original ist das ein `ConcurrentModificationError`, den
+  /// der Schirm als „Speichern fehlgeschlagen" meldet, obwohl gespeichert
+  /// wurde. So gefunden im Browser, nachdem die Testsuite grün war.
+  List<SeatChoice> seatChoicesOn(DateTime date) => [
+    ...?_seatChoices[_day(date)],
+  ];
+
   /// Sitz-Entscheidung setzen oder ersetzen (#189, Stufe B2) — optimistisch
   /// wie jeder Tap: Wer zustimmt, sitzt sofort im Auto, nicht erst nach dem
   /// Roundtrip.
@@ -713,10 +726,25 @@ final nextRideProvider = Provider<AsyncValue<PlannedDay?>>((ref) {
 /// Ein Tag ohne Abweichung fehlt in der Map. „Keine Abweichung" und „leere
 /// Abweichung" sind dasselbe — zwei Schreibweisen dafür wären zwei Fälle im
 /// Digest, und einer davon würde vergessen.
+/// Ist die Auto-Zuordnung der Gruppe aus (#213), geben beide
+/// Abweichungs-Provider **leer** zurück statt der abgelegten Zeilen.
+///
+/// Das ist der Riegel für die ganze Oberfläche an EINER Stelle: Ohne ihn
+/// müsste jede Anzeigestelle einzeln fragen — Tageszeile, Fahrer-Glyph,
+/// Zell-Beschriftung, Banner-Chip —, und die eine, die man vergisst, zeigt
+/// dann „hin 06:45", während die Erinnerung um 07:30 klingelt. Genau diese
+/// Sorte Widerspruch ist der Fehler, gegen den #183 und #189 gebaut wurden.
+///
+/// Gelesen wird der Schalter über [settingsProvider]; solange der lädt, gilt
+/// „aus" — das zeigt kurz zu wenig statt kurz das Falsche.
+bool _carAssignmentOn(Ref ref) =>
+    ref.watch(settingsProvider).valueOrNull?.carAssignmentEnabled ?? false;
+
 final weekPlanDefaultsProvider = FutureProvider<Map<DateTime, GroupDefaults>>((
   ref,
 ) async {
   ref.watch(currentUserIdProvider);
+  if (!_carAssignmentOn(ref)) return const {};
   final dates = planningWeek(ref.read(nowProvider)());
   return ref
       .watch(carpoolRepositoryProvider)
@@ -731,6 +759,7 @@ final weekPlanDefaultsProvider = FutureProvider<Map<DateTime, GroupDefaults>>((
 final weekCarDefaultsProvider =
     FutureProvider<Map<DateTime, Map<String, GroupDefaults>>>((ref) async {
       ref.watch(currentUserIdProvider);
+      if (!_carAssignmentOn(ref)) return const {};
       final dates = planningWeek(ref.read(nowProvider)());
       return ref
           .watch(carpoolRepositoryProvider)
@@ -752,6 +781,27 @@ final weekNotesProvider = FutureProvider<Map<DateTime, List<PlanNote>>>((
   }
   return byDay;
 });
+
+/// Die Wochenplanung frisch vom Server holen (#200).
+///
+/// **Der Grund ist ein Tipp auf eine Benachrichtigung.** Die Plan-Provider
+/// sind bewusst nicht `autoDispose` — sie überleben den Seitenwechsel, damit
+/// der Planer nicht bei jedem Öffnen lädt. Der Preis: Wer die App aus dem
+/// Hintergrund holt, sieht den Stand von vorhin. Genau dann ist die Meldung
+/// „Änderung" aber gerade eingetroffen, und der Plan darunter zeigte die
+/// Abfahrt, die es nicht mehr gibt — die Nachricht widerspräche dem Schirm,
+/// den sie öffnet.
+///
+/// **Alle vier Ebenen zusammen**, weil eine Planänderung jede von ihnen
+/// betreffen kann und ein halb aufgefrischter Plan schlechter ist als ein
+/// ganz alter: Er sähe aktuell aus.
+void refreshPlanning(WidgetRef ref) {
+  ref
+    ..invalidate(weekPlanProvider)
+    ..invalidate(weekPlanDefaultsProvider)
+    ..invalidate(weekCarDefaultsProvider)
+    ..invalidate(weekNotesProvider);
+}
 
 /// Hält den Ausgangskorb (#132) am Stand der Dinge.
 ///
@@ -790,11 +840,17 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
   // Und je Auto (Stufe B): Zwei Autos desselben Tages können verschieden
   // früh losfahren.
   final carDefaults = ref.watch(weekCarDefaultsProvider).valueOrNull;
+  // Der Gruppen-Schalter (#213): Ist die Auto-Zuordnung aus, gehen nur die
+  // Zeiten der Gruppe in den Korb. Er steht hier und in `tool/notify.dart` —
+  // beide füllen denselben Korb, und ein Schreiber, der ihn nicht liest,
+  // trüge andere Zeiten ein als der andere.
+  final settings = ref.watch(settingsProvider).valueOrNull;
   // Ein halb geladener Stand schriebe einen halben Text. Lieber gar nichts —
   // der stündliche Job holt es nach.
   if (week == null ||
       persons == null ||
       notes == null ||
+      settings == null ||
       defaults == null ||
       dayDefaults == null ||
       carDefaults == null) {
@@ -820,6 +876,7 @@ final pushOutboxSyncProvider = Provider<void>((ref) {
     // keine Meldung darüber (#163). Best effort: ohne Geräte-Zuordnung
     // wird nichts unterdrückt, und der stündliche Job hebt es wieder auf.
     suppressPersonId: ref.watch(myPersonProvider)?.id,
+    carAssignment: settings.carAssignmentEnabled,
   );
   unawaited(
     ref

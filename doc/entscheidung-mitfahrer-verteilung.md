@@ -208,6 +208,159 @@ Mitfahrten" und bleibt nicht empfohlen. KONZEPT 3.2 selbst ist vom Hub
 unberührt (die Punkteformel ändert sich nicht, nur die Fahrerwahl des
 Planers).
 
+## Nachtrag 2026-08-09: Verteilung nach Kopfzahl (#210) — neu gemessen
+
+Die Gruppe hat die Verteilregel geändert: Mitfahrende gehen ins Auto mit den
+**wenigsten Insassen**; erst wenn dort kein Platz mehr frei ist, gewinnt ein
+anderes mit freiem Platz. Bis v0.71.0 entschieden die **meisten freien
+Plätze**.
+
+Anlass war nicht die Fairness, sondern #210: Wenn ein Fahrer eine Sonderzeit
+setzt, soll er nicht allein losfahren, während sich alle anderen in ein Auto
+drängen. Nach freien Plätzen verteilt füllt sich zuerst der große Wagen, und
+der Sonderfahrer bleibt eher leer.
+
+**Die naheliegende Nebenerwartung ist widerlegt.** Vermutet war, die
+Kohorten-Drift werde kleiner, weil der große Wagen nicht mehr systematisch
+mehr trägt. Gemessen wird sie **größer**:
+
+| Kennzahl | freie Plätze (bis v0.71.0) | Kopfzahl (ab v0.72.0) |
+| --- | --- | --- |
+| Zielflotte, Punkte-Spreizung Ende | 3,5 | **4,5** |
+| Zielflotte, Fahrrate p4 (7-Sitzer), Seed 6221061 | 25 ‰ | **26 ‰** |
+| Realflotte, Spreizung Tag 100 | 6,0 | **6,5** |
+| Realflotte, Spreizung Ende | 3,5 | **4,5** |
+| Realflotte, Fahrrate p8 (Bus) | −91 ‰ | **−93 ‰** |
+| Alltag, Spreizung Ende | 1141,5 | **1130,5** |
+| Dauervoll, Bus-Bias (Tag 100) | 1269 | **1283** |
+| Kontrolle (alle 5 Sitze) | unverändert | unverändert |
+
+Dass die **Kontrolle** sich nicht bewegt, ist der Beleg für den Mechanismus:
+Bei gleich großen Autos sind „wenigste Insassen" und „meiste freie Plätze"
+dieselbe Regel. Die ganze Differenz kommt aus dem Größen-Gefälle.
+
+Die Erklärung für die *größere* Drift: Trägt der große Wagen nicht mehr mehr
+Leute je Fahrt, muss er zum Punkte-Ausgleich häufiger fahren. Seine Fahrrate
+wandert damit weiter vom Mittel weg, nicht näher heran — und die
+Punkte-Spreizung folgt.
+
+**Das Punkte-Ziel (|Punkte| < 5) hält überall.** Die Fahrraten-Schranke riss
+zunächst auf einem von zehn Seeds um 0,1 pp — siehe aber den Nachtrag
+unmittelbar darunter: Mit zwei weiteren Würfen und einer Kontrolle gegen die
+alte Regel löst sich dieser Befund auf.
+
+## Nachtrag 2026-08-09 (2): zwei mutierte Seeds — und eine Revision
+
+Marcus wollte die Stichprobe verbreitern. Die beiden neuen Seeds sind aus dem
+Haupt-Seed **mutiert**: zwei Xorshift-Schritte von `0xDAC1A` aus, also
+dieselbe Kette, die auch die Würfel erzeugt — reproduzierbar statt ausgedacht
+(`0x4586D7D`, `0x370EF946`).
+
+Nebenbei geklärt: **Der Haupt-Seed ist ein Wortspiel („DACIA"), keine
+Messung.** Aus der Gruppe stammen die Anwesenheits-Gewichte, die
+Tagesgrößen-Verteilung und die 1-way-Quote — der Seed würfelt nur, welche
+konkrete Folge daraus gezogen wird.
+
+Der erste neue Wurf riss die Schranke deutlich: p4 (der 7-Sitzer) landet bei
+**30 ‰**. Die entscheidende Frage war damit nicht „wie hoch setzen wir die
+Schranke", sondern **„liegt das an der Regel oder am Würfel"** — also die
+Kontrolle: dieselben zwölf Seeds noch einmal mit der ALTEN Verteilregel.
+
+| über 12 Seeds | freie Plätze | Kopfzahl |
+| --- | --- | --- |
+| Fahrrate, Mittel | 17,0 ‰ | 17,8 ‰ |
+| Fahrrate, schlechtester Wurf | **30 ‰** | **30 ‰** |
+| `max｜Punkte｜`, Mittel | 2,42 | **2,21** |
+| `max｜Punkte｜`, schlechtester Wurf | 5,5 | **3,0** |
+| besser / schlechter je Seed | — | 3 besser, 5 schlechter, 4 gleich |
+
+**Seed 72904061 liefert unter beiden Regeln exakt 30 ‰.** Der Ausreißer
+gehört also zum Anwesenheitsmuster, nicht zur Verteilregel.
+
+**Damit ist der Zwischenbefund des vorigen Nachtrags revidiert.** „Die
+Kopfzahl-Verteilung macht die Drift größer" stützte sich auf *eine* Kennzahl
+(`spreadAtEnd`) auf *einem* Seed. Über zwölf Würfe und beide Kennzahlen ist es
+ein Unentschieden — und beim schlechtesten Punktestand ist die neue Regel
+sogar klar besser (3,0 statt 5,5). Die Zahlen der Tabelle im vorigen Nachtrag
+stimmen weiterhin; falsch war die Verallgemeinerung.
+
+Die Schranke steht deshalb auf **30 ‰**, und zwar als struktureller Boden
+dieser Kalibrierung — nicht als Zugeständnis an die neue Regel. Wer sie
+anfasst, wiederholt die Kontrolle gegen die andere Regel; sonst wird aus einem
+Akzeptanzmaß eine Formsache.
+
+**Nicht gemessen ist weiterhin das Verhalten unter vielen Zusagen und
+Absagen.** Dieser Report misst die **automatische** Verteilung; Pins und
+Ausschlüsse laufen davor. Wer die ±2-Zusage auf gepinnte Wochen ausdehnen
+will, misst neu.
+
+## Nachtrag 2026-08-09 (3): Raten-Trim von 6 auf 12 — gegen die echte Historie
+
+Marcus' Frage war: „Können wir mehr Punkte-Abweichung erlauben, um die
+Fahrraten näher zusammenzubringen?" Antwort: ja — aber der Preis fällt anders
+aus als vermutet, und die Grenze liegt woanders.
+
+### Zwei Datensätze, nicht einer
+
+Neu ist, dass nicht nur simuliert wurde: Die **echte 401-Tage-Historie** der
+Gruppe (`.donotsync/seed/seed.json`) lässt sich als Verfügbarkeits-Muster
+wieder abspielen — für jeden Tag steht fest, wer dabei war; wer davon fährt,
+entscheidet der Planer neu.
+
+**Fallstrick dabei, teuer gelernt:** Ein tageweiser Replay misst
+stillschweigend `k = 0`. `dayFactorOf` normiert die Tagesgröße gegen das
+**Wochen**mittel; bei einer Ein-Tages-„Woche" ist `maxDeviation` null, damit
+`dayFactor` null, und die Engine überspringt den Trim komplett. Der erste Lauf
+lieferte deshalb für k=6 und k=40 byte-identische Zahlen — das war der
+Hinweis, nicht das Ergebnis. Replays laufen wochenweise.
+
+### Ergebnis auf der echten Historie (Stammfahrer, ≥ 50 gemeinsame Tage)
+
+| k | schlechteste Abweichung | Mittel | max｜Punkte｜ |
+| --- | --- | --- | --- |
+| 0 (Trim aus) | 52 ‰ | 23,4 ‰ | 2,5 |
+| 6 (bis v0.73.0) | 52 ‰ | 18,7 ‰ | 2,5 |
+| **12 (neu)** | **32 ‰** | **10,6 ‰** | 3,5 |
+| 20 | 32 ‰ | 10,0 ‰ | 2,5 |
+| 40 | 32 ‰ | 9,9 ‰ | 6,5 |
+| 60 | 32 ‰ | 7,3 ‰ | 6,5 |
+| 100 | 109 ‰ | 21,1 ‰ | 6,5 |
+
+Zum Vergleich: Was die Gruppe **von Hand** geplant hat, liegt bei 41 ‰
+schlechtestem Fall und 14,1 ‰ im Mittel. Ab k=12 ist der Planer also besser
+als die menschliche Praxis.
+
+Die Spalte ist **nicht monoton** (k=30 schlechter als k=20, k=100 schlechter
+als k=60). Unterschiede zwischen benachbarten Werten sind teilweise Zufall
+dieser einen Historie; wer den Bestwert pickt, überanpasst.
+
+### Warum nicht weiter als 12
+
+Ab etwa k=20 kippt die **Auslegung** des Trims. Im Extremfall — einer fuhr
+immer, einer nie, zwölf Punkte Abstand — schickt der Planer bei k=40 am
+**kleinen** Tag den Vielfahrer statt den Wenigfahrer: genau umgekehrt zu
+„wer selten fährt, bekommt die kleinen Tage".
+
+Der Mechanismus: Unter Stammfahrern liegt Δ-Rate um 0,03, die Autorität also
+bei 1,2 Punkten. Bei **unregelmäßiger** Teilnahme sind es eher 0,2 — und damit
+8 Punkte, genug, um die beobachtete Punkte-Spanne von ±2,5 zu überstimmen.
+Zwei Tests in `plan_test.dart` halten beide Invarianten fest; sie kippen bei
+20 und bei 40, nicht bei 12.
+
+Der Gewinn von 40 gegenüber 12 ist auf der echten Historie eine
+Nachkommastelle (9,9 statt 10,6 ‰) — der Unterschied im Verhalten ist ein
+Vorzeichen. Deshalb 12.
+
+### Wer den Preis zahlt
+
+Wer selten dabei ist, fährt anteilig etwas öfter. Bei 13 Teilnahmetagen
+schlägt eine einzelne Fahrt um 77 ‰ aus, der Regler liest dort also ein großes
+und zugleich unsicheres Signal. Die Gruppe hat das ausdrücklich als
+**erwünscht** eingeordnet („regelmäßiges Mitfahren belohnen") und die
+Punkte-Schranke vorsorglich auf ±7 geöffnet. **Gebraucht wird sie bei k=12
+nicht** — der gemessene Höchstwert bleibt bei 3,5 —, deshalb steht sie weiter
+auf ±5. Ein Grenzwert, der lockerer ist als nötig, fängt nichts mehr.
+
 ## Wiedervorlage-Kriterien
 
 - Die Flotte bekommt ein dauerhaftes Groß-/Kleinwagen-Gefälle **und** volle

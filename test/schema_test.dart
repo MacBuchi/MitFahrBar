@@ -1758,4 +1758,63 @@ void main() {
       );
     });
   });
+
+  group('Gruppen-Schalter für die Auto-Zuordnung (#213)', () {
+    final migration = File(
+      'supabase/migrations/20260809110000_car_assignment_switch.sql',
+    ).readAsStringSync();
+
+    test('bestehende Gruppen behalten die Zuordnung', () {
+      expect(
+        sqlOnly(migration),
+        stringContainsInOrder([
+          "insert into public.settings",
+          "'car_assignment_enabled', 1",
+          'from public.groups',
+        ]),
+        reason:
+            'Sie benutzen das Feature seit v0.64.0. Eine neue Vorgabe darf '
+            'ihnen nichts wegnehmen — das wäre kein Standard, sondern ein '
+            'Entzug.',
+      );
+      expect(
+        sqlOnly(migration),
+        contains('on conflict (group_id, key) do nothing'),
+        reason:
+            'Eine Gruppe, die den Schalter schon gesetzt hat, darf die '
+            'Migration nicht überschreiben — ein zweiter Lauf würde ihre '
+            'Entscheidung zurückdrehen.',
+      );
+    });
+
+    test('neue Gruppen starten OHNE Zuordnung', () {
+      final trigger = RegExp(
+        r'create or replace function public\.handle_new_group\(\)(.*?)\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(trigger, isNotNull, reason: 'handle_new_group fehlt.');
+      expect(
+        sqlOnly(trigger!.group(1)!),
+        isNot(contains('car_assignment_enabled')),
+        reason:
+            'Keine Zeile = aus, und das ist die Vorgabe einer frisch '
+            'angelegten Gruppe. Seedete der Trigger eine 0, wäre es dasselbe '
+            'Ergebnis über einen zweiten Weg — und beim nächsten Wechsel der '
+            'Vorgabe müsste man an zwei Stellen denken.',
+      );
+    });
+
+    test('die Migration hebt die Mindestversion NICHT', () {
+      expect(
+        sqlOnly(migration),
+        isNot(contains('min_supported_version')),
+        reason:
+            'Es fällt nichts weg und nichts wird umbenannt, und '
+            '`saveSettings` ist ein Upsert je Schlüssel: Ein alter Client '
+            'kennt den Schalter nicht, schreibt ihn nicht und lässt die '
+            'Zeile stehen. Heben würde jeden veralteten Client aussperren, '
+            'ohne dass irgendwo falsche Daten stünden.',
+      );
+    });
+  });
 }

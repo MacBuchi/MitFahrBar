@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 env:
-  FLUTTER_VERSION: "3.41.2"
+  FLUTTER_VERSION: "3.44.8"
 
 jobs:
   version:
@@ -149,32 +149,9 @@ jobs:
           path: mitfahrbar-${{ needs.version.outputs.tag }}.apk
           if-no-files-found: error
 
-  deploy-web:
-    name: Deploy Web (GitHub Pages)
-    needs: version
-    if: needs.version.outputs.release == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
-        with:
-          channel: stable
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-      - run: flutter pub get
-      - run: flutter build web --release --base-href /MitFahrBar/
-      # SPA-Fallback: GitHub Pages liefert 404.html bei Deep-Links.
-      - run: cp build/web/index.html build/web/404.html
-      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: build/web
-          force_orphan: true
-
   release:
     name: Create GitHub Release
-    needs: [version, build-android, deploy-web]
+    needs: [version, build-android]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -205,9 +182,21 @@ jobs:
             echo "Details: https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md" > release-body.md
           fi
           cat release-body.md
+      # **Jeder Merge erzeugt ein PRERELEASE, nie „latest".** Das ist der
+      # ganze Kanal-Trick: `update_check.dart` fragt
+      # `/releases/latest` ab, und GitHub liefert dort grundsätzlich keine
+      # Prereleases — weder den Versionshinweis noch das APK fürs
+      # In-App-Update. Die Gruppe sieht also nichts, bis `promote.yml` eines
+      # dieser Releases befördert.
+      #
+      # `make_latest: false` ist dabei kein Beiwerk: Ohne die Zeile setzt
+      # GitHub das neueste Release trotzdem als „latest", auch ein
+      # Prerelease-markiertes.
       - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           body_path: release-body.md
           files: mitfahrbar-*.apk
           fail_on_unmatched_files: false
+          prerelease: true
+          make_latest: false

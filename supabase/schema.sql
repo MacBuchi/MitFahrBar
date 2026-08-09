@@ -112,7 +112,13 @@ create index persons_group_idx on public.persons (group_id);
 create index trips_group_idx on public.trips (group_id);
 create index trip_participations_group_idx on public.trip_participations (group_id);
 
--- settings pro Gruppe.
+-- settings pro Gruppe. Nur Zahlen — Schlüssel → Wert.
+--
+-- Ein Schlüssel darin ist kein Parameter, sondern ein Schalter:
+-- `car_assignment_enabled` (0/1, #213) entscheidet, ob die Gruppe ihre Leute
+-- einzelnen Autos zuordnet. Fehlt die Zeile, gilt 0 — das ist der Zustand
+-- einer frisch angelegten Gruppe, und deshalb seedet `handle_new_group()`
+-- ihn bewusst nicht.
 create table public.settings (
   group_id uuid not null default auth.uid()
     references public.groups(id) on delete cascade,
@@ -307,7 +313,17 @@ create table public.plan_seat_choices (
   plan_date date not null,
   person_id uuid not null references public.persons(id) on delete cascade,
   driver_id uuid not null references public.persons(id) on delete cascade,
+  -- Mitschrift für Clients von vor v0.72.0 (#210). `answer` ist die Wahrheit;
+  -- hier steht nur „nicht abgelehnt". Genau EIN Schreiber leitet sie ab
+  -- (SeatChoice.accepted in Dart) — wer sie anderswo setzt, macht daraus die
+  -- zweite Wahrheit.
   accepted boolean not null,
+  -- Die eigentliche Antwort (#210). **NULL heißt „von einem alten Client"**
+  -- und wird über `accepted` gelesen; deshalb kein Default, siehe
+  -- 20260809140000_seat_answer_three_way.sql.
+  answer text
+    constraint plan_seat_choices_answer_valid
+      check (answer is null or answer in ('yes', 'no', 'dontcare')),
   terms text not null default '',
   decided_at timestamptz not null default now(),
   primary key (group_id, plan_date, person_id, driver_id),

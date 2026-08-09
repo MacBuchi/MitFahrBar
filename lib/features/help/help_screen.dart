@@ -253,10 +253,38 @@ class HelpScreen extends StatelessWidget {
                     'diesem Auto sicher; mit „Nein, so nicht" fährst du dort '
                     'nicht mit, und es wird ein weiteres Auto eingeplant. '
                     'Umentscheiden geht jederzeit über das Menü deines '
-                    'Feldes. Dein Ja gilt für genau die Zeit, der du '
-                    'zugestimmt hast — ändert sie sich, wirst du neu '
-                    'gefragt. Und wollen mehr in ein Auto, als hineinpassen, '
+                    'Feldes. Und wollen mehr in ein Auto, als hineinpassen, '
                     'sitzt drin, wer zuerst zugesagt hat.',
+              ),
+              _Line(
+                text:
+                    'Wegtippen zählt als Zusage — wer nicht ablehnt, fährt '
+                    'mit. So bleibt es bei einem Auto, solange niemand '
+                    'widerspricht. Dein Ja gilt aber für genau die Zeit, der '
+                    'du zugestimmt hast: Verschiebt dein Fahrer die Abfahrt '
+                    'danach noch einmal, fragt MitFahrBar dich beim nächsten '
+                    'Öffnen des Wochenplans neu — auch wenn du über die '
+                    'Benachrichtigung hereinkommst.',
+              ),
+              _Line(
+                text:
+                    'Sagt jemand ab, braucht es für ihn ein zweites Auto. '
+                    'Dieser Fahrer lässt sich unter „Fahrer ändern" dann '
+                    'nicht abwählen; dort steht, wer ihn braucht. Wer das '
+                    'zweite Auto loswerden will, spricht mit dieser Person — '
+                    'sagt sie doch zu, verschwindet es von selbst.',
+              ),
+              _Line(
+                leading: Icon(Icons.groups_outlined),
+                text:
+                    'Du kannst dir dein Auto auch selbst aussuchen: Ab zwei '
+                    'Autos steht im Menü deines Feldes „Mit wem fahren?". '
+                    'Dort siehst du jedes Auto mit seinem Fahrer, wer sonst '
+                    'noch drinsitzt und ob es anders losfährt. Ein Auto, in '
+                    'dem alle Plätze schon fest zugesagt sind, steht als '
+                    '„voll" da und lässt sich nicht wählen. Mit „Egal" '
+                    'nimmst du deine Wahl zurück und MitFahrBar verteilt '
+                    'wieder selbst.',
               ),
               _Line(
                 text:
