@@ -1673,18 +1673,45 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
 
 - **Kein direkter Push auf `main`** (Branch ist geschützt): Feature-Branch
   (`feat/<thema>` / `fix/<thema>`) → PR → CI grün → Squash-Merge.
-- **Wer mergen darf, entscheidet der Versions-Bump** — denn der Merge ist die
-  Veröffentlichung:
+- **Zwei Kanäle seit v0.76.0 (#217): jeder Merge baut, aber nur eine
+  Beförderung veröffentlicht.**
+  - Ein Merge mit Bump erzeugt Tag, APK und ein **Prerelease**. Die Gruppe
+    sieht davon **nichts**: `update_check.dart` fragt `/releases/latest` ab,
+    und GitHub liefert dort grundsätzlich keine Prereleases — weder den
+    Hinweis noch das APK fürs In-App-Update.
+  - **`prerelease: true` UND `make_latest: false` gehören zusammen.** Ohne
+    die zweite Zeile setzt GitHub das neueste Release trotzdem als „latest",
+    und die ganze Trennung wäre wirkungslos.
+  - Freigegeben wird von Hand über den Workflow **Promote** (gedacht alle
+    zwei bis drei Wochen). Er schaltet das Release stabil, setzt die
+    **gesammelten** CHANGELOG-Abschnitte seit dem letzten stabilen Stand als
+    Notizen ein und deployt Pages **aus dem beförderten Tag**.
+  - **GitHub Pages hängt am stabilen Kanal, nicht an `main`.** Das Web hat
+    eine einzige URL; deployte weiter jeder Merge, bekäme die PWA jede
+    Zwischenversion und die Trennung gälte nur für Android. Der Preis ist
+    gewollt: Zwischen zwei Beförderungen steht auf der Web-Adresse der
+    stabile Stand.
+  - Wer den neuesten Stand testen will, lädt das Prerelease-APK von der
+    Releases-Seite — der In-App-Weg führt bewusst nur zu stabilen Ständen.
+  - **`min_supported_version` darf nie über den STABILEN Stand steigen**,
+    sonst sperrt der Schirm genau die aus, die auf stabil sind.
+  - Festgenagelt in `test/release_workflow_test.dart`: Die Riegel sind je
+    eine Zeile YAML, und ihr Verlust fällt sonst erst auf, wenn die Gruppe
+    wieder mehrmals täglich einen Hinweis bekommt.
+- **Wer mergen darf, entscheidet weiterhin der Versions-Bump:**
   - **Ohne Bump** (nur `*.md`, `.github/`, `test/`, `tool/`, `LICENSE`):
-    Claude darf nach grüner CI selbst squash-mergen. Es entsteht kein Release,
-    die Gruppen bekommen nichts davon mit.
-  - **Mit Bump**: **Der Merge gehört dem Menschen.** Er löst Tag, Release,
-    APK und Pages-Deploy aus — das veröffentlicht Marcus selbst.
+    Claude darf nach grüner CI selbst squash-mergen.
+  - **Mit Bump**: **Der Merge gehört dem Menschen.** Die ursprüngliche
+    Begründung („der Merge ist die Veröffentlichung") gilt seit den zwei
+    Kanälen allerdings nicht mehr — ein Merge erreicht die Gruppe nicht,
+    veröffentlicht wird erst mit der Beförderung. Ob die Regel deshalb
+    gelockert wird, ist **Marcus' Entscheidung** und hier bewusst offen
+    gelassen, statt sie stillschweigend nachzuziehen.
 - Commit-/PR-Titel: Conventional Commits. GitHub-Kommunikation Englisch,
   UI-Strings und Nutzer-Doku Deutsch.
 - Release = Versions-Bump in `pubspec.yaml` auf `main` (beide Teile erhöhen,
-  z. B. `0.2.0+3`). Der Release-Workflow taggt `v<version>` und deployt Web
-  auf GitHub Pages. Kein Bump = kein Release.
+  z. B. `0.2.0+3`). Der Release-Workflow taggt `v<version>` und baut das APK.
+  Kein Bump = kein Release.
 - Version Guard in CI: Code-Änderung ohne Versions-Bump blockiert den Merge.
   Ausgenommen sind `*.md`, `.github/`, `test/`, `tool/` und `LICENSE` — reine
   Doku-, CI-, Test- oder Tooling-Arbeit soll kein Release auslösen.
