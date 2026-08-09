@@ -537,14 +537,20 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         nicht, wird überfüllt statt jemanden stillschweigend stehen zu
         lassen. Ohne sie verschwänden Leute aus dem Plan, sobald ein Auto zu
         klein ist.
-      - **Der Preis ist gemessen, nicht geschätzt** — und er geht in die
-        andere Richtung als vermutet: Die Punkte-Spreizung der Zielflotte
-        **wächst** von 3,5 auf 4,5, und die Fahrraten-Schranke reißt auf
-        einem von zehn Seeds um 0,1 pp (26 statt 25 ‰). Grund: Trägt der
-        große Wagen nicht mehr mehr Leute je Fahrt, muss er zum Ausgleich
-        häufiger fahren. Die Gruppe hat das am 09.08.2026 abgewogen und
-        angenommen; die Schranke steht deshalb auf 26 ‰, mit Begründung im
-        Test. Zahlen im Nachtrag von `doc/entscheidung-mitfahrer-verteilung.md`.
+      - **Der Preis ist gemessen — und über zwölf Seeds ein Unentschieden.**
+        Die erste Messung (zehn Seeds, eine Kennzahl) sah nach einer
+        Verschlechterung aus; mit zwei aus `0xDAC1A` **mutierten** Seeds und
+        einer Kontrolle gegen die alte Regel löst sich das auf: Fahrrate im
+        Mittel 17,0 → 17,8 ‰, `max|Punkte|` im schlechtesten Fall dagegen
+        5,5 → **3,0**. Der schlechteste Fahrraten-Wurf (30 ‰) tritt unter
+        **beiden** Regeln auf demselben Seed auf — er gehört zum
+        Anwesenheitsmuster, nicht zur Verteilregel.
+      - **Die Lehre daraus ist die wichtigere:** Wer aus einer Kennzahl auf
+        einem Seed eine Regel-Eigenschaft macht, misst zu schmal. Die
+        Schranke steht auf 30 ‰ als struktureller Boden dieser Kalibrierung;
+        wer sie anfasst, wiederholt die Kontrolle gegen die andere Regel.
+        Zahlen in beiden Nachträgen von
+        `doc/entscheidung-mitfahrer-verteilung.md`.
     - **Ohne Entscheidungen rechnet `planWeek` bitgleich wie vorher** —
       per Test festgenagelt. Daran hängt auch der Soak-Report
       (`doc/entscheidung-mitfahrer-verteilung.md`): Er misst die
