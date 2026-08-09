@@ -11,6 +11,7 @@ import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/plan_ride.dart';
+import 'package:mitfahrbar/models/seat_choice.dart';
 import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1755,7 +1756,7 @@ void main() {
             'das früher fährt als die festen Vorgaben.',
       );
       expect(find.textContaining('06:45'), findsWidgets);
-      await tester.tap(find.widgetWithText(FilledButton, 'Passt'));
+      await tester.tap(find.widgetWithText(ListTile, 'Ja, unbedingt'));
       await tester.pumpAndSettle();
 
       final choices = await backend
@@ -1802,7 +1803,7 @@ void main() {
       await tester.tap(_cell('Bert', monday));
       await tester.pumpAndSettle();
       expect(find.text('Andere Abfahrt'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.tap(find.widgetWithText(ListTile, 'Auf keinen Fall'));
       await tester.pumpAndSettle();
 
       expect(
@@ -1829,7 +1830,7 @@ void main() {
       final monday = planningWeek(testToday).first;
       await tester.tap(_cell('Bert', monday));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Passt'));
+      await tester.tap(find.widgetWithText(ListTile, 'Ja, unbedingt'));
       await tester.pumpAndSettle();
 
       // Der Weg zum Umentscheiden: das eigene Zell-Menü.
@@ -1846,7 +1847,7 @@ void main() {
       await tester.tap(find.widgetWithText(ListTile, 'Dein Auto fährt anders'));
       await tester.pumpAndSettle();
       expect(find.text('Andere Abfahrt'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.tap(find.widgetWithText(ListTile, 'Auf keinen Fall'));
       await tester.pumpAndSettle();
 
       expect(
@@ -1912,7 +1913,7 @@ void main() {
     Future<void> consent(WidgetTester tester, DateTime monday) async {
       await tester.tap(_cell('Bert', monday));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Passt'));
+      await tester.tap(find.widgetWithText(ListTile, 'Ja, unbedingt'));
       await tester.pumpAndSettle();
     }
 
@@ -1964,7 +1965,7 @@ void main() {
             'die Zusage verhindern soll.',
       );
       expect(find.textContaining('05:30'), findsWidgets);
-      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.tap(find.widgetWithText(ListTile, 'Auf keinen Fall'));
       await tester.pumpAndSettle();
 
       final choices = await backend
@@ -2013,15 +2014,19 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('Wegtippen ist eine Zusage — und fragt nicht wieder', (
+    testWidgets('Wegtippen heißt „egal" — und fragt nicht wieder', (
       tester,
     ) async {
-      // **Opt-out** (entschieden 08.08.): Wer nicht ablehnt, ist zugesagt.
-      // Vorher schrieb ein Wegtippen gar nichts, und die Folge war still und
-      // teuer — bei der nächsten Verschiebung fand die Rückfrage nichts
-      // Veraltetes und schwieg, die Person wurde mitgezogen. Beide Hälften
-      // hängen an diesem Test: die abgelegte Zusage UND dass sie die Frage
-      // beruhigt, ohne dass es dafür einen Merker im Schirm braucht.
+      // **Opt-out** (entschieden 08.08.): Wer nicht ablehnt, wird nicht
+      // gefragt. Vorher schrieb ein Wegtippen gar nichts, und die Folge war
+      // still und teuer — bei der nächsten Verschiebung fand die Rückfrage
+      // nichts Veraltetes und schwieg, die Person wurde mitgezogen. Beide
+      // Hälften hängen an diesem Test: die abgelegte Entscheidung UND dass
+      // sie die Frage beruhigt, ohne Merker im Schirm.
+      //
+      // Seit #210 ist der stille Ausgang „egal" statt „Zusage". Für den Platz
+      // ist der Unterschied klein (die Person sitzt weiter, wo sie säße), für
+      // die Ablage ist er der Kern: Es steht etwas da, also greift #200.
       final handle = tester.ensureSemantics();
       final (backend, bertId) = await consentBackend();
       await pumpApp(
@@ -2047,9 +2052,12 @@ void main() {
           .dataFor(backend.currentGroupId!)
           .loadSeatChoices(monday, days: 1);
       expect(
-        afterDismiss[monday]?.single.accepted,
-        isTrue,
-        reason: 'Wer nicht ablehnt, ist zugesagt — das gehört in die Ablage.',
+        afterDismiss[monday]?.single.answer,
+        SeatAnswer.indifferent,
+        reason:
+            'Wer wegtippt, hat nichts gegen die Abfahrt — aber auch nichts '
+            'für dieses Auto. Als Zusage abgelegt (bis v0.71.0) hielte es die '
+            'Person dort fest, obwohl sie das nie gesagt hat.',
       );
       expect(
         afterDismiss[monday]?.single.terms,
@@ -2110,7 +2118,7 @@ void main() {
       await tester.tap(_cell('Bert', monday));
       await tester.pumpAndSettle();
       expect(find.text('Andere Abfahrt'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Nein, so nicht'));
+      await tester.tap(find.widgetWithText(ListTile, 'Auf keinen Fall'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('Fahrer ändern').first);

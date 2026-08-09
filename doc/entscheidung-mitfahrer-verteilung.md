@@ -208,6 +208,54 @@ Mitfahrten" und bleibt nicht empfohlen. KONZEPT 3.2 selbst ist vom Hub
 unberührt (die Punkteformel ändert sich nicht, nur die Fahrerwahl des
 Planers).
 
+## Nachtrag 2026-08-09: Verteilung nach Kopfzahl (#210) — neu gemessen
+
+Die Gruppe hat die Verteilregel geändert: Mitfahrende gehen ins Auto mit den
+**wenigsten Insassen**; erst wenn dort kein Platz mehr frei ist, gewinnt ein
+anderes mit freiem Platz. Bis v0.71.0 entschieden die **meisten freien
+Plätze**.
+
+Anlass war nicht die Fairness, sondern #210: Wenn ein Fahrer eine Sonderzeit
+setzt, soll er nicht allein losfahren, während sich alle anderen in ein Auto
+drängen. Nach freien Plätzen verteilt füllt sich zuerst der große Wagen, und
+der Sonderfahrer bleibt eher leer.
+
+**Die naheliegende Nebenerwartung ist widerlegt.** Vermutet war, die
+Kohorten-Drift werde kleiner, weil der große Wagen nicht mehr systematisch
+mehr trägt. Gemessen wird sie **größer**:
+
+| Kennzahl | freie Plätze (bis v0.71.0) | Kopfzahl (ab v0.72.0) |
+| --- | --- | --- |
+| Zielflotte, Punkte-Spreizung Ende | 3,5 | **4,5** |
+| Zielflotte, Fahrrate p4 (7-Sitzer), Seed 6221061 | 25 ‰ | **26 ‰** |
+| Realflotte, Spreizung Tag 100 | 6,0 | **6,5** |
+| Realflotte, Spreizung Ende | 3,5 | **4,5** |
+| Realflotte, Fahrrate p8 (Bus) | −91 ‰ | **−93 ‰** |
+| Alltag, Spreizung Ende | 1141,5 | **1130,5** |
+| Dauervoll, Bus-Bias (Tag 100) | 1269 | **1283** |
+| Kontrolle (alle 5 Sitze) | unverändert | unverändert |
+
+Dass die **Kontrolle** sich nicht bewegt, ist der Beleg für den Mechanismus:
+Bei gleich großen Autos sind „wenigste Insassen" und „meiste freie Plätze"
+dieselbe Regel. Die ganze Differenz kommt aus dem Größen-Gefälle.
+
+Die Erklärung für die *größere* Drift: Trägt der große Wagen nicht mehr mehr
+Leute je Fahrt, muss er zum Punkte-Ausgleich häufiger fahren. Seine Fahrrate
+wandert damit weiter vom Mittel weg, nicht näher heran — und die
+Punkte-Spreizung folgt.
+
+**Das Punkte-Ziel (|Punkte| < 5) hält überall.** Gerissen ist allein die
+Fahrraten-Schranke, auf **einem von zehn Seeds**, um **0,1 pp** (2,6 statt
+2,5). Marcus hat das am 09.08.2026 abgewogen und angenommen: Der praktische
+Gewinn — der Sonderfahrer sitzt nicht allein — wiegt schwerer als eine
+Nachkommastelle auf einem Wurf. Die Schranke in `plan_soak_test.dart` steht
+seither auf 26 ‰, mit dieser Begründung im Kommentar.
+
+**Nicht gemessen ist weiterhin das Verhalten unter vielen Zusagen und
+Absagen.** Dieser Report misst die **automatische** Verteilung; Pins und
+Ausschlüsse laufen davor. Wer die ±2-Zusage auf gepinnte Wochen ausdehnen
+will, misst neu.
+
 ## Wiedervorlage-Kriterien
 
 - Die Flotte bekommt ein dauerhaftes Groß-/Kleinwagen-Gefälle **und** volle

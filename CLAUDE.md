@@ -484,6 +484,46 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         Tages-Ebene (`_editDay`) — dort entsteht also gar keine Zusage und
         folglich auch keine Rückfrage. Wer das ändern will, ändert #189,
         nicht #200.
+    - **Seit v0.72.0 sind es DREI Antworten** (#210, `SeatAnswer`): „egal"
+      (Vorgabe), „ja unbedingt", „auf keinen Fall". Sie sind **nicht
+      symmetrisch**, und die Etiketten verschweigen das fast: Das Nein ist
+      eine Bedingung (es kann ein Auto erzwingen), das Ja nur eine
+      Bevorzugung — ist das Wunsch-Auto voll, fällt die Person in die normale
+      Verteilung, statt ein zweites Sonderzeit-Auto zu erzwingen.
+      - **„Egal" wird ABGELEGT, nicht weggelassen.** Als fehlende Zeile
+        umgesetzt fände die Rückfrage aus #200 nichts Veraltetes, und wer zu
+        06:00 „egal" gesagt hat, würde bei 04:00 stillschweigend mitgezogen —
+        genau das Loch, das #200 geschlossen hat.
+      - **Die Spalte `answer` ist nullable und hat KEINEN Default**, und das
+        ist der Kern der Verträglichkeit: Ein Client von vor v0.72.0 schreibt
+        sie nicht, sie bleibt NULL, und der neue liest die Zeile über
+        `accepted` — also mit der Bedeutung, die der alte gemeint hat. Mit
+        `default 'dontcare'` ginge jede **Ablehnung** eines alten Clients
+        verloren, mit `'yes'` würde sie zum Pin auf genau das abgelehnte
+        Auto.
+      - **`accepted` bleibt als Mitschrift stehen, mit genau EINEM
+        Schreiber** (`SeatChoice.accepted` in Dart). Sie auf NULL zu öffnen
+        wäre das sauberere Datenmodell gewesen und hätte die Mindestversion
+        gehoben; das trifft jede Gruppe, auch die ohne Problem. Wer die
+        Ableitung anderswo nachbaut, macht aus der Mitschrift die zweite
+        Wahrheit.
+    - **Verteilt wird seit v0.72.0 nach KOPFZAHL** (#210): ins Auto mit den
+      wenigsten Insassen, erst bei vollem Auto gewinnt ein anderes mit freiem
+      Platz. Bis dahin entschieden die meisten freien Plätze — was bei
+      ungleich großen Autos gerade nicht gleichmäßig verteilt, weil ein
+      7-Sitzer und ein 4-Sitzer mit gleich vielen FREIEN Plätzen enden.
+      - **Die Rückfalllinie aus #62 bleibt**: Reichen die Sitze insgesamt
+        nicht, wird überfüllt statt jemanden stillschweigend stehen zu
+        lassen. Ohne sie verschwänden Leute aus dem Plan, sobald ein Auto zu
+        klein ist.
+      - **Der Preis ist gemessen, nicht geschätzt** — und er geht in die
+        andere Richtung als vermutet: Die Punkte-Spreizung der Zielflotte
+        **wächst** von 3,5 auf 4,5, und die Fahrraten-Schranke reißt auf
+        einem von zehn Seeds um 0,1 pp (26 statt 25 ‰). Grund: Trägt der
+        große Wagen nicht mehr mehr Leute je Fahrt, muss er zum Ausgleich
+        häufiger fahren. Die Gruppe hat das am 09.08.2026 abgewogen und
+        angenommen; die Schranke steht deshalb auf 26 ‰, mit Begründung im
+        Test. Zahlen im Nachtrag von `doc/entscheidung-mitfahrer-verteilung.md`.
     - **Ohne Entscheidungen rechnet `planWeek` bitgleich wie vorher** —
       per Test festgenagelt. Daran hängt auch der Soak-Report
       (`doc/entscheidung-mitfahrer-verteilung.md`): Er misst die

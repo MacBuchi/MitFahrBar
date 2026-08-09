@@ -4,6 +4,29 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.72.0] – 2026-08-09
+
+### Neu
+
+- **Bei einer verschobenen Abfahrt habt ihr jetzt drei Antworten** statt
+  zwei: „Egal" (die Vorgabe — ihr fahrt mit, wo Platz ist), „Ja, unbedingt"
+  (ihr kommt bevorzugt in dieses Auto) und „Auf keinen Fall" (dann fährt
+  jemand anderes zur normalen Zeit).
+- **Wegtippen heißt jetzt „egal", nicht mehr „passt schon".** Praktisch
+  sitzt ihr weiter da, wo ihr ohnehin säßet — nur hält euch die App dort
+  nicht mehr fest, wenn sich die Planung ändert. Verschiebt der Fahrer die
+  Abfahrt später noch einmal, werdet ihr wie bisher neu gefragt.
+
+### Geändert
+
+- **Mitfahrende verteilen sich jetzt gleichmäßig auf die Autos** — nach
+  Köpfen statt nach freien Plätzen. Vorher füllte sich zuerst der größte
+  Wagen; wer zu einer anderen Zeit losfuhr, saß dann leicht allein. Ist ein
+  Auto voll, geht es wie gewohnt ins nächste mit Platz.
+- Für die Punkte ändert das wenig, aber messbar etwas: Die Abstände werden
+  einen Tick größer statt kleiner. Nachgemessen über 2000 simulierte Tage;
+  Zahlen und Begründung stehen im Entscheidungs-Report unter `doc/`.
+
 ## [0.71.0] – 2026-08-09
 
 ### Neu
