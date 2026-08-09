@@ -2439,6 +2439,169 @@ void main() {
   // Planer ist von der Zuordnung nichts zu sehen. Die Autos selbst bleiben —
   // dass ein voller Tag zwei braucht, ist Kapazität (#62) und keine
   // Zuweisung; sie zu verstecken wäre eine Lüge über den Tag.
+  // Der Drei-Wege-Schalter je Auto (#210). Er ersetzt die Rückfrage nicht,
+  // sondern steht daneben: Sie spricht an, wenn sich etwas ändert (#200), er
+  // zeigt dauerhaft, was gerade gilt.
+  group('Schalter je Auto (#210)', () {
+    /// Anna fährt und hat ihre Abfahrt verschoben, Bert und Clara sind
+    /// dabei. Bert sitzt am Gerät — er ist der, der entscheiden darf.
+    late String annaId;
+
+    Future<(FakeBackend, String)> switchBackend({bool deviation = true}) async {
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final monday = planningWeek(testToday).first;
+      final ids = <String, String>{};
+      for (final name in ['Anna', 'Bert', 'Clara']) {
+        final person = await data.createPerson(
+          Person(id: '', name: name, active: true),
+        );
+        ids[name] = person.id;
+        if (name == 'Anna') annaId = person.id;
+        await data.setAvailability(monday, person.id, PlanRide.full);
+      }
+      if (deviation) {
+        await data.saveCarDefaults(
+          monday,
+          ids['Anna']!,
+          const GroupDefaults(outboundTime: DayTime(6, 45)),
+        );
+      }
+      return (backend, ids['Bert']!);
+    }
+
+    Future<void> open(
+      WidgetTester tester,
+      FakeBackend backend,
+      String? meId,
+    ) async {
+      // Hohe Fläche: Der Schalter steht unter der Tageszeile, also unterhalb
+      // des Rasters. Auf der Standardgröße liegt er außerhalb — und ein Tipp
+      // dorthin trifft ins Leere, **ohne zu werfen**. Der Test wäre dann grün
+      // gewesen, wenn der Schalter gar nichts tut.
+      tester.view.physicalSize = const Size(420, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await pumpApp(
+        tester,
+        backend,
+        identity: meId == null
+            ? null
+            : DeviceIdentity(personId: meId, asked: true),
+      );
+      await _login(tester);
+      await _openPlan(tester);
+    }
+
+    testWidgets('der Mitfahrer sieht ihn — und „Nein" wirkt', (tester) async {
+      final (backend, bertId) = await switchBackend();
+      await open(tester, backend, bertId);
+
+      expect(
+        find.textContaining('Anna fährt anders'),
+        findsOneWidget,
+        reason: 'Bei EINEM Auto ohne Marke — die wäre hier ohne Unterschied.',
+      );
+      expect(
+        find.text('Du fährst mit, wo Platz ist.'),
+        findsOneWidget,
+        reason: 'Ohne Entscheidung steht der Schalter auf „Egal".',
+      );
+
+      // **Getippt, nicht gefunden**: Ein Schalter, der nichts schreibt, sähe
+      // von außen genauso aus.
+      await tester.tap(find.text('Nein'));
+      await tester.pumpAndSettle();
+
+      final monday = planningWeek(testToday).first;
+      final stored = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadSeatChoices(monday, days: 1);
+      expect(stored[monday]?.single.answer, SeatAnswer.no);
+      expect(stored[monday]?.single.terms, '06:45||');
+      expect(
+        find.textContaining('2 Autos'),
+        findsOneWidget,
+        reason:
+            'Ein Nein ist eine Bedingung, keine Meinung — es erzwingt das '
+            'Auto zur normalen Zeit. Ohne diese Zeile prüfte der Test nur, '
+            'dass irgendetwas gespeichert wurde.',
+      );
+      // Bert IST hier das zweite Auto — bei gleichen Punkten wählt die
+      // Fairness-Regel ihn selbst als Ersatzfahrer. Dass sein Schalter
+      // daraufhin verschwindet, ist richtig und keine Panne: Ein Fahrer
+      // stimmt seiner eigenen Abfahrt nicht zu. Die Folgezeile zu „Nein"
+      // prüft deshalb der Ja-Test, wo er Mitfahrer bleibt.
+      expect(find.textContaining('fährt anders'), findsNothing);
+    });
+
+    testWidgets('„Ja" pinnt und die Folgezeile sagt es', (tester) async {
+      final (backend, bertId) = await switchBackend();
+      await open(tester, backend, bertId);
+
+      await tester.tap(find.text('Ja'));
+      await tester.pumpAndSettle();
+
+      final monday = planningWeek(testToday).first;
+      final stored = await backend
+          .dataFor(backend.currentGroupId!)
+          .loadSeatChoices(monday, days: 1);
+      expect(stored[monday]?.single.answer, SeatAnswer.yes);
+      expect(find.text('Du kommst bevorzugt in dieses Auto.'), findsOneWidget);
+      expect(
+        find.textContaining('2 Autos'),
+        findsNothing,
+        reason: 'Ein Ja ist nur eine Bevorzugung und erzwingt nichts.',
+      );
+    });
+
+    testWidgets('ohne Abweichung gibt es nichts zu entscheiden', (
+      tester,
+    ) async {
+      final (backend, bertId) = await switchBackend(deviation: false);
+      await open(tester, backend, bertId);
+
+      expect(
+        find.textContaining('fährt anders'),
+        findsNothing,
+        reason:
+            'Der Schalter ist die Antwort auf eine abweichende Abfahrt. Ohne '
+            'sie zeigte er auf nichts und wäre Lärm in einem dichten Raster.',
+      );
+    });
+
+    testWidgets('der Fahrer selbst bekommt ihn nicht', (tester) async {
+      // Annas Kennung kommt aus dem Aufbau, nicht über `currentGroupId` —
+      // das steht erst nach dem Login, und der kommt erst in `open`.
+      final (backend, _) = await switchBackend();
+      await open(tester, backend, annaId);
+
+      expect(
+        find.textContaining('fährt anders'),
+        findsNothing,
+        reason: 'Ein Fahrer stimmt seiner eigenen Abfahrt nicht zu.',
+      );
+    });
+
+    testWidgets('ohne „Ich bin" erscheint er nicht', (tester) async {
+      final (backend, _) = await switchBackend();
+      await open(tester, backend, null);
+
+      expect(
+        find.textContaining('fährt anders'),
+        findsNothing,
+        reason:
+            'Ohne Geräte-Zuordnung ist nicht bekannt, WESSEN Entscheidung '
+            'gemeint wäre — dieselbe Bedingung wie bei der Rückfrage (#121).',
+      );
+    });
+  });
+
   group('Der Gruppen-Schalter (#213)', () {
     /// Drei Personen, je zwei Sitze — das erzwingt zwei Autos, also genau
     /// die Lage, in der es etwas zu wählen und zu verschieben gäbe.

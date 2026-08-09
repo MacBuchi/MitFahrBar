@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.73.0] – 2026-08-09
+
+### Neu
+
+- **Eure Antwort steht jetzt direkt im Wochenplan.** Fährt ein Auto an einem
+  Tag zu einer anderen Zeit oder von einem anderen Treffpunkt los, findet ihr
+  unter dem Tag einen Schalter mit „Egal / Ja / Nein" — dort seht ihr auf
+  einen Blick, was gerade für euch gilt, und könnt es ohne Umweg ändern.
+  Darunter steht in einem Satz, was eure Wahl bedeutet.
+- **Bei zwei Autos gibt es zwei Zeilen**, jede mit Farbe und Nummer ihres
+  Autos — dieselbe Marke wie im Raster.
+- Die Rückfrage bleibt: Verschiebt jemand eine Abfahrt, zu der ihr schon
+  entschieden hattet, fragt die App weiterhin von sich aus nach. Der Schalter
+  zeigt, was gilt; die Rückfrage meldet sich, wenn sich etwas ändert.
+
 ## [0.72.0] – 2026-08-09
 
 ### Neu

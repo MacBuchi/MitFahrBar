@@ -507,6 +507,27 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         gehoben; das trifft jede Gruppe, auch die ohne Problem. Wer die
         Ableitung anderswo nachbaut, macht aus der Mitschrift die zweite
         Wahrheit.
+    - **Der Schalter steht seit v0.73.0 in der Tageszeile** (#210,
+      `_SeatAnswerRow`) — je abweichendem Auto eine Zeile mit „Egal / Ja /
+      Nein", darunter ein Satz, was die Wahl bedeutet.
+      - **Er ersetzt die Rückfrage nicht, er steht daneben.** Die Rückfrage
+        spricht an, wenn sich etwas ändert (#200); der Schalter zeigt
+        dauerhaft, was gilt. Nur die Rückfrage hieße, dass man seine eigene
+        Entscheidung nirgends nachlesen kann; nur der Schalter hieße, dass
+        eine verschobene Abfahrt niemanden mehr erreicht.
+      - **Eine veraltete Entscheidung zeigt „Egal"** — genau so behandelt die
+        Engine sie. Zeigte der Schalter das alte Ja, behauptete er eine
+        Zusage, die nicht mehr gilt, und die Rückfrage widerspräche ihm im
+        nächsten Moment.
+      - **Nur bei Abweichung, nur für Mitfahrer, nur mit „Ich bin"** — sonst
+        zeigte er auf nichts, oder es wäre unklar, wessen Entscheidung
+        gemeint ist. Geschrieben wird über `_saveSeatAnswer`, den **einzigen**
+        Schreibweg: Zwei Fassungen wären zwei Antworten auf „behält der Pin
+        seinen Rang?", und der Unterschied fiele erst am vollen Auto auf.
+      - Der Flow-Test setzt eine **hohe Fläche**: Der Schalter steht unter dem
+        Raster, und ein Tipp außerhalb des Sichtbereichs trifft ins Leere,
+        **ohne zu werfen** — der Test wäre grün gewesen, wenn der Schalter
+        gar nichts tut.
     - **Verteilt wird seit v0.72.0 nach KOPFZAHL** (#210): ins Auto mit den
       wenigsten Insassen, erst bei vollem Auto gewinnt ein anderes mit freiem
       Platz. Bis dahin entschieden die meisten freien Plätze — was bei
