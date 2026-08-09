@@ -359,6 +359,23 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       dauerhaft zwei Autos wegen einer Zeit, die es nicht mehr gibt).
       Aufgeräumt wird nichts: verwaiste Zeilen wirken nicht, wie bei
       `plan_car_defaults`.
+    - **Ein Ausschluss erzwingt ein Auto auch dann, wenn die übrigen nur
+      VOLL sind** (seit v0.76.0). Bis dahin endete die Zusatzauto-Schleife,
+      sobald für jeden **irgendein** nicht ausgeschlossenes Auto existierte —
+      ob dort ein Platz frei ist, fragte niemand. Die Verteilung stopfte die
+      Leute anschließend über die Rückfalllinie hinein: Ein Nein bewirkte am
+      Ende ein überfülltes Auto statt eines zusätzlichen.
+      - **Das ist ausdrücklich NICHT der Fall aus #62.** Dort reichen die
+        Sitze des Tages insgesamt nicht, und Überfüllen ist die ehrliche
+        Antwort — diese Rückfalllinie bleibt. Hier reichen sie, sie sind nur
+        durch Absagen unerreichbar.
+      - **Gezählt wird nach Hall:** Wer ausschließlich in eine bestimmte Menge
+        Autos darf, muss dort Platz finden; die Fahrer dieser Autos belegen je
+        einen Sitz im eigenen. Reicht es nicht, kommt ein Auto dazu — die
+        Schleife terminiert, weil jedes zusätzliche Auto die Kapazität erhöht.
+      - **Am Soak ändert das nichts, und das ist geprüft**: Er läuft ohne
+        Sitz-Entscheidungen, also ohne Ausschlüsse — `excludedBy` ist dort
+        leer und die Bedingung fällt auf „alle Autos ausgeschlossen" zurück.
     - **Ein erzwungener Fahrer ist im Umschalter gesperrt, nicht abwählbar**
       (#203, seit v0.70.0; `PlannedDay.forcedFor`). Gemeldet als „das
       Zurücknehmen des zweiten Fahrers wirkt nicht" — es *konnte* nicht

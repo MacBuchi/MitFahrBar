@@ -1433,6 +1433,53 @@ void main() {
       );
     });
 
+    test('ein Ausschluss erzwingt auch dann ein Auto, wenn die übrigen nur '
+        'VOLL sind', () {
+      // Die Lücke, die bis v0.75.0 offen war: Die Zusatzauto-Schleife hörte
+      // auf, sobald für jeden **irgendein** nicht ausgeschlossenes Auto
+      // existierte — ob dort ein Platz frei ist, fragte niemand. Die
+      // Verteilung stopfte die Leute anschließend über die Rückfalllinie
+      // hinein, und ein Nein bewirkte am Ende ein überfülltes Auto statt
+      // eines zusätzlichen.
+      //
+      // a fährt zu einer Sonderzeit und hat Platz für alle; b, c, d und e
+      // sagen ab. Die möglichen Ersatzautos fassen aber nur je zwei.
+      final day = planDay(
+        rides: ride({'a', 'b', 'c', 'd', 'e'}),
+        seats: const {'a': 5, 'b': 2, 'c': 2, 'd': 2, 'e': 2},
+        choices: [
+          for (final p in ['b', 'c', 'd', 'e'])
+            choice(p, 'a', answer: SeatAnswer.no, terms: '05:30||'),
+        ],
+        carDefaults: const {'a': GroupDefaults(outboundTime: DayTime(5, 30))},
+      );
+
+      expect(
+        day.cars.length,
+        3,
+        reason:
+            'Ein Ersatzauto mit zwei Sitzen reicht für vier Absagende nicht — '
+            'es braucht ein zweites. Vorher blieb es bei zweien.',
+      );
+      for (final car in day.cars) {
+        final seats = {'a': 5, 'b': 2, 'c': 2, 'd': 2, 'e': 2}[car.driverId]!;
+        expect(
+          car.fullIds.length + car.oneWayIds.length,
+          lessThanOrEqualTo(seats - 1),
+          reason:
+              'Kein Auto darf überfüllt sein: Die Sitze des Tages REICHEN '
+              'insgesamt, sie waren nur durch die Absagen unerreichbar. Das '
+              'ist nicht der Fall aus #62, wo Überfüllen die ehrliche '
+              'Antwort ist.',
+        );
+      }
+      expect(
+        day.cars.first.driverId,
+        'a',
+        reason: 'Der Sonderfahrer bleibt, seine Absager fahren daneben.',
+      );
+    });
+
     test('das Zusatzauto ist als erzwungen markiert — Platznot nicht', () {
       // Der Umschalter „Wer fährt?" muss beides unterscheiden können (#203):
       // Ein Fahrer, den eine Absage erzwingt, ist nicht abwählbar (die

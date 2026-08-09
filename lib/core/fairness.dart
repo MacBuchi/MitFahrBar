@@ -955,14 +955,52 @@ List<PlannedDay> planWeek({
     // ob eine Abwahl gewirkt hat oder von der Rechnung sofort überstimmt
     // wurde; bis v0.69.0 verwarf er sie stillschweigend.
     final forcedFor = <String, List<String>>{};
+
+    /// Die Autos, in die [id] nach seinen Absagen überhaupt darf.
+    Set<String> allowedFor(String id) {
+      final out = excludedBy[id] ?? const <String>{};
+      return {
+        for (final d in driverSet)
+          if (!out.contains(d)) d,
+      };
+    }
+
+    /// Passen alle, die NUR in [allowed] dürfen, dort auch hinein?
+    ///
+    /// Ohne diese Prüfung endete die Schleife, sobald für jeden **irgendein**
+    /// nicht ausgeschlossenes Auto existierte — ob dort noch ein Platz frei
+    /// ist, fragte niemand. Ein Nein konnte damit kein weiteres Auto
+    /// erzwingen, wenn die übrigen bloß **voll** waren; die Verteilung stopfte
+    /// die Leute anschließend über die Rückfalllinie hinein.
+    ///
+    /// Das ist ausdrücklich NICHT der Fall aus #62: Dort reichen die Sitze
+    /// des Tages insgesamt nicht, und Überfüllen ist die ehrliche Antwort.
+    /// Hier reichen sie — sie sind nur durch Absagen unerreichbar, und genau
+    /// dafür gibt es das Zusatzauto.
+    ///
+    /// Gezählt wird nach Hall: Wer ausschließlich in [allowed] darf, muss
+    /// dort Platz finden; die Fahrer dieser Autos sitzen in ihrem eigenen und
+    /// belegen je einen Sitz.
+    bool cramped(Set<String> allowed) {
+      if (allowed.isEmpty) return true;
+      var need = 0;
+      for (final q in available) {
+        if (driverSet.contains(q)) {
+          if (allowed.contains(q)) need++;
+        } else if (allowedFor(q).every(allowed.contains)) {
+          need++;
+        }
+      }
+      final have = allowed.fold(0, (sum, d) => sum + seatOf(d));
+      return need > have;
+    }
+
     while (true) {
       final blocked = [
         for (final id in available)
           if (!driverSet.contains(id) &&
               driverSet.isNotEmpty &&
-              driverSet.every(
-                (d) => (excludedBy[id] ?? const <String>{}).contains(d),
-              ))
+              cramped(allowedFor(id)))
             id,
       ];
       if (blocked.isEmpty) break;
