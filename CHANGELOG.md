@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.76.0] – 2026-08-09
+
+### Behoben
+
+- **Eine Absage schafft jetzt auch dann ein weiteres Auto, wenn die übrigen
+  schon voll sind.** Sagte jemand einer abweichenden Abfahrt ab, suchte
+  MitFahrBar bisher nur irgendein anderes Auto — ob dort noch ein Platz frei
+  war, prüfte es nicht. Ergebnis war ein überfülltes Auto statt eines
+  zusätzlichen. Wenn die Sitzplätze des Tages insgesamt nicht reichen, wird
+  weiterhin aufgefüllt wie bisher; das ist der ehrliche Fall.
+
 ## [0.75.0] – 2026-08-09
 
 ### Geändert
