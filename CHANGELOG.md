@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.74.0] – 2026-08-09
+
+### Geändert
+
+- **Der Planer gleicht die Fahranteile jetzt spürbar besser aus.** Bisher
+  konnte es passieren, dass jemand über Monate deutlich häufiger am Steuer
+  saß als andere, obwohl die Punkte ausgeglichen waren. Dagegen steuert der
+  Planer jetzt kräftiger: Wer selten gefahren ist, bekommt eher die kleinen
+  Tage, wer viel gefahren ist, die vollen.
+- **Gemessen an euren echten Fahrten**, nicht nur simuliert: Über die 401
+  protokollierten Tage halbiert sich der Abstand zwischen den Stammfahrern
+  fast — und liegt damit auch unter dem, was bisher von Hand geplant wurde.
+- An den Punkten ändert sich dabei praktisch nichts; sie bleiben wie gewohnt
+  der erste Maßstab dafür, wer dran ist.
+
 ## [0.73.0] – 2026-08-09
 
 ### Neu
