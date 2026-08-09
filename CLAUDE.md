@@ -142,6 +142,16 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         verlieren. Die Tabelle fällt erst in einer späteren Migration — sie
         jetzt zu droppen hieße, etwas zu entfernen, das ein veröffentlichter
         Client liest, und damit die Mindestversion zu heben.
+      - **Das ist Schritt 1 von „erweitern → ausliefern → entfernen"**
+        (allgemein im DocuHub, `guidelines/datenhaltung.md`). Seit den zwei
+        Release-Kanälen (#217) ist der Termin für Schritt 3 präzise
+        benennbar: **nach der ersten Beförderung, die den lesenden Client
+        stabil macht.** Vorher gedroppt bricht es genau die Leute, die brav
+        auf stabil sind — und die Mindestversion hilft dagegen nicht, weil
+        der Sperr-Schirm nur anbieten kann, was veröffentlicht ist.
+        Kontrolle vor dem Drop: `plan_defaults` hatte am 09.08.2026 noch
+        **3 Zeilen** in Produktion (Abfrage-Rezept steht in der Erinnerung
+        `supabase-prod-lesen`).
       - **Der eine Preis, ausgesprochen:** Eine Zeit zu setzen schreibt ab
         jetzt IMMER einen Fahrer fest, auch bei einem Auto. „Wir fahren
         früher, wer fährt, sehen wir noch" lässt sich nicht mehr sagen. Das
