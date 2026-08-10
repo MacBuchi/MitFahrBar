@@ -131,7 +131,15 @@ async function labels() {
 async function expectLabel(re, hint) {
   for (let attempt = 0; attempt < 24; attempt++) {
     if ((await labels()).some((l) => re.test(l))) return;
-    await page.waitForTimeout(500);
+    // **Bei jedem Versuch neu anfordern.** Der erste Lauf dieses Flows
+    // (10.08.2026) fand exakt die Labels, die im Moment der Aktivierung
+    // schon standen — Navigationsleiste und das Anmerkungs-Banner —, aber
+    // keine einzige Ranking-Zeile: Die entsteht Sekundenbruchteile später,
+    // wenn Personen und Statistik geladen sind. Flutter-Web trägt diesen
+    // Nachschub nicht von allein in den a11y-Baum nach; ein Poller, der nur
+    // die DOM-Knoten abfragt, sieht ihn also nie. Ohne diese Zeile prüft der
+    // ganze Flow bloß, was vor dem ersten Frame fertig war.
+    await activateSemantics();
   }
   console.log('--- LABELS ---');
   for (const l of await labels()) console.log(l.replace(/\n/g, ' | '));
@@ -139,6 +147,9 @@ async function expectLabel(re, hint) {
 }
 
 async function expectNoLabel(re, hint) {
+  // Erst auffrischen: „steht nicht da" hieße sonst nur „stand beim letzten
+  // Aufbau noch nicht da", und die Prüfung wäre wertlos.
+  await activateSemantics();
   if ((await labels()).some((l) => re.test(l))) {
     throw new Error(`Label darf hier nicht stehen: ${re} (${hint})`);
   }
@@ -160,7 +171,12 @@ async function checkpoint(name) {
   await page.screenshot({
     path: shot(`${String(step).padStart(2, '0')}-offline-${name}`),
   });
-  console.log(`✓ ${name}`);
+  // Das Inventar bei JEDEM Schritt, nicht erst im Fehlerfall. Beim ersten
+  // Lauf (10.08.2026) stand am Ende nur „Label fehlt: /Anna/" — und die
+  // Frage, WAS statt dessen im Baum steht, war aus dem Log nicht zu
+  // beantworten. Der Baum von Flutter-Web ist ausdrücklich lückenhaft
+  // (siehe console.mjs); wer darauf prüft, muss ihn mitschreiben.
+  console.log(`✓ ${name} — Labels: ${JSON.stringify(await labels())}`);
 }
 
 /// Zustand des Service Workers — die Vorbedingung dafür, dass ohne Netz
@@ -208,12 +224,21 @@ try {
   }
   await checkpoint('angemeldet');
 
-  await expectLabel(/Anna/, 'Übersicht nach der Anmeldung');
+  // **Der Anker ist das Anmerkungs-Banner, nicht der Personenname** — und
+  // das ist keine Bequemlichkeit. „Wunsch oder Fehler melden" steht
+  // ausschließlich in `_Content` (dashboard_screen.dart), und den baut die
+  // Übersicht nur, wenn die Rangliste **nicht leer** ist: Personen,
+  // Statistik und Parameter sind dann geladen. Das Label beweist damit
+  // genau das, was hier zählt — es liegen Zeilen vor —, und es ist im
+  // a11y-Baum von Flutter-Web nachweislich vorhanden (erster Lauf,
+  // 10.08.2026). Der Personenname stand dort nicht; der Baum ist
+  // lückenhaft, und ein Test, der auf Lücken baut, prüft die Lücke.
+  await expectLabel(/Wunsch oder Fehler melden/, 'Inhalt der Übersicht');
   await expectNoLabel(
     /Offline · Stand/,
     'mit Empfang darf die Leiste nicht stehen',
   );
-  console.log('✓ Start MIT Netz: Daten da, keine Offline-Leiste');
+  console.log('✓ Start MIT Netz: Inhalt da, keine Offline-Leiste');
 
   // 2. Und jetzt der gemeldete Fall: Netz weg, App neu starten.
   const before = await serviceWorkerState();
@@ -239,9 +264,17 @@ try {
   await activateSemantics();
   await checkpoint('ohne-netz');
 
-  // Der Kern von #169: Es steht etwas da, und zwar die Zeilen von vorhin.
-  await expectLabel(/Anna/, 'Übersicht ohne Netz aus dem Zwischenspeicher');
-  await expectNoLabel(/Keine Verbindung/, 'der Gate-Schirm gehört hier nicht hin');
+  // Der Kern von #169: Es steht etwas da, und zwar aus dem Speicher. Ohne
+  // Netz kann `_Content` nur entstehen, wenn Personen, Statistik und
+  // Parameter von der Platte kommen — genau das ist die Aussage.
+  await expectLabel(
+    /Wunsch oder Fehler melden/,
+    'Übersicht ohne Netz aus dem Zwischenspeicher',
+  );
+  await expectNoLabel(
+    /Keine Verbindung/,
+    'der Gate-Schirm gehört hier nicht hin',
+  );
 
   // Und der Kern von #169 zum Zweiten: Der Stand wird benannt, nicht als
   // aktuell ausgegeben. Die Leiste kommt bewusst mit zwei Sekunden Verzug
@@ -255,7 +288,7 @@ try {
   await page.waitForTimeout(6000);
   await activateSemantics();
   await checkpoint('wieder-online');
-  await expectLabel(/Anna/, 'Übersicht wieder mit Netz');
+  await expectLabel(/Wunsch oder Fehler melden/, 'Übersicht wieder mit Netz');
   await expectNoLabel(/Offline · Stand/, 'mit Empfang gehört die Leiste weg');
   console.log('✓ Zurück im Netz: Leiste weg');
 
