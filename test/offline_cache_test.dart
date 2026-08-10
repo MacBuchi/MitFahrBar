@@ -5,10 +5,13 @@
 /// hält, wäre kein Komfort mehr, sondern eine zweite Wahrheit.
 library;
 
+import 'dart:async';
+
 import 'package:mitfahrbar/core/widgets/offline_bar.dart';
 import 'package:mitfahrbar/data/caching_repository.dart';
 import 'package:mitfahrbar/data/carpool_repository.dart';
 import 'package:mitfahrbar/data/group_repository.dart';
+import 'package:mitfahrbar/data/fake_repository.dart';
 import 'package:mitfahrbar/data/offline_cache.dart';
 import 'package:mitfahrbar/models/app_settings.dart';
 import 'package:mitfahrbar/models/group.dart';
@@ -19,19 +22,36 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes/fake_backend.dart';
 
-/// Ein Repository, das auf Kommando kein Netz hat.
+/// Ein Repository, das auf Kommando kein Netz hat — oder eines, das hängt.
+///
+/// Beides ist nicht dasselbe, und der Unterschied ist der Grund für #232: Im
+/// Flugmodus scheitert eine Anfrage sofort, im Funkloch läuft sie in den
+/// Timeout der Plattform. [hold] ist der zweite Fall.
 class _Switchable implements GroupRepository {
   _Switchable(this.group);
 
   Group? group;
   bool offline = false;
+  Completer<void>? hold;
   int calls = 0;
 
   @override
   Future<Group?> myGroup() async {
     calls++;
+    await hold?.future;
     if (offline) throw Exception('SocketException: kein Netz');
     return group;
+  }
+}
+
+/// Wie [FakeCarpoolRepository], nur dass das Laden der Fahrten hängen kann.
+class _SlowTrips extends FakeCarpoolRepository {
+  Completer<void>? hold;
+
+  @override
+  Future<List<Trip>> loadTrips() async {
+    await hold?.future;
+    return super.loadTrips();
   }
 }
 
@@ -129,6 +149,157 @@ void main() {
       // Und die alten Zeilen sind nicht bloß unsichtbar, sondern weg —
       // aufgeräumt hat das der Lesezugriff selbst, nicht ein Abmelde-Haken.
       expect(cache.entries, isEmpty);
+    });
+  });
+
+  group('Zuerst der Speicher, dann das Netz (#232)', () {
+    late RefreshSignal signal;
+
+    setUp(() => signal = RefreshSignal());
+    tearDown(() => signal.dispose());
+
+    test('der erste Lesezugriff wartet nicht auf die Antwort', () async {
+      final cache = InMemoryOfflineCache(
+        clock: () => DateTime(2026, 8, 5, 7, 12),
+      );
+      final inner = _Switchable(_group);
+      // Einmal mit Empfang öffnen — das füllt den Speicher.
+      await CachingGroupRepository(
+        inner,
+        cache,
+        OfflineStatus(),
+        () => 'g1',
+        refresh: signal,
+      ).myGroup();
+
+      // Und jetzt der gemeldete Fall: Das Netz ist da, antwortet aber nicht.
+      // Bis v0.79.0 hing der Start genau so lange, wie die Anfrage brauchte,
+      // um aufzugeben.
+      inner.hold = Completer<void>();
+      final status = OfflineStatus();
+      final cold = CachingGroupRepository(
+        inner,
+        cache,
+        status,
+        () => 'g1',
+        refresh: signal,
+      );
+
+      final group = await cold.myGroup().timeout(const Duration(seconds: 1));
+
+      expect(group!.name, 'Dacia Racing');
+      expect(status.notifier.value, DateTime(2026, 8, 5, 7, 12));
+      inner.hold!.complete();
+    });
+
+    test('genau eine Abholung, danach wieder das Netz', () async {
+      final cache = InMemoryOfflineCache();
+      final inner = _Switchable(_group);
+      await CachingGroupRepository(
+        inner,
+        cache,
+        OfflineStatus(),
+        () => 'g1',
+        refresh: signal,
+      ).myGroup();
+
+      final repo = CachingGroupRepository(
+        inner,
+        cache,
+        OfflineStatus(),
+        () => 'g1',
+        refresh: signal,
+      );
+      expect((await repo.myGroup())!.name, 'Dacia Racing');
+
+      // Die Auffrischung im Hintergrund läuft durch, und erst danach
+      // benennt sich die Gruppe um.
+      await pumpEventQueue();
+      inner.group = const Group(
+        id: 'g1',
+        name: 'Rallye Team',
+        handle: 'daciaracing',
+        status: GroupStatus.active,
+      );
+
+      expect(
+        (await repo.myGroup())!.name,
+        'Dacia Racing',
+        reason:
+            'die Abholung dessen, was eben eingetroffen ist — sonst fragte '
+            'der vom Signal ausgelöste Lesezugriff dieselbe Zeile ein '
+            'zweites Mal beim Server ab',
+      );
+      expect(
+        (await repo.myGroup())!.name,
+        'Rallye Team',
+        reason:
+            'ab hier fragt jeder Lesezugriff wieder das Netz zuerst — sonst '
+            'lieferte „Erneut versuchen" den Stand zurück, den zu ersetzen '
+            'sein Zweck ist',
+      );
+    });
+
+    test(
+      'nach einem Schreibzugriff kommt nichts mehr aus dem Speicher',
+      () async {
+        final cache = InMemoryOfflineCache();
+        final inner = _SlowTrips();
+        CachingCarpoolRepository layer() => CachingCarpoolRepository(
+          inner,
+          cache,
+          OfflineStatus(),
+          () => 'g1',
+          refresh: signal,
+        );
+        await layer().loadTrips();
+
+        // Ohne Schreibzugriff steht der Stand sofort da, auch wenn das Netz
+        // hängt — die Gegenprobe zum eigentlichen Fall.
+        inner.hold = Completer<void>();
+        await expectLater(
+          layer().loadTrips().timeout(const Duration(milliseconds: 200)),
+          completion(isEmpty),
+        );
+        inner.hold!.complete();
+        inner.hold = null;
+
+        final wrote = layer();
+        await wrote.createPerson(
+          const Person(id: '', name: 'Anna', active: true),
+        );
+        inner.hold = Completer<void>();
+
+        // Ab dem ersten erfolgreichen Schreibzugriff ist der abgelegte Stand
+        // möglicherweise überholt. Ein Schirm, der danach zum ersten Mal
+        // aufgeht, zeigt lieber einen Ladekreis als die eigene Eingabe von
+        // vorhin — sonst sähe die Nutzerin sie zurückspringen.
+        await expectLater(
+          wrote.loadTrips().timeout(const Duration(milliseconds: 200)),
+          throwsA(isA<TimeoutException>()),
+        );
+        inner.hold!.complete();
+      },
+    );
+
+    test('ein Schwall meldet sich einmal, nicht achtmal', () async {
+      var beeps = 0;
+      final signal = RefreshSignal(window: const Duration(milliseconds: 10));
+      addTearDown(signal.dispose);
+      signal.addListener(() => beeps++);
+
+      for (var i = 0; i < 8; i++) {
+        signal.ping();
+      }
+      expect(beeps, 0, reason: 'gesammelt wird, bevor gemeldet wird');
+
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(beeps, 1);
+
+      // Und der nächste Schwall meldet sich wieder.
+      signal.ping();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(beeps, 2);
     });
   });
 

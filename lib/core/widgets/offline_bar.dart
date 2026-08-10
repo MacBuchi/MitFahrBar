@@ -8,7 +8,21 @@
 /// Sie hört an [OfflineStatus] und nicht an einem Provider: Die Meldung
 /// entsteht, **während** ein Provider lädt — ein Provider-Schreib in diesem
 /// Moment stieße eine Invalidierung mitten in der Build-Phase an.
+///
+/// **Sie erscheint mit kurzem Verzug** ([graceWindow], seit v0.79.0). Seit
+/// die App aus dem Zwischenspeicher heraus öffnet (#232), beginnt **jeder**
+/// Start im Zustand „aus dem Speicher" — auch der mit bestem Empfang, für die
+/// zwei Zehntelsekunden, bis der Server antwortet. Ohne den Verzug zuckte die
+/// Leiste bei jedem Öffnen kurz auf und wäre genau dann nicht mehr ernst zu
+/// nehmen, wenn sie stimmt.
+///
+/// Der Verzug wartet **nicht** auf das Scheitern der Anfrage: Im Funkloch
+/// gibt die erst nach zehn bis sechzig Sekunden auf, und so lange darf
+/// niemand einen alten Plan für den aktuellen halten. Zwei Sekunden sind der
+/// Handel zwischen beidem.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,11 +38,40 @@ class OfflineBar extends ConsumerStatefulWidget {
   ConsumerState<OfflineBar> createState() => _OfflineBarState();
 }
 
+/// Wie lange „aus dem Speicher" anhalten muss, bevor die Leiste es sagt.
+const graceWindow = Duration(seconds: 2);
+
 class _OfflineBarState extends ConsumerState<OfflineBar> {
   OfflineStatus? _status;
 
+  /// Der Zeitpunkt, den die Leiste **zeigt** — `null` heißt: keine Leiste.
+  /// Bewusst getrennt vom gemeldeten Zustand, denn zwischen beiden liegt
+  /// [graceWindow].
+  DateTime? _shown;
+  Timer? _grace;
+
   void _onChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final reported = _status?.notifier.value;
+    if (reported == null) {
+      // Frisch vom Server: Die Leiste geht sofort weg, auch wenn sie noch
+      // gar nicht da war.
+      _grace?.cancel();
+      _grace = null;
+      if (_shown != null) setState(() => _shown = null);
+      return;
+    }
+    // Steht sie schon, folgt sie dem gemeldeten Zeitpunkt ohne Verzug —
+    // gewartet wird nur auf das erste Erscheinen.
+    if (_shown != null) {
+      setState(() => _shown = reported);
+      return;
+    }
+    _grace ??= Timer(graceWindow, () {
+      _grace = null;
+      final still = _status?.notifier.value;
+      if (still != null && mounted) setState(() => _shown = still);
+    });
   }
 
   @override
@@ -38,17 +81,21 @@ class _OfflineBarState extends ConsumerState<OfflineBar> {
     if (identical(status, _status)) return;
     _status?.notifier.removeListener(_onChanged);
     _status = status..notifier.addListener(_onChanged);
+    // Der Zustand kann schon vor dem ersten Aufbau gemeldet worden sein —
+    // die Lesezugriffe laufen, bevor irgendein Schirm steht.
+    _onChanged();
   }
 
   @override
   void dispose() {
+    _grace?.cancel();
     _status?.notifier.removeListener(_onChanged);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final storedAt = _status?.notifier.value;
+    final storedAt = _shown;
     if (storedAt == null) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;

@@ -306,6 +306,16 @@ final offlineCacheProvider = Provider<OfflineCache>(
 /// die Leiste im [AppShell] hört zu.
 final offlineStatusProvider = Provider<OfflineStatus>((ref) => OfflineStatus());
 
+/// Meldet frisch nachgeladene Zeilen an die Provider (#232).
+///
+/// Ebenfalls ein einzelnes Objekt: Beide Dekorierer melden hierhin, und
+/// [cacheRefreshSyncProvider] liest daraufhin neu.
+final refreshSignalProvider = Provider<RefreshSignal>((ref) {
+  final signal = RefreshSignal();
+  ref.onDispose(signal.dispose);
+  return signal;
+});
+
 /// Wessen Zeilen im Zwischenspeicher liegen dürfen. `null` = kein Speicher.
 ///
 /// Bewusst über `currentUserId` und nicht über die geladene Gruppe: Die
@@ -324,6 +334,7 @@ final carpoolRepositoryProvider = Provider<CarpoolRepository>((ref) {
     ref.watch(offlineCacheProvider),
     ref.watch(offlineStatusProvider),
     ref.watch(_cacheGroupIdProvider),
+    refresh: ref.watch(refreshSignalProvider),
   );
 });
 
@@ -334,6 +345,7 @@ final groupRepositoryProvider = Provider<GroupRepository>((ref) {
     ref.watch(offlineCacheProvider),
     ref.watch(offlineStatusProvider),
     ref.watch(_cacheGroupIdProvider),
+    refresh: ref.watch(refreshSignalProvider),
   );
 });
 
@@ -826,6 +838,41 @@ void refreshPlanning(WidgetRef ref) {
     ..invalidate(weekCarDefaultsProvider)
     ..invalidate(weekNotesProvider);
 }
+
+/// Liest neu, sobald der Zwischenspeicher im Hintergrund frische Zeilen
+/// bekommen hat (#232).
+///
+/// Seit v0.79.0 öffnet die App aus dem letzten bekannten Stand und fragt das
+/// Netz danach. Dieser Zuhörer ist die zweite Hälfte davon: Ohne ihn bliebe
+/// der zuerst gezeigte Stand die ganze Sitzung stehen — online wäre das ein
+/// veralteter Plan, und niemand wüsste es.
+///
+/// Der erneute Lesezugriff kostet **keine** zweite Anfrage: Der Dekorierer
+/// hält die eben eingetroffene Antwort für genau eine Abholung bereit.
+///
+/// **[myGroupProvider] steht bewusst nicht in der Liste.** Das Gate im
+/// `AppShell` prüft auf `AsyncData`; eine Invalidierung schickt es durch
+/// `AsyncLoading`, und die Gruppe sähe bei jedem Nachladen kurz den
+/// Ladeschirm. Der Name einer Gruppe ändert sich nicht während einer
+/// Sitzung — die Auffrischung landet trotzdem im Speicher und gilt beim
+/// nächsten Start.
+final cacheRefreshSyncProvider = Provider<void>((ref) {
+  final signal = ref.watch(refreshSignalProvider);
+  void reread() {
+    ref
+      ..invalidate(personsProvider)
+      ..invalidate(tripsProvider)
+      ..invalidate(settingsProvider)
+      ..invalidate(groupDefaultsProvider)
+      ..invalidate(weekPlanProvider)
+      ..invalidate(weekPlanDefaultsProvider)
+      ..invalidate(weekCarDefaultsProvider)
+      ..invalidate(weekNotesProvider);
+  }
+
+  signal.addListener(reread);
+  ref.onDispose(() => signal.removeListener(reread));
+});
 
 /// Hält den Ausgangskorb (#132) am Stand der Dinge.
 ///

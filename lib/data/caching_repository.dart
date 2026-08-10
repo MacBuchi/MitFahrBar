@@ -12,8 +12,36 @@
 /// unterschiedlich eintragen, und er kollidierte mit „die Existenz einer
 /// Zeile in `trips` **ist** die Bestätigung". Bewusst nicht gebaut
 /// (entschieden mit Marcus, 05.08.2026).
+///
+/// **Seit v0.79.0 zuerst der Speicher, dann das Netz** (#232, gemeldet als
+/// „Offline Start dauert super lang. Dabei muss ja nichts geladen werden").
+/// Bis dahin fragte jeder Lesezugriff erst das Netz und ging erst im `catch`
+/// an den Speicher — die Anzeige war damit per Konstruktion so langsam wie
+/// das **Aufgeben** der Anfrage. Im Flugmodus scheitert die sofort, im echten
+/// Funkloch (Balken da, kein Durchsatz) läuft sie in den Plattform-Timeout,
+/// und das sind die zehn bis sechzig Sekunden aus der Meldung.
+///
+/// Drei Riegel gehören zu dieser Umkehr und dürfen nicht einzeln „aufgeräumt"
+/// werden:
+///
+/// * **Nur beim ERSTEN Lesezugriff je Schlüssel und Lauf.** Genau das ist der
+///   gemeldete Fall (der Start). Jeder spätere Lesezugriff fragt weiter das
+///   Netz zuerst — sonst lieferte `refreshPlanning` nach einem Push-Tipp
+///   („erst frische Daten, dann hinschauen", #200) und „Erneut versuchen"
+///   auf dem Gate-Schirm genau den Stand zurück, den zu ersetzen ihr Zweck
+///   ist.
+/// * **Nach einem erfolgreichen Schreibzugriff gar nicht mehr.** Sonst zeigte
+///   der nächste zum ersten Mal geöffnete Schirm kurz einen Stand, der die
+///   eben gespeicherte Fahrt noch nicht kennt — die Nutzerin sähe ihre eigene
+///   Eingabe zurückspringen.
+/// * **Was im Hintergrund eintrifft, meldet sich** ([RefreshSignal]). Ohne
+///   das bliebe der zuerst gezeigte Stand die ganze Sitzung stehen; online
+///   wäre das ein veralteter Plan, und niemand wüsste es.
 library;
 
+import 'dart:async';
+
+import '../core/log.dart';
 import '../models/app_settings.dart';
 import '../models/group.dart';
 import '../models/group_defaults.dart';
@@ -67,12 +95,52 @@ class _Holder {
   void removeListener(void Function() listener) => _listeners.remove(listener);
 }
 
-/// Gemeinsamer Ablauf: erst das Netz, bei Fehlschlag der Speicher.
+/// Meldet, dass im Hintergrund frische Zeilen eingetroffen sind (#232).
+///
+/// Der Zwischenspeicher zeigt seit v0.79.0 zuerst und fragt danach; ohne
+/// dieses Signal bliebe der zuerst gezeigte Stand die ganze Sitzung stehen.
+///
+/// **Ein Schwall wird gesammelt.** Personen, Fahrten, Parameter, Vorgaben,
+/// Plan, Anmerkungen und die beiden Abweichungs-Ebenen landen im selben
+/// Augenblick — acht Meldungen wären acht Neubauten für ein Ergebnis. Die
+/// kurze Frist ist kein Feinschliff: Sie ist der Unterschied zwischen einer
+/// Aktualisierung und einem Flackern.
+class RefreshSignal {
+  RefreshSignal({this.window = const Duration(milliseconds: 250)});
+
+  /// Wie lange ein Schwall gesammelt wird, bevor die Zuhörer erfahren.
+  final Duration window;
+
+  final _listeners = <void Function()>[];
+  Timer? _pending;
+
+  void addListener(void Function() listener) => _listeners.add(listener);
+
+  void removeListener(void Function() listener) => _listeners.remove(listener);
+
+  void ping() {
+    _pending ??= Timer(window, () {
+      _pending = null;
+      for (final listener in List.of(_listeners)) {
+        listener();
+      }
+    });
+  }
+
+  /// Für Tests und den Demo-Modus: einen offenen Sammler fallen lassen.
+  void dispose() {
+    _pending?.cancel();
+    _pending = null;
+  }
+}
+
+/// Gemeinsamer Ablauf: beim ersten Mal der Speicher, sonst erst das Netz.
 class _CacheLayer {
-  _CacheLayer(this.cache, this.status, this.groupId);
+  _CacheLayer(this.cache, this.status, this.signal, this.groupId);
 
   final OfflineCache cache;
   final OfflineStatus status;
+  final RefreshSignal signal;
 
   /// Die angemeldete Gruppe. `null` heißt: kein Zwischenspeicher — ohne
   /// Gruppenkennung wüsste niemand, wessen Zeilen dort liegen.
@@ -85,6 +153,35 @@ class _CacheLayer {
   /// Person sich anmeldet. Am Lesezugriff hängt es zwangsläufig.
   static String? _lastGroupId;
 
+  /// Schlüssel, die in diesem Lauf schon einmal gelesen wurden. Nur der
+  /// **erste** Zugriff darf aus dem Speicher heraus antworten (siehe Kopf).
+  final _seen = <String>{};
+
+  /// Schlüssel, deren Auffrischung gerade läuft — sonst startete jede
+  /// Invalidierung eine zweite Anfrage auf dieselbe Zeile.
+  final _running = <String>{};
+
+  /// Schlüssel, deren frisch geholter Stand im Speicher liegt und noch von
+  /// niemandem abgeholt wurde. Genau ein Lesezugriff darf ihn nehmen —
+  /// das ist der, den [RefreshSignal] gerade ausgelöst hat. Ohne diese
+  /// Abholung fragte er ein zweites Mal dieselbe Zeile beim Server ab.
+  final _fresh = <String>{};
+
+  /// Erfolgreiche Schreibzugriffe dieses Laufs. Ab dem ersten ist der
+  /// abgelegte Stand möglicherweise überholt — ab da wird nur noch gezeigt,
+  /// was wirklich vom Server kommt.
+  int _writes = 0;
+
+  /// Reicht einen Schreibzugriff durch und zählt ihn, wenn er geklappt hat.
+  ///
+  /// Ohne Netz scheitert er, und dann hat sich nichts geändert: Der
+  /// gespeicherte Stand bleibt der beste, den es gibt.
+  Future<T> wrote<T>(Future<T> pending) async {
+    final value = await pending;
+    _writes++;
+    return value;
+  }
+
   Future<T> read<T>(
     String key,
     Future<T> Function() fromNetwork,
@@ -94,8 +191,45 @@ class _CacheLayer {
     final id = groupId();
     if (id != null && id != _lastGroupId) {
       _lastGroupId = id;
+      _seen.clear();
+      _fresh.clear();
       await cache.keepOnly(id);
     }
+
+    if (id != null) {
+      final pickup = _fresh.remove(key);
+      final first = _seen.add(key);
+      // Läuft die Auffrischung dieses Schlüssels noch, wird weiter der
+      // Speicher gezeigt — auch wenn das hier nicht der erste Zugriff ist.
+      // Ohne diese Zeile riss die Meldung eines **anderen** Schlüssels
+      // (`RefreshSignal` invalidiert alle) jeden noch wartenden Schirm in
+      // den Ladekreis zurück: erst Inhalt, dann Spinner, dann wieder Inhalt.
+      final waiting = _running.contains(key);
+      if (pickup || ((first || waiting) && _writes == 0)) {
+        final stored = await cache.read(id, key);
+        if (stored != null) {
+          try {
+            final value = decode(stored.value);
+            if (pickup) {
+              // Das ist die Antwort, die eben im Hintergrund eingetroffen
+              // ist — sie kommt vom Server, nur eben schon vorhin.
+              status.markFresh();
+            } else {
+              _refreshLater(id, key, fromNetwork, encode);
+              status.markCached(stored.storedAt);
+            }
+            return value;
+          } catch (error) {
+            // Ein Eintrag, den diese Fassung nicht mehr lesen kann, ist wie
+            // keiner. Ohne Fehlertext ins Log: Der Inhalt sind Fahrten und
+            // Namen. Weiter geht es über das Netz — nicht mit einem Fehler,
+            // den es ohne Zwischenspeicher gar nicht gäbe.
+            log.w('cache decode failed: $key');
+          }
+        }
+      }
+    }
+
     try {
       final value = await fromNetwork();
       status.markFresh();
@@ -113,15 +247,48 @@ class _CacheLayer {
       return decode(stored.value);
     }
   }
+
+  /// Holt im Hintergrund nach, was gerade aus dem Speicher gezeigt wurde.
+  void _refreshLater<T>(
+    String id,
+    String key,
+    Future<T> Function() fromNetwork,
+    Object? Function(T value) encode,
+  ) {
+    if (!_running.add(key)) return;
+    final writesAtStart = _writes;
+    unawaited(() async {
+      try {
+        final value = await fromNetwork();
+        // Ein Schreibzugriff hat den geholten Stand überholt: Ab hier ist er
+        // die ältere Wahrheit und darf weder den Speicher überschreiben noch
+        // eine Anzeige auslösen.
+        if (writesAtStart != _writes) return;
+        await cache.write(id, key, encode(value));
+        _fresh.add(key);
+        status.markFresh();
+        signal.ping();
+      } catch (error) {
+        // Kein Netz. Die Leiste steht bereits auf dem gespeicherten
+        // Zeitpunkt — mehr ist dazu nicht zu sagen.
+      } finally {
+        _running.remove(key);
+      }
+    }());
+  }
 }
 
 class CachingGroupRepository implements GroupRepository {
+  /// Ohne [refresh] meldet der Dekorierer an einen Signalgeber, den niemand
+  /// hört — für Tests und den Demo-Modus richtig, in der App wird der
+  /// gemeinsame gereicht (`refreshSignalProvider`).
   CachingGroupRepository(
     this._inner,
     OfflineCache cache,
     OfflineStatus status,
-    String? Function() groupId,
-  ) : _layer = _CacheLayer(cache, status, groupId);
+    String? Function() groupId, {
+    RefreshSignal? refresh,
+  }) : _layer = _CacheLayer(cache, status, refresh ?? RefreshSignal(), groupId);
 
   final GroupRepository _inner;
   final _CacheLayer _layer;
@@ -138,12 +305,14 @@ class CachingGroupRepository implements GroupRepository {
 }
 
 class CachingCarpoolRepository implements CarpoolRepository {
+  /// Zu [refresh] siehe [CachingGroupRepository].
   CachingCarpoolRepository(
     this._inner,
     OfflineCache cache,
     OfflineStatus status,
-    String? Function() groupId,
-  ) : _layer = _CacheLayer(cache, status, groupId);
+    String? Function() groupId, {
+    RefreshSignal? refresh,
+  }) : _layer = _CacheLayer(cache, status, refresh ?? RefreshSignal(), groupId);
 
   final CarpoolRepository _inner;
   final _CacheLayer _layer;
@@ -279,71 +448,82 @@ class CachingCarpoolRepository implements CarpoolRepository {
 
   // Ab hier: alles Schreibende geht unverändert durch. Ohne Netz scheitert
   // es, und die Oberfläche sagt das — siehe Kopf dieser Datei.
+  //
+  // Durch `wrote` läuft es trotzdem, und zwar ausnahmslos: Ab dem ersten
+  // erfolgreichen Schreibzugriff darf kein Schirm mehr aus dem Speicher
+  // heraus öffnen, sonst sieht die Nutzerin ihre eigene Eingabe
+  // zurückspringen. Wer hier eine Methode ohne `wrote` ergänzt, baut genau
+  // diesen Fall — und zwar nur für den Schirm, den man in dieser Sitzung
+  // noch nicht offen hatte.
 
   @override
   Future<void> saveSeatChoice(SeatChoice choice) =>
-      _inner.saveSeatChoice(choice);
+      _layer.wrote(_inner.saveSeatChoice(choice));
 
   @override
   Future<void> deleteSeatChoice(
     DateTime date,
     String personId,
     String driverId,
-  ) => _inner.deleteSeatChoice(date, personId, driverId);
+  ) => _layer.wrote(_inner.deleteSeatChoice(date, personId, driverId));
 
   @override
   Future<void> savePlanDefaults(DateTime date, GroupDefaults defaults) =>
-      _inner.savePlanDefaults(date, defaults);
+      _layer.wrote(_inner.savePlanDefaults(date, defaults));
 
   @override
   Future<void> saveCarDefaults(
     DateTime date,
     String driverId,
     GroupDefaults defaults,
-  ) => _inner.saveCarDefaults(date, driverId, defaults);
+  ) => _layer.wrote(_inner.saveCarDefaults(date, driverId, defaults));
 
   @override
-  Future<Person> createPerson(Person person) => _inner.createPerson(person);
+  Future<Person> createPerson(Person person) =>
+      _layer.wrote(_inner.createPerson(person));
 
   @override
-  Future<void> updatePerson(Person person) => _inner.updatePerson(person);
+  Future<void> updatePerson(Person person) =>
+      _layer.wrote(_inner.updatePerson(person));
 
   @override
   Future<Trip> createTrip(
     DateTime date,
     Map<String, ParticipationStatus> participations, {
     String? note,
-  }) => _inner.createTrip(date, participations, note: note);
+  }) => _layer.wrote(_inner.createTrip(date, participations, note: note));
 
   @override
-  Future<void> updateTrip(Trip trip) => _inner.updateTrip(trip);
+  Future<void> updateTrip(Trip trip) => _layer.wrote(_inner.updateTrip(trip));
 
   @override
-  Future<void> deleteTrip(String tripId) => _inner.deleteTrip(tripId);
+  Future<void> deleteTrip(String tripId) =>
+      _layer.wrote(_inner.deleteTrip(tripId));
 
   @override
   Future<void> saveSettings(AppSettings settings) =>
-      _inner.saveSettings(settings);
+      _layer.wrote(_inner.saveSettings(settings));
 
   @override
   Future<void> saveGroupDefaults(GroupDefaults defaults) =>
-      _inner.saveGroupDefaults(defaults);
+      _layer.wrote(_inner.saveGroupDefaults(defaults));
 
   @override
   Future<void> setAvailability(
     DateTime date,
     String personId,
     PlanRide? ride,
-  ) => _inner.setAvailability(date, personId, ride);
+  ) => _layer.wrote(_inner.setAvailability(date, personId, ride));
 
   @override
   Future<void> setPlanDrivers(DateTime date, Set<String> driverIds) =>
-      _inner.setPlanDrivers(date, driverIds);
+      _layer.wrote(_inner.setPlanDrivers(date, driverIds));
 
   @override
   Future<void> addNote(DateTime date, String personId, String body) =>
-      _inner.addNote(date, personId, body);
+      _layer.wrote(_inner.addNote(date, personId, body));
 
   @override
-  Future<void> deleteNote(String noteId) => _inner.deleteNote(noteId);
+  Future<void> deleteNote(String noteId) =>
+      _layer.wrote(_inner.deleteNote(noteId));
 }

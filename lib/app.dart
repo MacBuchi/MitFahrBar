@@ -105,6 +105,11 @@ class _FahrgemeinschaftAppState extends ConsumerState<FahrgemeinschaftApp> {
     // Planer und beim Import — der Zuhörer gehört an die Wurzel, nicht an
     // einen Screen, den man verlässt (#163).
     ref.watch(tripPushSyncProvider);
+    // Und derselbe Grund ein drittes Mal: Die App öffnet seit v0.79.0 aus dem
+    // Zwischenspeicher heraus (#232). Was gleich darauf vom Server eintrifft,
+    // muss die Schirme erreichen — hinge der Zuhörer an einem einzelnen,
+    // bliebe der Stand auf jedem anderen stehen.
+    ref.watch(cacheRefreshSyncProvider);
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'MitFahrBar',
