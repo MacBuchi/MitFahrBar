@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.76.0+104
+version: 0.76.1+105
 
 environment:
   sdk: ^3.11.0
@@ -40,8 +40,8 @@ dependencies:
   # Projektgroesse ohne Codegen. 3.x pausiert/resumed Subscriptions beim
   # Seitenwechsel und loest dabei "setState during build" aus.
   flutter_riverpod: ^2.6.1
-  go_router: ^17.3.0
-  supabase_flutter: ^2.16.0
+  go_router: ^17.4.0
+  supabase_flutter: ^2.17.1
   # Version diktiert flutter_localizations (SDK-Pin).
   intl: any
   logger: ^2.7.0
@@ -58,8 +58,8 @@ dependencies:
   # und die Standby-Buckets lassen nichts anderes durch, und Web-Push liefe
   # auf Chrome/Android ebenfalls über Googles Dienst. Deckt Android und Web
   # mit einem Paket ab.
-  firebase_core: ^4.12.1
-  firebase_messaging: ^16.4.3
+  firebase_core: ^4.13.0
+  firebase_messaging: ^16.5.0
   # Wer sitzt an diesem Gerät (#121). Kam bisher nur transitiv über
   # supabase_flutter herein — seit `lib/` selbst dort ablegt, gehört sie
   # deklariert. Achtung: Die Android-Backup-Regeln schließen
