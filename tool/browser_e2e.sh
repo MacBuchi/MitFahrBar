@@ -40,8 +40,28 @@ export E2E_SUPABASE_SERVICE_KEY="$SERVICE_ROLE_KEY"
 # Ältere CLI-Versionen nennen die Mailpit-URL noch INBUCKET_URL.
 export E2E_MAILPIT_URL="${MAILPIT_URL:-${INBUCKET_URL:?Mailpit-URL fehlt}}"
 
+# Messung, kein Dauerzustand (10.08.2026): Ohne Firebase-Projekt fällt der
+# ganze Push-Zweig weg (`PushConfig.isConfigured` ist `const`), das FCM-SDK
+# registriert also keinen Service Worker. Damit beantwortet der Offline-Flow
+# die Frage, die vor jeder Entscheidung steht: Übernimmt dann WIRKLICH
+# Flutters App-Worker den Geltungsbereich und hält die Shell vor — oder
+# bleibt der Cache auch ohne Firebase leer, weil sein Bootstrap-Ladeweg in
+# 3.44 ohnehin nicht mehr installiert? Ohne diese Antwort hieße „Web-Push
+# aufgeben" womöglich: Push weg, offline trotzdem tot.
+#
+# Und der Renderer: `flutter build web` holt CanvasKit per Vorgabe vom CDN,
+# also von einer fremden Adresse, die kein Service Worker vorhält. Selbst
+# eine ausgelieferte Seite bliebe ohne Netz weiß. Deshalb liegt er im
+# Offline-Flow neben der App.
+EXTRA_DEFINES=()
+if [ "$FLOW" = offline ]; then
+  EXTRA_DEFINES+=(--dart-define=FIREBASE_PROJECT_ID=REPLACE-ME
+                  --no-web-resources-cdn)
+fi
+
 echo "== Web-App gegen den Stack bauen =="
 flutter build web \
+  "${EXTRA_DEFINES[@]}" \
   --dart-define=SUPABASE_URL="$API_URL" \
   --dart-define=SUPABASE_KEY="$ANON_KEY"
 
