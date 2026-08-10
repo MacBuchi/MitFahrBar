@@ -70,6 +70,29 @@ class _AboutDialog extends ConsumerWidget {
                 label: Text('Version ${update.latestVersion} ist verfügbar'),
               ),
             ],
+            // Nur auf Android: Im Browser wird die App erst mit der
+            // Beförderung ausgeliefert, ein Vorab-Kanal zeigte dort auf
+            // nichts. Der Provider hält denselben Riegel — hier steht er
+            // gegen einen Schalter, den man sonst umlegen könnte, ohne dass
+            // je etwas passiert.
+            if (updateIsDownload) ...[
+              const SizedBox(height: AppSpacing.m),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: ref.watch(prereleaseChannelProvider).value ?? false,
+                onChanged: (on) => unawaited(
+                  ref.read(prereleaseChannelProvider.notifier).set(on),
+                ),
+                title: const Text('Vorabversionen erhalten'),
+                subtitle: Text(
+                  'Zeigt auch Versionen, die für die Gruppe noch nicht '
+                  'freigegeben sind. Gilt nur für dieses Gerät.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
             if (notes.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.m),
               Text(

@@ -6,6 +6,7 @@
 /// nüchtern (nur Version), mit Notes, mit verfügbarem Update.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mitfahrbar/core/update_check.dart';
@@ -126,5 +127,58 @@ void main() {
     expect(find.textContaining('CC BY-NC-SA 4.0'), findsOneWidget);
     expect(find.textContaining('OpenStreetMap'), findsOneWidget);
     expect(find.textContaining('ODbL'), findsOneWidget);
+  });
+
+  // Der Vorab-Kanal (#225). Geprüft wird am **Schalter**, nicht am
+  // Provider: Ein Test, der nur den Zustand setzt, wäre auch dann grün,
+  // wenn der Schalter gar nichts auslöst — dieselbe Klasse wie der tote
+  // Update-Knopf in 0.37.0.
+  testWidgets('der Vorab-Schalter schreibt in die Geräte-Ablage', (
+    tester,
+  ) async {
+    // Zurückgesetzt wird am Ende des Testrumpfs, NICHT per addTearDown:
+    // Flutter prüft die Debug-Variablen schon vor den Aufräumern und wirft
+    // sonst „The value of a foundation debug variable was changed".
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+
+    final store = InMemoryUpdateChannelStore();
+    await pumpApp(
+      tester,
+      _backend(),
+      overrides: [updateChannelStoreProvider.overrideWithValue(store)],
+    );
+    await _login(tester);
+    await _openAbout(tester);
+
+    final switchTile = find.widgetWithText(
+      SwitchListTile,
+      'Vorabversionen erhalten',
+    );
+    expect(switchTile, findsOneWidget);
+    expect(tester.widget<SwitchListTile>(switchTile).value, isFalse);
+
+    await tester.ensureVisible(switchTile);
+    await tester.tap(switchTile);
+    await tester.pumpAndSettle();
+
+    // Der Tipp muss durchschlagen — sonst stünde er nach dem nächsten
+    // Start wieder aus, und der Tester bekäme weiter keine Vorabversion.
+    expect(await store.load(), isTrue);
+    expect(tester.widget<SwitchListTile>(switchTile).value, isTrue);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('im Browser gibt es den Schalter nicht', (tester) async {
+    // Pages wird nur bei der Beförderung deployt: Ein eingeschalteter Kanal
+    // meldete dort eine Version, die im Browser niemand bekommen kann.
+    // Ohne diese Gegenprobe wäre die Android-Beschränkung eine Behauptung.
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+
+    await pumpApp(tester, _backend());
+    await _login(tester);
+    await _openAbout(tester);
+
+    expect(find.text('Vorabversionen erhalten'), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
   });
 }
