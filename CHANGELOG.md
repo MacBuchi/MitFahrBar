@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.80.0] – 2026-08-10
+
+### Behoben
+
+- **Die Web-App startet jetzt auch ohne Empfang.** Der Zwischenspeicher aus
+  v0.79.0 half im Browser bisher gar nicht: Ohne Netz lieferte er nicht
+  einmal die Seite aus — man sah die Fehlerseite des Browsers, nicht
+  MitFahrBar. Auf dem Handy (Android-App) war davon nichts betroffen.
+
+  Der Grund lag eine Ebene tiefer, als es aussah, und wir haben ihn erst
+  gemessen, statt zu raten: Der Teil des Browsers, der eine App zum
+  Offline-Start vorhält, wurde von MitFahrBar nie eingerichtet — Flutter
+  hat diesen Weg inzwischen aufgegeben, ohne dass es auffiel. Jetzt richten
+  wir ihn selbst ein und legen zusätzlich die Grafik-Bausteine mit auf den
+  Server, die die App bisher von einer fremden Adresse geholt hat. Sonst
+  käme die Seite ohne Netz zwar an, bliebe aber weiß.
+
+  Was ohne Empfang zu sehen ist, ändert sich dadurch nicht: der letzte
+  geladene Stand mit der Leiste **„Offline · Stand heute 07:12"**. Neu ist,
+  dass man ihn im Browser überhaupt zu Gesicht bekommt.
+
 ## [0.79.0] – 2026-08-10
 
 ### Behoben

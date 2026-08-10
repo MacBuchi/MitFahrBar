@@ -40,16 +40,21 @@ export E2E_SUPABASE_SERVICE_KEY="$SERVICE_ROLE_KEY"
 # Ältere CLI-Versionen nennen die Mailpit-URL noch INBUCKET_URL.
 export E2E_MAILPIT_URL="${MAILPIT_URL:-${INBUCKET_URL:?Mailpit-URL fehlt}}"
 
-# **Gebaut wird, was auch ausgeliefert wird** — inklusive Firebase und
-# inklusive CanvasKit vom CDN. Am 10.08.2026 lief hier zeitweise eine
-# Gegenprobe ohne beides, um zu klären, ob Flutters App-Worker den
-# Geltungsbereich übernimmt, sobald das FCM-SDK keinen registriert. Die
-# Antwort war nein: **ohne Firebase steht dort gar kein Worker**, die
-# Cache-Ablage bleibt leer. Damit ist die Frage beantwortet und der
-# Sonderbau überflüssig; ein Testbau, der sich vom Release unterscheidet,
-# misst ab hier nur noch sich selbst.
+# **Gebaut wird, was auch ausgeliefert wird** — inklusive Firebase und mit
+# `--no-web-resources-cdn`, genau wie der Pages-Build (promote.yml). Der
+# Schalter gehört zur Registrierung des App-Workers in web/index.html
+# (#232): Von gstatic geholtes CanvasKit hält kein Service Worker vor, die
+# Seite käme ohne Netz an und bliebe weiß.
+#
+# Am 10.08.2026 lief hier zeitweise eine Gegenprobe ganz ohne Firebase, um
+# zu klären, ob Flutters App-Worker den Geltungsbereich übernimmt, sobald
+# das FCM-SDK keinen registriert. Die Antwort war nein: **ohne Firebase
+# stand dort gar kein Worker**. Genau daraus wurde die eigene Registrierung
+# — und der Sonderbau ist seither überflüssig; ein Testbau, der sich vom
+# Release unterscheidet, misst nur noch sich selbst.
 echo "== Web-App gegen den Stack bauen =="
 flutter build web \
+  --no-web-resources-cdn \
   --dart-define=SUPABASE_URL="$API_URL" \
   --dart-define=SUPABASE_KEY="$ANON_KEY"
 

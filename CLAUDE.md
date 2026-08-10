@@ -1890,14 +1890,23 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     weil er falsch wäre, sondern weil die Tür davor verschlossen ist. Auf
     Android ist nichts davon betroffen (nativer Firebase-Client, kein
     Service Worker).
-  - Wer das angeht, braucht einen Worker, der die App-Shell wirklich
-    vorhält (selbst registrieren statt über den Bootstrap-Weg), und prüft
-    im selben Zug, dass der Pages-Build CanvasKit nicht vom CDN holt
-    (`flutter build web` tut das per Vorgabe; `--no-web-resources-cdn` legt
-    es neben die App) — sonst bleibt die Seite ohne Netz weiß, obwohl sie
-    ausgeliefert wird.
-  - Der Job bleibt so lange rot. Das ist die richtige Farbe: Er beschreibt
-    einen echten Zustand, und er ist kein Required Check.
+  - **Behoben seit v0.80.0, und zwar mit zwei Zeilen, die zusammengehören**
+    (`test/web_offline_test.dart` hält beide fest): `web/index.html`
+    registriert den App-Worker **selbst**, und jeder ausgelieferte Bau legt
+    CanvasKit mit `--no-web-resources-cdn` neben die App. Ein Worker ohne
+    lokalen Renderer liefert eine Seite aus, die weiß bleibt — gstatic hält
+    kein Service Worker vor. Wer eine der beiden „aufräumt", bekommt keinen
+    Fehler, sondern eine App, die ohne Empfang nicht mehr hochkommt.
+    - Der Pfad in der Registrierung ist **relativ** und löst gegen das
+      `<base href>` auf (auf Pages `/MitFahrBar/`) — dieselbe Begründung wie
+      bei `webServiceWorkerPath`: Ein absoluter Pfad wäre eine zweite
+      Stelle, die mit `release.yml` synchron bleiben müsste.
+    - **Offene Flanke, die der Job messen wird:** Es gibt je
+      Geltungsbereich nur EINEN Worker, und das FCM-SDK registriert seinen
+      beim Token-Holen. Verdrängt er den App-Worker, steht es im Log des
+      Offline-Jobs (er nennt Skript-Adresse und Cache-Größen); die Antwort
+      wäre dann ein eigener Geltungsbereich für den Push-Worker, kein
+      Verzicht auf einen von beiden.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.
