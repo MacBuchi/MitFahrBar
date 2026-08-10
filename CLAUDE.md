@@ -921,6 +921,48 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   - **Geschrieben wird nur nach einem erfolgreichen Netz-Lesezugriff.** Ein
     Treffer aus dem Speicher darf seinen eigenen Zeitstempel nicht auffrischen
     — sonst stünde in der Leiste ewig „heute 07:12", auch drei Tage später.
+  - **Seit v0.79.0 zuerst der Speicher, dann das Netz** (#232, „Offline Start
+    dauert super lang. Dabei muss ja nichts geladen werden"). Bis dahin war
+    der Speicher der `catch`-Zweig, die Anzeige also per Konstruktion so
+    langsam wie das **Aufgeben** der Anfrage. Der Unterschied, an dem die
+    Meldung hängt: Flugmodus scheitert sofort, ein Funkloch (Balken da, kein
+    Durchsatz) läuft in den Plattform-Timeout. Drei Riegel gehören dazu:
+    - **Nur der ERSTE Lesezugriff je Schlüssel und Lauf** — plus die
+      Schlüssel, deren Auffrischung noch läuft. Ohne den Zusatz riss das
+      Signal eines *anderen* Schlüssels jeden noch wartenden Schirm zurück
+      in den Ladekreis: erst Inhalt, dann Spinner, dann wieder Inhalt. Jeder
+      spätere Lesezugriff fragt weiter das Netz zuerst, sonst lieferten
+      `refreshPlanning` (#200) und „Erneut versuchen" genau den Stand zurück,
+      den zu ersetzen ihr Zweck ist.
+    - **Nach dem ersten erfolgreichen Schreibzugriff gar nicht mehr**
+      (`wrote`, zählt nur, was wirklich durchging). Sonst zeigte der nächste
+      erstmals geöffnete Schirm einen Stand ohne die eben gespeicherte Fahrt
+      — die Nutzerin sähe ihre eigene Eingabe zurückspringen. Wer eine
+      Schreibmethode am Dekorierer ohne `wrote` ergänzt, baut genau das.
+    - **Was nachkommt, meldet sich** (`RefreshSignal` →
+      `cacheRefreshSyncProvider`), sonst bliebe der zuerst gezeigte Stand die
+      ganze Sitzung stehen. Der davon ausgelöste Lesezugriff **holt ab**,
+      statt neu zu fragen — genau eine Abholung je Schlüssel, sonst wäre
+      jede Auffrischung zwei Anfragen. `myGroupProvider` steht bewusst nicht
+      in der Liste: Das Gate im `AppShell` prüft auf `AsyncData`, eine
+      Invalidierung schickte es durch den Ladeschirm.
+    - **Die Leiste erscheint mit zwei Sekunden Verzug** (`graceWindow`).
+      Seither beginnt **jeder** Start im Zustand „aus dem Speicher", auch der
+      mit bestem Empfang — ohne den Verzug zuckte sie bei jedem Öffnen auf.
+      Gewartet wird bewusst **nicht** auf das Scheitern der Anfrage: Das
+      dauert im Funkloch zehn bis sechzig Sekunden, und so lange darf
+      niemand einen alten Plan für den aktuellen halten.
+    - **Nicht die Ursache, obwohl es so aussieht:** `Supabase.initialize`
+      hängt den Start *nicht* an einer Token-Erneuerung — 2.17.1 wickelt
+      `recoverSession()` in eine `CancelableOperation` und wartet nicht
+      darauf. Wer den Start weiter beschleunigen will, misst, statt dort zu
+      suchen.
+  - **Was das Preisarchiv kostet, steht auf der Übersicht** (seit v0.79.0):
+    Die Kachel „Kraftstoff gespart" **fehlt**, wenn keine Wochenpreise da
+    sind, statt `?? 0` zu rechnen. Ohne Empfang war das eine erfundene Zahl
+    neben zwei echten, unter einer Leiste, die einen Stand behauptet; und
+    online stand sie bis zur Antwort kurz auf null und sprang dann. Alle
+    anderen Ersparnis-Karten blenden sich in dem Fall längst aus.
   - **Je Gruppe getrennt, und Fremdes wird beim ersten Lesezugriff gelöscht**
     (`keepOnly`) — die Mandantentrennung der RLS, auf dem Gerät nachgezogen.
     Bewusst am Lesezugriff und nicht an einem Abmelde-Haken: Der liefe nicht,

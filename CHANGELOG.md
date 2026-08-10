@@ -4,6 +4,35 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.79.0] – 2026-08-10
+
+### Behoben
+
+- **Der Start ohne Empfang geht jetzt sofort.** Bisher fragte MitFahrBar beim
+  Öffnen zuerst den Server und holte den gespeicherten Stand erst hervor,
+  wenn diese Anfrage aufgegeben hatte. Im Flugmodus fällt das kaum auf, im
+  Funkloch dagegen sehr: Dort ist „kein Netz" nicht sofort klar, die Anfrage
+  läuft in ihre Zeitgrenze, und so lange stand ihr vor einem Ladekreis — für
+  Daten, die längst auf dem Handy lagen.
+
+  Jetzt ist es umgekehrt: Zuerst steht der letzte Stand da, das Netz wird
+  daneben gefragt. Kommt eine Antwort, aktualisiert sich die Anzeige von
+  allein; kommt keine, erscheint nach zwei Sekunden wie gewohnt die Leiste
+  **„Offline · Stand heute 07:12"**.
+
+  Drei Dinge bleiben bewusst, wie sie waren: Ein zweiter Blick auf denselben
+  Schirm fragt wieder zuerst den Server (sonst hinge „Erneut versuchen" in
+  der Luft), nach dem Speichern einer Fahrt wird nie mehr aus dem Speicher
+  gezeigt (ihr sollt eure eigene Eingabe nicht zurückspringen sehen), und
+  eintragen, ändern und löschen braucht weiterhin Verbindung.
+
+- **Die Kachel „Kraftstoff gespart" behauptet keine Null mehr.** Die
+  Spritpreise sind — anders als Fahrten, Personen und Plan — nicht auf dem
+  Handy gespeichert. Ohne Empfang ließ sich die Ersparnis also nicht rechnen,
+  und die Kachel zeigte „0 €" neben zwei richtigen Zahlen. Jetzt fehlt sie in
+  diesem Fall ganz, wie es die Ersparnis-Diagramme längst tun: Eine Karte,
+  die nichts weiß, sagt besser nichts.
+
 ## [0.78.0] – 2026-08-10
 
 ### Behoben

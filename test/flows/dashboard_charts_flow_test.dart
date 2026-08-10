@@ -232,6 +232,45 @@ void main() {
       expect(find.textContaining('$expected seit'), findsOneWidget);
     });
 
+    testWidgets('ohne Preise fehlt die Kachel, statt 0 € zu behaupten', (
+      tester,
+    ) async {
+      _useTallSurface(tester);
+      final backend = FakeBackend();
+      await seedDrivers(backend);
+
+      await pumpApp(
+        tester,
+        backend,
+        overrides: [
+          priceRepositoryProvider.overrideWithValue(_NoPrices(backend)),
+        ],
+      );
+      await _login(tester);
+
+      // Der Fall aus dem Funkloch: Das Preisarchiv ist bewusst nicht im
+      // Zwischenspeicher, die Ersparnis lässt sich also nicht rechnen. Bis
+      // v0.79.0 stand die Kachel dann auf „0 €" — eine erfundene Zahl neben
+      // zwei echten, unter einer Leiste, die „Stand heute 07:12" sagt.
+      expect(
+        find.text('Gemeinsam erreicht'),
+        findsOneWidget,
+        reason: 'Personen-km und Fahrten stimmen auch ohne Preise',
+      );
+      expect(find.text('Personen-km'), findsOneWidget);
+      expect(find.text('Kraftstoff gespart'), findsNothing);
+      expect(
+        find.text(
+          NumberFormat.currency(
+            locale: 'de',
+            symbol: '€',
+            decimalDigits: 0,
+          ).format(0),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('ohne gemessenen Preis ist die Kurve als geschätzt markiert', (
       tester,
     ) async {
@@ -248,4 +287,17 @@ void main() {
       expect(find.text('Preis geschätzt'), findsOneWidget);
     });
   });
+}
+
+/// Ein Preisarchiv, das nicht antwortet — der Zustand ohne Empfang.
+///
+/// Es ist bewusst nicht im Zwischenspeicher (die mit Abstand meisten Zeilen,
+/// entschieden 05.08.2026); ohne Netz gibt es also keine Wochenpreise, und
+/// die Ersparnis ist schlicht unbekannt.
+class _NoPrices extends FakePriceRepository {
+  _NoPrices(super.backend);
+
+  @override
+  Future<List<PricePoint>> loadWeeks() async =>
+      throw Exception('ClientException: kein Netz');
 }

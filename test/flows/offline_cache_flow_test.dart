@@ -6,6 +6,9 @@
 /// aufgebaut wie nach einem Neustart auf dem Gerät.
 library;
 
+import 'dart:async';
+
+import 'package:mitfahrbar/core/widgets/offline_bar.dart';
 import 'package:mitfahrbar/data/caching_repository.dart';
 import 'package:mitfahrbar/data/carpool_repository.dart';
 import 'package:mitfahrbar/data/group_repository.dart';
@@ -230,7 +233,127 @@ void main() {
     expect(find.text('Anna'), findsWidgets);
     expect(find.text('Keine Verbindung'), findsNothing);
 
-    // Und der Stand wird benannt, nicht als aktuell ausgegeben.
+    // Der Stand steht da, **bevor** das Netz aufgegeben hat (#232): Der Wire
+    // hängt hier nicht, aber der Weg ist derselbe — gezeigt wird aus dem
+    // Speicher, das Netz läuft daneben.
+    expect(
+      find.textContaining('Offline · Stand'),
+      findsNothing,
+      reason:
+          'die Leiste wartet ihre Frist ab, statt bei jedem Start zu zucken',
+    );
+
+    // Und dann wird der Stand benannt, nicht als aktuell ausgegeben.
+    await tester.pump(graceWindow);
     expect(find.textContaining('Offline · Stand heute 07:12'), findsOneWidget);
   });
+
+  testWidgets('mit Netz zeigt die App zuerst den Speicher und zieht nach', (
+    tester,
+  ) async {
+    final backend = FakeBackend();
+    final groupId = backend.addGroup(
+      handle: 'daciaracing',
+      password: 'geheim123',
+      name: 'Dacia Racing',
+    );
+    final data = backend.dataFor(groupId);
+    await data.createPerson(const Person(id: '', name: 'Anna', active: true));
+
+    final gate = _Gate();
+    final cache = InMemoryOfflineCache(
+      clock: () => DateTime(2026, 7, 22, 7, 12),
+    );
+    final status = OfflineStatus();
+    final signal = RefreshSignal();
+    addTearDown(signal.dispose);
+
+    List<Override> wiring() => [
+      groupRepositoryProvider.overrideWithValue(
+        CachingGroupRepository(
+          FakeGroupRepository(backend),
+          cache,
+          status,
+          () => groupId,
+          refresh: signal,
+        ),
+      ),
+      carpoolRepositoryProvider.overrideWithValue(
+        CachingCarpoolRepository(
+          _Gated(FakeRoutingCarpoolRepository(backend), gate),
+          cache,
+          status,
+          () => groupId,
+          refresh: signal,
+        ),
+      ),
+      offlineStatusProvider.overrideWithValue(status),
+      offlineCacheProvider.overrideWithValue(cache),
+      refreshSignalProvider.overrideWithValue(signal),
+    ];
+
+    // Erster Lauf: füllt den Speicher.
+    await pumpApp(tester, backend, overrides: wiring());
+    await tester.enterText(find.byType(TextField).first, 'daciaracing');
+    await tester.enterText(find.byType(TextField).last, 'geheim123');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anmelden'));
+    await tester.pumpAndSettle();
+    expect(find.text('Anna'), findsWidgets);
+
+    // Zwischen den Läufen ändert jemand anders etwas — und das Netz ist
+    // langsam. Genau der Fall aus #232: Bis v0.79.0 sah man bis zur Antwort
+    // gar nichts.
+    await data.createPerson(const Person(id: '', name: 'Bert', active: true));
+    gate.hold = true;
+
+    await pumpApp(tester, backend, overrides: wiring());
+    await tester.pumpAndSettle();
+
+    // Der letzte Stand steht sofort da, obwohl keine einzige Antwort da ist.
+    expect(find.text('Anna'), findsWidgets);
+    expect(find.text('Bert'), findsNothing);
+
+    // Und sobald das Netz antwortet, zieht die Anzeige nach — ohne dass
+    // jemand etwas tippt und ohne dass die Leiste je erschienen wäre.
+    gate.release();
+    await tester.pumpAndSettle();
+    await tester.pump(signal.window);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bert'), findsWidgets);
+    expect(find.textContaining('Offline · Stand'), findsNothing);
+  });
+}
+
+/// Hält Lesezugriffe an, bis jemand sie freigibt — „das Netz ist langsam".
+class _Gate {
+  bool hold = false;
+  final _waiting = <Completer<void>>[];
+
+  Future<void> pass() {
+    if (!hold) return Future.value();
+    final completer = Completer<void>();
+    _waiting.add(completer);
+    return completer.future;
+  }
+
+  void release() {
+    hold = false;
+    for (final completer in _waiting) {
+      completer.complete();
+    }
+    _waiting.clear();
+  }
+}
+
+class _Gated extends _WiredCarpool {
+  _Gated(CarpoolRepository inner, this.gate) : super(inner, _Wire());
+
+  final _Gate gate;
+
+  @override
+  Future<T> _read<T>(Future<T> Function() read) async {
+    await gate.pass();
+    return read();
+  }
 }

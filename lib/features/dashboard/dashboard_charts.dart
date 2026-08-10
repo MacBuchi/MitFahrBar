@@ -43,7 +43,16 @@ class GroupAchievementsCard extends ConsumerWidget {
     // (`weeklySavings`), nicht aus `savedCosts` über die Gesamtzahlen. Sonst
     // stünde hier eine Summe und im Diagramm eine andere — zwei Wahrheiten
     // über dieselbe Zahl, sichtbar nebeneinander auf einer Seite.
-    final totalSaved = ref.watch(savingsChartProvider)?.total ?? 0;
+    //
+    // **Ohne Preise fehlt die Kachel, sie steht nicht auf 0 €.** Bis v0.79.0
+    // fing sie den Fall mit `?? 0` ab, und ohne Empfang war das eine
+    // erfundene Zahl neben zwei echten — das Preisarchiv ist bewusst nicht
+    // im Zwischenspeicher, die Kachel stand also beim Kaltstart im Funkloch
+    // dauerhaft auf null, unter einer Leiste, die „Stand heute 07:12" sagt.
+    // Auch online war sie für den Moment bis zur Antwort falsch. Alle
+    // anderen Ersparnis-Karten machen es längst so: eine Karte, die nichts
+    // weiß, sagt besser nichts.
+    final chart = ref.watch(savingsChartProvider);
     var totalKm = 0.0;
     for (final s in stats.values) {
       totalKm += s.kilometers(settings);
@@ -78,11 +87,12 @@ class GroupAchievementsCard extends ConsumerWidget {
                 value: number.format(totalKm),
                 icon: Icons.route_outlined,
               ),
-              _StatTile(
-                label: 'Kraftstoff gespart',
-                value: euro.format(totalSaved),
-                icon: Icons.savings_outlined,
-              ),
+              if (chart != null)
+                _StatTile(
+                  label: 'Kraftstoff gespart',
+                  value: euro.format(chart.total),
+                  icon: Icons.savings_outlined,
+                ),
               _StatTile(
                 label: 'Fahrten',
                 value: number.format(trips.length),
