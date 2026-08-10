@@ -1874,39 +1874,41 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Die PWA startet ohne Empfang gar nicht** (gemessen am 10.08.2026 im
   neuen Job gegen einen echten Stack). Die Cache-Ablage ist **leer**, und
   ein Neuladen ohne Netz endet in `ERR_INTERNET_DISCONNECTED`.
-  - **Der App-Worker von Flutter registriert sich in 3.44 gar nicht.** Das
-    ist der Kern, und er wurde erst durch die Gegenprobe sichtbar: Im
-    Normalbau steht im Geltungsbereich `/` genau ein Worker, nämlich
-    `firebase-messaging-sw.js` — was wie eine Verdrängung aussieht (es gibt
-    je Geltungsbereich nur einen). **Ohne Firebase im Bau steht dort aber
-    gar keiner**, und die Ablage bleibt trotzdem leer. Der FCM-Worker ist
-    also nicht der Usurpator, sondern schlicht der einzige, der überhaupt
-    kommt. `flutter_bootstrap.js` führt seinen Registrierungsweg selbst als
-    deprecated.
-  - **Damit ist „Web-Push aufgeben" keine Lösung**, und die Messung hat
-    genau das verhindert: Sie hätte Push gekostet und den Offline-Start
-    nicht gebracht.
+  - **`flutter_service_worker.js` ist in 3.44 ein Selbstzerstörer, kein
+    Zwischenspeicher.** Das ist die Wurzel, und sie steht in der Datei
+    selbst — 784 Bytes, kein Ressourcen-Manifest, und im `activate`:
+    `self.registration.unregister()`, gefolgt von einem Neuladen aller
+    Clients. Es gibt in Flutter Web keinen App-Shell-Cache mehr; die Datei
+    existiert nur noch, um früher installierte Worker **abzuräumen**.
+    Deshalb führt `flutter_bootstrap.js` seinen Ladeweg als deprecated.
+  - **Der Weg dorthin ist die eigentliche Lehre, drei Messungen lang:**
+    Im Normalbau steht im Geltungsbereich `/` genau ein Worker, nämlich
+    `firebase-messaging-sw.js` — das sieht nach Verdrängung aus (es gibt je
+    Geltungsbereich nur einen). Ohne Firebase im Bau steht dort **gar
+    keiner**; also keine Verdrängung. Und die eigene Registrierung in
+    `web/index.html` änderte ebenfalls nichts — erst die Sonde **vor** der
+    Anmeldung zeigte, dass auch danach keine Registrierung existiert,
+    obwohl das FCM-SDK zu dem Zeitpunkt noch gar nichts getan hat. Wer nur
+    den Endzustand misst, kommt hier dreimal zu einer plausiblen und
+    falschen Ursache.
+  - **Den Stummel registrieren macht es schlimmer, nicht besser** — er
+    meldet sich ab *und* lädt die Seite neu. `test/web_offline_test.dart`
+    hält deshalb fest, dass `web/index.html` ihn **nicht** registriert; das
+    war schon einmal eingebaut (v0.80.0-Versuch, zurückgenommen).
+  - **Damit sind zwei Wege ausgeschlossen, nicht bloß unversucht:**
+    „Web-Push aufgeben" hätte Push gekostet und offline nichts gebracht
+    (gemessen), und „Flutters App-Worker zurückholen" gibt es nicht mehr.
+    Übrig bleibt ein **eigener** Service Worker, der die App-Shell selbst
+    vorhält — und der braucht `--no-web-resources-cdn` dazu, sonst kommt
+    der Renderer von gstatic und die Seite bleibt ohne Netz weiß. Beides
+    zusammen ist ein eigenes Vorhaben; ohne das ist die PWA eine
+    Online-App.
   - **Der Zwischenspeicher aus v0.79.0 wirkt im Web also nicht** — nicht
     weil er falsch wäre, sondern weil die Tür davor verschlossen ist. Auf
     Android ist nichts davon betroffen (nativer Firebase-Client, kein
     Service Worker).
-  - **Behoben seit v0.80.0, und zwar mit zwei Zeilen, die zusammengehören**
-    (`test/web_offline_test.dart` hält beide fest): `web/index.html`
-    registriert den App-Worker **selbst**, und jeder ausgelieferte Bau legt
-    CanvasKit mit `--no-web-resources-cdn` neben die App. Ein Worker ohne
-    lokalen Renderer liefert eine Seite aus, die weiß bleibt — gstatic hält
-    kein Service Worker vor. Wer eine der beiden „aufräumt", bekommt keinen
-    Fehler, sondern eine App, die ohne Empfang nicht mehr hochkommt.
-    - Der Pfad in der Registrierung ist **relativ** und löst gegen das
-      `<base href>` auf (auf Pages `/MitFahrBar/`) — dieselbe Begründung wie
-      bei `webServiceWorkerPath`: Ein absoluter Pfad wäre eine zweite
-      Stelle, die mit `release.yml` synchron bleiben müsste.
-    - **Offene Flanke, die der Job messen wird:** Es gibt je
-      Geltungsbereich nur EINEN Worker, und das FCM-SDK registriert seinen
-      beim Token-Holen. Verdrängt er den App-Worker, steht es im Log des
-      Offline-Jobs (er nennt Skript-Adresse und Cache-Größen); die Antwort
-      wäre dann ein eigener Geltungsbereich für den Push-Worker, kein
-      Verzicht auf einen von beiden.
+  - Der Job bleibt so lange rot. Das ist die richtige Farbe: Er beschreibt
+    einen echten Zustand, und er ist kein Required Check.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.

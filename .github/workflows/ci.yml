@@ -59,13 +59,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      # `--no-web-resources-cdn` gehört zur Registrierung des
-      # App-Workers in web/index.html (#232): Von gstatic geholtes
-      # CanvasKit hält kein Service Worker vor, die Seite käme ohne
-      # Netz an und bliebe weiß.
-      - run: >
-          flutter build web --release --base-href /MitFahrBar/
-          --no-web-resources-cdn
+      - run: flutter build web --release --base-href /MitFahrBar/
       - uses: actions/upload-artifact@v7
         with:
           name: web-build

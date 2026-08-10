@@ -45,39 +45,5 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
-
-  <!--
-    Der App-Worker wird HIER registriert, nicht über den Bootstrap (#232).
-
-    Gemessen am 10.08.2026 im Browser-E2E gegen einen echten Stack: Im
-    ausgelieferten Bau stand im Geltungsbereich „/" genau ein Service
-    Worker, nämlich der von Firebase, die Cache-Ablage war leer, und ein
-    Neuladen ohne Netz endete in ERR_INTERNET_DISCONNECTED — die PWA
-    startete ohne Empfang also gar nicht, und der Zwischenspeicher aus
-    v0.79.0 lag hinter einer verschlossenen Tür.
-
-    Die Gegenprobe ohne Firebase im Bau zeigte GAR KEINEN Worker. Es ist
-    also keine Verdrängung: Flutters eigener Ladeweg registriert in 3.44
-    nichts mehr, `flutter_bootstrap.js` führt ihn selbst als deprecated.
-    Deshalb diese vier Zeilen — sie ersetzen einen Weg, der aufgegeben
-    wurde, nicht einen, der funktioniert.
-
-    Der Pfad ist relativ und löst gegen das <base href> auf, das Flutter
-    aus `--base-href` schreibt (auf Pages „/MitFahrBar/"); ein absoluter
-    Pfad wäre eine zweite Stelle, die mit release.yml synchron bleiben
-    müsste — dieselbe Falle wie beim Push-Worker, siehe
-    `webServiceWorkerPath`.
-
-    Und er gehört mit `--no-web-resources-cdn` zusammen: Holt der Bau
-    CanvasKit von gstatic, hält kein Worker den Renderer vor, und die
-    Seite käme ohne Netz zwar an, bliebe aber weiß.
-  -->
-  <script>
-    window.addEventListener('load', function () {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('flutter_service_worker.js');
-      }
-    });
-  </script>
 </body>
 </html>

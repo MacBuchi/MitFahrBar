@@ -133,13 +133,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      # `--no-web-resources-cdn` gehört zur Registrierung des
-      # App-Workers in web/index.html (#232): Von gstatic geholtes
-      # CanvasKit hält kein Service Worker vor, die Seite käme ohne
-      # Netz an und bliebe weiß.
-      - run: >
-          flutter build web --release --base-href /MitFahrBar/
-          --no-web-resources-cdn
+      - run: flutter build web --release --base-href /MitFahrBar/
       # SPA-Fallback: GitHub Pages liefert 404.html bei Deep-Links.
       - run: cp build/web/index.html build/web/404.html
       - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
