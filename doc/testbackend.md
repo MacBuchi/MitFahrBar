@@ -191,14 +191,19 @@ mit:
   Zustand vor dem Neuladen ins Log, damit ein Fehlschlag beantwortbar ist,
   statt nur rot zu sein.
 
-**Was der erste echte Lauf ergeben hat (10.08.2026):** Im Geltungsbereich
-`/` läuft genau ein Worker, nämlich `firebase-messaging-sw.js`, die
-Cache-Ablage ist leer, und das Neuladen ohne Netz endet in
-`ERR_INTERNET_DISCONNECTED` — die PWA startet ohne Empfang also gar nicht.
-Der Job bleibt deshalb rot, bis entschieden ist, wie es weitergeht (eigener
-Geltungsbereich für den FCM-Worker, Flutters App-Worker zurückholen, oder
-Web-Push aufgeben). Genau dafür war er gedacht: Er misst etwas, das kein
-Flow-Test sehen kann.
+**Was die ersten echten Läufe ergeben haben (10.08.2026):** Die Cache-Ablage
+ist leer und das Neuladen ohne Netz endet in `ERR_INTERNET_DISCONNECTED` —
+die PWA startet ohne Empfang also gar nicht. Im Normalbau steht im
+Geltungsbereich `/` genau ein Worker, `firebase-messaging-sw.js`; das sieht
+nach Verdrängung aus, weil es je Geltungsbereich nur einen gibt. **Die
+Gegenprobe ohne Firebase im Bau zeigt aber gar keinen Worker** — Flutters
+App-Worker registriert sich in 3.44 überhaupt nicht (sein Bootstrap-Weg
+führt sich selbst als deprecated). „Web-Push aufgeben" hätte also Push
+gekostet und offline nichts gebracht; genau dafür war die Messung da.
+
+Der Job bleibt rot, bis ein Worker existiert, der die App-Shell wirklich
+vorhält. Er misst etwas, das kein Flow-Test sehen kann — und er hat als
+Erstes eine falsche Entscheidung verhindert.
 
 Der Job heißt „Browser E2E (Offline)" und ist ebenfalls **kein** Required
 Check — er läuft mit diesem PR zum ersten Mal gegen einen echten Stack.

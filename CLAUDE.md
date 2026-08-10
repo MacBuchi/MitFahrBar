@@ -1872,25 +1872,30 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   ganze Zwischenspeicher liegt hinter einer Tür, die sich nicht öffnet.
   **Diese letzte Frage ist beantwortet, und die Antwort ist ein Befund:
   Die PWA startet ohne Empfang gar nicht** (gemessen am 10.08.2026 im
-  neuen Job gegen einen echten Stack). Im Geltungsbereich `/` läuft genau
-  **ein** Service Worker, und es ist `firebase-messaging-sw.js`; der
-  App-Worker von Flutter ist nicht da, die Cache-Ablage ist **leer**, und
-  ein Neuladen ohne Netz endet in `ERR_INTERNET_DISCONNECTED`. Es gibt je
-  Geltungsbereich nur einen Worker — wer sich zuletzt registriert,
-  verdrängt den davor, und das FCM-SDK registriert seinen beim Token-Holen
-  (`webServiceWorkerPath`). Er cacht nichts.
-  - **Damit wirkt der Zwischenspeicher aus v0.79.0 im Web nicht** — nicht
+  neuen Job gegen einen echten Stack). Die Cache-Ablage ist **leer**, und
+  ein Neuladen ohne Netz endet in `ERR_INTERNET_DISCONNECTED`.
+  - **Der App-Worker von Flutter registriert sich in 3.44 gar nicht.** Das
+    ist der Kern, und er wurde erst durch die Gegenprobe sichtbar: Im
+    Normalbau steht im Geltungsbereich `/` genau ein Worker, nämlich
+    `firebase-messaging-sw.js` — was wie eine Verdrängung aussieht (es gibt
+    je Geltungsbereich nur einen). **Ohne Firebase im Bau steht dort aber
+    gar keiner**, und die Ablage bleibt trotzdem leer. Der FCM-Worker ist
+    also nicht der Usurpator, sondern schlicht der einzige, der überhaupt
+    kommt. `flutter_bootstrap.js` führt seinen Registrierungsweg selbst als
+    deprecated.
+  - **Damit ist „Web-Push aufgeben" keine Lösung**, und die Messung hat
+    genau das verhindert: Sie hätte Push gekostet und den Offline-Start
+    nicht gebracht.
+  - **Der Zwischenspeicher aus v0.79.0 wirkt im Web also nicht** — nicht
     weil er falsch wäre, sondern weil die Tür davor verschlossen ist. Auf
     Android ist nichts davon betroffen (nativer Firebase-Client, kein
     Service Worker).
-  - **Nicht behoben, bewusst.** Die Auflösung ist eine Entscheidung, keine
-    Reparatur: dem FCM-Worker einen eigenen Geltungsbereich geben, den
-    Flutter-Worker zurückholen (in 3.44 meldet dessen Bootstrap-Ladeweg sich
-    selbst als deprecated), oder Web-Push aufgeben. Wer das angeht, prüft
+  - Wer das angeht, braucht einen Worker, der die App-Shell wirklich
+    vorhält (selbst registrieren statt über den Bootstrap-Weg), und prüft
     im selben Zug, dass der Pages-Build CanvasKit nicht vom CDN holt
     (`flutter build web` tut das per Vorgabe; `--no-web-resources-cdn` legt
-    es neben die App) — sonst fehlt offline der Renderer, selbst wenn die
-    Seite wieder ausgeliefert wird.
+    es neben die App) — sonst bleibt die Seite ohne Netz weiß, obwohl sie
+    ausgeliefert wird.
   - Der Job bleibt so lange rot. Das ist die richtige Farbe: Er beschreibt
     einen echten Zustand, und er ist kein Required Check.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit

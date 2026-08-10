@@ -285,12 +285,12 @@ try {
         `Service Worker: ${JSON.stringify(before)}\n` +
         'Ohne einen Worker, der die App-Shell vorhält, startet die PWA ohne ' +
         'Empfang gar nicht — der Zwischenspeicher (#169) liegt dann hinter ' +
-        'einer Tür, die sich nicht öffnet. Steht oben nur ' +
-        '`firebase-messaging-sw.js` bei leerer Cache-Ablage, ist es der am ' +
-        '10.08.2026 gemessene Zustand: Es gibt je Geltungsbereich nur EINEN ' +
-        'Worker, das FCM-SDK registriert seinen beim Token-Holen, und der ' +
-        'cacht nichts. Das ist eine Frage an den Web-Build, nicht an die ' +
-        'Datenschicht.',
+        'einer Tür, die sich nicht öffnet. Steht oben eine leere ' +
+        'Worker-Liste oder allein `firebase-messaging-sw.js` bei leerer ' +
+        'Cache-Ablage, ist es der am 10.08.2026 gemessene Zustand: Flutters ' +
+        'App-Worker registriert sich in 3.44 gar nicht, sein ' +
+        'Bootstrap-Ladeweg führt sich selbst als deprecated. Das ist eine ' +
+        'Frage an den Web-Build, nicht an die Datenschicht.',
     );
   }
 
