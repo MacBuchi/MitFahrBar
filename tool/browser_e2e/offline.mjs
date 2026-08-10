@@ -201,6 +201,10 @@ async function serviceWorkerState() {
   return page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return { supported: false };
     const registrations = await navigator.serviceWorker.getRegistrations();
+    // Auch `installing`/`waiting`/`redundant` melden: Ein Worker, dessen
+    // Vorrats-Cache beim Installieren scheitert (ein einziges 404 in
+    // `cache.addAll` genügt), endet als `redundant` und hinterlässt exakt
+    // dasselbe Bild wie einer, der nie registriert wurde.
     const keys = await caches.keys();
     const cached = {};
     for (const key of keys) {
@@ -214,6 +218,7 @@ async function serviceWorkerState() {
           (r.active ?? r.installing ?? r.waiting)?.scriptURL ?? null,
         state: (r.active ?? r.installing ?? r.waiting)?.state ?? null,
       })),
+      controller: navigator.serviceWorker.controller?.scriptURL ?? null,
       cached,
     };
   });
@@ -235,6 +240,17 @@ try {
   await clickAt(550, 300); // Splash: ein Tipp überspringt
   await activateSemantics();
   await checkpoint('login');
+
+  // **Zweimal messen, vor und nach der Anmeldung.** Der Endzustand allein
+  // ist mehrdeutig: „unser App-Worker wurde vom FCM-Worker verdrängt" und
+  // „unser App-Worker ist beim Installieren gescheitert" hinterlassen
+  // beide genau einen fremden Worker bei leerer Ablage. Hier hat das
+  // FCM-SDK sein Token noch nicht geholt, also steht hier, was unsere
+  // eigene Registrierung aus `web/index.html` bewirkt hat — und nur das.
+  console.log(
+    'Service Worker vor der Anmeldung:',
+    JSON.stringify(await serviceWorkerState()),
+  );
 
   await typeAt(550, 642, handle);
   await typeAt(550, 706, groupPassword);
