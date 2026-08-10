@@ -4,6 +4,22 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.77.0] – 2026-08-10
+
+### Neu
+
+- **„Vorabversionen erhalten" in „Über MitFahrBar"** (Android). Normalerweise
+  bekommt ihr nur Versionen, die ausdrücklich freigegeben wurden — alle paar
+  Wochen eine. Wer beim Ausprobieren helfen will, schaltet hier um und
+  bekommt jede neue Fassung sofort, mit demselben Update-Hinweis wie sonst.
+  Neue Fassungen sind noch nicht durchprobiert; dafür ist der Schalter da.
+
+  Drei Dinge dazu, damit niemand hängen bleibt: Der Schalter gilt **nur für
+  dieses Gerät** (nicht für die Gruppe, jeder entscheidet für sich), ein
+  neues Handy fängt wieder bei „aus" an, und ein Zurückschalten baut nichts
+  ab — ihr bleibt auf der Version, die ihr habt, bis die freigegebene sie
+  eingeholt hat.
+
 ## [0.76.1] – 2026-08-10
 
 ### Geändert

@@ -102,5 +102,85 @@ void main() {
         isNull,
       );
     });
+
+    test('wer eine Vorabversion fährt, wird nie gesperrt', () async {
+      // Der vierte Fall seit #225: Die Mindestversion darf nie über den
+      // STABILEN Stand steigen, ein Prerelease liegt also immer darüber.
+      // Selbst wenn es ein noch neueres Prerelease gibt (`available`), ist
+      // die Sperre nicht die Antwort darauf — sie gilt dem Zurückgebliebenen.
+      expect(
+        await requiredUpdate(
+          current: '0.77.0',
+          minimum: '0.76.0',
+          available: const UpdateInfo(
+            latestVersion: '0.78.0',
+            releaseUrl: 'https://example.invalid/prerelease',
+          ),
+        ),
+        isNull,
+      );
+    });
+  });
+
+  // Der Vorab-Kanal liest die Liste statt `/releases/latest` (#225). Was
+  // daran schiefgehen kann, steckt in dieser Auswahl — der Rest ist für
+  // beide Kanäle derselbe Code.
+  group('firstPublishedRelease', () {
+    Map<String, dynamic> release(String tag, {bool draft = false}) => {
+      'tag_name': tag,
+      'draft': draft,
+    };
+
+    test('nimmt den jüngsten Eintrag — GitHub sortiert absteigend', () {
+      expect(
+        firstPublishedRelease([release('v0.78.0'), release('v0.77.0')]),
+        release('v0.78.0'),
+      );
+    });
+
+    test('überspringt Entwürfe', () {
+      // Ein Entwurf hat keine öffentlich abrufbare APK: Das In-App-Update
+      // liefe ins Leere und der Hinweis nennte eine Version, die es für
+      // niemanden gibt.
+      expect(
+        firstPublishedRelease([
+          release('v0.79.0', draft: true),
+          release('v0.78.0'),
+        ]),
+        release('v0.78.0'),
+      );
+    });
+
+    test('leere Liste und Unsinn ergeben null statt einer Ausnahme', () {
+      expect(firstPublishedRelease(const []), isNull);
+      expect(firstPublishedRelease(['kaputt', 42]), isNull);
+    });
+  });
+
+  group('updateFromRelease', () {
+    test('schneidet das v ab und findet die APK', () {
+      final info = updateFromRelease({
+        'tag_name': 'v0.78.0',
+        'html_url': 'https://example.invalid/r',
+        'body': 'Neues',
+        'assets': [
+          {'name': 'quelle.zip', 'browser_download_url': 'https://x.invalid/z'},
+          {'name': 'app.apk', 'browser_download_url': 'https://x.invalid/a'},
+        ],
+      }, '0.77.0');
+      expect(info?.latestVersion, '0.78.0');
+      expect(info?.apkUrl, 'https://x.invalid/a');
+      expect(info?.releaseNotes, 'Neues');
+    });
+
+    test('ein nicht neueres Release ist kein Update', () {
+      // Der Weg zurück auf stabil: Der stabile Stand ist älter, also
+      // erscheint kein Hinweis — der Tester bleibt stehen, bis stabil
+      // nachzieht. Ein Downgrade gibt es nicht, Android nimmt eine APK mit
+      // kleinerem versionCode ohnehin nicht an.
+      expect(updateFromRelease({'tag_name': 'v0.76.0'}, '0.77.0'), isNull);
+      expect(updateFromRelease({'tag_name': 'v0.77.0'}, '0.77.0'), isNull);
+      expect(updateFromRelease(const {}, '0.77.0'), isNull);
+    });
   });
 }

@@ -1701,8 +1701,35 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Zwischenversion und die Trennung gälte nur für Android. Der Preis ist
     gewollt: Zwischen zwei Beförderungen steht auf der Web-Adresse der
     stabile Stand.
-  - Wer den neuesten Stand testen will, lädt das Prerelease-APK von der
-    Releases-Seite — der In-App-Weg führt bewusst nur zu stabilen Ständen.
+  - Wer den neuesten Stand testen will, schaltet seit v0.77.0 in „Über
+    MitFahrBar" **„Vorabversionen erhalten"** ein (#225); dann liest
+    `updateInfoProvider` `…/releases?per_page=10` statt `/releases/latest`
+    und nimmt den ersten nicht-Entwurf. Alles danach ist für beide Kanäle
+    dasselbe — Versionsvergleich, APK, „Was ist neu", In-App-Update.
+    - **Eine Einstellung dieses Geräts, keine der Gruppe.** In den
+      Parameter-Screen gehört sie nicht: Dort stehen Gruppenwerte in der DB,
+      und deren Kriterium ist „der Wert darf die Punkte nie berühren" — ein
+      Update-Kanal ist weder das eine noch das andere. Sie liegt wie die
+      Geräte-Zuordnung (#121) in den SharedPreferences und überlebt aus
+      demselben Grund keinen Gerätewechsel (Backup-Regeln schließen
+      `FlutterSharedPreferences.xml` als ganze Datei aus).
+    - **Nur Android, und der Riegel steht im Provider, nicht nur im
+      Schirm.** Die PWA hat eine einzige Adresse und wird ausschließlich bei
+      der Beförderung deployt; ein eingeschalteter Kanal meldete dort eine
+      Version, die im Browser niemand bekommen kann. Beide Richtungen sind
+      in `test/flows/about_flow_test.dart` rot verifiziert — der Test
+      **tippt** den Schalter und prüft, dass die Ablage ihn wirklich bekommt.
+    - **Der Sperr-Schirm bleibt sicher**, ohne dass dafür etwas gebaut
+      werden musste: `min_supported_version` steigt nie über den stabilen
+      Stand, ein Prerelease liegt also immer darüber. Zurück auf stabil
+      passiert ebenfalls nichts — stabil ist älter, `isNewerVersion` sagt
+      `false`, kein Hinweis. Ein Downgrade gibt es bewusst nicht; Android
+      nimmt eine APK mit kleinerem `versionCode` ohnehin nicht an.
+    - **Der eigentliche Zweck ist nicht Bequemlichkeit:** Migrationen laufen
+      beim **Merge**, Clients kommen erst mit der **Beförderung** — dazwischen
+      liegt das Fenster, für das „erweitern → ausliefern → entfernen" gebaut
+      ist. Der Kanal ist der Weg, den neuen Client vor der Beförderung gegen
+      die echte Datenbank zu prüfen, statt der Regel zu vertrauen.
   - **`min_supported_version` darf nie über den STABILEN Stand steigen**,
     sonst sperrt der Schirm genau die aus, die auf stabil sind.
   - Festgenagelt in `test/release_workflow_test.dart`: Die Riegel sind je

@@ -104,6 +104,12 @@ Future<void> pumpApp(
         // Kein Netzzugriff im Test: standardmäßig kein Update und keine
         // Release-Notes (der Über-Dialog blendet den Abschnitt dann aus).
         updateInfoProvider.overrideWith((ref) => Future.value(backend.update)),
+        // Der Vorab-Kanal (#225) liegt in den SharedPreferences, und die
+        // gibt es im Test nicht — `SupabaseConfig.isConfigured` ist hier
+        // `true`, der echte Store käme also zum Zug.
+        updateChannelStoreProvider.overrideWithValue(
+          InMemoryUpdateChannelStore(),
+        ),
         currentVersionProvider.overrideWith((ref) => Future.value('1.0.0')),
         currentReleaseNotesProvider.overrideWith((ref) => Future.value(null)),
         // Feste Uhr: Tests laufen immer an [testToday], egal an welchem
