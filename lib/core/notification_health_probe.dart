@@ -19,7 +19,9 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'browser_hint.dart';
 import 'notification_health.dart';
+import 'web_notifications.dart';
 
 /// Die Kanal-Kennung aus `android/app/src/main/res/values/strings.xml`
 /// (`notification_channel_plan_id`). Muss wörtlich übereinstimmen —
@@ -28,10 +30,21 @@ import 'notification_health.dart';
 /// zurück und meldet fröhlich, es sei alles in Ordnung.
 const String androidPlanChannel = 'plan';
 
+/// Wer hier die Erlaubnis vergibt. Drei Welten, drei Antworten — und im Web
+/// eine einzige Achse statt vier.
+enum NotificationOwner { android, browser, none }
+
 /// Liest den Zustand und öffnet die passenden Systemschirme.
 class NotificationHealthProbe {
-  const NotificationHealthProbe({MethodChannel? channel})
-    : _channel = channel ?? const MethodChannel(channelName);
+  const NotificationHealthProbe({
+    MethodChannel? channel,
+    String? Function()? webPermission,
+    String Function()? userAgent,
+    NotificationOwner? owner,
+  }) : _channel = channel ?? const MethodChannel(channelName),
+       _webPermission = webPermission ?? webNotificationPermission,
+       _userAgent = userAgent ?? webUserAgent,
+       _owner = owner;
 
   /// Muss wörtlich mit `HEALTH_CHANNEL` in `MainActivity.kt` übereinstimmen —
   /// `test/android_manifest_test.dart` vergleicht beide Dateien.
@@ -39,10 +52,37 @@ class NotificationHealthProbe {
 
   final MethodChannel _channel;
 
-  /// Nur Android. Im Web entscheidet der Browser über die Erlaubnis, und
-  /// weder Kanäle noch „Nicht stören" gibt es dort.
-  bool get supported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  /// Die Plattform-Quellen als Parameter, damit der Flow-Test einen
+  /// blockierten Browser nachstellen kann, **ohne einen zu starten**. Ohne
+  /// diesen Schnitt liefe der Web-Zweig in `flutter test` (VM) nie — und die
+  /// Karten, um die es hier geht, wären ungeprüft.
+  final String? Function() _webPermission;
+  final String Function() _userAgent;
+  final NotificationOwner? _owner;
+
+  NotificationOwner get owner => _owner ?? _detected;
+
+  static NotificationOwner get _detected {
+    if (kIsWeb) return NotificationOwner.browser;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return NotificationOwner.android;
+    }
+    return NotificationOwner.none;
+  }
+
+  /// Ob überhaupt etwas zu lesen ist. Seit v0.78.0 auch im Web — vorher blieb
+  /// der Zustand dort auf „unbekannt", und damit war die ganze Führung aus
+  /// #180 im Browser dunkel: keine Karte, keine Erklärung, nur eine
+  /// SnackBar-Zeile beim Einschalten.
+  bool get supported => owner != NotificationOwner.none;
+
+  /// Ob die App den Systemschirm selbst öffnen kann. **Im Browser nie** — es
+  /// gibt keine Web-API für die Seiteneinstellungen einer Seite. Deshalb steht
+  /// dort eine Anleitung statt eines Knopfes (`browser_hint.dart`).
+  bool get canOpenSettings => owner == NotificationOwner.android;
+
+  /// Welcher Browser gerade läuft — für die Anleitung, die den Knopf ersetzt.
+  BrowserKind get browser => browserFromUserAgent(_userAgent());
 
   /// Der Zustand für genau diesen Kanal.
   ///
@@ -50,6 +90,20 @@ class NotificationHealthProbe {
   /// Abfahrts-Erinnerung ihren eigenen Kanal bekommt (#180 B), ist das eine
   /// Ergänzung und kein Umbau dieser Abfrage.
   Future<NotificationHealth> read(String channelId) async {
+    // Im Browser gibt es genau eine Achse: Darf die Seite überhaupt?
+    // Kanäle, „Nicht stören" und den Akku-Zustand kennt er nicht — und
+    // erfundene Werte stünden hier als Behauptung im Schirm.
+    //
+    // `default` (noch nie gefragt) ist ausdrücklich **keine** Blockade: Das
+    // Einschalten löst dann den Dialog aus, und eine Warnung davor wäre eine
+    // Fehlmeldung an jeden, der den Screen zum ersten Mal öffnet.
+    if (owner == NotificationOwner.browser) {
+      return switch (_webPermission()) {
+        'granted' => const NotificationHealth(notificationsEnabled: true),
+        'denied' => const NotificationHealth(notificationsEnabled: false),
+        _ => NotificationHealth.unknown,
+      };
+    }
     if (!supported) return NotificationHealth.unknown;
     try {
       final raw = await _channel.invokeMethod<Map<Object?, Object?>>('read', {
@@ -74,7 +128,7 @@ class NotificationHealthProbe {
   Future<void> openAppDetails() => _open('openAppDetails');
 
   Future<void> _open(String method, [Map<String, Object?>? args]) async {
-    if (!supported) return;
+    if (!canOpenSettings) return;
     try {
       await _channel.invokeMethod<void>(method, args);
     } catch (_) {

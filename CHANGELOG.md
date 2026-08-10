@@ -4,6 +4,33 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.78.0] – 2026-08-10
+
+### Behoben
+
+- **In der Web-App ließen sich Benachrichtigungen nicht einschalten — und
+  nichts sagte, warum.** Die Erlaubnis dafür vergibt der Browser, und wer sie
+  einmal abgelehnt hat, wird von ihm **nie wieder gefragt**. Der Schalter
+  konnte danach gar nicht mehr wirken; dastand nur eine kurze Meldung, die wie
+  ein Vertipper aussah.
+
+  Jetzt steht auf dem Schirm, was los ist: welcher Browser blockiert, und
+  Schritt für Schritt, wo man es bei ihm zurückholt — für Chrome, Edge, Opera,
+  Firefox und Safari jeweils mit den Wörtern, die dort wirklich im Menü
+  stehen. Einen Knopf gibt es dafür bewusst nicht: Keine Web-App darf die
+  Einstellungen ihres Browsers selbst öffnen, und ein Knopf, der nichts tut,
+  wäre schlimmer als keiner.
+
+### Neu
+
+- **Ein Hinweis auf der Übersicht, wenn dieses Gerät keine Benachrichtigungen
+  bekommt.** Er führt genau dorthin, wo es sich klären lässt. Bisher musste
+  man wissen, dass es diesen Schirm im Menü überhaupt gibt.
+
+  Er fragt **nicht** von sich aus nach der Erlaubnis — ein ungefragter Dialog
+  wird weggetippt, und danach ist der Weg dauerhaft zu. Ausblenden lässt er
+  sich; beim nächsten Start ist er wieder da, solange nichts eingerichtet ist.
+
 ## [0.77.0] – 2026-08-10
 
 ### Neu

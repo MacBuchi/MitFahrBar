@@ -12,6 +12,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -31,6 +32,7 @@ import '../identity/identity_dialog.dart';
 /// Banner nur für die laufende Sitzung ausblenden (bewusst ohne Persistenz).
 final updateBannerDismissedProvider = StateProvider<bool>((ref) => false);
 final feedbackBannerDismissedProvider = StateProvider<bool>((ref) => false);
+final pushBannerDismissedProvider = StateProvider<bool>((ref) => false);
 
 class AppBanners extends ConsumerWidget {
   const AppBanners({super.key});
@@ -48,6 +50,10 @@ class AppBanners extends ConsumerWidget {
         // Information: Solange niemand gewählt ist, funktioniert ein Teil der
         // App nicht. Verschwindet für immer, sobald jemand gewählt ist.
         const _IdentityBanner(),
+        // Direkt darunter, aus demselben Grund: eine offene Einrichtung, kein
+        // Inhalt. Erst nach dem Identitäts-Banner, weil es ohne gewählte
+        // Person gar nichts einzurichten gibt.
+        const _PushBanner(),
         // Danach das dauerhafte Informations-Banner. Läge es unten, spränge
         // es, sobald ein Update-Hinweis kommt und geht.
         const _NextRideBanner(),
@@ -107,6 +113,61 @@ class _IdentityBanner extends ConsumerWidget {
           'keine Benachrichtigungen.',
       tone: AppBannerTones.quiet(Theme.of(context).brightness),
       onTap: () => unawaited(showIdentityDialog(context)),
+    );
+  }
+}
+
+/// „Dieses Gerät bekommt keine Benachrichtigungen" — der Weg zum Schalter
+/// (#230).
+///
+/// **Warum es das braucht:** Der Benachrichtigungs-Screen steht im Menü, und
+/// wer nicht weiß, dass es ihn gibt, findet ihn nicht. Genau daran hing der
+/// gemeldete Fall: In der PWA ließ sich Push „nicht aktivieren" — der Browser
+/// hatte die Erlaubnis abgelehnt, und das erfuhr man nur, wenn man den Schirm
+/// von sich aus öffnete und den Schalter antippte.
+///
+/// **Der Hinweis fragt nicht selbst.** Ein ungefragter Berechtigungsdialog
+/// wird weggetippt, und danach fragt weder Android noch der Browser je wieder
+/// — dieselbe Regel, aus der `pushToken(ask: false)` beim Öffnen des Screens
+/// entstanden ist. Der Streifen führt hin, gefragt wird am Schalter.
+///
+/// Ausblendbar **nur für diese Sitzung**, wie der Update- und der
+/// Feedback-Hinweis daneben. Wer Benachrichtigungen dauerhaft nicht will,
+/// sieht ihn beim nächsten Start wieder — der Preis dafür, dass „nie
+/// eingerichtet" und „bewusst abgeschaltet" von außen gleich aussehen. Wird
+/// das lästig, ist der nächste Schritt eine Ablage wie bei „Ich bin", keine
+/// weitere Bedingung hier.
+class _PushBanner extends ConsumerWidget {
+  const _PushBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Ohne gewählte Person gibt es niemanden, für den man etwas einstellen
+    // könnte — dann steht ohnehin das Identitäts-Banner darüber. Deckt den
+    // Demo-Modus mit ab, in dem die README-Screenshots entstehen.
+    if (ref.watch(myPersonProvider) == null) return const SizedBox.shrink();
+    if (ref.watch(pushBannerDismissedProvider)) return const SizedBox.shrink();
+    // Beim Laden nichts behaupten: Ein Streifen, der aufblitzt und wieder
+    // verschwindet, ist schlimmer als einer, der eine Sekunde später kommt.
+    if (ref.watch(pushInactiveProvider).value != true) {
+      return const SizedBox.shrink();
+    }
+
+    return _Banner(
+      icon: Icons.notifications_off_outlined,
+      text: 'Keine Benachrichtigungen auf diesem Gerät',
+      subtitle:
+          'Tippen, um sie einzuschalten — oder nachzusehen, was sie '
+          'gerade aufhält.',
+      tone: AppBannerTones.quiet(Theme.of(context).brightness),
+      // **`push`, nicht `go`** — im Browser nachgemessen (10.08.2026): `go`
+      // ersetzt die Route, und der Schirm stand ohne Zurück-Pfeil und ohne
+      // Navigationsleiste da. Wer dem Hinweis folgte, saß fest. Dieselbe
+      // Klasse wie „jedes Gate braucht einen Weg weg", nur eine Etage tiefer
+      // — und kein Test hätte es gezeigt, weil beide Wege den Schirm öffnen.
+      onTap: () => unawaited(context.push('/notifications')),
+      onDismiss: () =>
+          ref.read(pushBannerDismissedProvider.notifier).state = true,
     );
   }
 }

@@ -749,6 +749,147 @@ void main() {
       expect(find.byType(Card), findsNothing);
     });
   });
+
+  // Der gemeldete Fall (#230): In der PWA ließ sich Push „nicht aktivieren".
+  // Die Erlaubnis lag beim Browser, der Screen wusste davon nichts — die
+  // ganze Führung aus #180 war im Web dunkel, und übrig blieb eine
+  // SnackBar-Zeile an einem Schalter, der sichtbar nichts tat.
+  group('Was der Browser blockiert, steht ebenfalls auf dem Schirm (#230)', () {
+    /// Die **echte** Probe mit gesetzten Plattform-Quellen. Ein Fake würde
+    /// hier den Zweig nachbauen, um den es geht.
+    NotificationHealthProbe browserProbe(String permission, String userAgent) =>
+        NotificationHealthProbe(
+          owner: NotificationOwner.browser,
+          webPermission: () => permission,
+          userAgent: () => userAgent,
+        );
+
+    Future<void> openWith(
+      WidgetTester tester,
+      _Fixture f,
+      NotificationHealthProbe probe, {
+      bool hasToken = true,
+    }) async {
+      _tall(tester);
+      await pumpApp(
+        tester,
+        f.backend,
+        identity: DeviceIdentity(personId: f.anna, asked: true),
+        overrides: [
+          pushRepositoryProvider.overrideWithValue(
+            FakePushRepository(f.backend),
+          ),
+          notificationHealthProbeProvider.overrideWithValue(probe),
+          if (!hasToken)
+            pushTokenProvider.overrideWithValue(({required bool ask}) async {
+              // Genau das tut der Browser ohne Erlaubnis: `getToken` wirft,
+              // `pushToken` fängt es und liefert nichts.
+              return null;
+            }),
+        ],
+      );
+      await _login(tester);
+      await _open(tester);
+    }
+
+    testWidgets('abgelehnt: der Browser wird benannt und der Weg erklärt', (
+      tester,
+    ) async {
+      final f = await _backend();
+      await openWith(
+        tester,
+        f,
+        browserProbe(
+          'denied',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 OPR/112.0.0.0',
+        ),
+        hasToken: false,
+      );
+
+      // Der Name des Browsers ist der Kern: „Website-Einstellungen" heißt in
+      // Opera anders als in Chrome, und wer im falschen Menü sucht, findet
+      // nichts und hält die App für kaputt.
+      expect(
+        find.text('Opera blockiert Benachrichtigungen für diese Seite'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Website-Einstellungen'), findsOneWidget);
+
+      // **Kein Knopf.** Es gibt keine Web-API für die Seiteneinstellungen —
+      // einer wäre ein Versprechen, dieselbe Entscheidung wie bei völliger
+      // Stille eine Gruppe weiter oben.
+      expect(find.widgetWithText(FilledButton, 'Erlauben'), findsNothing);
+    });
+
+    testWidgets('Firefox bekommt Firefox-Schritte, nicht die von Chrome', (
+      tester,
+    ) async {
+      final f = await _backend();
+      await openWith(
+        tester,
+        f,
+        browserProbe(
+          'denied',
+          'Mozilla/5.0 (Android 14; Mobile; rv:127.0) Gecko/127.0 '
+              'Firefox/127.0',
+        ),
+        hasToken: false,
+      );
+
+      expect(
+        find.text('Firefox blockiert Benachrichtigungen für diese Seite'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Benachrichtigungen senden'),
+        findsOneWidget,
+        reason: 'Firefox nennt es anders als die Chromium-Verwandten.',
+      );
+    });
+
+    testWidgets('noch nie gefragt ist keine Blockade', (tester) async {
+      // `default` heißt: Das Einschalten löst den Dialog aus. Eine Warnung
+      // davor wäre eine Fehlmeldung an jeden, der den Screen zum ersten Mal
+      // öffnet — und ein Schirm, der immer warnt, wird nicht gelesen.
+      final f = await _backend();
+      await openWith(tester, f, browserProbe('default', 'Chrome/126.0.0.0'));
+
+      expect(find.byType(Card), findsNothing);
+    });
+
+    testWidgets('erteilt und trotzdem kein Token: eigene Karte mit Knopf', (
+      tester,
+    ) async {
+      // Der Fall, den keine Blockade erklärt. Bis v0.78.0 endete er in einer
+      // SnackBar-Zeile, und der Schalter sprang wortlos zurück.
+      final f = await _backend();
+      await openWith(
+        tester,
+        f,
+        browserProbe('granted', 'Chrome/126.0.0.0'),
+        hasToken: false,
+      );
+
+      // Vor dem Einschalten gibt es nichts zu melden.
+      expect(find.text('Einschalten hat nicht geklappt'), findsNothing);
+
+      await _toggle(tester);
+
+      expect(find.text('Einschalten hat nicht geklappt'), findsOneWidget);
+      // Der Satz gegen die stille Blockade: Chrome unterdrückt den Dialog,
+      // wenn er oft weggetippt wurde — der Zustand bleibt dabei `default`,
+      // und mit Code ist das nicht zu erkennen.
+      expect(find.textContaining('Glocken-Symbol'), findsOneWidget);
+      // **Tippen, nicht finden.** Der Knopf ist der einzige Weg zurück.
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Nochmal versuchen'),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Einschalten hat nicht geklappt'), findsOneWidget);
+    });
+  });
 }
 
 /// Stellt eine Blockade, ohne ein Gerät zu haben.
