@@ -111,12 +111,18 @@ page.on('pageerror', (e) => console.log('!! JS-Fehler:', e.message));
 
 /// Flutter baut den a11y-Baum erst auf Anforderung — nur dispatchEvent über
 /// den Locator löst den Platzhalter aus (siehe run-web-Skill).
-async function activateSemantics() {
+///
+/// **Kurze Frist, und die ist nicht kosmetisch:** Nach der ersten Aktivierung
+/// ist der Platzhalter aus dem DOM verschwunden, der Aufruf läuft also
+/// zwangsläufig in seine Frist. Mit den ursprünglichen 15 Sekunden kostete
+/// jeder Versuch der Warteschleife darunter 16,5 s — ein Fehlschlag brauchte
+/// zwölf Minuten statt einer halben.
+async function activateSemantics(timeout = 1000) {
   await page
     .locator('flt-semantics-placeholder')
-    .dispatchEvent('click', { timeout: 15000 })
+    .dispatchEvent('click', { timeout })
     .catch(() => {});
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(500);
 }
 
 async function labels() {
@@ -213,6 +219,9 @@ async function serviceWorkerState() {
   });
 }
 
+/// Woran zu erkennen ist, dass die Übersicht wirklich Zeilen zeigt.
+const _hasContent = /Wunsch oder Fehler melden|Wer ist dran|Anna/;
+
 try {
   const groupId = await seedGroup();
   console.log(`✓ Gruppe ${handle} angelegt und aktiv`);
@@ -242,16 +251,19 @@ try {
   }
   await checkpoint('angemeldet');
 
-  // **Der Anker ist das Anmerkungs-Banner, nicht der Personenname** — und
-  // das ist keine Bequemlichkeit. „Wunsch oder Fehler melden" steht
-  // ausschließlich in `_Content` (dashboard_screen.dart), und den baut die
-  // Übersicht nur, wenn die Rangliste **nicht leer** ist: Personen,
-  // Statistik und Parameter sind dann geladen. Das Label beweist damit
-  // genau das, was hier zählt — es liegen Zeilen vor —, und es ist im
-  // a11y-Baum von Flutter-Web nachweislich vorhanden (erster Lauf,
-  // 10.08.2026). Der Personenname stand dort nicht; der Baum ist
-  // lückenhaft, und ein Test, der auf Lücken baut, prüft die Lücke.
-  await expectLabel(/Wunsch oder Fehler melden/, 'Inhalt der Übersicht');
+  // **Der Anker ist eine Auswahl, und das ist der ehrliche Umgang mit einem
+  // lückenhaften Baum.** Alle drei Zeichen stehen ausschließlich in
+  // `_Content` (dashboard_screen.dart), und den baut die Übersicht nur bei
+  // **nicht leerer** Rangliste — Personen, Statistik und Parameter sind
+  // dann geladen. Genau das ist die Aussage; welches der drei den Beweis
+  // liefert, ist gleichgültig.
+  //
+  // Warum nicht eines: Der a11y-Baum von Flutter-Web trägt sie nicht
+  // zuverlässig. Gemessen am 10.08.2026 auf demselben Schirm — mit
+  // Firebase im Bau stand dort das Banner, aber KEIN Personenname; ohne
+  // Firebase der Personenname, aber kein Banner. Wer sich auf eines
+  // festlegt, prüft die Lücke statt den Inhalt.
+  await expectLabel(_hasContent, 'Inhalt der Übersicht');
   await expectNoLabel(
     /Offline · Stand/,
     'mit Empfang darf die Leiste nicht stehen',
@@ -290,7 +302,7 @@ try {
   // Netz kann `_Content` nur entstehen, wenn Personen, Statistik und
   // Parameter von der Platte kommen — genau das ist die Aussage.
   await expectLabel(
-    /Wunsch oder Fehler melden/,
+    _hasContent,
     'Übersicht ohne Netz aus dem Zwischenspeicher',
   );
   await expectNoLabel(
@@ -310,7 +322,7 @@ try {
   await page.waitForTimeout(6000);
   await activateSemantics();
   await checkpoint('wieder-online');
-  await expectLabel(/Wunsch oder Fehler melden/, 'Übersicht wieder mit Netz');
+  await expectLabel(_hasContent, 'Übersicht wieder mit Netz');
   await expectNoLabel(/Offline · Stand/, 'mit Empfang gehört die Leiste weg');
   console.log('✓ Zurück im Netz: Leiste weg');
 
