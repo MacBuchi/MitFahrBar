@@ -271,10 +271,14 @@ try {
     throw new Error(
       `Der Start ohne Netz kam nicht einmal bis zur Seite: ${reload}\n` +
         `Service Worker: ${JSON.stringify(before)}\n` +
-        'Ohne aktiven Service Worker kann die PWA ohne Empfang gar nicht ' +
-        'starten — der Zwischenspeicher (#169) liegt dann hinter einer Tür, ' +
-        'die sich nicht öffnet. Das ist eine Frage an den Web-Build, nicht ' +
-        'an die Datenschicht.',
+        'Ohne einen Worker, der die App-Shell vorhält, startet die PWA ohne ' +
+        'Empfang gar nicht — der Zwischenspeicher (#169) liegt dann hinter ' +
+        'einer Tür, die sich nicht öffnet. Steht oben nur ' +
+        '`firebase-messaging-sw.js` bei leerer Cache-Ablage, ist es der am ' +
+        '10.08.2026 gemessene Zustand: Es gibt je Geltungsbereich nur EINEN ' +
+        'Worker, das FCM-SDK registriert seinen beim Token-Holen, und der ' +
+        'cacht nichts. Das ist eine Frage an den Web-Build, nicht an die ' +
+        'Datenschicht.',
     );
   }
 

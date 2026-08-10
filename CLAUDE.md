@@ -1870,12 +1870,29 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   sich zwischen `dart:io` und Web), und den **Service Worker** — ohne den
   liefert der Browser ohne Empfang nicht einmal die Seite aus, und der
   ganze Zwischenspeicher liegt hinter einer Tür, die sich nicht öffnet.
-  Diese letzte Frage ist **offen**: Sie ließ sich weder in Flow-Tests noch
-  im Container beantworten (dort aktiviert sich in Playwrights Chromium
-  kein Service Worker, auch von Hand registriert nicht). Wer sie beantwortet
-  bekommt, trägt das Ergebnis hier ein — und prüft dabei mit, dass der
-  Pages-Build CanvasKit nicht vom CDN holt (`flutter build web` tut das per
-  Vorgabe; `--no-web-resources-cdn` legt es neben die App).
+  **Diese letzte Frage ist beantwortet, und die Antwort ist ein Befund:
+  Die PWA startet ohne Empfang gar nicht** (gemessen am 10.08.2026 im
+  neuen Job gegen einen echten Stack). Im Geltungsbereich `/` läuft genau
+  **ein** Service Worker, und es ist `firebase-messaging-sw.js`; der
+  App-Worker von Flutter ist nicht da, die Cache-Ablage ist **leer**, und
+  ein Neuladen ohne Netz endet in `ERR_INTERNET_DISCONNECTED`. Es gibt je
+  Geltungsbereich nur einen Worker — wer sich zuletzt registriert,
+  verdrängt den davor, und das FCM-SDK registriert seinen beim Token-Holen
+  (`webServiceWorkerPath`). Er cacht nichts.
+  - **Damit wirkt der Zwischenspeicher aus v0.79.0 im Web nicht** — nicht
+    weil er falsch wäre, sondern weil die Tür davor verschlossen ist. Auf
+    Android ist nichts davon betroffen (nativer Firebase-Client, kein
+    Service Worker).
+  - **Nicht behoben, bewusst.** Die Auflösung ist eine Entscheidung, keine
+    Reparatur: dem FCM-Worker einen eigenen Geltungsbereich geben, den
+    Flutter-Worker zurückholen (in 3.44 meldet dessen Bootstrap-Ladeweg sich
+    selbst als deprecated), oder Web-Push aufgeben. Wer das angeht, prüft
+    im selben Zug, dass der Pages-Build CanvasKit nicht vom CDN holt
+    (`flutter build web` tut das per Vorgabe; `--no-web-resources-cdn` legt
+    es neben die App) — sonst fehlt offline der Renderer, selbst wenn die
+    Seite wieder ausgeliefert wird.
+  - Der Job bleibt so lange rot. Das ist die richtige Farbe: Er beschreibt
+    einen echten Zustand, und er ist kein Required Check.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.

@@ -187,9 +187,18 @@ mit:
   (`_GateErrorScreen.looksOffline` vergleicht Textformen),
 - und der **Service Worker**: Ohne ihn liefert der Browser ohne Empfang
   nicht einmal die Seite aus, und dann nützt der Zwischenspeicher nichts.
-  Genau diese Vorbedingung ist bisher nirgends geprüft; der Flow schreibt
-  den Zustand vor dem Neuladen ins Log, damit ein Fehlschlag beantwortbar
-  ist, statt nur rot zu sein.
+  Genau diese Vorbedingung war nirgends geprüft; der Flow schreibt den
+  Zustand vor dem Neuladen ins Log, damit ein Fehlschlag beantwortbar ist,
+  statt nur rot zu sein.
+
+**Was der erste echte Lauf ergeben hat (10.08.2026):** Im Geltungsbereich
+`/` läuft genau ein Worker, nämlich `firebase-messaging-sw.js`, die
+Cache-Ablage ist leer, und das Neuladen ohne Netz endet in
+`ERR_INTERNET_DISCONNECTED` — die PWA startet ohne Empfang also gar nicht.
+Der Job bleibt deshalb rot, bis entschieden ist, wie es weitergeht (eigener
+Geltungsbereich für den FCM-Worker, Flutters App-Worker zurückholen, oder
+Web-Push aufgeben). Genau dafür war er gedacht: Er misst etwas, das kein
+Flow-Test sehen kann.
 
 Der Job heißt „Browser E2E (Offline)" und ist ebenfalls **kein** Required
 Check — er läuft mit diesem PR zum ersten Mal gegen einen echten Stack.
