@@ -182,15 +182,33 @@ async function checkpoint(name) {
 /// Zustand des Service Workers — die Vorbedingung dafür, dass ohne Netz
 /// überhaupt eine Seite ausgeliefert wird. Rein diagnostisch, aber im
 /// Fehlerfall die erste Frage.
+///
+/// **Mit Skript-Adresse und Geltungsbereich**, und das ist der Kern: Am
+/// 10.08.2026 meldete dieser Aufruf `registrations: 1, active: activated`
+/// bei **leerem** Cache. Genau so sieht es aus, wenn nicht der App-Worker
+/// von Flutter läuft, sondern ein anderer — es gibt je Geltungsbereich nur
+/// EINEN, und wer sich zuletzt registriert, verdrängt den davor. In Frage
+/// kommt `firebase-messaging-sw.js` (das FCM-SDK registriert ihn beim
+/// Token-Holen, siehe `webServiceWorkerPath`); der cacht nichts. Ohne die
+/// Adresse im Log ist „aktiv, aber leer" nicht auflösbar.
 async function serviceWorkerState() {
   return page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return { supported: false };
     const registrations = await navigator.serviceWorker.getRegistrations();
+    const keys = await caches.keys();
+    const cached = {};
+    for (const key of keys) {
+      cached[key] = (await (await caches.open(key)).keys()).length;
+    }
     return {
       supported: true,
-      registrations: registrations.length,
-      active: registrations[0]?.active?.state ?? null,
-      caches: await caches.keys(),
+      workers: registrations.map((r) => ({
+        scope: r.scope,
+        script:
+          (r.active ?? r.installing ?? r.waiting)?.scriptURL ?? null,
+        state: (r.active ?? r.installing ?? r.waiting)?.state ?? null,
+      })),
+      cached,
     };
   });
 }
