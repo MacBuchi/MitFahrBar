@@ -14,9 +14,14 @@
 # echten LICENSE-Dateien aus dem pub-Cache und kann strukturell nicht dünn
 # sein.
 #
-# Ergänzt `dependency-review` im selben Workflow, ersetzt es nicht: Das
-# prüft nur, was ein PR NEU hinzufügt, und würde einen Lizenzwechsel in
-# einer bestehenden transitiven Abhängigkeit nie bemerken.
+# **Seit #226 ist das die EINZIGE Lizenzprüfung.** `dependency-review` im
+# selben Workflow trug dafür eine kleine Deny-Liste und ist daran auf jedem
+# pub-PR gestorben (kleingeschriebene, damit ungültige SPDX-Kennungen aus
+# GitHubs Dependency Graph); es prüft dort jetzt nur noch Schwachstellen.
+# Ergänzung war es ohnehin nie in die andere Richtung: Es sieht nur, was ein
+# PR NEU hinzufügt, und bemerkte einen Lizenzwechsel in einer bestehenden
+# transitiven Abhängigkeit nie. Fällt dieser Job aus, prüft niemand mehr
+# Lizenzen — deshalb blockiert er, Begründung in security.yml.
 #
 # Gegen den echten Baum abgestimmt (124 Pakete), nicht von pilzbuddy
 # kopiert — Firebase bringt hier deutlich mehr Apache-2.0 mit, und es gibt

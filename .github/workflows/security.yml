@@ -59,7 +59,7 @@ jobs:
     if: github.event_name != 'pull_request'
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
 
-  # Der Lizenz-Riegel für NEU hinzukommende Abhängigkeiten. GitHubs
+  # Der Schwachstellen-Riegel für NEU hinzukommende Abhängigkeiten. GitHubs
   # Dependency Graph wertet pubspec.yaml + pubspec.lock aus; Dart wird
   # unterstützt, die Lockfile ist eingecheckt.
   #
@@ -71,10 +71,27 @@ jobs:
   # Workflow aus und ist keiner. In pilzbuddy hat genau das einen PR-Check
   # rot gemacht (dort #221).
   #
-  # Bewusst eine DENY- und keine ALLOW-Liste: Eine Allowliste macht jede
-  # unbekannte oder nicht auflösbare Lizenz zum Merge-Blocker, und das
-  # passiert bei pub-Paketen regelmäßig. Verboten ist nur, was mit der
-  # MIT-Auslieferung wirklich kollidiert.
+  # **Hier steht bewusst GAR KEINE Lizenz-Regel** (#226). Vorher stand hier
+  # eine Deny-Liste mit der Begründung, eine Allowliste mache jede nicht
+  # auflösbare Lizenz zum Merge-Blocker. Die Beobachtung stimmt, der Schluss
+  # trug nicht: Die Action prüft die SPDX-Gültigkeit JEDER gemeldeten Lizenz,
+  # sobald überhaupt eine Lizenz-Regel gesetzt ist — Deny oder Allow macht
+  # dafür keinen Unterschied. Und der Dependency Graph meldet pub-Lizenzen
+  # kleingeschrieben (`mit`, `bsd-3-clause`); das sind keine gültigen
+  # SPDX-Kennungen, also stirbt der Job an „could not detect the validity of
+  # all licenses" — auf JEDEM PR, der eine pub-Abhängigkeit anfasst (belegt
+  # an #205 unter v4 und #224 unter v5, der Versionssprung war unschuldig).
+  #
+  # Verloren geht dabei nichts, und das ist nachgerechnet: „Lizenzen
+  # (Gesamtbestand)" weiter unten deckt alle vier zuvor verbotenen Lizenzen
+  # ab und ist strenger in jeder Richtung — Allowliste statt Deny, ganzer
+  # Baum statt nur der neuen Pakete, echte LICENSE-Dateien statt
+  # GitHub-Metadaten. Übrig bleibt hier die Schwachstellen-Hälfte, und die
+  # ist der Grund, warum der Job steht.
+  #
+  # Wer `deny-licenses` wieder einträgt, holt den roten Dauerzustand zurück
+  # — und ein Check, auf den niemand reagieren kann, wird irgendwann nicht
+  # mehr gelesen — das Spiegelbild der `continue-on-error`-Lehre unten.
   dependency-review:
     name: Dependency Review
     if: github.event_name == 'pull_request'
@@ -85,7 +102,6 @@ jobs:
       - uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
-          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0, SSPL-1.0
           comment-summary-in-pr: never
 
   # Das Gegenstück: `dependency-review` sieht nur, was ein PR NEU
