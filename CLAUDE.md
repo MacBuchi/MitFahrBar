@@ -1858,6 +1858,24 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Plugin-Registrant scheiterte. Automatisiert existiert derselbe Ansatz als
   Browser-E2E der Konsole (`tool/browser_e2e.sh`, CI-Job „Browser E2E
   (Konsole)", Details in `doc/testbackend.md`).
+- **Das „Netz" schaltet nur EIN Test wirklich ab** (`tool/browser_e2e.sh
+  offline`, seit v0.79.0). Überall sonst — auch in
+  `test/flows/offline_cache_flow_test.dart` — hängt es an der
+  Repository-Naht und wird als Exception geworfen. Das deckt die Regeln ab,
+  aber drei Dinge grundsätzlich nicht: die echte Ablage im Browser
+  (`PrefsOfflineCache`; die Testsuite nimmt sonst ausnahmslos die
+  In-Memory-Fassung, deshalb gibt es seit v0.79.0 zusätzlich
+  `test/offline_cache_prefs_test.dart`), die echte **Form** eines
+  Netzfehlers (`looksOffline` vergleicht Textformen, und die unterscheiden
+  sich zwischen `dart:io` und Web), und den **Service Worker** — ohne den
+  liefert der Browser ohne Empfang nicht einmal die Seite aus, und der
+  ganze Zwischenspeicher liegt hinter einer Tür, die sich nicht öffnet.
+  Diese letzte Frage ist **offen**: Sie ließ sich weder in Flow-Tests noch
+  im Container beantworten (dort aktiviert sich in Playwrights Chromium
+  kein Service Worker, auch von Hand registriert nicht). Wer sie beantwortet
+  bekommt, trägt das Ergebnis hier ein — und prüft dabei mit, dass der
+  Pages-Build CanvasKit nicht vom CDN holt (`flutter build web` tut das per
+  Vorgabe; `--no-web-resources-cdn` legt es neben die App).
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.

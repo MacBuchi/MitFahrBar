@@ -172,6 +172,30 @@ Artifact). Ändert sich das Layout der Konsolen-Screens, gehören die
 Koordinaten nachgezogen — der CI-Job „Browser E2E (Konsole)" ist genau
 deshalb bewusst kein Required Check.
 
+### Zweiter Flow: Start mit und ohne Netz (#169, #232)
+
+`tool/browser_e2e.sh offline` fährt denselben Aufbau, stellt aber eine
+andere Frage: einmal mit Empfang anmelden, dann `context.setOffline(true)`
+und **neu laden**. Das ist die einzige Stelle im Projekt, an der das „Netz"
+wirklich am Socket abgeschaltet wird — die Flow-Tests schalten es an der
+Repository-Naht ab, mit einer selbst geworfenen Exception. Erst hier laufen
+mit:
+
+- die echte Ablage (`PrefsOfflineCache` im Speicher des Browsers) statt der
+  In-Memory-Fassung aus der Testsuite,
+- der echte Fehler des Supabase-Clients statt eines nachgebauten Strings
+  (`_GateErrorScreen.looksOffline` vergleicht Textformen),
+- und der **Service Worker**: Ohne ihn liefert der Browser ohne Empfang
+  nicht einmal die Seite aus, und dann nützt der Zwischenspeicher nichts.
+  Genau diese Vorbedingung ist bisher nirgends geprüft; der Flow schreibt
+  den Zustand vor dem Neuladen ins Log, damit ein Fehlschlag beantwortbar
+  ist, statt nur rot zu sein.
+
+Der Job heißt „Browser E2E (Offline)" und ist ebenfalls **kein** Required
+Check — er läuft mit diesem PR zum ersten Mal gegen einen echten Stack.
+Wird er verlässlich grün, gehört er in die Branch Protection, und zwar
+zusammen mit den Repo-Einstellungen (die hängen an den `name:`-Feldern).
+
 ## Grenzen
 
 - Brevo/Prod-SMTP wird hier nicht geprüft — der Stack beweist den Weg

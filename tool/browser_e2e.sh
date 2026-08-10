@@ -9,8 +9,24 @@
 #
 # Wichtig: config.toml setzt site_url auf http://localhost:8731, damit die
 # Auth-Links aus den Mails in die lokal ausgelieferte App zurückführen.
+#
+# Welcher Flow läuft, sagt das erste Argument (Vorgabe: console). Der Stack
+# und der Web-Build sind für beide dieselben — zweimal aufgesetzt wären es
+# zwei Wahrheiten über den Testaufbau, und der Lauf dauert doppelt.
+#
+#   tool/browser_e2e.sh            # Verwalter-Konsole (#71)
+#   tool/browser_e2e.sh offline    # Start mit und ohne Netz (#169, #232)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+FLOW="${1:-console}"
+case "$FLOW" in
+  console | offline) ;;
+  *)
+    echo "Unbekannter Flow: $FLOW (console|offline)" >&2
+    exit 2
+    ;;
+esac
 
 command -v supabase >/dev/null 2>&1 || { echo "Supabase-CLI fehlt." >&2; exit 1; }
 command -v node >/dev/null 2>&1 || { echo "Node fehlt." >&2; exit 1; }
@@ -34,8 +50,8 @@ python3 -m http.server 8731 --directory build/web >/dev/null 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
-echo "== Playwright-Flow =="
+echo "== Playwright-Flow ($FLOW) =="
 cd tool/browser_e2e
 npm install --no-audit --no-fund
 npx playwright install --with-deps chromium
-node console.mjs
+node "$FLOW.mjs"
