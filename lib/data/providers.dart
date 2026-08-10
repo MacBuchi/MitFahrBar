@@ -118,6 +118,30 @@ final notificationHealthProbeProvider = Provider<NotificationHealthProbe>(
   (ref) => const NotificationHealthProbe(),
 );
 
+/// Ob dieses Gerät **keine** Benachrichtigungen bekommt, obwohl es könnte.
+///
+/// Trägt den Hinweis auf der Übersicht (#230). Bis v0.78.0 führte nichts zum
+/// Benachrichtigungs-Screen: Wer nicht wusste, dass es ihn gibt, hat nie
+/// erfahren, dass sein Browser die Erlaubnis verweigert — der Schalter dort
+/// war der einzige Ort, an dem das überhaupt auffiel.
+///
+/// **Fragt bewusst mit `ask: false`.** Ein Berechtigungsdialog, den niemand
+/// angefordert hat, wird weggetippt — und danach fragt weder Android noch der
+/// Browser je wieder. Der Hinweis führt zum Schalter, gefragt wird dort.
+final pushInactiveProvider = FutureProvider<bool>((ref) async {
+  if (!pushSupported) return false;
+  try {
+    final token = await ref.watch(pushTokenProvider)(ask: false);
+    if (token == null) return true;
+    final state = await ref.watch(pushRepositoryProvider).stateFor(token);
+    return state.personId == null;
+  } catch (_) {
+    // Wie überall im Push-Zweig: Ein Nebenfeature darf die Übersicht nicht
+    // kaputt machen. Nichts zu wissen heißt hier „nichts melden".
+    return false;
+  }
+});
+
 final pushOutboxRepositoryProvider = Provider<PushOutboxRepository>(
   (ref) => SupabaseConfig.isConfigured
       ? SupabasePushOutboxRepository(ref.watch(supabaseClientProvider))

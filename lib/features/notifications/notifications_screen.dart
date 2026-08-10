@@ -29,6 +29,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/browser_hint.dart';
 import '../../core/notification_health.dart';
 import '../../core/notification_health_probe.dart';
 import '../../core/push_messaging.dart';
@@ -58,9 +59,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   bool _busy = false;
   bool _failed = false;
 
-  /// Was Android gerade zulässt (#180). Vorbelegt mit „unbekannt", damit vor
-  /// der ersten Antwort nichts behauptet wird.
+  /// Was Android bzw. der Browser gerade zulässt (#180). Vorbelegt mit
+  /// „unbekannt", damit vor der ersten Antwort nichts behauptet wird.
   NotificationHealth _health = NotificationHealth.unknown;
+
+  /// Einschalten hat kein Token ergeben, **obwohl nichts Bekanntes im Weg
+  /// steht**. Der Fall braucht eine eigene Karte: Die Blockade-Karten
+  /// erklären ihn nicht, und eine SnackBar-Zeile war bis v0.78.0 die einzige
+  /// Antwort auf einen Schalter, der sichtbar nichts tat.
+  bool _tokenFailed = false;
 
   @override
   void initState() {
@@ -220,7 +227,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
       final token = _token ?? await ref.read(pushTokenProvider)(ask: true);
       if (token == null) {
-        _report('Ohne erlaubte Benachrichtigungen geht es nicht.');
+        // Ab hier erklärt der Schirm, statt eine Zeile zu melden: Der Zustand
+        // wird frisch gelesen — wer gerade abgelehnt hat, sieht die passende
+        // Karte samt Weg zurück. Bleibt sie aus, weiß niemand etwas, und
+        // genau dafür ist die Fehlschlag-Karte da.
+        await _readHealth();
+        if (!mounted) return;
+        setState(() => _tokenFailed = _health.isClear);
+        if (!_health.isClear) {
+          _report('Es fehlt die Erlaubnis — oben steht, wo du sie gibst.');
+        }
         return;
       }
       await repository.register(
@@ -238,6 +254,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         _token = token;
         _registeredPersonId = me.id;
         _prefs = prefs;
+        _tokenFailed = false;
       });
     });
   }
@@ -376,16 +393,34 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     return [
       for (final block in _health.blocks)
         switch (block) {
-          NotificationBlock.permission => _BlockCard(
-            icon: Icons.notifications_off_outlined,
-            title: 'Android lässt keine Benachrichtigungen zu',
-            body:
-                'Ohne diese Erlaubnis kommt nichts an — auch nicht, wenn hier '
-                'alles eingeschaltet ist. Android nimmt sie auch von selbst '
-                'zurück, wenn die App monatelang ungenutzt bleibt.',
-            action: 'Erlauben',
-            onPressed: probe.openAppNotifications,
-          ),
+          // Dieselbe Blockade, zwei Welten: Auf Android führt ein Knopf zum
+          // Systemschirm, im Browser gibt es dafür **keine API** — dort tritt
+          // eine Anleitung an seine Stelle. Ein Knopf, der nichts löst, wäre
+          // ein Versprechen (dieselbe Entscheidung wie bei totaler Stille).
+          NotificationBlock.permission =>
+            probe.canOpenSettings
+                ? _BlockCard(
+                    icon: Icons.notifications_off_outlined,
+                    title: 'Android lässt keine Benachrichtigungen zu',
+                    body:
+                        'Ohne diese Erlaubnis kommt nichts an — auch nicht, wenn '
+                        'hier alles eingeschaltet ist. Android nimmt sie auch '
+                        'von selbst zurück, wenn die App monatelang ungenutzt '
+                        'bleibt.',
+                    action: 'Erlauben',
+                    onPressed: probe.openAppNotifications,
+                  )
+                : _BlockCard(
+                    icon: Icons.notifications_off_outlined,
+                    title:
+                        '${browserLabel(probe.browser)} blockiert '
+                        'Benachrichtigungen für diese Seite',
+                    body:
+                        'Der Schalter unten kann daran nichts ändern: Einmal '
+                        'abgelehnt, fragt der Browser von sich aus nicht noch '
+                        'einmal. Freigeben lässt es sich nur bei ihm:',
+                    steps: notificationStepsFor(probe.browser),
+                  ),
           NotificationBlock.batteryRestricted => _BlockCard(
             icon: Icons.battery_alert_outlined,
             title: 'Der Akkuverbrauch steht auf „Eingeschränkt"',
@@ -436,6 +471,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
             onPressed: () => probe.openChannel(androidPlanChannel),
           ),
         },
+      // Kein Zustand, den eine Plattform meldet, sondern ein Ausgang: Das
+      // Einschalten hat kein Token ergeben, obwohl nichts Bekanntes im Weg
+      // steht. Deshalb hier und nicht in `NotificationHealth` — dort stehen
+      // nur Rohwerte der Plattform.
+      if (_tokenFailed)
+        _BlockCard(
+          icon: Icons.cloud_off_outlined,
+          title: 'Einschalten hat nicht geklappt',
+          body: probe.canOpenSettings
+              ? 'Die Anmeldung beim Benachrichtigungs-Dienst kam nicht durch '
+                    '— meistens ein kurzer Aussetzer der Verbindung.'
+              : 'Die Anmeldung beim Benachrichtigungs-Dienst kam nicht durch. '
+                    '$quietBlockHint',
+          action: 'Nochmal versuchen',
+          onPressed: () => _setEnabled(true),
+        ),
     ];
   }
 
@@ -650,6 +701,7 @@ class _BlockCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
+    this.steps = const <String>[],
     this.action,
     this.onPressed,
   });
@@ -657,6 +709,9 @@ class _BlockCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
+
+  /// Die Anleitung, die den Knopf ersetzt, wo es keinen geben kann (Web).
+  final List<String> steps;
   final String? action;
   final Future<void> Function()? onPressed;
 
@@ -682,6 +737,19 @@ class _BlockCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(body, style: theme.textTheme.bodySmall),
+            for (final (index, step) in steps.indexed) ...[
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Die Nummer als Text und nicht als Aufzählungspunkt: Es
+                  // ist eine Reihenfolge, keine Sammlung.
+                  Text('${index + 1}.', style: theme.textTheme.bodySmall),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(step, style: theme.textTheme.bodySmall)),
+                ],
+              ),
+            ],
             if (action != null && onPressed != null) ...[
               const SizedBox(height: 12),
               Align(

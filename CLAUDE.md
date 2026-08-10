@@ -1548,6 +1548,43 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
       zusammen. Dessen „kommt nicht vor"-Prüfung liest den Dart-Code **ohne
       Kommentare** — dieselbe Lehre wie `sqlOnly`: Ein File, das seine eigene
       Entscheidung begründet, nennt den verbotenen Namen zwangsläufig.
+    - **Seit v0.78.0 gilt dieselbe Führung im Browser** (#230, gemeldet als
+      „in der PWA lässt sich Push nicht aktivieren"). Bis dahin war
+      `supported` `!kIsWeb && android`: Im Web blieb der Zustand auf
+      „unbekannt", **keine einzige Karte** erschien, und übrig blieb eine
+      SnackBar-Zeile an einem Schalter, der nichts tun konnte — die Erlaubnis
+      war vom Browser abgelehnt, und ein abgelehnter Dialog kommt dort **nie
+      von selbst zurück**.
+      - **Eine Achse statt vier, und keine erfundene.** `Notification
+        .permission` fließt als `notificationsEnabled` in dasselbe Modell;
+        Kanäle, „Nicht stören" und Akku kennt der Browser nicht und bleiben
+        `null`. **`default` ist ausdrücklich keine Blockade** — dann löst das
+        Einschalten den Dialog aus, und eine Warnung davor wäre eine
+        Fehlmeldung an jeden, der den Schirm zum ersten Mal öffnet.
+      - **Eine Anleitung statt eines Knopfes**, und das ist dieselbe
+        Entscheidung wie bei totaler Stille: Es gibt keine Web-API, die die
+        Seiteneinstellungen eines Browsers öffnet. Die Schritte stehen je
+        Browser in `core/browser_hint.dart` — Edge und Opera tragen `Chrome`
+        im User-Agent, Chrome/Edge/Firefox auf iOS tragen `Safari` mit; **die
+        Reihenfolge der Abfragen ist der ganze Inhalt** der Erkennung. Wer
+        sie zusammenwirft, schickt Opera-Nutzer in ein Menü, das es dort
+        nicht gibt.
+      - **Die Plattform ist ein Parameter** (`NotificationOwner`), sonst liefe
+        der Web-Zweig in `flutter test` (VM) nie und die Karten wären
+        ungeprüft. Der Flow-Test benutzt die **echte** Probe mit gesetzten
+        Quellen, kein Fake — ein Fake baute genau den Zweig nach, um den es
+        geht.
+      - **Chromes leise Blockade ist nicht erkennbar** und deshalb ein Satz
+        und kein Zweig: Der Dialog wird unterdrückt, der Zustand bleibt
+        `default`, in der Adressleiste steht nur ein durchgestrichenes
+        Glocken-Symbol.
+      - **Der Hinweis auf der Übersicht führt hin, er fragt nicht.** Ein
+        ungefragter Berechtigungsdialog wird weggetippt, und danach ist der
+        Weg dauerhaft zu — dieselbe Regel wie `pushToken(ask: false)` beim
+        Öffnen des Schirms. Er tippt mit **`push`**, nicht `go`: Im Browser
+        nachgemessen stand der Schirm sonst ohne Zurück-Pfeil und ohne
+        Navigationsleiste da, und wer dem Hinweis folgte, saß fest. Kein Test
+        hätte das gezeigt — beide Wege öffnen den Schirm.
   Push-Texte gehören nie ins Log (sie enthalten Personennamen), und der Job
   loggt nur Zahlen. Festgenagelt in `test/push_digest_test.dart`,
   `test/notify_workflow_test.dart`, `test/schema_test.dart`,

@@ -4,6 +4,7 @@ library;
 
 import 'package:mitfahrbar/core/tokens.dart';
 import 'package:mitfahrbar/core/update_check.dart';
+import 'package:mitfahrbar/data/device_identity.dart';
 import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/models/group_defaults.dart';
 import 'package:mitfahrbar/models/notification_prefs.dart';
@@ -14,6 +15,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_backend.dart';
 import '../fakes/test_app.dart';
+
+/// Eine Gruppe mit Anna — Gruppen- und Personen-Kennung, weil der Push-Hinweis
+/// beides braucht: die gewählte Person, und die Gruppe, unter der ein
+/// registriertes Gerät steht.
+Future<({String group, String anna})> _annaIn(FakeBackend backend) async {
+  final id = backend.addGroup(
+    handle: 'daciaracing',
+    password: 'geheim123',
+    name: 'Dacia Racing',
+  );
+  final anna = await backend
+      .dataFor(id)
+      .createPerson(const Person(id: '', name: 'Anna', active: true));
+  return (group: id, anna: anna.id);
+}
 
 Future<void> _login(WidgetTester tester) async {
   await tester.enterText(find.byType(TextField).first, 'daciaracing');
@@ -561,5 +577,79 @@ void main() {
 
     expect(find.textContaining('ein paar Worte mehr'), findsOneWidget);
     expect(backend.feedback, isEmpty);
+  });
+
+  // Der Weg zum Schalter (#230). Gemeldet wurde „in der PWA lässt sich Push
+  // nicht aktivieren" — und niemand konnte sehen, warum, weil der
+  // Benachrichtigungs-Screen nur im Menü stand und nichts auf ihn zeigte.
+  group('Der Hinweis auf fehlende Benachrichtigungen', () {
+    testWidgets('führt angetippt genau dorthin, wo es sich klären lässt', (
+      tester,
+    ) async {
+      final backend = FakeBackend();
+      final ids = await _annaIn(backend);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids.anna, asked: true),
+      );
+      await _login(tester);
+
+      expect(
+        find.text('Keine Benachrichtigungen auf diesem Gerät'),
+        findsOneWidget,
+      );
+
+      // **Tippen, nicht finden**: Ein Streifen, der nirgends hinführt, ist
+      // schlimmer als keiner — man hält das Thema für erledigt.
+      await tester.tap(find.text('Keine Benachrichtigungen auf diesem Gerät'));
+      await tester.pumpAndSettle();
+      expect(find.text('Benachrichtigungen'), findsWidgets);
+      expect(
+        find.text('Benachrichtigungen auf diesem Gerät'),
+        findsOneWidget,
+        reason: 'Der Hauptschalter ist das Ziel, nicht irgendein Schirm.',
+      );
+    });
+
+    testWidgets('ohne gewählte Person bleibt er weg', (tester) async {
+      // Dann steht das Identitäts-Banner darüber und es gibt niemanden, für
+      // den man etwas einstellen könnte. Deckt den Demo-Modus mit ab, in dem
+      // die README-Screenshots entstehen.
+      final backend = _backend();
+      await pumpApp(tester, backend);
+      await _login(tester);
+
+      expect(
+        find.text('Keine Benachrichtigungen auf diesem Gerät'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('wer sie schon bekommt, sieht ihn nicht', (tester) async {
+      final backend = FakeBackend();
+      final ids = await _annaIn(backend);
+      // Dieses Gerät hängt bereits an Anna — dann gibt es nichts zu melden.
+      //
+      // Die Zeile wird direkt gesetzt und nicht über `register` angelegt:
+      // Das Fake schreibt die Gruppe der **laufenden** Sitzung hinein, und
+      // die gibt es vor dem Anmelden noch nicht. Ein `register` hier legte
+      // die Zeile unter `null` ab, und der Schirm sähe sie nach dem Login
+      // nicht — genau so, wie die RLS eine fremde Zeile verbirgt.
+      final push = FakePushRepository(backend);
+      push.devices['test-token'] = (ids.group, ids.anna);
+      await pumpApp(
+        tester,
+        backend,
+        identity: DeviceIdentity(personId: ids.anna, asked: true),
+        overrides: [pushRepositoryProvider.overrideWithValue(push)],
+      );
+      await _login(tester);
+
+      expect(
+        find.text('Keine Benachrichtigungen auf diesem Gerät'),
+        findsNothing,
+      );
+    });
   });
 }
