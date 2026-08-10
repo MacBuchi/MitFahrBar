@@ -6,18 +6,21 @@
 // Token.
 //
 // Die Version MUSS zu `supportedFirebaseJsSdkVersion` in firebase_core_web
-// passen (derzeit 12.15.0). Driften beide auseinander, warnt firebase_core
-// beim Start — und im schlechteren Fall lädt der Worker eine Fassung, die es
-// auf gstatic nicht mehr gibt, und stirbt still.
+// passen. Driften beide auseinander, warnt firebase_core beim Start — und im
+// schlechteren Fall lädt der Worker eine Fassung, die es auf gstatic nicht
+// mehr gibt, und stirbt still. Die Zahl steht deshalb NICHT zusätzlich in
+// diesem Kommentar: `test/android_manifest_test.dart` liest sie aus dem Paket
+// und vergleicht sie mit den beiden URLs unten — eine abgeschriebene dritte
+// Stelle wäre die erste, die nach einem Dependabot-Bump lügt.
 //
 // Die Werte unten sind Client-Konfiguration und bewusst öffentlich, genau wie
 // der Supabase-Publishable-Key: Der Zugriffsschutz liegt in der RLS bzw. bei
 // Firebase im Dienstkonto, das nur der Server kennt.
 importScripts(
-  'https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/12.17.0/firebase-app-compat.js',
 );
 importScripts(
-  'https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging-compat.js',
+  'https://www.gstatic.com/firebasejs/12.17.0/firebase-messaging-compat.js',
 );
 
 firebase.initializeApp({
