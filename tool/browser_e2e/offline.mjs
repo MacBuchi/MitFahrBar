@@ -330,11 +330,7 @@ try {
   // Firebase der Personenname, aber kein Banner. Wer sich auf eines
   // festlegt, prüft die Lücke statt den Inhalt.
   await expectLabel(_hasContent, 'Inhalt der Übersicht');
-  await expectNoLabel(
-    /Offline · Stand/,
-    'mit Empfang darf die Leiste nicht stehen',
-  );
-  console.log('✓ Start MIT Netz: Inhalt da, keine Offline-Leiste');
+  console.log('✓ Start MIT Netz: Inhalt da');
 
   // 2. Und jetzt der gemeldete Fall: Netz weg, App neu starten.
   const before = await awaitShell();
@@ -376,21 +372,31 @@ try {
     'der Gate-Schirm gehört hier nicht hin',
   );
 
-  // Und der Kern von #169 zum Zweiten: Der Stand wird benannt, nicht als
-  // aktuell ausgegeben. Die Leiste kommt bewusst mit zwei Sekunden Verzug
-  // (v0.79.0) — deshalb erst hier gefragt.
-  await expectLabel(/Offline · Stand/, 'die Leiste nennt den Zeitpunkt');
-  console.log('✓ Start OHNE Netz: letzter Stand + Leiste');
+  // **Die Leiste selbst prüft dieser Flow bewusst NICHT** — sie steht im
+  // Bild (`shots/03-offline-ohne-netz.png`), aber nicht im a11y-Baum. Das
+  // ist zweimal gemessen (11.08.2026, vor und nach dem Semantik-Fix in
+  // `AppShell`) und passt zum übrigen Befund: Der Baum von Flutter-Web ist
+  // lückenhaft und veraltet stellenweise — in demselben Durchlauf standen
+  // noch Reste des Anmelde-Schirms darin, während „Anna" aus der Übersicht
+  // fehlte.
+  //
+  // Eine Prüfung, die daran hängt, misst die Lücke statt die Leiste. Ihr
+  // Verhalten — kommt nur ohne Netz, nennt den Zeitpunkt, verschwindet
+  // wieder, und ist für Screenreader vorhanden — steht in
+  // `test/flows/offline_cache_flow_test.dart`; dort ist der Baum
+  // vollständig. Hier bleibt der Screenshot als Beleg für Menschen.
+  console.log('✓ Start OHNE Netz: letzter Stand aus dem Speicher');
 
-  // 3. Zurück ins Netz: Die Leiste geht von allein weg.
+  // 3. Zurück ins Netz: Es geht normal weiter. Auch hier keine Aussage über
+  //    die Leiste — ein `expectNoLabel` darauf wäre aus demselben Grund
+  //    wertlos wie die Prüfung oben: Es wäre immer erfüllt, egal was steht.
   await context.setOffline(false);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(6000);
   await activateSemantics();
   await checkpoint('wieder-online');
   await expectLabel(_hasContent, 'Übersicht wieder mit Netz');
-  await expectNoLabel(/Offline · Stand/, 'mit Empfang gehört die Leiste weg');
-  console.log('✓ Zurück im Netz: Leiste weg');
+  console.log('✓ Zurück im Netz: Übersicht wieder da');
 
   // 4. Serverseitige Gegenprobe: Der ganze Lauf hat nichts geschrieben —
   //    ohne Netz eintragen geht nicht, und das soll auch so bleiben.
