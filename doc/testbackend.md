@@ -217,11 +217,17 @@ Offline-Fehler hält, sucht tagelang an der falschen Stelle — es steht auch
 mit Empfang da. Der Ausweg ist `supabase stop --no-backup` und ein neuer
 Start; in der CI stellt sich die Frage nicht, dort ist der Stack immer neu.
 
-Der Job heißt „Browser E2E (Offline)" und ist ebenfalls **kein** Required
-Check. Seit v0.80.0 ist er grün und beschreibt damit einen Zustand, der
-gehalten werden soll; ihn in die Branch Protection aufzunehmen ist der
-nächste Schritt — der geht nur zusammen mit den Repo-Einstellungen, weil
-die an den `name:`-Feldern hängen.
+Der Job heißt „Browser E2E (Offline)" und ist seit v0.80.0 ein **Required
+Check** — anders als der Konsolen-Flow daneben. Der Unterschied ist die
+Farbe und ihr Grund: Rot beschrieb er einen echten Defekt und wäre als
+Riegel nur im Weg gewesen; grün beschreibt er einen Zustand, den sonst
+nichts hält. Damit ist auch sein `name:` Teil der Branch Protection —
+Umbenennen greift stillschweigend nicht mehr.
+
+Er ist der einzige Required Check, der einen Supabase-Stack **und** einen
+Browser braucht, und damit der langsamste und störanfälligste. Wird er
+unzuverlässig, ist die Antwort, ihn zu reparieren; ihn wieder auszuhängen
+hieße, die eine Frage ungeprüft zu lassen, die kein Flow-Test stellen kann.
 
 ## Grenzen
 

@@ -1831,12 +1831,16 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
 - **Wer mergen darf, entscheidet weiterhin der Versions-Bump:**
   - **Ohne Bump** (nur `*.md`, `.github/`, `test/`, `tool/`, `LICENSE`):
     Claude darf nach grüner CI selbst squash-mergen.
-  - **Mit Bump**: **Der Merge gehört dem Menschen.** Die ursprüngliche
-    Begründung („der Merge ist die Veröffentlichung") gilt seit den zwei
-    Kanälen allerdings nicht mehr — ein Merge erreicht die Gruppe nicht,
-    veröffentlicht wird erst mit der Beförderung. Ob die Regel deshalb
-    gelockert wird, ist **Marcus' Entscheidung** und hier bewusst offen
-    gelassen, statt sie stillschweigend nachzuziehen.
+  - **Mit Bump**: **Der Merge gehört dem Menschen — entschieden am
+    11.08.2026 und damit nicht mehr offen.** Die ursprüngliche Begründung
+    („der Merge ist die Veröffentlichung") trägt seit den zwei Kanälen
+    nicht mehr: Ein Merge erreicht die Gruppe nicht, veröffentlicht wird
+    erst mit der Beförderung. Die Regel bleibt trotzdem, und das ist der
+    Punkt — **sie hing nie allein an ihrer ersten Begründung.** Ein Bump
+    erzeugt Tag, APK und Release; er ist der Schritt, ab dem eine Fassung
+    einen Namen trägt und jemand sie installieren kann. Wer diese Regel
+    künftig wieder aufmacht, ändert damit **Marcus' Entscheidung**, nicht
+    bloß eine hinfällige Begründung.
 - Commit-/PR-Titel: Conventional Commits. GitHub-Kommunikation Englisch,
   UI-Strings und Nutzer-Doku Deutsch.
 - Release = Versions-Bump in `pubspec.yaml` auf `main` (beide Teile erhöhen,
@@ -1994,9 +1998,18 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.
 - **Die Required Checks hängen an den `name:`-Feldern der CI-Jobs**
-  („Analyze & Test", „Build Web", „Build Android APK", „Version Guard").
-  Wird ein Job umbenannt, greift die Branch Protection stillschweigend nicht
-  mehr — Umbenennung immer zusammen mit den Repo-Einstellungen.
+  („Analyze & Test", „Build Web", „Build Android APK", „Version Guard" und
+  seit v0.80.0 „Browser E2E (Offline)"). Wird ein Job umbenannt, greift die
+  Branch Protection stillschweigend nicht mehr — Umbenennung immer zusammen
+  mit den Repo-Einstellungen.
+  - **Der Offline-Job wurde aufgenommen, weil er die Farbe gewechselt hat.**
+    Rot beschrieb er einen echten Defekt (die PWA startete ohne Empfang gar
+    nicht) und wäre als Riegel nur im Weg gewesen; grün beschreibt er einen
+    Zustand, den kein anderer Test halten kann — in den Flow-Tests hängt das
+    „Netz" an der Repository-Naht, hier am Socket. Er ist zugleich der
+    einzige Required Check, der einen Supabase-Stack und einen Browser
+    braucht; wird er unzuverlässig, ist die Antwort, ihn zu **reparieren**
+    und nicht ihn wieder auszuhängen.
 
 ## Technik-Notizen
 
