@@ -114,6 +114,23 @@ void main() {
       );
     });
 
+    // Zweite Hälfte desselben Vorfalls: Der Reparaturlauf lief durch, aber
+    // unter „Was ist neu" stand nur der Fallback-Link. Der erste Durchgang
+    // hatte das Release bereits stabil geschaltet — der zweite fand als
+    // „letzten stabilen Stand" also sich selbst und sammelte zwischen einer
+    // Version und derselben, mithin nichts. Fünf Versionen Text fielen weg,
+    // und gemerkt hätte es nur, wer die Release-Seite ansieht.
+    test('der beförderte Stand zählt nicht als sein eigener Vorgänger', () {
+      expect(
+        promote,
+        contains(r'select(.tagName != $tag)'),
+        reason:
+            'Ohne diesen Ausschluss liefert jeder WIEDERHOLTE Lauf leere '
+            'Notizen — und wiederholt wird genau dann, wenn der erste Lauf '
+            'auf halber Strecke gescheitert ist.',
+      );
+    });
+
     test('Pages wird nach dem Umschalten deployt, nicht davor', () {
       final stable = promote.indexOf('--prerelease=false');
       final pages = promote.indexOf('actions-gh-pages');
