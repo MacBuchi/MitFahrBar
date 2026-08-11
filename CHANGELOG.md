@@ -28,6 +28,12 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
   zurückgebracht, die schon lief — sichtbar passiert wäre nichts. Er wartet
   jetzt, bis die neue Fassung übernommen hat, und lädt dann neu.
 
+- **Die Offline-Leiste wird jetzt auch vorgelesen.** „Offline · Stand heute
+  07:12" stand zwar sichtbar oben, war für die Sprachausgabe aber gar nicht
+  vorhanden — wer die App vorlesen lässt, erfuhr also nicht, dass der Plan
+  von vorhin stammt. Genau das ist der Unterschied zwischen „gleich
+  losfahren" und „zur falschen Zeit losfahren".
+
 ## [0.79.0] – 2026-08-10
 
 ### Behoben

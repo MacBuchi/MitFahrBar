@@ -974,6 +974,20 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     die ganze App. Und sie hört an einem eigenen Halter statt an einem Provider:
     Die Meldung entsteht, *während* ein Provider lädt; ein Provider-Schreib in
     diesem Moment stieße eine Invalidierung mitten in der Build-Phase an.
+    - **Sie war bis v0.80.0 für Screenreader nicht vorhanden**, und zwar aus
+      einem Grund, den man im Bild nicht sieht: Die Route der Navigations-
+      Schale ist undurchsichtig und wird **nach** der Leiste gezeichnet — eine
+      solche Route verwirft die Semantik von allem, was vorher dran war. Im
+      `AppShell` steht deshalb `Semantics(container: true)` um
+      `navigationShell`; das begrenzt das Blockieren auf die Schale selbst.
+      Dazu trägt der Text ein ausdrückliches `semanticsLabel`: Ohne das steht
+      er im Web nur als Textinhalt im Baum, nicht als `aria-label`.
+      **Beide Zeilen gehören zusammen** — je einzeln bleibt die Leiste
+      unauffindbar. Gefunden hat es der Browser-E2E (sichtbar im Bild, leer im
+      Baum), nicht ein Widget-Test; festgenagelt ist es seither in
+      `test/flows/offline_cache_flow_test.dart` mit `ensureSemantics` **vor**
+      dem ersten Aufbau — später eingeschaltet bleibt der Baum leer, und der
+      Test wäre grün, ohne etwas geprüft zu haben.
   - **Das Preisarchiv ist bewusst draußen** (entschieden 05.08.2026): mit
     Abstand die meisten Zeilen, und ein Diagramm ohne Empfang war der
     schwächste der Wünsche.
