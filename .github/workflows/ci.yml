@@ -147,6 +147,43 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # Browser-E2E Offline (#169, #232): dieselbe Maschinerie, andere Frage —
+  # startet die App mit UND ohne Netz. Das ist die einzige Stelle, an der das
+  # „Netz" wirklich am Socket abgeschaltet wird; in den Flow-Tests hängt es
+  # an der Repository-Naht. Damit laufen hier die echte Ablage im Browser,
+  # der echte Fehler des Supabase-Clients und der Service Worker mit — ohne
+  # den lädt die PWA ohne Empfang gar nicht erst, und das sieht sonst niemand.
+  #
+  # Eigener Job und **kein** Required Check: Er läuft hier zum ersten Mal
+  # überhaupt gegen einen echten Stack. Wird er verlässlich grün, gehört er
+  # in die Branch Protection — dann aber zusammen mit den Repo-Einstellungen,
+  # weil die an den `name:`-Feldern hängen.
+  browser-e2e-offline:
+    name: Browser E2E (Offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        with:
+          version: "2.109.1"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Start mit und ohne Netz gegen lokalen Stack
+        run: tool/browser_e2e.sh offline
+      - name: Screenshots hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-e2e-offline-shots
+          path: tool/browser_e2e/shots/
+          retention-days: 14
+          if-no-files-found: ignore
+
   housekeeping:
     name: Version Guard
     runs-on: ubuntu-latest

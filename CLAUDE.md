@@ -1858,6 +1858,57 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Plugin-Registrant scheiterte. Automatisiert existiert derselbe Ansatz als
   Browser-E2E der Konsole (`tool/browser_e2e.sh`, CI-Job „Browser E2E
   (Konsole)", Details in `doc/testbackend.md`).
+- **Das „Netz" schaltet nur EIN Test wirklich ab** (`tool/browser_e2e.sh
+  offline`, seit v0.79.0). Überall sonst — auch in
+  `test/flows/offline_cache_flow_test.dart` — hängt es an der
+  Repository-Naht und wird als Exception geworfen. Das deckt die Regeln ab,
+  aber drei Dinge grundsätzlich nicht: die echte Ablage im Browser
+  (`PrefsOfflineCache`; die Testsuite nimmt sonst ausnahmslos die
+  In-Memory-Fassung, deshalb gibt es seit v0.79.0 zusätzlich
+  `test/offline_cache_prefs_test.dart`), die echte **Form** eines
+  Netzfehlers (`looksOffline` vergleicht Textformen, und die unterscheiden
+  sich zwischen `dart:io` und Web), und den **Service Worker** — ohne den
+  liefert der Browser ohne Empfang nicht einmal die Seite aus, und der
+  ganze Zwischenspeicher liegt hinter einer Tür, die sich nicht öffnet.
+  **Diese letzte Frage ist beantwortet, und die Antwort ist ein Befund:
+  Die PWA startet ohne Empfang gar nicht** (gemessen am 10.08.2026 im
+  neuen Job gegen einen echten Stack). Die Cache-Ablage ist **leer**, und
+  ein Neuladen ohne Netz endet in `ERR_INTERNET_DISCONNECTED`.
+  - **`flutter_service_worker.js` ist in 3.44 ein Selbstzerstörer, kein
+    Zwischenspeicher.** Das ist die Wurzel, und sie steht in der Datei
+    selbst — 784 Bytes, kein Ressourcen-Manifest, und im `activate`:
+    `self.registration.unregister()`, gefolgt von einem Neuladen aller
+    Clients. Es gibt in Flutter Web keinen App-Shell-Cache mehr; die Datei
+    existiert nur noch, um früher installierte Worker **abzuräumen**.
+    Deshalb führt `flutter_bootstrap.js` seinen Ladeweg als deprecated.
+  - **Der Weg dorthin ist die eigentliche Lehre, drei Messungen lang:**
+    Im Normalbau steht im Geltungsbereich `/` genau ein Worker, nämlich
+    `firebase-messaging-sw.js` — das sieht nach Verdrängung aus (es gibt je
+    Geltungsbereich nur einen). Ohne Firebase im Bau steht dort **gar
+    keiner**; also keine Verdrängung. Und die eigene Registrierung in
+    `web/index.html` änderte ebenfalls nichts — erst die Sonde **vor** der
+    Anmeldung zeigte, dass auch danach keine Registrierung existiert,
+    obwohl das FCM-SDK zu dem Zeitpunkt noch gar nichts getan hat. Wer nur
+    den Endzustand misst, kommt hier dreimal zu einer plausiblen und
+    falschen Ursache.
+  - **Den Stummel registrieren macht es schlimmer, nicht besser** — er
+    meldet sich ab *und* lädt die Seite neu. `test/web_offline_test.dart`
+    hält deshalb fest, dass `web/index.html` ihn **nicht** registriert; das
+    war schon einmal eingebaut (v0.80.0-Versuch, zurückgenommen).
+  - **Damit sind zwei Wege ausgeschlossen, nicht bloß unversucht:**
+    „Web-Push aufgeben" hätte Push gekostet und offline nichts gebracht
+    (gemessen), und „Flutters App-Worker zurückholen" gibt es nicht mehr.
+    Übrig bleibt ein **eigener** Service Worker, der die App-Shell selbst
+    vorhält — und der braucht `--no-web-resources-cdn` dazu, sonst kommt
+    der Renderer von gstatic und die Seite bleibt ohne Netz weiß. Beides
+    zusammen ist ein eigenes Vorhaben; ohne das ist die PWA eine
+    Online-App.
+  - **Der Zwischenspeicher aus v0.79.0 wirkt im Web also nicht** — nicht
+    weil er falsch wäre, sondern weil die Tür davor verschlossen ist. Auf
+    Android ist nichts davon betroffen (nativer Firebase-Client, kein
+    Service Worker).
+  - Der Job bleibt so lange rot. Das ist die richtige Farbe: Er beschreibt
+    einen echten Zustand, und er ist kein Required Check.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.
