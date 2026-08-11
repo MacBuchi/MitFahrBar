@@ -277,6 +277,67 @@ async function awaitShell(limitMs = 120000) {
 /// Woran zu erkennen ist, dass die Übersicht wirklich Zeilen zeigt.
 const _hasContent = /Wunsch oder Fehler melden|Wer ist dran|Anna/;
 
+/// Wie lange der Start ohne Netz höchstens dauern darf — ab dem Neuladen bis
+/// zur Übersicht, **ohne** den Splash.
+///
+/// Der Wert ist gemessen, nicht geschätzt: Auf einem MacBook mit dem
+/// Demo-Bau stand die erste gezeichnete Szene nach 0,27 s und der Inhalt nach
+/// 0,40 s — offline wie online, der Unterschied lag im Rauschen. Ohne Netz
+/// gibt es hier auch nichts Unvorhersehbares: Die Shell kommt vom Gerät, die
+/// Zeilen aus dem Zwischenspeicher, gewartet wird auf nichts.
+///
+/// **Der Splash steht der Messung nicht im Weg**, obwohl er 2,85 s läuft
+/// (2600 ms Animation + 250 ms Ausblenden). Er liegt als Overlay über der
+/// Übersicht, die darunter längst gebaut ist — im a11y-Baum steht der Inhalt
+/// also, bevor die Animation durch ist. Nachgemessen: ohne jeden Tipp auf den
+/// Splash kam der Inhalt nach 0,40 s. Wer hier einen Tipp einbaut, um ihn
+/// „wegzuräumen", misst ab dann die eigene Sonde mit.
+///
+/// **Eine Sekunde ist eine Zusage, keine Reserve.** Sie liegt beim rund
+/// Zweieinhalbfachen des gemessenen Werts — knapp genug, dass ein Rückfall
+/// in die Klasse aus #232 (wieder auf eine Antwort warten, die es ohne Netz
+/// nicht gibt) sofort auffällt, statt in einer weiten Schranke unterzugehen.
+///
+/// Der Preis ist ausgesprochen: Dieser Job ist Required Check und läuft auf
+/// einem geteilten Läufer. Schlägt die Schranke wiederholt an, ohne dass sich
+/// am Startweg etwas geändert hat, ist die ehrliche Antwort, die **gemessene**
+/// Zahl des Läufers hier einzutragen — nicht, sie ins Unverbindliche zu
+/// heben. Jede Änderung an diesem Wert gehört mit einer Messung begründet.
+const startBudgetMs = 1000;
+
+/// Wann das gemessene Neuladen begonnen hat — von der Messung unten gesetzt.
+let startedAt = 0;
+
+/// Misst vom Neuladen an, wann die Übersicht steht. Gibt Millisekunden
+/// zurück; findet sie nichts, wirft sie mit derselben Diagnose wie
+/// `expectLabel`.
+async function measureContent() {
+  // **Fein pollen, selten neu anfordern.** `activateSemantics` schläft
+  // intern eine halbe Sekunde; würde bei jedem Versuch aktiviert, läge die
+  // Auflösung dieser Messung über einer halben Sekunde und die Zahl bestünde
+  // größtenteils aus der Sonde selbst. Ein Blick in den Baum ist dagegen ein
+  // einzelner Aufruf. Neu angefordert wird nur alle 1,5 s — Flutter trägt
+  // Nachschub nicht von allein nach (siehe expectLabel).
+  for (let round = 0; round < 40; round++) {
+    // Bewusst NICHT `activateSemantics`: dessen feste halbe Sekunde Schlaf
+    // wäre bei einer Schranke von einer Sekunde die halbe Messung. Hier wird
+    // nur angestoßen und danach in 100-ms-Schritten nachgesehen.
+    await page
+      .locator('flt-semantics-placeholder')
+      .dispatchEvent('click', { timeout: 1000 })
+      .catch(() => {});
+    for (let poll = 0; poll < 15; poll++) {
+      if ((await labels()).some((l) => _hasContent.test(l))) {
+        return Date.now() - startedAt;
+      }
+      await page.waitForTimeout(100);
+    }
+  }
+  console.log('--- LABELS ---');
+  for (const l of await labels()) console.log(l.replace(/\n/g, ' | '));
+  throw new Error('Ohne Netz stand die Übersicht nie da');
+}
+
 try {
   const groupId = await seedGroup();
   console.log(`✓ Gruppe ${handle} angelegt und aktiv`);
@@ -337,6 +398,7 @@ try {
   console.log('Service Worker vor dem Neuladen:', JSON.stringify(before));
   await context.setOffline(true);
 
+  startedAt = Date.now();
   const reload = await page
     .reload({ waitUntil: 'domcontentloaded' })
     .then(() => 'ok')
@@ -356,17 +418,24 @@ try {
     );
   }
 
-  await page.waitForTimeout(8000);
-  await activateSemantics();
+  const contentAfter = await measureContent();
   await checkpoint('ohne-netz');
-
-  // Der Kern von #169: Es steht etwas da, und zwar aus dem Speicher. Ohne
-  // Netz kann `_Content` nur entstehen, wenn Personen, Statistik und
-  // Parameter von der Platte kommen — genau das ist die Aussage.
-  await expectLabel(
-    _hasContent,
-    'Übersicht ohne Netz aus dem Zwischenspeicher',
+  console.log(
+    `⏱ Inhalt ohne Netz nach ${(contentAfter / 1000).toFixed(2)} s ` +
+      `(Schranke ${startBudgetMs / 1000} s)`,
   );
+  if (contentAfter > startBudgetMs) {
+    throw new Error(
+      `Der Start ohne Netz brauchte ${(contentAfter / 1000).toFixed(2)} s ` +
+        `statt höchstens ${startBudgetMs / 1000} s.\n` +
+        'Gemessen wird ab dem Neuladen bis zur Übersicht, ohne Splash. Ohne ' +
+        'Netz ist daran nichts Unvorhersehbares: Die Shell kommt vom Gerät, ' +
+        'die Zeilen aus dem Zwischenspeicher, und gewartet wird auf nichts. ' +
+        'Wird das langsamer, hat entweder die Shell zugelegt oder es wartet ' +
+        'wieder jemand auf eine Antwort, die es nicht gibt — genau der ' +
+        'Zustand aus #232.',
+    );
+  }
   await expectNoLabel(
     /Keine Verbindung/,
     'der Gate-Schirm gehört hier nicht hin',
