@@ -166,6 +166,10 @@ void main() {
   testWidgets('ohne Netz öffnet die App den letzten Stand und sagt es', (
     tester,
   ) async {
+    // Vor dem ersten Aufbau: Der Baum entsteht nur, solange ein Handle steht
+    // — später eingeschaltet bleibt er leer, und der Test wäre grün, ohne
+    // etwas geprüft zu haben.
+    final semantics = tester.ensureSemantics();
     final backend = FakeBackend();
     final groupId = backend.addGroup(
       handle: 'daciaracing',
@@ -246,6 +250,21 @@ void main() {
     // Und dann wird der Stand benannt, nicht als aktuell ausgegeben.
     await tester.pump(graceWindow);
     expect(find.textContaining('Offline · Stand heute 07:12'), findsOneWidget);
+
+    // …und zwar auch für alle, die nichts sehen. Reiner Text landet im Web
+    // nicht verlässlich im Semantics-Baum: Im Browser-E2E stand die Leiste
+    // sichtbar im Bild und war trotzdem nicht auffindbar (11.08.2026).
+    // Ohne eigene Beschriftung fehlt der Hinweis, dass der Plan von vorhin
+    // stammt — der Unterschied zwischen „gleich losfahren" und „zur falschen
+    // Zeit losfahren".
+    expect(
+      find.bySemanticsLabel('Offline · Stand heute 07:12'),
+      findsOneWidget,
+      reason:
+          'die Leiste braucht eine eigene Beschriftung — der reine Text '
+          'reicht dafür nicht',
+    );
+    semantics.dispose();
   });
 
   testWidgets('mit Netz zeigt die App zuerst den Speicher und zieht nach', (

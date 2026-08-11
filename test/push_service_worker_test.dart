@@ -48,8 +48,27 @@ void main() {
     );
   });
 
+  // Seit #232 ist es derselbe Worker, der die App-Shell vorhält: Es gibt je
+  // Geltungsbereich genau EINEN, wer zuletzt registriert ersetzt den davor.
+  // Registrierte das FCM-SDK hier eine eigene Datei, schaltete jeder
+  // Token-Abruf den Offline-Start ab — und die Registrierung aus index.html
+  // umgekehrt den Push. Deshalb zeigt der Pfad auf `sw.js`, und `sw.js` holt
+  // sich die Firebase-Hälfte per importScripts dazu.
+  test('Push und App-Shell teilen sich denselben Worker', () {
+    expect(webServiceWorkerPath, 'sw.js');
+    expect(
+      File('web/sw.js').readAsStringSync(),
+      contains("importScripts('firebase-messaging-sw.js')"),
+      reason:
+          'Ohne den Import wäre der registrierte Worker zwar da, aber ohne '
+          'Firebase — die PWA bekäme kein Token und keine Meldung.',
+    );
+  });
+
   test('der Worker meldet sich bei Firebase an', () {
-    final worker = File('web/$webServiceWorkerPath').readAsStringSync();
+    // Bewusst die Firebase-Datei, nicht die registrierte: Dort steht die
+    // SDK-Fassung, die `android_manifest_test.dart` gegen das Paket prüft.
+    final worker = File('web/firebase-messaging-sw.js').readAsStringSync();
     expect(worker, contains('firebase.initializeApp'));
     expect(
       worker,

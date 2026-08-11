@@ -44,6 +44,26 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!--
+    Der eigene Service Worker (#232). Hier und nicht im Dart-Code: Er hält
+    die App-Shell vor, muss also schon stehen, bevor überhaupt etwas geladen
+    ist. Das FCM-SDK registriert dieselbe Datei später noch einmal beim
+    Token-Abruf — gleiche Adresse, gleicher Geltungsbereich, also ohne
+    Wirkung; ohne diese Zeile käme es aber erst nach der Anmeldung und nur
+    mit erteilter Berechtigung dazu.
+
+    Der Pfad ist bewusst relativ: Er löst gegen das <base href> oben auf und
+    stimmt damit unter `/` wie unter `/MitFahrBar/`.
+  -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {
+          // Ohne Worker läuft die App online ganz normal weiter.
+        });
+      });
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

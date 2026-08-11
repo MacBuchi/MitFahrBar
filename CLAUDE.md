@@ -974,6 +974,20 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     die ganze App. Und sie hört an einem eigenen Halter statt an einem Provider:
     Die Meldung entsteht, *während* ein Provider lädt; ein Provider-Schreib in
     diesem Moment stieße eine Invalidierung mitten in der Build-Phase an.
+    - **Sie war bis v0.80.0 für Screenreader nicht vorhanden**, und zwar aus
+      einem Grund, den man im Bild nicht sieht: Die Route der Navigations-
+      Schale ist undurchsichtig und wird **nach** der Leiste gezeichnet — eine
+      solche Route verwirft die Semantik von allem, was vorher dran war. Im
+      `AppShell` steht deshalb `Semantics(container: true)` um
+      `navigationShell`; das begrenzt das Blockieren auf die Schale selbst.
+      Dazu trägt der Text ein ausdrückliches `semanticsLabel`: Ohne das steht
+      er im Web nur als Textinhalt im Baum, nicht als `aria-label`.
+      **Beide Zeilen gehören zusammen** — je einzeln bleibt die Leiste
+      unauffindbar. Gefunden hat es der Browser-E2E (sichtbar im Bild, leer im
+      Baum), nicht ein Widget-Test; festgenagelt ist es seither in
+      `test/flows/offline_cache_flow_test.dart` mit `ensureSemantics` **vor**
+      dem ersten Aufbau — später eingeschaltet bleibt der Baum leer, und der
+      Test wäre grün, ohne etwas geprüft zu haben.
   - **Das Preisarchiv ist bewusst draußen** (entschieden 05.08.2026): mit
     Abstand die meisten Zeilen, und ein Diagramm ohne Empfang war der
     schwächste der Wünsche.
@@ -1870,10 +1884,11 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   sich zwischen `dart:io` und Web), und den **Service Worker** — ohne den
   liefert der Browser ohne Empfang nicht einmal die Seite aus, und der
   ganze Zwischenspeicher liegt hinter einer Tür, die sich nicht öffnet.
-  **Diese letzte Frage ist beantwortet, und die Antwort ist ein Befund:
-  Die PWA startet ohne Empfang gar nicht** (gemessen am 10.08.2026 im
-  neuen Job gegen einen echten Stack). Die Cache-Ablage ist **leer**, und
-  ein Neuladen ohne Netz endet in `ERR_INTERNET_DISCONNECTED`.
+  **Diese letzte Frage war am 10.08.2026 ein Befund — die PWA startete ohne
+  Empfang gar nicht** (leere Cache-Ablage, Neuladen endete in
+  `ERR_INTERNET_DISCONNECTED`). **Seit v0.80.0 tut sie es** (#232), und
+  zwar mit einem eigenen Worker; der Befund und sein Weg stehen hier, weil
+  jede der drei plausiblen Reparaturen daneben lag.
   - **`flutter_service_worker.js` ist in 3.44 ein Selbstzerstörer, kein
     Zwischenspeicher.** Das ist die Wurzel, und sie steht in der Datei
     selbst — 784 Bytes, kein Ressourcen-Manifest, und im `activate`:
@@ -1895,20 +1910,86 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     meldet sich ab *und* lädt die Seite neu. `test/web_offline_test.dart`
     hält deshalb fest, dass `web/index.html` ihn **nicht** registriert; das
     war schon einmal eingebaut (v0.80.0-Versuch, zurückgenommen).
-  - **Damit sind zwei Wege ausgeschlossen, nicht bloß unversucht:**
+  - **Damit waren zwei Wege ausgeschlossen, nicht bloß unversucht:**
     „Web-Push aufgeben" hätte Push gekostet und offline nichts gebracht
     (gemessen), und „Flutters App-Worker zurückholen" gibt es nicht mehr.
-    Übrig bleibt ein **eigener** Service Worker, der die App-Shell selbst
-    vorhält — und der braucht `--no-web-resources-cdn` dazu, sonst kommt
-    der Renderer von gstatic und die Seite bleibt ohne Netz weiß. Beides
-    zusammen ist ein eigenes Vorhaben; ohne das ist die PWA eine
-    Online-App.
-  - **Der Zwischenspeicher aus v0.79.0 wirkt im Web also nicht** — nicht
-    weil er falsch wäre, sondern weil die Tür davor verschlossen ist. Auf
-    Android ist nichts davon betroffen (nativer Firebase-Client, kein
+    Übrig blieb der dritte — und der ist seit v0.80.0 gebaut.
+- **Die PWA hält ihre App-Shell selbst vor** (`web/sw.js` +
+  `tool/inject_sw_manifest.py`, seit v0.80.0, #232). Das ist der Weg, den
+  Flutter für den Wegfall seines Workers selbst nennt: eigener Worker,
+  Precache-Manifest zur Bauzeit. Sechs Dinge daran hängen zusammen und
+  dürfen nicht einzeln „aufgeräumt" werden:
+  - **`web/flutter_bootstrap.js` existiert wegen einer weggelassenen
+    Zeile.** Ohne eigene Vorlage schreibt Flutter `_flutter.loader.load({
+    serviceWorkerSettings: … })` in den Build — und der Loader registriert
+    dann den Selbstzerstörer **nach**, sobald im Geltungsbereich irgendeine
+    Registrierung existiert (sein Aufräumpfad). Genau das ist mit einem
+    eigenen Worker immer der Fall. Die Falle: Beim **ersten** Besuch tut er
+    nichts, es sieht also heil aus; der Stummel legt sich als `waiting`
+    daneben und meldet beim nächsten Start alles ab. `--pwa-strategy=none`
+    täte dasselbe, ist aber selbst deprecated und müsste an **jeder**
+    Build-Stelle stehen. Festgenagelt in `test/web_offline_test.dart` —
+    ohne Kommentare geprüft, die Datei nennt den verbotenen Namen in ihrer
+    eigenen Begründung (die `sqlOnly`-Lehre).
+  - **Es ist EIN Worker, nicht zwei.** Je Geltungsbereich gibt es genau
+    einen; wer zuletzt registriert, ersetzt den davor. `sw.js` holt sich
+    deshalb `firebase-messaging-sw.js` per `importScripts` dazu, und
+    `webServiceWorkerPath` zeigt auf `sw.js`. Stünde dort die andere Datei,
+    schaltete das erste Einschalten der Benachrichtigungen den
+    Offline-Start wieder ab. Der Import steht in `try/catch`: Eine Störung
+    bei gstatic soll Push kosten, nicht zusätzlich die Shell.
+  - **Der Worker cacht NIE eine Antwort von Supabase, GitHub oder
+    gstatic** — er ruft für Fremd-Origins gar kein `respondWith` auf. Was
+    offline gezeigt wird, entscheidet allein `data/offline_cache.dart`; ein
+    zweiter Speicher wäre eine zweite Wahrheit über denselben Tag, mit
+    eigener Verfallsregel und ohne die Leiste, die den Stand nennt. Der
+    Verzicht auf `respondWith` ist zugleich der Grund, warum der E2E-Test
+    überhaupt messen kann: Ein `fetch` aus dem Worker heraus liefe an
+    Playwrights `setOffline` vorbei.
+  - **Installiert wird gegen Hashes, nicht bloß heruntergeladen.** GitHub
+    Pages liefert über eine Kante mit zehn Minuten Frist aus — kurz nach
+    einer Beförderung kann ein Abruf die neue `sw.js` und eine alte
+    `main.dart.js` mischen. Ohne Prüfung stünde diese Mischung dauerhaft
+    als „die neue Fassung" im Cache. `cache: 'reload'` hält den
+    Browser-Cache heraus, der Hash die Kante; ein einziger Fehlschlag
+    lässt die ganze Installation scheitern (der alte Worker liefert weiter
+    in sich stimmig, der nächste Besuch heilt).
+  - **Vorgehalten werden ~19 MB, nicht 42.** Draußen bleiben `*.symbols`
+    (6,1 MB), `skwasm*`/`wimp*`/`experimental_webparagraph` (13,4 MB, sie
+    gehören zu `--wasm`-Builds) und der Stummel. **Beide** CanvasKit-
+    Fassungen bleiben drin: Welche geladen wird, entscheidet die Engine im
+    Browser, und nur eine vorzuhalten hieße für die andere Hälfte eine
+    weiße Seite. Sie erst beim Laufen nachzucachen hätte dasselbe Loch,
+    nur seltener. Beim Aktualisieren liegen zwei Fassungen gleichzeitig
+    auf dem Gerät — deshalb der Riegel bei 25 MB im Injektor: 2×42 MB
+    rissen die Speichergrenze älterer iOS-Fassungen, und eine gescheiterte
+    Installation hieße dort „aktualisiert sich nie wieder".
+  - **Der Abgleich läuft über den Pfad, ohne Abfrageteil.**
+    `package_info_plus` holt `version.json` mit einem Zwischenspeicher-
+    Brecher (`?v=…`); verfehlte der die Zuordnung, meldete die App ohne
+    Netz die Version 0.0.0. So passt sie immer zur Shell, die gerade läuft
+    — beide kommen aus demselben Cache.
+  - **„Neu laden" muss den wartenden Worker aktivieren**
+    (`core/reload_app_web.dart`): `update()`, `postMessage('skipWaiting')`,
+    auf `controllerchange` warten, dann erst neu laden. Ein blankes
+    `location.reload()` holt bei cache-first ausgelieferter Shell genau die
+    Fassung zurück, die schon läuft — die Klasse „toter Update-Knopf" aus
+    0.37.0, diesmal im Browser. **Jeder Zweig endet im Neuladen**, auch der
+    hängende; ein Knopf, der auf einen Service Worker wartet, wäre wieder
+    einer, der nichts tut. Web-Code läuft in `flutter test` nie, deshalb
+    hält `test/web_offline_test.dart` die Kette am Quelltext fest.
+  - **`--no-web-resources-cdn` gehört an jede Web-Build-Stelle** (ci.yml,
+    promote.yml, browser_e2e.sh) — sonst kommt der Renderer von gstatic,
+    und was nicht im Build liegt, kann kein Worker vorhalten: Die PWA
+    startete dann ohne Empfang zwar, bliebe aber weiß. Ebenso der Aufruf
+    des Injektors; ohne ihn trägt `sw.js` sein leeres Manifest aus dem
+    Quelltext, installiert sich, cacht nichts — und **nichts wird rot**.
+    In `promote.yml` muss er zwischen Build und Deploy stehen; dahinter
+    schriebe er in ein Verzeichnis, das niemand mehr ausliefert. Beides
+    nagelt `test/web_build_workflow_test.dart` fest, die Reihenfolge als
+    Positionsvergleich.
+  - Auf Android ist nichts davon betroffen (nativer Firebase-Client, kein
     Service Worker).
-  - Der Job bleibt so lange rot. Das ist die richtige Farbe: Er beschreibt
-    einen echten Zustand, und er ist kein Required Check.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.

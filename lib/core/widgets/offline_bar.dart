@@ -99,6 +99,8 @@ class _OfflineBarState extends ConsumerState<OfflineBar> {
     if (storedAt == null) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
+    final label =
+        'Offline · Stand ${describeStamp(storedAt, ref.read(nowProvider)())}';
     return Material(
       color: scheme.secondaryContainer,
       child: SafeArea(
@@ -118,7 +120,15 @@ class _OfflineBarState extends ConsumerState<OfflineBar> {
               const SizedBox(width: AppSpacing.s),
               Expanded(
                 child: Text(
-                  'Offline · Stand ${describeStamp(storedAt, ref.read(nowProvider)())}',
+                  label,
+                  // **Die ausdrückliche Beschriftung ist kein Beiwerk.** Ohne
+                  // sie steht der Satz im Web nur als Textinhalt im Baum, nicht
+                  // als `aria-label` — im Browser-E2E stand die Leiste sichtbar
+                  // im Bild und war trotzdem nicht auffindbar (11.08.2026).
+                  // Wer nichts sieht, bekäme damit keinen Hinweis darauf, dass
+                  // der Plan von vorhin stammt: der Unterschied zwischen
+                  // „gleich losfahren" und „zur falschen Zeit losfahren".
+                  semanticsLabel: label,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSecondaryContainer,
                   ),

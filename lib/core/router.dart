@@ -200,7 +200,14 @@ class AppShell extends ConsumerWidget {
         body: Column(
           children: [
             const OfflineBar(),
-            Expanded(child: navigationShell),
+            // **Der eigene Semantik-Container ist kein Beiwerk.** Die Route
+            // der Schale ist undurchsichtig und wird NACH der Leiste
+            // gezeichnet; damit verwarf sie die Semantik von allem, was vorher
+            // dran war — die Leiste stand sichtbar da und war für einen
+            // Screenreader nicht vorhanden. Aufgefallen ist es erst im
+            // Browser-E2E (11.08.2026): im Bild da, im Baum nicht. Der
+            // Container begrenzt das Blockieren auf die Schale selbst.
+            Expanded(child: Semantics(container: true, child: navigationShell)),
           ],
         ),
         bottomNavigationBar: NavigationBar(

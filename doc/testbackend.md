@@ -201,14 +201,27 @@ App-Worker registriert sich in 3.44 überhaupt nicht (sein Bootstrap-Weg
 führt sich selbst als deprecated). „Web-Push aufgeben" hätte also Push
 gekostet und offline nichts gebracht; genau dafür war die Messung da.
 
-Der Job bleibt rot, bis ein Worker existiert, der die App-Shell wirklich
-vorhält. Er misst etwas, das kein Flow-Test sehen kann — und er hat als
-Erstes eine falsche Entscheidung verhindert.
+**Seit v0.80.0 ist der Job grün** (#232): `web/sw.js` hält die App-Shell
+vor, `tool/inject_sw_manifest.py` setzt das Manifest beim Bauen ein. Der
+Flow wartet vor dem Abschalten darauf, dass der Controller auf `sw.js`
+endet **und** ein Cache `mitfahrbar-shell-…` gefüllt ist — sonst liefe er
+gegen den Vorrat und wäre je nach Laune der Maschine mal rot, mal grün.
+
+**Der lokale Stack muss dafür aktuell sein.** `supabase start` spielt
+Migrationen auf ein bestehendes Volume **nicht** nach; ein älterer Stack
+hat etwa `plan_seat_choices` nicht, und dann meldet PostgREST `PGRST205`.
+Sichtbar ist das nicht als Fehlermeldung, sondern als **grauer Block**, wo
+die Übersicht stehen sollte: In der Release-Fassung zeichnet Flutter ein
+gescheitertes Widget als graue Fläche ohne Text. Wer das für den
+Offline-Fehler hält, sucht tagelang an der falschen Stelle — es steht auch
+mit Empfang da. Der Ausweg ist `supabase stop --no-backup` und ein neuer
+Start; in der CI stellt sich die Frage nicht, dort ist der Stack immer neu.
 
 Der Job heißt „Browser E2E (Offline)" und ist ebenfalls **kein** Required
-Check — er läuft mit diesem PR zum ersten Mal gegen einen echten Stack.
-Wird er verlässlich grün, gehört er in die Branch Protection, und zwar
-zusammen mit den Repo-Einstellungen (die hängen an den `name:`-Feldern).
+Check. Seit v0.80.0 ist er grün und beschreibt damit einen Zustand, der
+gehalten werden soll; ihn in die Branch Protection aufzunehmen ist der
+nächste Schritt — der geht nur zusammen mit den Repo-Einstellungen, weil
+die an den `name:`-Feldern hängen.
 
 ## Grenzen
 
