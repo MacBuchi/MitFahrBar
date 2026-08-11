@@ -280,10 +280,12 @@ const _hasContent = /Wunsch oder Fehler melden|Wer ist dran|Anna/;
 /// Wie lange der Start ohne Netz höchstens dauern darf — ab dem Neuladen bis
 /// zur Übersicht, **ohne** den Splash.
 ///
-/// Der Wert ist gemessen, nicht geschätzt: Auf einem MacBook mit dem
-/// Demo-Bau stand die erste gezeichnete Szene nach 0,27 s und der Inhalt nach
-/// 0,40 s — offline wie online, der Unterschied lag im Rauschen. Ohne Netz
-/// gibt es hier auch nichts Unvorhersehbares: Die Shell kommt vom Gerät, die
+/// Der Wert ist gemessen, nicht geschätzt — und zwar dort, wo er gilt:
+/// **auf dem CI-Läufer 0,44 s** (11.08.2026, erster Lauf mit dieser
+/// Messung). Lokal auf einem MacBook waren es 0,30–0,35 s über vier Läufe,
+/// die erste gezeichnete Szene lag bei 0,27 s. Der geteilte Läufer kostet
+/// also rund ein Drittel mehr, nicht ein Vielfaches. Ohne Netz gibt es an
+/// diesem Weg auch nichts Unvorhersehbares: Die Shell kommt vom Gerät, die
 /// Zeilen aus dem Zwischenspeicher, gewartet wird auf nichts.
 ///
 /// **Der Splash steht der Messung nicht im Weg**, obwohl er 2,85 s läuft
@@ -293,8 +295,8 @@ const _hasContent = /Wunsch oder Fehler melden|Wer ist dran|Anna/;
 /// Splash kam der Inhalt nach 0,40 s. Wer hier einen Tipp einbaut, um ihn
 /// „wegzuräumen", misst ab dann die eigene Sonde mit.
 ///
-/// **Eine Sekunde ist eine Zusage, keine Reserve.** Sie liegt beim rund
-/// Zweieinhalbfachen des gemessenen Werts — knapp genug, dass ein Rückfall
+/// **Eine Sekunde ist eine Zusage, keine Reserve.** Sie liegt beim gut
+/// Doppelten des auf dem Läufer gemessenen Werts — knapp genug, dass ein Rückfall
 /// in die Klasse aus #232 (wieder auf eine Antwort warten, die es ohne Netz
 /// nicht gibt) sofort auffällt, statt in einer weiten Schranke unterzugehen.
 ///
