@@ -81,8 +81,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # Nur die Felder holen, die auch benutzt werden: `isLatest` stand
+          # hier ungenutzt mit drin und ist genau das Feld, an dem die
+          # Kontrollzeile unten zerbrochen ist.
           prev=$(gh release list --limit 60 --exclude-drafts \
-            --json tagName,isPrerelease,isLatest \
+            --json tagName,isPrerelease \
             --jq '[.[] | select(.isPrerelease | not)] | .[0].tagName // ""')
           echo "tag=$prev" >> "$GITHUB_OUTPUT"
           echo "Vorheriger stabiler Stand: ${prev:-<keiner>}"
@@ -120,7 +123,20 @@ jobs:
             --prerelease=false \
             --latest \
             --notes-file release-body.md
-          gh release view "$TAG" --json tagName,isPrerelease,isLatest
+          # **Gegenprüfung an genau der Stelle, die die App abfragt**
+          # (`core/update_check.dart` → /releases/latest). Vorher stand hier
+          # `gh release view --json … isLatest`; das Feld gibt es in neueren
+          # gh-Fassungen nicht mehr, und am 11.08.2026 riss der Lauf genau
+          # daran ab — **nach** dem Umschalten und **vor** dem Pages-Deploy.
+          # Ergebnis: Android bekam v0.80.0, das Web blieb auf v0.76.0.
+          # Dieselbe Klasse wie der v0.34.1-Lauf, der nach dem Taggen starb.
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" \
+            --jq .tag_name)
+          echo "Als latest meldet GitHub: $latest"
+          if [ "$latest" != "$TAG" ]; then
+            echo "::error::$TAG ist nicht latest (dort steht $latest)"
+            exit 1
+          fi
 
       # Pages aus dem beförderten Tag, nicht aus main: Sonst läge auf der
       # Web-Adresse der Entwicklungsstand, während Android auf stabil zeigt.

@@ -80,6 +80,46 @@ void main() {
             'nicht bis zum nächsten überhaupt.',
       );
     });
+
+    // Am 11.08.2026 riss die Beförderung genau zwischen diesen beiden
+    // Schritten ab: `gh release view --json … isLatest` kennt neuere
+    // gh-Fassungen nicht mehr, der Schritt scheiterte NACH dem Umschalten
+    // und VOR dem Pages-Deploy. Ergebnis war ein halber Stand — Android auf
+    // v0.80.0, das Web weiter auf v0.76.0. Dieselbe Klasse wie der
+    // v0.34.1-Lauf, der nach dem Taggen starb: Der Workflow läuft selten,
+    // von Hand, und ein Fehler darin fällt erst beim nächsten Mal auf.
+    test('die Beförderung prüft ihr Ergebnis dort, wo die App nachsieht', () {
+      expect(
+        promote,
+        contains('releases/latest'),
+        reason:
+            'Die Gegenprüfung muss den Endpunkt abfragen, an dem auch '
+            '`core/update_check.dart` hängt — eine Prüfung woanders kann '
+            'grün sein, während die Gruppe nichts angeboten bekommt.',
+      );
+      // Ohne Kommentare prüfen — dieselbe Lehre wie bei `sqlOnly` in
+      // `schema_test.dart`: Ein File, das seine eigene Entscheidung
+      // begründet, nennt den verbotenen Namen zwangsläufig.
+      final yamlOnly = promote
+          .split('\n')
+          .where((line) => !line.trimLeft().startsWith('#'))
+          .join('\n');
+      expect(
+        yamlOnly,
+        isNot(contains('isLatest')),
+        reason:
+            'Das Feld gibt es in neueren gh-Fassungen nicht mehr. Es hat den '
+            'Lauf zwischen „stabil geschaltet" und „Pages deployt" '
+            'abreißen lassen — der teuerste Moment dafür.',
+      );
+    });
+
+    test('Pages wird nach dem Umschalten deployt, nicht davor', () {
+      final stable = promote.indexOf('--prerelease=false');
+      final pages = promote.indexOf('actions-gh-pages');
+      expect(stable, isNonNegative);
+      expect(pages, greaterThan(stable));
+    });
   });
 
   test('alle APK-Namen in release.yml tragen denselben Stamm', () {
