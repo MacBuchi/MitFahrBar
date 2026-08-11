@@ -125,13 +125,30 @@ async function activateSemantics(timeout = 1000) {
   await page.waitForTimeout(500);
 }
 
+/// Alles, was im a11y-Baum lesbar steht — **beide Formen**.
+///
+/// Flutter-Web legt nicht jede Beschriftung als `aria-label` ab: Knoten mit
+/// eigener Rolle (Knöpfe, Tabs) bekommen das Attribut, reine Textknoten
+/// tragen ihren Satz dagegen als DOM-Textinhalt. Wer nur nach `[aria-label]`
+/// sucht, sieht die zweite Hälfte des Baums nicht — und hält eine Leiste für
+/// abwesend, die im Bild sichtbar dasteht (11.08.2026, „Offline · Stand …").
 async function labels() {
-  const result = [];
-  for (const node of await page.locator('flt-semantics[aria-label]').all()) {
-    const label = (await node.getAttribute('aria-label')) ?? '';
-    if (label.trim()) result.push(label);
-  }
-  return result;
+  return page.evaluate(() => {
+    const found = [];
+    for (const node of document.querySelectorAll('flt-semantics')) {
+      const aria = node.getAttribute('aria-label');
+      if (aria?.trim()) found.push(aria);
+      // Nur der eigene Text, nicht der der Kinder: sonst trüge der
+      // Wurzelknoten den gesamten Schirm als ein Label.
+      const own = Array.from(node.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent ?? '')
+        .join('')
+        .trim();
+      if (own) found.push(own);
+    }
+    return found;
+  });
 }
 
 async function expectLabel(re, hint) {
