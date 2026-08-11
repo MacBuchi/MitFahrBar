@@ -79,14 +79,25 @@ jobs:
         id: previous
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.pick.outputs.version }}
         run: |
           set -euo pipefail
           # Nur die Felder holen, die auch benutzt werden: `isLatest` stand
           # hier ungenutzt mit drin und ist genau das Feld, an dem die
           # Kontrollzeile unten zerbrochen ist.
+          #
+          # **Der befördernde Stand fällt ausdrücklich heraus.** Ohne diese
+          # Zeile findet ein WIEDERHOLTER Lauf sich selbst: Beim ersten
+          # Durchgang wurde das Release bereits stabil geschaltet, „letzter
+          # stabiler Stand" wäre also die eigene Version, und die Notizen
+          # sammelten zwischen ihr und ihr — nichts. Genau so passiert am
+          # 11.08.2026: Unter „Was ist neu" stand nur noch der Fallback-Link,
+          # obwohl fünf Versionen dazwischenlagen.
           prev=$(gh release list --limit 60 --exclude-drafts \
             --json tagName,isPrerelease \
-            --jq '[.[] | select(.isPrerelease | not)] | .[0].tagName // ""')
+            --jq --arg tag "$TAG" \
+              '[.[] | select(.isPrerelease | not) | select(.tagName != $tag)]
+               | .[0].tagName // ""')
           echo "tag=$prev" >> "$GITHUB_OUTPUT"
           echo "Vorheriger stabiler Stand: ${prev:-<keiner>}"
 
