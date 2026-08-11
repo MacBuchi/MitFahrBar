@@ -158,10 +158,15 @@ jobs:
   # der echte Fehler des Supabase-Clients und der Service Worker mit — ohne
   # den lädt die PWA ohne Empfang gar nicht erst, und das sieht sonst niemand.
   #
-  # Eigener Job und **kein** Required Check: Er läuft hier zum ersten Mal
-  # überhaupt gegen einen echten Stack. Wird er verlässlich grün, gehört er
-  # in die Branch Protection — dann aber zusammen mit den Repo-Einstellungen,
-  # weil die an den `name:`-Feldern hängen.
+  # **Required Check seit v0.80.0.** Bis dahin war er bewusst keiner: Er
+  # beschrieb einen echten Defekt und war rot. Seit die PWA ohne Empfang
+  # startet, beschreibt er einen Zustand, der halten soll — und genau das
+  # kann kein Flow-Test bewachen, weil dort das „Netz" an der
+  # Repository-Naht hängt und nicht am Socket.
+  #
+  # Der Name unten ist damit Teil der Branch Protection: Umbenennen greift
+  # stillschweigend nicht mehr und muss zusammen mit den Repo-Einstellungen
+  # passieren.
   browser-e2e-offline:
     name: Browser E2E (Offline)
     runs-on: ubuntu-latest
