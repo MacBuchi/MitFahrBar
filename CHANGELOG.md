@@ -4,6 +4,30 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.80.0] – 2026-08-11
+
+### Behoben
+
+- **Die Web-App startet jetzt auch ohne Empfang.** Bisher war im Browser
+  schlicht Schluss: Wer die Seite ohne Verbindung öffnete oder neu lud, bekam
+  die Fehlerseite des Browsers — und der gespeicherte Stand aus der letzten
+  Version half nichts, weil die App gar nicht erst geladen wurde. Auf dem
+  Handy (Android-App) war das nie so.
+
+  Jetzt legt MitFahrBar sich beim ersten Besuch selbst auf dem Gerät ab.
+  Danach öffnet die Web-App auch im Funkloch und zeigt wie die Android-App
+  den letzten bekannten Stand samt Leiste **„Offline · Stand heute 07:12"**.
+  Eintragen, ändern und löschen braucht weiterhin Verbindung.
+
+  Der erste Besuch nach dem Update lädt dafür einmalig etwas mehr; danach
+  startet die App auch mit Empfang spürbar schneller, weil sie nicht jedes
+  Mal alles neu holt. Am Handy ändert sich nichts.
+
+- **„Neu laden" holt wirklich die neue Fassung.** Weil die App jetzt vom
+  Gerät startet, hätte der Knopf im Update-Hinweis sonst genau die Fassung
+  zurückgebracht, die schon lief — sichtbar passiert wäre nichts. Er wartet
+  jetzt, bis die neue Fassung übernommen hat, und lädt dann neu.
+
 ## [0.79.0] – 2026-08-10
 
 ### Behoben

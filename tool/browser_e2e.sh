@@ -48,10 +48,22 @@ export E2E_MAILPIT_URL="${MAILPIT_URL:-${INBUCKET_URL:?Mailpit-URL fehlt}}"
 # Cache-Ablage bleibt leer. Damit ist die Frage beantwortet und der
 # Sonderbau überflüssig; ein Testbau, der sich vom Release unterscheidet,
 # misst ab hier nur noch sich selbst.
+#
+# --no-web-resources-cdn gehört seit #232 dazu: Der Renderer kommt sonst von
+# gstatic, und was nicht im Build liegt, kann der Service Worker nicht
+# vorhalten. Ohne das Flag liefe der Offline-Flow in eine weiße Seite — und
+# zwar genau so, wie es auf der Live-Adresse aussähe.
 echo "== Web-App gegen den Stack bauen =="
 flutter build web \
+  --no-web-resources-cdn \
   --dart-define=SUPABASE_URL="$API_URL" \
   --dart-define=SUPABASE_KEY="$ANON_KEY"
+
+# Ohne diesen Schritt trägt sw.js sein leeres Manifest aus dem Quelltext:
+# Er installiert sich, cacht nichts, und der Offline-Flow scheiterte an
+# etwas, das im Release längst funktioniert.
+echo "== Precache-Manifest einsetzen =="
+python3 tool/inject_sw_manifest.py
 
 echo "== Ausliefern auf :8731 =="
 python3 -m http.server 8731 --directory build/web >/dev/null 2>&1 &

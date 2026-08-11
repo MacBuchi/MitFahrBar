@@ -59,7 +59,11 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      - run: flutter build web --release --base-href /MitFahrBar/
+      # --no-web-resources-cdn: Der Renderer muss aus dem Build kommen. Von
+      # gstatic nachgeladen kann ihn kein Service Worker vorhalten, und die
+      # PWA startet ohne Empfang zwar — bleibt aber weiß (#232).
+      - run: flutter build web --release --base-href /MitFahrBar/ --no-web-resources-cdn
+      - run: python3 tool/inject_sw_manifest.py
       - uses: actions/upload-artifact@v7
         with:
           name: web-build

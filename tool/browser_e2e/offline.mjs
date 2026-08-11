@@ -224,6 +224,39 @@ async function serviceWorkerState() {
   });
 }
 
+/// Wartet, bis der eigene Worker die Seite führt UND seine Ablage steht.
+///
+/// Ohne diese Vorbedingung liefe der Test gegen den Vorrat: `sw.js`
+/// installiert rund 19 MB, und wer währenddessen das Netz abschaltet, misst
+/// eine halbe Ablage statt des gebauten Zustands. Der Fehlschlag sähe dann
+/// aus wie der gemeldete Fehler, hätte aber eine andere Ursache — und wäre
+/// je nach Laune der Maschine mal rot, mal grün.
+async function awaitShell(limitMs = 120000) {
+  const started = Date.now();
+  let last = null;
+  while (Date.now() - started < limitMs) {
+    last = await serviceWorkerState();
+    const leads = (last.controller ?? '').endsWith('/sw.js');
+    const filled = Object.entries(last.cached ?? {}).some(
+      ([name, count]) => name.startsWith('mitfahrbar-shell-') && count > 0,
+    );
+    if (leads && filled) return last;
+    await page.waitForTimeout(1000);
+  }
+  throw new Error(
+    `Der eigene Service Worker steht nach ${limitMs / 1000}s nicht: ` +
+      `${JSON.stringify(last)}\n` +
+      'Erwartet: `controller` endet auf /sw.js und ein Cache ' +
+      '`mitfahrbar-shell-…` ist gefüllt. Führt statt dessen ' +
+      '`firebase-messaging-sw.js`, hat der Token-Abruf unseren Worker ' +
+      'verdrängt (dann zeigt `webServiceWorkerPath` auf die falsche Datei). ' +
+      'Steht der Worker, ist die Ablage aber leer, ist die Installation ' +
+      'gescheitert — dann trägt `sw.js` das leere Manifest aus dem ' +
+      'Quelltext, weil `tool/inject_sw_manifest.py` nicht gelaufen ist, ' +
+      'oder eine Datei hat den Hash-Abgleich nicht bestanden.',
+  );
+}
+
 /// Woran zu erkennen ist, dass die Übersicht wirklich Zeilen zeigt.
 const _hasContent = /Wunsch oder Fehler melden|Wer ist dran|Anna/;
 
@@ -287,7 +320,7 @@ try {
   console.log('✓ Start MIT Netz: Inhalt da, keine Offline-Leiste');
 
   // 2. Und jetzt der gemeldete Fall: Netz weg, App neu starten.
-  const before = await serviceWorkerState();
+  const before = await awaitShell();
   console.log('Service Worker vor dem Neuladen:', JSON.stringify(before));
   await context.setOffline(true);
 
@@ -301,12 +334,12 @@ try {
         `Service Worker: ${JSON.stringify(before)}\n` +
         'Ohne einen Worker, der die App-Shell vorhält, startet die PWA ohne ' +
         'Empfang gar nicht — der Zwischenspeicher (#169) liegt dann hinter ' +
-        'einer Tür, die sich nicht öffnet. Steht oben eine leere ' +
-        'Worker-Liste oder allein `firebase-messaging-sw.js` bei leerer ' +
-        'Cache-Ablage, ist es der am 10.08.2026 gemessene Zustand: Flutters ' +
-        'App-Worker registriert sich in 3.44 gar nicht, sein ' +
-        'Bootstrap-Ladeweg führt sich selbst als deprecated. Das ist eine ' +
-        'Frage an den Web-Build, nicht an die Datenschicht.',
+        'einer Tür, die sich nicht öffnet. Genau so lag es bis #232: ' +
+        'Flutters eigener Worker ist in 3.44 ein Aufräum-Stummel ohne ' +
+        'Cache. Steht oben ein aktiver `sw.js` mit gefüllter Ablage und die ' +
+        'Seite lädt trotzdem nicht, fehlt die Navigation im fetch-Handler ' +
+        '— dann liegt zwar alles bereit, aber niemand liefert es aus. Das ' +
+        'ist eine Frage an den Web-Build, nicht an die Datenschicht.',
     );
   }
 

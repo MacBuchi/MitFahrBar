@@ -133,7 +133,15 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      - run: flutter build web --release --base-href /MitFahrBar/
+      # --no-web-resources-cdn: Der Renderer muss aus dem Build kommen. Von
+      # gstatic nachgeladen kann ihn kein Service Worker vorhalten, und die
+      # PWA startet ohne Empfang zwar — bleibt aber weiß (#232).
+      - run: flutter build web --release --base-href /MitFahrBar/ --no-web-resources-cdn
+      # Precache-Manifest in den Service Worker. Muss zwischen Build und
+      # Deploy stehen: Danach ausgeführt schriebe es in ein Verzeichnis, das
+      # niemand mehr ausliefert — grüner Lauf, leerer Worker auf der
+      # Live-Adresse.
+      - run: python3 tool/inject_sw_manifest.py
       # SPA-Fallback: GitHub Pages liefert 404.html bei Deep-Links.
       - run: cp build/web/index.html build/web/404.html
       - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4

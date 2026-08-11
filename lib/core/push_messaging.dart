@@ -76,7 +76,15 @@ const _webOptions = FirebaseOptions(
 /// `--base-href` in `release.yml` synchron gehalten werden und driftete
 /// irgendwann. Der relative Pfad stimmt auch von Unterseiten aus, weil er am
 /// `<base>` hängt und nicht an der aktuellen Adresse.
-const webServiceWorkerPath = 'firebase-messaging-sw.js';
+///
+/// Seit #232 zeigt er auf `sw.js` und nicht mehr direkt auf
+/// `firebase-messaging-sw.js`: Es gibt je Geltungsbereich genau EINEN Worker,
+/// und `sw.js` hält zusätzlich die App-Shell vor. Stünde hier die andere
+/// Datei, ersetzte jeder Token-Abruf den Shell-Worker — der Offline-Start
+/// wäre nach dem ersten Einschalten der Benachrichtigungen wieder weg.
+/// `sw.js` holt sich die Firebase-Hälfte per `importScripts` dazu; für das
+/// FCM-SDK ändert sich damit nichts außer dem Dateinamen.
+const webServiceWorkerPath = 'sw.js';
 
 /// Das Token dieses Geräts — `null`, wenn es keines gibt.
 ///
