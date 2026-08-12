@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.82.0] – 2026-08-12
+
+### Geändert
+
+- **Das In-App-Update ist neu gebaut — von außen ändert sich fast nichts.**
+  Der Ablauf bleibt derselbe: Hinweis antippen, „Jetzt aktualisieren",
+  Android fragt. Neu ist ein Fortschrittsbalken mit echten Zahlen und eine
+  klarere Hilfe, falls Android der App das Installieren noch nicht erlaubt —
+  der Knopf „Zulassen" führt jetzt direkt zur richtigen Einstellung.
+
+  Der Grund für den Umbau liegt unter der Haube: Das bisher genutzte Paket
+  brachte vier Android-Berechtigungen mit, die MitFahrBar nie gebraucht
+  hat — darunter eine, mit der die App im Play Store gar nicht erst
+  angenommen würde. Jetzt bleibt genau eine übrig: die, mit der die App
+  Android um die Installation *bitten* darf. Entscheiden tut weiterhin ihr.
+
+- **Vorbereitung für den Play Store.** Ab jetzt entstehen zwei Fassungen aus
+  demselben Stand: die GitHub-APK, die sich wie gewohnt selbst aktualisiert,
+  und ein Store-Paket ohne diesen Update-Weg — im Store aktualisiert Google.
+  Für euch ändert sich nichts, solange ihr die GitHub-Fassung nutzt.
+
 ## [0.81.0] – 2026-08-12
 
 ### Neu

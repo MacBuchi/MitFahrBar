@@ -16,6 +16,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_distribution.dart';
 import '../../core/release_notes.dart';
 import '../../core/tokens.dart';
 import '../../core/update_check.dart';
@@ -70,12 +71,13 @@ class _AboutDialog extends ConsumerWidget {
                 label: Text('Version ${update.latestVersion} ist verfügbar'),
               ),
             ],
-            // Nur auf Android: Im Browser wird die App erst mit der
-            // Beförderung ausgeliefert, ein Vorab-Kanal zeigte dort auf
-            // nichts. Der Provider hält denselben Riegel — hier steht er
-            // gegen einen Schalter, den man sonst umlegen könnte, ohne dass
-            // je etwas passiert.
-            if (updateIsDownload) ...[
+            // Nur auf Android und nur außerhalb des Play Stores: Im Browser
+            // wird die App erst mit der Beförderung ausgeliefert, und im
+            // Play-Build aktualisiert der Store — der Kanal zeigte in beiden
+            // Fällen auf nichts. Der Provider hält denselben Riegel — hier
+            // steht er gegen einen Schalter, den man sonst umlegen könnte,
+            // ohne dass je etwas passiert.
+            if (updateIsDownload && AppDistribution.showsUpdateHints) ...[
               const SizedBox(height: AppSpacing.m),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

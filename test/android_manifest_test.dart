@@ -50,32 +50,177 @@ void main() {
       expect(content, contains('android:scheme="https"'));
     });
 
-    // ota_update erwartet exakt diese Authority. Stimmt sie nicht, stürzt die
-    // App NACH erfolgreichem Download ab – nie im Test, nur beim echten
-    // Update auf einem Gerät.
+    // MainActivity.installApk erwartet exakt diese Authority. Stimmt sie
+    // nicht, stürzt die App NACH erfolgreichem Download ab – nie im Test,
+    // nur beim echten Update auf einem Gerät.
     test('stellt den FileProvider mit der erwarteten Authority bereit', () {
       expect(content, contains('androidx.core.content.FileProvider'));
       expect(
         content,
-        contains(r'android:authorities="${applicationId}.ota_update_provider"'),
+        contains(r'android:authorities="${applicationId}.fileprovider"'),
       );
       expect(content, contains('@xml/filepaths'));
     });
 
-    test('gibt den Ablageort der APK frei', () {
+    test('gibt NUR den Update-Ordner frei', () {
       final paths = File('android/app/src/main/res/xml/filepaths.xml');
       expect(
         paths.existsSync(),
         isTrue,
         reason: 'Ohne filepaths.xml findet der FileProvider die APK nicht.',
       );
-      expect(paths.readAsStringSync(), contains('ota_update/'));
+      final text = paths.readAsStringSync();
+      expect(text, contains('path="updates/"'));
+      // Der Pfad ist bewusst eng: Im selben Verzeichnis liegt die
+      // SharedPreferences-Datei mit dem Sitzungs-Token der Gruppe, und der
+      // frühere external-path stammte aus dem ota_update-Zuschnitt.
+      // Kommentarfrei geprüft (die sqlOnly-Lehre): Die Datei begründet die
+      // Entfernung und nennt den verbotenen Namen dabei selbst.
+      expect(
+        text.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), ''),
+        isNot(contains('external-path')),
+        reason:
+            'Ein external-path gäbe weit mehr frei als die Update-APK — '
+            'das war der Zuschnitt von ota_update, nicht unserer.',
+      );
     });
 
-    test('aktiviert das von ota_update geforderte Desugaring', () {
+    test('Kanalname in Kotlin und Dart ist derselbe', () {
+      final kotlinChannel = RegExp(r'const val INSTALL_CHANNEL = "([^"]+)"')
+          .firstMatch(
+            File(
+              'android/app/src/main/kotlin/de/macbuchi/mitfahrbar/'
+              'MainActivity.kt',
+            ).readAsStringSync(),
+          )
+          ?.group(1);
+      final dartChannel = RegExp(r"channelName = '([^']+)'")
+          .firstMatch(File('lib/data/apk_installer.dart').readAsStringSync())
+          ?.group(1);
+      expect(kotlinChannel, isNotNull);
+      expect(
+        dartChannel,
+        kotlinChannel,
+        reason:
+            'Driften die Namen, wirft invokeMethod MissingPluginException, '
+            'der catch macht daraus „kein In-App-Weg" — jedes Update liefe '
+            'kommentarlos über den Browser, und niemand merkte es.',
+      );
+    });
+
+    // ota_update ist raus, und das muss so bleiben: Sein Plugin-Manifest zog
+    // INSTALL_PACKAGES (Signatur-Berechtigung!), READ/WRITE_EXTERNAL_STORAGE
+    // und RECEIVE_BOOT_COMPLETED in JEDEN Build — mit INSTALL_PACKAGES ist
+    // kein AAB einreichbar. Der eigene Weg (data/update_installer.dart)
+    // kommt mit REQUEST_INSTALL_PACKAGES allein aus.
+    test('ota_update kommt nicht zurück', () {
+      // Ohne Kommentare prüfen (die sqlOnly-Lehre): pubspec.yaml begründet
+      // die Entfernung und nennt den Namen dabei zwangsläufig selbst.
+      final pubspec = File('pubspec.yaml')
+          .readAsLinesSync()
+          .where((line) => !line.trimLeft().startsWith('#'))
+          .join('\n');
+      expect(
+        pubspec,
+        isNot(contains('ota_update')),
+        reason:
+            'ota_update zieht INSTALL_PACKAGES & Co. in jeden Build — die '
+            'Abhängigkeit brächte alles auf einmal zurück.',
+      );
+    });
+
+    test('Desugaring bleibt an', () {
+      // Einst von ota_update gefordert; ob keines der übrigen Plugins es
+      // braucht, ließe sich nur am Gerät beweisen — eingeschaltet kostet es
+      // nichts, ein stiller Wegfall fiele erst im Release auf.
       final gradle = File('android/app/build.gradle.kts').readAsStringSync();
       expect(gradle, contains('isCoreLibraryDesugaringEnabled = true'));
       expect(gradle, contains('coreLibraryDesugaring('));
+    });
+  });
+
+  // Zwei Vertriebswege, EINE App (Muster von PilzBuddy 1.87.1): `github`
+  // behält REQUEST_INSTALL_PACKAGES fürs Selbst-Update, `play` nimmt die
+  // Berechtigung heraus — Play verbietet Selbst-Updates, und eine
+  // Berechtigung ohne Funktion ist in der Review die schlechtestmögliche
+  // Antwort.
+  group('Play-Flavor', () {
+    const playManifestPath = 'android/app/src/play/AndroidManifest.xml';
+
+    test('nimmt REQUEST_INSTALL_PACKAGES heraus — und sonst nichts', () {
+      final play = File(playManifestPath);
+      expect(play.existsSync(), isTrue, reason: '$playManifestPath fehlt');
+      final text = play.readAsStringSync();
+      expect(
+        text,
+        contains('android.permission.REQUEST_INSTALL_PACKAGES'),
+      );
+      expect(
+        text,
+        contains('tools:node="remove"'),
+        reason:
+            'Ohne das remove ADDIERT das Flavor-Manifest die Berechtigung '
+            'nur erneut, statt sie zu entfernen.',
+      );
+      // Genau EIN Element neben <manifest>: Jede weitere Zeile gälte nur
+      // für den Play-Build und driftete still von den Geräten der
+      // GitHub-Nutzer ab. Kommentare vorher wegnehmen, damit die Zählung
+      // nicht an Erklärtext hängt.
+      final code = text.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+      final elements = RegExp(r'<[a-z]')
+          .allMatches(code)
+          .length;
+      expect(
+        elements,
+        2, // <manifest> selbst + <uses-permission>
+        reason: 'Der Play-Flavor soll genau eine Sache tun',
+      );
+    });
+
+    test('das Play-Manifest übersteht Androids strengen Parser', () {
+      // Zwei aufeinanderfolgende Bindestriche sind in einem XML-Kommentar
+      // verboten. Darts xml-Paket nähme sie an — Androids ManifestMerger
+      // bricht ab, nach viereinhalb Minuten Gradle (in PilzBuddy live
+      // passiert: die Schreibweise eines dart-define-Schalters im
+      // Kommentar). Deshalb am Rohtext geprüft.
+      for (final match in RegExp(
+        r'<!--(.*?)-->',
+        dotAll: true,
+      ).allMatches(File(playManifestPath).readAsStringSync())) {
+        expect(
+          match.group(1),
+          isNot(contains('--')),
+          reason:
+              '$playManifestPath: „--" im Kommentar — daran scheitert der '
+              'ManifestMerger, nicht dieser Parser',
+        );
+      }
+    });
+
+    test('beide Flavors bauen dieselbe App', () {
+      // Ohne Kommentare prüfen: Der Kommentar über den Flavors begründet,
+      // warum es KEIN applicationIdSuffix gibt, und nennt das Wort dabei
+      // selbst (dieselbe Lehre wie sqlOnly — in PilzBuddy genau so rot
+      // geworden).
+      final gradle = File('android/app/build.gradle.kts')
+          .readAsStringSync()
+          .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+          .replaceAll(RegExp(r'//.*'), '');
+      for (final flavor in const ['github', 'play']) {
+        expect(
+          gradle,
+          contains('create("$flavor")'),
+          reason: 'Flavor $flavor fehlt — die Workflows rufen ihn auf',
+        );
+      }
+      expect(
+        gradle,
+        isNot(contains('applicationIdSuffix')),
+        reason:
+            'Ein Suffix machte aus einem Vertriebsweg eine zweite App — '
+            'Android sähe zwei, und der Wechsel verlöre die Installation '
+            '(die Lehre aus dem Bundle-ID-Umzug #87).',
+      );
     });
   });
 

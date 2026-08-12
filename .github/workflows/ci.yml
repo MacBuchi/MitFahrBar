@@ -88,11 +88,17 @@ jobs:
       - run: flutter pub get
       # Ohne key.properties fällt der Build auf Debug-Signing zurück — für
       # den Kompilier-Check reicht das; signiert wird im Release-Workflow.
-      - run: flutter build apk --release
+      #
+      # Bewusst der `play`-Flavor, obwohl veröffentlicht die GitHub-APK wird:
+      # `github` baut aus `src/main` und damit exakt wie vor den Flavors —
+      # neu ist allein das Zusammenführen von `src/play/AndroidManifest.xml`,
+      # und das soll HIER brechen und nicht in release.yml, wo der Tag schon
+      # steht (v0.34.1: ein Tag ohne Release ist nur von Hand zu heilen).
+      - run: flutter build apk --release --flavor play
       - uses: actions/upload-artifact@v7
         with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: android-apk-play
+          path: build/app/outputs/flutter-apk/app-play-release.apk
           retention-days: 14
 
   e2e:

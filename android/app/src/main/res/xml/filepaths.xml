@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Pfade, die der FileProvider für das In-App-Update freigeben darf.
-     ota_update legt die heruntergeladene APK unter files/ota_update/ ab. -->
+     Der eigene Updater (data/update_installer.dart) legt die geladene APK
+     unter files/updates/ ab. Bewusst NUR dieser Ordner: Im selben
+     Verzeichnis liegt die SharedPreferences-Datei mit dem Sitzungs-Token
+     der Gruppe — der frühere external-path-Eintrag von ota_update ist mit
+     dem Paket entfallen. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <files-path name="ota_update" path="ota_update/"/>
-    <external-path name="external_files" path="."/>
+    <files-path name="updates" path="updates/"/>
 </paths>

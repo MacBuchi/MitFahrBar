@@ -13,7 +13,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/log.dart';
@@ -26,6 +25,7 @@ import '../../core/tokens.dart';
 import '../../core/update_check.dart';
 import '../../data/feedback_repository.dart';
 import '../../data/providers.dart';
+import '../../data/update_installer.dart';
 import '../../models/group_defaults.dart';
 import '../identity/identity_dialog.dart';
 
@@ -606,74 +606,74 @@ Future<bool> openUpdateInBrowser(UpdateInfo info) => launchUrl(
 /// anderes von der Nutzerin verlangt: warten, bestätigen, ausweichen.
 enum _UpdatePhase { idle, downloading, installing, error }
 
-class _UpdateDialog extends StatefulWidget {
+class _UpdateDialog extends ConsumerStatefulWidget {
   const _UpdateDialog({required this.info});
 
   final UpdateInfo info;
 
   @override
-  State<_UpdateDialog> createState() => _UpdateDialogState();
+  ConsumerState<_UpdateDialog> createState() => _UpdateDialogState();
 }
 
-class _UpdateDialogState extends State<_UpdateDialog> {
+class _UpdateDialogState extends ConsumerState<_UpdateDialog> {
   _UpdatePhase _phase = _UpdatePhase.idle;
   double _progress = 0;
-  StreamSubscription<OtaEvent>? _subscription;
+  UpdateFailure? _failure;
+  bool _cancelled = false;
 
   @override
   void dispose() {
-    // Ohne das folgt ein setState nach dem Dispose, sobald der Download
-    // weiterläuft, während der Dialog schon zu ist.
-    _subscription?.cancel();
+    // Bricht einen laufenden Download ab, sobald der Dialog zu ist — der
+    // Installer prüft die Flagge je Datenpaket. Sonst lüde er weiter und
+    // schriebe Fortschritt in ein totes Widget.
+    _cancelled = true;
     super.dispose();
   }
 
   /// Nur auf Android und nur mit APK im Release gibt es einen echten
   /// In-App-Weg; im Web genügt ein Neuladen.
-  bool get _canInstallInApp => updateIsDownload && widget.info.apkUrl != null;
+  bool get _canInstallInApp =>
+      ref.read(updateInstallerProvider).supported && widget.info.apkUrl != null;
 
-  void _start() {
-    setState(() => _phase = _UpdatePhase.downloading);
-    // Dreifach abgesichert: synchroner Wurf, Fehler-Callback, unbekannter
-    // Status. Ein hängengebliebener Fortschrittsbalken wäre das Schlimmste.
-    try {
-      _subscription = OtaUpdate()
-          .execute(
-            widget.info.apkUrl!,
-            destinationFilename: 'mitfahrbar-update.apk',
-          )
-          .listen(
-            (event) {
-              if (!mounted) return;
-              switch (event.status) {
-                case OtaStatus.DOWNLOADING:
-                  setState(() {
-                    _phase = _UpdatePhase.downloading;
-                    // event.value ist ein Prozentwert 0–100.
-                    _progress = (double.tryParse(event.value ?? '') ?? 0) / 100;
-                  });
-                case OtaStatus.INSTALLING:
-                  setState(() => _phase = _UpdatePhase.installing);
-                default:
-                  setState(() => _phase = _UpdatePhase.error);
-              }
-            },
-            onError: (Object error, StackTrace stackTrace) {
-              log.e(
-                'Update-Download fehlgeschlagen',
-                error: error,
-                stackTrace: stackTrace,
-              );
-              if (mounted) setState(() => _phase = _UpdatePhase.error);
-            },
-          );
-    } catch (error, stackTrace) {
-      log.e(
-        'Update-Download fehlgeschlagen',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      setState(() => _phase = _UpdatePhase.error);
+  Future<void> _start() async {
+    setState(() {
+      _phase = _UpdatePhase.downloading;
+      _progress = 0;
+      _failure = null;
+    });
+    // Jeder vorgesehene Fehlschlag kommt als Ergebnis zurück, nie als Wurf —
+    // ein hängengebliebener Fortschrittsbalken wäre das Schlimmste.
+    final failure = await ref
+        .read(updateInstallerProvider)
+        .downloadAndInstall(
+          widget.info,
+          onProgress: (value) {
+            if (mounted) setState(() => _progress = value);
+          },
+          isCancelled: () => _cancelled,
+        );
+    if (!mounted) return;
+    if (failure == null) {
+      setState(() => _phase = _UpdatePhase.installing);
+    } else {
+      log.e('In-App-Update fehlgeschlagen: ${failure.name}');
+      setState(() {
+        _phase = _UpdatePhase.error;
+        _failure = failure;
+      });
+    }
+  }
+
+  Future<void> _allowAndRetry() async {
+    // Führt zur System-Freigabe „Unbekannte Apps installieren" und stellt
+    // den Dialog zurück auf Anfang — nach der Rückkehr ist „Jetzt
+    // aktualisieren" der nächste Schritt, kein neuer Weg.
+    await ref.read(updateInstallerProvider).openInstallSettings();
+    if (mounted) {
+      setState(() {
+        _phase = _UpdatePhase.idle;
+        _failure = null;
+      });
     }
   }
 
@@ -722,11 +722,18 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 'Download fertig – Android fragt jetzt, ob MitFahrBar '
                 'aktualisiert werden soll. Einfach bestätigen.',
               ),
-              _UpdatePhase.error => const Text(
-                'Der Direkt-Download hat nicht geklappt. Du kannst das Update '
-                'stattdessen über den Browser laden – nach dem Herunterladen '
-                'in der Benachrichtigung auf die Datei tippen.',
-              ),
+              _UpdatePhase.error => Text(switch (_failure) {
+                UpdateFailure.notAllowed =>
+                  'Android erlaubt MitFahrBar bisher nicht, Updates zu '
+                  'installieren. „Zulassen" öffnet die passende Einstellung '
+                  '– danach hier einfach noch einmal auf „Jetzt '
+                  'aktualisieren" tippen.',
+                _ =>
+                  'Der Direkt-Download hat nicht geklappt. Du kannst das '
+                  'Update stattdessen über den Browser laden – nach dem '
+                  'Herunterladen in der Benachrichtigung auf die Datei '
+                  'tippen.',
+              }),
             },
             // Geglättet statt roh: Der Body kommt als Markdown (heute der
             // CHANGELOG-Auszug, bei alten Releases auto-generierte
@@ -782,11 +789,18 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Schließen'),
           ),
-          FilledButton.icon(
-            onPressed: _openInBrowser,
-            icon: const Icon(Icons.open_in_browser, size: 18),
-            label: const Text('Im Browser laden'),
-          ),
+          if (_failure == UpdateFailure.notAllowed)
+            FilledButton.icon(
+              onPressed: _allowAndRetry,
+              icon: const Icon(Icons.settings, size: 18),
+              label: const Text('Zulassen …'),
+            )
+          else
+            FilledButton.icon(
+              onPressed: _openInBrowser,
+              icon: const Icon(Icons.open_in_browser, size: 18),
+              label: const Text('Im Browser laden'),
+            ),
         ],
         _ => [
           TextButton(

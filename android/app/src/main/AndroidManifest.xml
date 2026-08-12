@@ -46,14 +46,20 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Pflicht für das In-App-Update: ota_update übergibt die geladene
-             APK über diesen Provider an den Installer und erwartet exakt
-             diese Authority. Fehlt er, stürzt die App NACH erfolgreichem
-             Download ab – und zwar nie im Debug-Lauf, sondern erst beim
-             ersten echten Update auf einem Gerät. -->
+        <!-- Pflicht für das In-App-Update: reicht die geladene APK an den
+             System-Installer heraus (MainActivity.kt, Kanal apk_install —
+             der Nachbau ohne ota_update, Muster von PilzBuddy #161). Ab
+             Android 7 ist eine file://-URI dafür verboten; der Installer
+             läuft in einem fremden Prozess und bekommt die Datei über eine
+             content-URI mit erteilter Leseerlaubnis. Die Authority muss
+             wörtlich zu MainActivity.installApk passen; fehlt der Provider,
+             stürzt die App NACH erfolgreichem Download ab – nie im
+             Debug-Lauf, sondern erst beim ersten echten Update am Gerät.
+             `exported="false"`: Nur wer die Erlaubnis erteilt bekommt, darf
+             lesen — die Datei ist nicht für Dritte offen. -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.ota_update_provider"
+            android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

@@ -130,11 +130,13 @@ jobs:
           keyAlias=$KEY_ALIAS
           storeFile=fahrgemeinschaft-release.jks
           EOF
+      # `--flavor github` behält REQUEST_INSTALL_PACKAGES: Genau dieser Weg
+      # aktualisiert sich selbst aus dem GitHub-Release.
       - name: Build signed APK
         if: steps.keystore.outputs.present == 'true'
         run: |
-          flutter build apk --release
-          cp build/app/outputs/flutter-apk/app-release.apk \
+          flutter build apk --release --flavor github
+          cp build/app/outputs/flutter-apk/app-github-release.apk \
              "mitfahrbar-${{ needs.version.outputs.tag }}.apk"
       - uses: actions/upload-artifact@v7
         if: steps.keystore.outputs.present == 'true'
@@ -148,6 +150,28 @@ jobs:
           # immer als „schon veröffentlicht" wertete).
           path: mitfahrbar-${{ needs.version.outputs.tag }}.apk
           if-no-files-found: error
+      # AAB für den Play Store — dasselbe Signing wie die APK. Bewusst NICHT
+      # am GitHub-Release: ein .aab lässt sich nicht installieren und würde
+      # neben der APK nur verwirren. Liegt als Workflow-Artefakt bereit.
+      #
+      # PLAY_BUILD=true schaltet den kompletten Update-Pfad ab (Riegel im
+      # Provider, core/app_distribution.dart), und `--flavor play` nimmt
+      # REQUEST_INSTALL_PACKAGES aus dem Manifest — zwei Hälften derselben
+      # Entscheidung: Wer nur eine setzt, liefert eine halb abgeschaltete
+      # Funktion aus, und Play fragt nach der Berechtigung ohne Funktion.
+      - name: Build Play bundle (AAB)
+        if: steps.keystore.outputs.present == 'true'
+        run: |
+          flutter build appbundle --release --flavor play --dart-define=PLAY_BUILD=true
+          cp build/app/outputs/bundle/playRelease/app-play-release.aab \
+             "mitfahrbar-${{ needs.version.outputs.tag }}.aab"
+      - uses: actions/upload-artifact@v7
+        if: steps.keystore.outputs.present == 'true'
+        with:
+          name: android-aab
+          path: mitfahrbar-${{ needs.version.outputs.tag }}.aab
+          if-no-files-found: error
+          retention-days: 90
 
   release:
     name: Create GitHub Release

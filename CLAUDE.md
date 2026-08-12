@@ -2072,25 +2072,47 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Verlust bricht In-Place-Updates dauerhaft.
 - **Update-Hinweis** (`core/update_check.dart`) pollt das neueste
   GitHub-Release (tokenlos). Jeder Fehlerpfad endet in `null` = kein Banner.
-- **In-App-Update (Android)** installiert per `ota_update` aus dem
-  Release-APK. Dafür müssen zusammenbleiben: `INTERNET` +
-  `REQUEST_INSTALL_PACKAGES`, der FileProvider mit Authority **exakt**
-  `${applicationId}.ota_update_provider`, `res/xml/filepaths.xml` mit
-  `files-path ota_update/`, der `<queries>`-Eintrag VIEW/https für den
-  Browser-Fallback und Core Library Desugaring in `build.gradle.kts`.
-  Fehlt der FileProvider, stirbt die App direkt nach dem Download.
-  Abgesichert durch `test/android_manifest_test.dart` — Änderungen daran
-  zusätzlich auf einem echten Gerät verifizieren.
-  **Play-Store-Sperre:** `ota_update` zieht `INSTALL_PACKAGES`
+- **In-App-Update (Android)** ist seit 0.82.0 von Hand gebaut — **kein
+  `ota_update` mehr**: Dessen Plugin-Manifest zog `INSTALL_PACKAGES`
   (Signatur-Berechtigung!), `READ/WRITE_EXTERNAL_STORAGE` und
-  `RECEIVE_BOOT_COMPLETED` in JEDEN Build — in PilzBuddy nachgemessen: 14
-  Berechtigungen statt 8. Solange die Abhängigkeit drinsteckt, ist kein AAB
-  einreichbar, und ein Flavor allein löst es nicht. PilzBuddy hat den
-  Updater deshalb von Hand nachgebaut (dort #161) und kommt mit
-  `REQUEST_INSTALL_PACKAGES` allein aus. Dieser und die fünf weiteren
-  Blocker (fehlender Schalter für den Update-Weg, Datenschutzerklärung,
-  Konto-Löschseite, AAB-Build, Store-Grafiken) stehen samt
-  Data-Safety-Vorlage in `doc/play-console.md`.
+  `RECEIVE_BOOT_COMPLETED` in JEDEN Build, und mit `INSTALL_PACKAGES` ist
+  kein AAB einreichbar (PilzBuddys Befund aus #88/#161, dort nachgemessen:
+  14 Berechtigungen statt 8). Der eigene Weg —
+  `lib/data/update_installer.dart` lädt, `MainActivity.kt` (Kanal
+  `apk_install`) übergibt per FileProvider an Androids System-Installer —
+  braucht genau eine Berechtigung: `REQUEST_INSTALL_PACKAGES`. Die App
+  *bietet* die Datei an, den Installationsdialog zeigt Android.
+  Zusammenbleiben müssen: `INTERNET` + `REQUEST_INSTALL_PACKAGES`, der
+  FileProvider mit Authority **exakt** `${applicationId}.fileprovider`,
+  `res/xml/filepaths.xml` mit **nur** `files-path updates/`, der
+  `<queries>`-Eintrag VIEW/https für den Browser-Fallback — und `updates/`
+  als Ausschluss in BEIDEN Backup-Regelwerken (eine 60-MB-APK sprengt das
+  25-MB-Kontingent und ließe das ganze Backup scheitern). Core Library
+  Desugaring bleibt an, obwohl `ota_update` es gefordert hatte: Ob keines
+  der übrigen Plugins es braucht, beweist nur ein Gerätetest, und
+  eingeschaltet kostet es nichts. Fehlt der FileProvider, stirbt die App
+  direkt NACH dem Download — nie im Debug-Lauf. Abgesichert durch
+  `test/android_manifest_test.dart` (auch: `ota_update` kommt nicht
+  zurück, Kanalname Dart↔Kotlin); Änderungen zusätzlich auf einem echten
+  Gerät verifizieren.
+- **Zwei Vertriebswege, EINE App** (0.82.0, Muster von PilzBuddy 1.87.1):
+  Produkt-Flavors `github` (behält `REQUEST_INSTALL_PACKAGES`, wird die
+  Release-APK) und `play` (entfernt sie per `tools:node="remove"` in
+  `src/play/AndroidManifest.xml`, wird das AAB — Workflow-Artefakt
+  `android-aab`, bewusst nicht am GitHub-Release). Der Play-Build läuft
+  zusätzlich mit `--dart-define=PLAY_BUILD=true`:
+  `lib/core/app_distribution.dart` schaltet damit den KOMPLETTEN
+  Update-Pfad ab — der Riegel steht in `updateInfoProvider` und
+  `prereleaseChannelProvider`, nicht nur in der Oberfläche (die
+  #225-Lehre). Folgen: `--flavor` ist an jedem Android-Build Pflicht, der
+  Flavor steht im Ausgabepfad (ein `cp` auf den alten Namen bräche erst
+  NACH dem Taggen — v0.34.1-Klasse), beide Flavors tragen dieselbe
+  `applicationId` (ein `applicationIdSuffix` wäre der #87-Fehler erneut),
+  und im Play-Build greift die Mindestversions-Sperre nie (sie verlangt
+  ein installierbares Update, und das liefert dort Play selbst).
+  `test/release_workflow_test.dart` hält Aufrufe und Pfade zusammen; die
+  PR-CI baut den `play`-Flavor. Die verbliebenen Play-Schritte samt
+  Data-Safety-Vorlage: `doc/play-console.md`.
 - **Android-Backup schließt die Sitzung aus** (`res/xml/backup_rules.xml` für
   Android ≤ 11, `res/xml/data_extraction_rules.xml` ab 12, beide am
   `<application>` verdrahtet). Grund: Eine Gruppe = ein Login, das

@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Play-Flavor: Selbst-Updates verstoßen gegen „Device and Network
+         Abuse", im Store aktualisiert Play selbst. Der Dart-Pfad ist hier
+         ohnehin komplett aus (AppDistribution.showsUpdateHints, gesetzt
+         über das Build-Flag PLAY_BUILD=true) — diese Zeile nimmt die
+         zugehörige Berechtigung aus dem gemergten Manifest, damit im AAB
+         keine Berechtigung ohne Funktion steht.
+
+         Das Flavor-Manifest hat höhere Priorität als `main`, deshalb wirkt
+         `tools:node="remove"` hier.
+
+         ACHTUNG beim Ändern dieses Kommentars: In einem XML-Kommentar sind
+         zwei aufeinanderfolgende Bindestriche verboten. Die Schreibweise
+         eines dart-define-Schalters gehört hier also NICHT hinein — Darts
+         xml-Paket ließe sie durch, Androids ManifestMerger bricht ab
+         (genau so in PilzBuddy passiert, erst die CI hat es gesehen).
+
+         Bewusst NICHTS weiter in dieser Datei: Jede Zeile hier gilt nur für
+         den Play-Build und driftet damit still von dem ab, was auf den
+         Geräten der GitHub-Nutzer läuft. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:node="remove"/>
+</manifest>
