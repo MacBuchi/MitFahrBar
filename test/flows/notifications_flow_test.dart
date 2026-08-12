@@ -890,6 +890,54 @@ void main() {
       expect(find.text('Einschalten hat nicht geklappt'), findsOneWidget);
     });
   });
+
+  // Gemeldet am 12.08.2026 mit Screenshot: Der Knopf ganz unten liegt zur
+  // Hälfte unter Androids Navigationsleiste, und weiter scrollen geht nicht.
+  //
+  // **Warum kein Test das je gesehen hat:** Eine `ListView` übernimmt die
+  // Ränder der Systemleisten nur, solange sie KEIN eigenes `padding` trägt
+  // (`BoxScrollView.buildSlivers`: `if (padding == null)`). Dieser Schirm
+  // setzt eines — damit fallen die Ränder ersatzlos weg. In jedem Widget-Test
+  // sind sie null, der Fehler ist also nur auf einem Gerät zu sehen. Deshalb
+  // stellt dieser Test sie ausdrücklich her.
+  testWidgets('der letzte Knopf liegt über der Systemleiste (#241)', (
+    tester,
+  ) async {
+    const inset = 48.0;
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.padding = const FakeViewPadding(bottom: inset);
+    addTearDown(tester.view.reset);
+
+    final f = await _backend();
+    await pumpApp(
+      tester,
+      f.backend,
+      identity: DeviceIdentity(personId: f.anna, asked: true),
+    );
+    await _login(tester);
+    await _open(tester);
+    await _toggle(tester);
+
+    // Ans Ende, so weit es geht — genau das konnte die Meldung nicht.
+    final scroll = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    scroll.position.jumpTo(scroll.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    final button = find.widgetWithText(
+      FilledButton,
+      'Test-Benachrichtigung senden',
+    );
+    expect(button, findsOneWidget);
+    expect(
+      tester.getBottomLeft(button).dy,
+      lessThanOrEqualTo(900 - inset),
+      reason:
+          'Der Knopf muss vollständig über der Systemleiste stehen. Liegt er '
+          'darunter, kommt man nicht mehr an ihn heran — weiter scrollen '
+          'geht am Ende der Liste nicht.',
+    );
+  });
 }
 
 /// Stellt eine Blockade, ohne ein Gerät zu haben.

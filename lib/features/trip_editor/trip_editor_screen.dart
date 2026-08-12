@@ -16,6 +16,7 @@ import '../../models/person.dart';
 import '../../models/plan_ride.dart';
 import '../../models/trip.dart';
 import 'trip_editor_seed.dart';
+import '../../core/system_insets.dart';
 
 class TripEditorScreen extends ConsumerStatefulWidget {
   const TripEditorScreen({super.key, this.tripId, this.seed});
@@ -385,7 +386,7 @@ class _TripEditorScreenState extends ConsumerState<TripEditorScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_title)),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.m),
+        padding: withSystemBottom(context, const EdgeInsets.all(AppSpacing.m)),
         children: [
           _DateRow(
             date: _date,

@@ -33,6 +33,7 @@ import '../../data/providers.dart';
 import '../../models/app_settings.dart';
 import '../../models/group_defaults.dart';
 import '../../models/notification_prefs.dart';
+import '../../core/system_insets.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -247,7 +248,7 @@ class _FormState extends ConsumerState<_Form> {
     final theme = Theme.of(context);
 
     return ListView(
-      padding: const EdgeInsets.all(AppSpacing.m),
+      padding: withSystemBottom(context, const EdgeInsets.all(AppSpacing.m)),
       children: [
         Text(
           'Diese Werte gelten für eure Gruppe. Die Punkte ändern sich '
