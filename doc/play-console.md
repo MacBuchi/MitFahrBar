@@ -17,8 +17,10 @@ ist durch einen eigenen Updater ersetzt, der Play-Schalter, die Flavors samt
 AAB-Build, Datenschutzerklärung und Löschseite sind da; die Kontaktadresse
 auf beiden Web-Seiten ist `macbuchi.apps@gmail.com` (dieselbe gehört ins
 Feld „Kontakt-E-Mail" des Store-Eintrags — Play verlangt, dass beide
-zusammenpassen). Offen bleiben die **Store-Grafiken** (Blocker 6) — und der
-erste Pages-Deploy nach der Beförderung, denn Play prüft die beiden URLs.
+zusammenpassen). Auch die Store-Grafiken liegen bereit (`doc/store/`,
+erzeugt von `tool/store_assets.py`). **Offen bleibt nur noch der erste
+Pages-Deploy nach der Beförderung** — Play prüft die beiden URLs, und die
+liegen erst dann auf macbuchi.github.io.
 
 ---
 
@@ -182,13 +184,15 @@ der einzig neue Schritt ist. Das AAB entsteht je Release-Lauf als
 Workflow-Artefakt `android-aab` — bewusst nicht am GitHub-Release, ein
 `.aab` lässt sich nicht installieren.
 
-### Blocker 6: Keine Store-Grafiken
+### Blocker 6: Keine Store-Grafiken — **erledigt**
 
-Es gibt kein `store/`-Verzeichnis. Play verlangt: App-Icon 512×512 (32 Bit
-PNG), Feature-Grafik 1024×500, mindestens zwei Screenshots. Die
-README-Screenshots aus `doc/screenshots/` entstehen im 430×900-Viewport und
-haben nicht das geforderte Format — sie sind kein Ersatz, aber
-`tool/screenshots.sh` ist der Weg, passende zu erzeugen.
+Liegen erzeugt in `doc/store/` (Symbol 512×512 als 32-Bit-PNG,
+Feature-Grafik 1024×500 mit gemessenem Textkontrast, vier Screenshots
+1080×1920). Erzeuger ist `tool/store_assets.py` aus den Quellen, die das
+Repo ohnehin pflegt — Einzelheiten und die drei Entscheidungen dahinter in
+`doc/store/README.md`. Die README-Screenshots (860×1800 = 1:2,09) wären
+direkt hochgeladen an Plays 2:1-Grenze gescheitert; das Skript füllt sie
+seitlich nahtlos auf 9:16 auf.
 
 ---
 
