@@ -202,36 +202,37 @@ void main() {
       );
     });
 
-    test('das AAB kommt aus dem play-Flavor MIT abgeschaltetem Update-Pfad', () {
-      expect(
-        release,
-        contains(
-          'flutter build appbundle --release --flavor play '
-          '--dart-define=PLAY_BUILD=true',
-        ),
-        reason:
-            'Flavor und PLAY_BUILD sind zwei Hälften derselben Entscheidung: '
-            'der Flavor nimmt die Berechtigung, das Flag den Dart-Pfad. Wer '
-            'nur eine setzt, liefert eine halb abgeschaltete Funktion aus.',
-      );
-      expect(
-        release,
-        contains('bundle/playRelease/app-play-release.aab'),
-        reason: 'Mit Flavor liegt das Bundle in bundle/<flavor>Release/.',
-      );
-      // Das AAB gehört NICHT an das GitHub-Release: Es lässt sich nicht
-      // installieren und würde neben der APK nur verwirren. Es bleibt
-      // Workflow-Artefakt für den Upload in die Play Console.
-      final filesLine = RegExp(
-        r'files:\s*\S+',
-      ).firstMatch(release)?.group(0);
-      expect(filesLine, isNotNull);
-      expect(
-        filesLine,
-        isNot(contains('.aab')),
-        reason: 'Ein AAB am GitHub-Release lässt sich nicht installieren.',
-      );
-    });
+    test(
+      'das AAB kommt aus dem play-Flavor MIT abgeschaltetem Update-Pfad',
+      () {
+        expect(
+          release,
+          contains(
+            'flutter build appbundle --release --flavor play '
+            '--dart-define=PLAY_BUILD=true',
+          ),
+          reason:
+              'Flavor und PLAY_BUILD sind zwei Hälften derselben Entscheidung: '
+              'der Flavor nimmt die Berechtigung, das Flag den Dart-Pfad. Wer '
+              'nur eine setzt, liefert eine halb abgeschaltete Funktion aus.',
+        );
+        expect(
+          release,
+          contains('bundle/playRelease/app-play-release.aab'),
+          reason: 'Mit Flavor liegt das Bundle in bundle/<flavor>Release/.',
+        );
+        // Das AAB gehört NICHT an das GitHub-Release: Es lässt sich nicht
+        // installieren und würde neben der APK nur verwirren. Es bleibt
+        // Workflow-Artefakt für den Upload in die Play Console.
+        final filesLine = RegExp(r'files:\s*\S+').firstMatch(release)?.group(0);
+        expect(filesLine, isNotNull);
+        expect(
+          filesLine,
+          isNot(contains('.aab')),
+          reason: 'Ein AAB am GitHub-Release lässt sich nicht installieren.',
+        );
+      },
+    );
 
     test('die GitHub-APK wird nie mit PLAY_BUILD gebaut', () {
       final apkCommand = RegExp(
@@ -249,15 +250,18 @@ void main() {
       }
     });
 
-    test('die CI baut den play-Flavor, damit der Manifest-Merge dort bricht', () {
-      expect(
-        ci,
-        contains('flutter build apk --release --flavor play'),
-        reason:
-            'github baut aus src/main wie eh und je; das einzig Neue ist das '
-            'Zusammenführen von src/play/AndroidManifest.xml — und das soll '
-            'in der PR-CI auffallen, nicht in release.yml nach dem Taggen.',
-      );
-    });
+    test(
+      'die CI baut den play-Flavor, damit der Manifest-Merge dort bricht',
+      () {
+        expect(
+          ci,
+          contains('flutter build apk --release --flavor play'),
+          reason:
+              'github baut aus src/main wie eh und je; das einzig Neue ist das '
+              'Zusammenführen von src/play/AndroidManifest.xml — und das soll '
+              'in der PR-CI auffallen, nicht in release.yml nach dem Taggen.',
+        );
+      },
+    );
   });
 }

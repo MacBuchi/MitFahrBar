@@ -725,14 +725,14 @@ class _UpdateDialogState extends ConsumerState<_UpdateDialog> {
               _UpdatePhase.error => Text(switch (_failure) {
                 UpdateFailure.notAllowed =>
                   'Android erlaubt MitFahrBar bisher nicht, Updates zu '
-                  'installieren. „Zulassen" öffnet die passende Einstellung '
-                  '– danach hier einfach noch einmal auf „Jetzt '
-                  'aktualisieren" tippen.',
+                      'installieren. „Zulassen" öffnet die passende Einstellung '
+                      '– danach hier einfach noch einmal auf „Jetzt '
+                      'aktualisieren" tippen.',
                 _ =>
                   'Der Direkt-Download hat nicht geklappt. Du kannst das '
-                  'Update stattdessen über den Browser laden – nach dem '
-                  'Herunterladen in der Benachrichtigung auf die Datei '
-                  'tippen.',
+                      'Update stattdessen über den Browser laden – nach dem '
+                      'Herunterladen in der Benachrichtigung auf die Datei '
+                      'tippen.',
               }),
             },
             // Geglättet statt roh: Der Body kommt als Markdown (heute der

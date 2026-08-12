@@ -151,10 +151,7 @@ void main() {
       final play = File(playManifestPath);
       expect(play.existsSync(), isTrue, reason: '$playManifestPath fehlt');
       final text = play.readAsStringSync();
-      expect(
-        text,
-        contains('android.permission.REQUEST_INSTALL_PACKAGES'),
-      );
+      expect(text, contains('android.permission.REQUEST_INSTALL_PACKAGES'));
       expect(
         text,
         contains('tools:node="remove"'),
@@ -167,9 +164,7 @@ void main() {
       // GitHub-Nutzer ab. Kommentare vorher wegnehmen, damit die Zählung
       // nicht an Erklärtext hängt.
       final code = text.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
-      final elements = RegExp(r'<[a-z]')
-          .allMatches(code)
-          .length;
+      final elements = RegExp(r'<[a-z]').allMatches(code).length;
       expect(
         elements,
         2, // <manifest> selbst + <uses-permission>
