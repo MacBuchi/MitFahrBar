@@ -2081,6 +2081,16 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Fehlt der FileProvider, stirbt die App direkt nach dem Download.
   Abgesichert durch `test/android_manifest_test.dart` — Änderungen daran
   zusätzlich auf einem echten Gerät verifizieren.
+  **Play-Store-Sperre:** `ota_update` zieht `INSTALL_PACKAGES`
+  (Signatur-Berechtigung!), `READ/WRITE_EXTERNAL_STORAGE` und
+  `RECEIVE_BOOT_COMPLETED` in JEDEN Build — in PilzBuddy nachgemessen: 14
+  Berechtigungen statt 8. Solange die Abhängigkeit drinsteckt, ist kein AAB
+  einreichbar, und ein Flavor allein löst es nicht. PilzBuddy hat den
+  Updater deshalb von Hand nachgebaut (dort #161) und kommt mit
+  `REQUEST_INSTALL_PACKAGES` allein aus. Dieser und die fünf weiteren
+  Blocker (fehlender Schalter für den Update-Weg, Datenschutzerklärung,
+  Konto-Löschseite, AAB-Build, Store-Grafiken) stehen samt
+  Data-Safety-Vorlage in `doc/play-console.md`.
 - **Android-Backup schließt die Sitzung aus** (`res/xml/backup_rules.xml` für
   Android ≤ 11, `res/xml/data_extraction_rules.xml` ab 12, beide am
   `<application>` verdrahtet). Grund: Eine Gruppe = ein Login, das
