@@ -19,6 +19,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_distribution.dart';
 import 'supabase_config.dart';
 
 const String githubRepo = 'MacBuchi/MitFahrBar';
@@ -121,6 +122,14 @@ UpdateInfo? updateFromRelease(Map<String, dynamic> release, String current) {
 /// Alles danach — Versionsvergleich, APK, „Was ist neu", der Sperr-Schirm —
 /// ist für beide Kanäle dasselbe.
 final updateInfoProvider = FutureProvider<UpdateInfo?>((ref) async {
+  // Im Play-Build gibt es KEINEN eigenen Update-Weg: Der Store aktualisiert
+  // selbst, und Verweise auf APK-Downloads sind dort ein Richtlinienverstoß
+  // („Device and Network Abuse"). Der Riegel steht hier im Provider statt in
+  // der Oberfläche, damit Banner, Dialog und Sperr-Schirm-Angebot an EINER
+  // Stelle verschwinden — eine übersehene Anzeigestelle zeigte sonst einen
+  // Download an, den es in diesem Build nicht geben darf. Web ist nicht
+  // betroffen: Dort wird ohne das Flag gebaut.
+  if (!AppDistribution.showsUpdateHints) return null;
   try {
     final current = await ref.watch(currentVersionProvider.future);
     final prerelease = await ref.watch(prereleaseChannelProvider.future);
@@ -242,7 +251,11 @@ final prereleaseChannelProvider =
 class PrereleaseChannelNotifier extends AsyncNotifier<bool> {
   @override
   Future<bool> build() async {
-    if (!updateIsDownload) return false;
+    // Der zweite Riegel neben dem Web-Fall: Im Play-Build führt der Kanal
+    // nirgendwohin — `updateInfoProvider` fragt gar nicht erst — und ein
+    // umlegbarer Schalter ohne Wirkung wäre genau der tote Knopf, den
+    // dieses Projekt schon zweimal teuer bezahlt hat.
+    if (!updateIsDownload || !AppDistribution.showsUpdateHints) return false;
     return ref.watch(updateChannelStoreProvider).load();
   }
 

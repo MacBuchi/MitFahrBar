@@ -12,9 +12,13 @@ tatsächlich aufgerufenen Endpunkten — nicht aus einer Vorlage.
 
 Stand: 12. August 2026, App-Version 0.80.1+110.
 
-**MitFahrBar ist noch NICHT einreichbar.** Die Blocker stehen ganz unten —
-sie sind der eigentliche Inhalt dieser Datei. Der Data-Safety-Teil ist die
-Vorarbeit, die unabhängig davon gilt.
+**Stand 0.82.0:** Von den sechs Blockern sind fünf erledigt — `ota_update`
+ist durch einen eigenen Updater ersetzt, der Play-Schalter, die Flavors samt
+AAB-Build, Datenschutzerklärung und Löschseite sind da; die Kontaktadresse
+auf beiden Web-Seiten ist `macbuchi.apps@gmail.com` (dieselbe gehört ins
+Feld „Kontakt-E-Mail" des Store-Eintrags — Play verlangt, dass beide
+zusammenpassen). Offen bleiben die **Store-Grafiken** (Blocker 6) — und der
+erste Pages-Deploy nach der Beförderung, denn Play prüft die beiden URLs.
 
 ---
 
@@ -93,55 +97,51 @@ die Datenschutzerklärung, wenn sie geschrieben wird.
 |---|---|---|
 | `INTERNET` | Supabase, Update-Check | Manifest |
 | `POST_NOTIFICATIONS` | Abend-Blick und Abfahrts-Erinnerung | Manifest |
-| `REQUEST_INSTALL_PACKAGES` | In-App-Update aus dem GitHub-Release | Manifest — **darf nicht ins AAB**, siehe Blocker 1 |
-| `INSTALL_PACKAGES` | — | **`ota_update`**, siehe Blocker 1 |
-| `READ_EXTERNAL_STORAGE` | — | **`ota_update`** |
-| `WRITE_EXTERNAL_STORAGE` | — | **`ota_update`** |
-| `RECEIVE_BOOT_COMPLETED` | — | **`ota_update`** |
+| `REQUEST_INSTALL_PACKAGES` | In-App-Update aus dem GitHub-Release | Manifest — **nur im `github`-Flavor**; der `play`-Flavor entfernt sie per `tools:node="remove"` |
 | `com.google.android.c2dm.permission.RECEIVE` | Push entgegennehmen | `firebase_messaging` |
+
+Die vier Berechtigungen, die `ota_update` mitbrachte (`INSTALL_PACKAGES`,
+`READ/WRITE_EXTERNAL_STORAGE`, `RECEIVE_BOOT_COMPLETED`), sind seit 0.82.0
+mit dem Paket verschwunden — siehe Blocker 1.
 
 ---
 
 ## 2. Offene Blocker — in dieser Reihenfolge
 
-### Blocker 1: `ota_update` vergiftet das Manifest
+### Blocker 1: `ota_update` vergiftet das Manifest — **erledigt (0.82.0)**
 
-**Das ist der große, und er ist nicht mit einem Flavor allein zu lösen.**
+Play verbietet Selbst-Updates („Device and Network Abuse"), und das
+Plugin-Manifest von `ota_update` zog **`INSTALL_PACKAGES`**
+(Signatur-Berechtigung, in jeder Review ein roter Punkt),
+`READ/WRITE_EXTERNAL_STORAGE` und `RECEIVE_BOOT_COMPLETED` in **jeden**
+Build.
 
-Play verbietet Selbst-Updates („Device and Network Abuse"). PilzBuddy hat
-genau dieses Problem bereits durchgearbeitet und kam zu einem eindeutigen
-Befund (dort #88/#161, in dessen CLAUDE.md festgehalten): Das Plugin-Manifest
-von `ota_update` zieht **`INSTALL_PACKAGES`**, `READ/WRITE_EXTERNAL_STORAGE`
-und `RECEIVE_BOOT_COMPLETED` in **jeden** Build — 14 Berechtigungen statt 8.
+Gelöst über PilzBuddys Weg (dort #161): `ota_update` ist raus, der Updater
+von Hand nachgebaut — `lib/data/update_installer.dart` lädt die APK,
+`MainActivity.kt` (Kanal `apk_install`) übergibt sie über einen FileProvider
+an Androids System-Installer. Übrig bleibt **genau eine** Berechtigung:
+`REQUEST_INSTALL_PACKAGES` — die App *bietet* eine Datei an, den
+Installationsdialog zeigt Android. `test/android_manifest_test.dart` wacht
+darüber, dass die Abhängigkeit wegbleibt; der Ablageort `updates/` steht in
+beiden Backup-Regelwerken als Ausschluss (60 MB sprengten das
+25-MB-Kontingent).
 
-`INSTALL_PACKAGES` ist eine **Signatur-Berechtigung**, die eine normale App
-nie bekommen kann. Sie im Manifest zu führen ist in jeder Review ein roter
-Punkt, und zwar unabhängig davon, ob die App sie benutzt.
+### Blocker 2: Kein Schalter, der den Update-Weg abschaltet — **erledigt (0.82.0)**
 
-Zwei Wege:
+`lib/core/app_distribution.dart` nach PilzBuddy-Muster: Mit
+`--dart-define=PLAY_BUILD=true` gebaut, verschwindet der komplette
+Update-Pfad — Check, Banner, Dialog und der Vorabversionen-Schalter. Der
+Riegel steht in den Providern (`updateInfoProvider`,
+`prereleaseChannelProvider`), nicht nur in der Oberfläche — sonst ließe er
+sich im Play-Build umlegen, ohne dass je etwas passiert (die Lehre aus
+#225). Web ist nicht betroffen: Dort wird ohne das Flag gebaut.
 
-- **PilzBuddys Weg (empfohlen):** `ota_update` fliegt raus, der Updater wird
-  von Hand nachgebaut — APK laden, an Androids System-Installer übergeben
-  (`FileProvider`, MethodChannel). Kostet **genau eine** Berechtigung:
-  `REQUEST_INSTALL_PACKAGES`. Der Code dafür existiert in PilzBuddy
-  (`lib/features/update/update_installer.dart` + `MainActivity.kt`) und ist
-  portierbar. Danach greift dieselbe Flavor-Trennung wie dort.
-- **Der schnelle Weg:** alle vier Berechtigungen im `play`-Flavor per
-  `tools:node="remove"` entfernen. Das geht, ist aber brüchig — der
-  Plugin-Code läuft dann ohne die Berechtigungen, die er deklariert hat, und
-  ein Plugin-Update kann jederzeit neue nachschieben, ohne dass es auffällt.
-
-### Blocker 2: Kein Schalter, der den Update-Weg abschaltet
-
-PilzBuddy hat `AppDistribution.showsUpdateHints`
-(`--dart-define=PLAY_BUILD=true`): Im Play-Build kein Update-Check, kein
-Banner, kein Dialog. MitFahrBar hat **nichts dergleichen** — der Updater
-hängt direkt in `lib/features/banners/app_banners.dart`.
-
-Ohne diesen Schalter zeigte der Store-Build Nutzern einen Hinweis auf einen
-APK-Download, und das ist in Play unzulässig. Der Schalter gehört in den
-Provider und nicht nur in die Oberfläche, sonst lässt er sich im Play-Build
-umlegen (dieselbe Lehre wie beim Vorabversionen-Schalter, #225).
+**Bewusste Folge für den Sperr-Schirm:** Im Play-Build liefert
+`updateInfoProvider` immer `null`, also greift die Mindestversions-Sperre
+dort nie („sperrt nur, wenn es ein installierbares Update gibt"). Das ist
+die richtige Seite des Handels — das installierbare Update kommt im Store
+von Play selbst, und ein Sperr-Schirm, der auf einen APK-Download zeigt,
+wäre genau der Richtlinienverstoß, den der Schalter verhindert.
 
 ### Blocker 3: Keine Datenschutzerklärung
 
@@ -159,22 +159,28 @@ Play verlangt bei Apps mit Kontoanlage eine **URL ohne installierte App**,
 löscht sauber über die Kaskade am Auth-User — es fehlt nur die öffentliche
 Seite. PilzBuddys `web/konto-loeschen.html` ist die Vorlage.
 
-### Blocker 5: Kein AAB-Build, keine Flavors
+### Blocker 5: Kein AAB-Build, keine Flavors — **erledigt (0.82.0)**
 
-`release.yml` baut nur eine APK (`flutter build apk --release`). Es fehlt der
-`appbundle`-Schritt samt Flavor-Trennung. **Bewusst noch nicht gebaut:** Ein
-AAB, das die Berechtigungen aus Blocker 1 trägt, ist nicht einreichbar — der
-Job entstünde also nur, um ein Artefakt zu erzeugen, das niemand hochladen
-darf. Er gehört in denselben PR wie Blocker 1.
+PilzBuddys Muster (dort seit 1.87.1), im selben PR wie Blocker 1 umgesetzt:
 
-Wenn er kommt, gilt PilzBuddys Muster (dort seit 1.87.1): Flavors `github`
-und `play` mit **identischer `applicationId`** (kein `applicationIdSuffix` —
-sonst sieht Android zwei Apps), `--flavor` an jedem Build-Aufruf, und die
-Ausgabepfade tragen den Flavor-Namen. Ein `cp` auf den alten, flavorlosen
-Namen bricht erst **nach** dem Taggen ab; MitFahrBar kennt diesen Ausfall
-schon (v0.34.1, Tag ohne Release, nur von Hand heilbar). Ein
-Regressionstest nach dem Muster von `test/release_workflow_test.dart` hält
-Aufruf und Pfad zusammen.
+| | `github` | `play` |
+|---|---|---|
+| Artefakt | APK am GitHub-Release | AAB (Workflow-Artefakt `android-aab`) |
+| `REQUEST_INSTALL_PACKAGES` | ja | per `tools:node="remove"` entfernt |
+| `PLAY_BUILD` | nicht gesetzt | `true` |
+| Update-Weg | GitHub-Release | Play Store |
+
+Beide Flavors tragen **dieselbe `applicationId`** (kein
+`applicationIdSuffix` — sonst sieht Android zwei Apps; der Bundle-ID-Umzug
+in #87 hat gezeigt, was das kostet). `--flavor` ist ab jetzt an jedem
+Android-Build Pflicht, und der Flavor steht im Ausgabepfad — ein `cp` auf
+den alten Namen bräche erst **nach** dem Taggen (die v0.34.1-Klasse).
+`test/release_workflow_test.dart` hält Aufruf, Pfad und die Trennung
+GitHub-Release/Workflow-Artefakt zusammen; die PR-CI baut den
+`play`-Flavor, weil das Zusammenführen von `src/play/AndroidManifest.xml`
+der einzig neue Schritt ist. Das AAB entsteht je Release-Lauf als
+Workflow-Artefakt `android-aab` — bewusst nicht am GitHub-Release, ein
+`.aab` lässt sich nicht installieren.
 
 ### Blocker 6: Keine Store-Grafiken
 

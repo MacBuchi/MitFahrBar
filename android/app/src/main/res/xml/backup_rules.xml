@@ -25,4 +25,8 @@
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+    <!-- Die geladene Update-APK (~60 MB, reiner Zwischenschritt): Sie
+         sprengte das 25-MB-Kontingent und ließe das GANZE Backup
+         scheitern — dieselbe Lehre wie in PilzBuddy. -->
+    <exclude domain="file" path="updates"/>
 </full-backup-content>

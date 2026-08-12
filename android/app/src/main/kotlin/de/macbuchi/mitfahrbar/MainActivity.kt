@@ -12,11 +12,13 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.StandardMethodCodec
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStream
 import java.util.zip.GZIPInputStream
 
@@ -36,6 +38,13 @@ class MainActivity : FlutterActivity() {
          * `test/android_manifest_test.dart` vergleicht beide Dateien.
          */
         const val HEALTH_CHANNEL = "de.macbuchi.mitfahrbar/notification_health"
+
+        /**
+         * Muss wörtlich mit `ApkInstaller.channelName` in
+         * `lib/data/apk_installer.dart` übereinstimmen —
+         * `test/android_manifest_test.dart` vergleicht beide Dateien.
+         */
+        const val INSTALL_CHANNEL = "de.macbuchi.mitfahrbar/apk_install"
 
         /** Genug für den Haupt-Thread; das Schema erlaubt 4000 Zeichen. */
         const val TRACE_CHARS = 6000
@@ -154,6 +163,91 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // In-App-Update ohne `ota_update` (Muster von PilzBuddy #161): Die
+        // App lädt die APK selbst und ÜBERGIBT sie nur — installiert wird
+        // nie still, das System zeigt seinen eigenen Dialog. Genau deshalb
+        // genügt REQUEST_INSTALL_PACKAGES, und die Signatur-Berechtigung
+        // INSTALL_PACKAGES aus dem ota_update-Manifest entfällt.
+        MethodChannel(messenger, INSTALL_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canInstall" -> result.success(canInstall())
+                    "openInstallSettings" -> {
+                        openInstallSettings()
+                        result.success(null)
+                    }
+                    "updatesPath" -> {
+                        // Der Ablageort der geladenen APK. Von hier genannt
+                        // statt über path_provider in Dart — die Abhängigkeit
+                        // gibt es im Projekt sonst nirgends. Der Ordner steht
+                        // in beiden Backup-Regelwerken als Ausschluss.
+                        val dir = File(filesDir, "updates").apply { mkdirs() }
+                        result.success(dir.absolutePath)
+                    }
+                    "install" -> {
+                        val path = call.argument<String>("path")
+                        if (path.isNullOrEmpty()) {
+                            result.error("no_path", "Pfad fehlt", null)
+                        } else {
+                            installApk(path, result)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun canInstall(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+
+    /** Systemeinstellung für genau diese App öffnen, nicht die globale Liste. */
+    private fun openInstallSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+
+    /**
+     * Übergibt die geladene Datei dem System-Installer.
+     *
+     * Über einen FileProvider statt `file://`: Ab Android 7 wirft eine
+     * herausgereichte Datei-URI eine FileUriExposedException, und der
+     * Installer läuft in einem fremden Prozess — er braucht die per
+     * `FLAG_GRANT_READ_URI_PERMISSION` erteilte Leseerlaubnis.
+     */
+    private fun installApk(path: String, result: MethodChannel.Result) {
+        val file = File(path)
+        if (!file.exists()) {
+            result.error("missing_file", "Datei nicht gefunden: $path", null)
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                file,
+            )
+            startActivity(
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                },
+            )
+            result.success(true)
+        } catch (e: Exception) {
+            // Dart fällt daraufhin auf den Browser-Download zurück.
+            result.error("install_failed", e.message, null)
+        }
     }
 
     /**

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.81.0+111
+version: 0.82.0+112
 
 environment:
   sdk: ^3.11.0
@@ -48,8 +48,12 @@ dependencies:
   package_info_plus: ^10.2.1
   http: ^1.6.0
   url_launcher: ^6.3.2
-  # In-App-Update: lädt die APK und übergibt sie an den Android-Installer.
-  ota_update: ^7.1.0
+  # KEIN ota_update mehr: Dessen Plugin-Manifest zog INSTALL_PACKAGES
+  # (Signatur-Berechtigung), READ/WRITE_EXTERNAL_STORAGE und
+  # RECEIVE_BOOT_COMPLETED in jeden Build — mit INSTALL_PACKAGES ist kein
+  # AAB einreichbar. Das In-App-Update ist von Hand nachgebaut
+  # (data/update_installer.dart + MainActivity.kt, Muster PilzBuddy #161)
+  # und kommt mit REQUEST_INSTALL_PACKAGES allein aus.
   web: ^1.1.1
   share_plus: ^13.3.0
   file_selector: ^1.1.0

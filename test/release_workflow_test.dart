@@ -139,35 +139,129 @@ void main() {
     });
   });
 
-  test('alle APK-Namen in release.yml tragen denselben Stamm', () {
+  test('alle Artefakt-Namen in release.yml tragen denselben Stamm', () {
     // `${{ … }}`-Ausdrücke enthalten Leerzeichen und zerrissen sonst das
-    // Token — sie stehen hier stellvertretend als TAG.
-    final yml = File(
-      '.github/workflows/release.yml',
-    ).readAsStringSync().replaceAll(RegExp(r'\$\{\{[^}]*\}\}'), 'TAG');
+    // Token — sie stehen hier stellvertretend als TAG. Und ohne Kommentare
+    // (die sqlOnly-Lehre): Ein Kommentar, der erklärt, warum das AAB nicht
+    // ans Release gehört, nennt „.aab" zwangsläufig selbst.
+    final yml = File('.github/workflows/release.yml')
+        .readAsStringSync()
+        .replaceAll(RegExp(r'\$\{\{[^}]*\}\}'), 'TAG')
+        .split('\n')
+        .where((line) => !line.trimLeft().startsWith('#'))
+        .join('\n');
     final refs = RegExp(
-      r'[^\s"]*\.apk',
+      r'[^\s"]*\.(?:apk|aab)',
     ).allMatches(yml).map((m) => m.group(0)!).toList();
 
-    // cp-Ziel, upload-artifact-Pfad und die Release-Dateiliste — weniger
-    // hieße, eine der drei Stellen ist verschwunden oder umgebaut.
-    final assets = refs.where((r) => !r.endsWith('app-release.apk')).toList();
+    // Die Build-Ausgaben tragen seit den Flavors deren Namen — sie sind
+    // die QUELLEN der cp-Schritte, nicht die veröffentlichten Artefakte.
+    final assets = refs
+        .where((r) => !r.split('/').last.startsWith('app-'))
+        .toList();
+    // cp-Ziel + upload-Pfad für APK und AAB, dazu die Release-Dateiliste —
+    // weniger hieße, eine der Stellen ist verschwunden oder umgebaut.
     expect(
       assets.length,
-      greaterThanOrEqualTo(3),
+      greaterThanOrEqualTo(5),
       reason:
-          'cp-Ziel, upload-Pfad und Release-Dateiliste müssen die APK '
-          'benennen — fehlt eine Stelle, bitte diesen Test mitziehen.',
+          'cp-Ziele, upload-Pfade (APK und AAB) und die Release-Dateiliste '
+          'müssen die Artefakte benennen — fehlt eine Stelle, bitte diesen '
+          'Test mitziehen.',
     );
     for (final ref in assets) {
       expect(
         ref.split('/').last,
         startsWith('mitfahrbar-'),
         reason:
-            '„$ref" fällt aus der Reihe. Alle drei Stellen (cp, upload, '
+            '„$ref" fällt aus der Reihe. Alle Stellen (cp, upload, '
             'release-files) müssen denselben Stamm tragen, sonst reißt der '
             'Release-Lauf nach dem Taggen ab wie bei v0.34.1.',
       );
     }
+  });
+
+  // Zwei Vertriebswege seit dem Play-Umbau: Der Flavor entscheidet, ob
+  // REQUEST_INSTALL_PACKAGES im Artefakt steht — `github` braucht sie fürs
+  // Selbst-Update, `play` darf sie nicht tragen. Und der Flavor steht im
+  // Ausgabepfad: Ein cp auf den alten, flavorlosen Namen bricht erst NACH
+  // dem Taggen ab (die v0.34.1-Klasse, in PilzBuddy beim selben Umbau
+  // beinahe wiederholt).
+  group('Vertriebswege (Flavors)', () {
+    final release = File('.github/workflows/release.yml').readAsStringSync();
+    final ci = File('.github/workflows/ci.yml').readAsStringSync();
+
+    test('die veröffentlichte APK kommt aus dem github-Flavor', () {
+      expect(release, contains('flutter build apk --release --flavor github'));
+      expect(
+        release,
+        contains('flutter-apk/app-github-release.apk'),
+        reason:
+            'Mit Flavor heißt die Datei app-<flavor>-release.apk — der '
+            'alte Pfad existiert nicht mehr, das cp bräche nach dem Taggen.',
+      );
+    });
+
+    test(
+      'das AAB kommt aus dem play-Flavor MIT abgeschaltetem Update-Pfad',
+      () {
+        expect(
+          release,
+          contains(
+            'flutter build appbundle --release --flavor play '
+            '--dart-define=PLAY_BUILD=true',
+          ),
+          reason:
+              'Flavor und PLAY_BUILD sind zwei Hälften derselben Entscheidung: '
+              'der Flavor nimmt die Berechtigung, das Flag den Dart-Pfad. Wer '
+              'nur eine setzt, liefert eine halb abgeschaltete Funktion aus.',
+        );
+        expect(
+          release,
+          contains('bundle/playRelease/app-play-release.aab'),
+          reason: 'Mit Flavor liegt das Bundle in bundle/<flavor>Release/.',
+        );
+        // Das AAB gehört NICHT an das GitHub-Release: Es lässt sich nicht
+        // installieren und würde neben der APK nur verwirren. Es bleibt
+        // Workflow-Artefakt für den Upload in die Play Console.
+        final filesLine = RegExp(r'files:\s*\S+').firstMatch(release)?.group(0);
+        expect(filesLine, isNotNull);
+        expect(
+          filesLine,
+          isNot(contains('.aab')),
+          reason: 'Ein AAB am GitHub-Release lässt sich nicht installieren.',
+        );
+      },
+    );
+
+    test('die GitHub-APK wird nie mit PLAY_BUILD gebaut', () {
+      final apkCommand = RegExp(
+        r'flutter build apk[^\n]*',
+      ).allMatches(release).map((m) => m.group(0)!);
+      for (final command in apkCommand) {
+        expect(
+          command,
+          isNot(contains('PLAY_BUILD')),
+          reason:
+              'Die GitHub-APK MUSS ihren Update-Hinweis behalten — sonst '
+              'aktualisiert sie niemand mehr, und es gibt dort keinen Store, '
+              'der es übernähme.',
+        );
+      }
+    });
+
+    test(
+      'die CI baut den play-Flavor, damit der Manifest-Merge dort bricht',
+      () {
+        expect(
+          ci,
+          contains('flutter build apk --release --flavor play'),
+          reason:
+              'github baut aus src/main wie eh und je; das einzig Neue ist das '
+              'Zusammenführen von src/play/AndroidManifest.xml — und das soll '
+              'in der PR-CI auffallen, nicht in release.yml nach dem Taggen.',
+        );
+      },
+    );
   });
 }
