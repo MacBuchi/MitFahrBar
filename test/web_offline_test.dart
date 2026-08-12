@@ -123,6 +123,31 @@ void main() {
       );
     });
 
+    // Datenschutzerklärung und Löschseite sind Play-Pflicht, und die Konsole
+    // ruft genau diese Adressen auf. Sie liegen als eigene Dateien neben der
+    // App — der Worker darf sie also nicht wie eine App-Route behandeln.
+    test('statische Seiten überleben den Navigations-Fallback', () {
+      for (final page in const ['datenschutz.html', 'konto-loeschen.html']) {
+        expect(
+          File('web/$page').existsSync(),
+          isTrue,
+          reason:
+              'web/$page fehlt — ohne die Seite lehnt Play den Eintrag ab, '
+              'und die Datenschutzerklärung ist für JEDE App Pflicht.',
+        );
+      }
+      expect(
+        worker.readAsStringSync(),
+        contains("request.mode === 'navigate' && !SHELL.has(url.pathname)"),
+        reason:
+            'Ohne die zweite Bedingung beantwortet der Worker JEDE '
+            'Navigation aus index.html — wer die Web-App schon einmal '
+            'geöffnet hat, bekäme unter /datenschutz.html die App zu sehen. '
+            'Beim ersten Besuch (und damit bei Googles Abruf) fällt das '
+            'nicht auf, weil dann noch kein Worker läuft.',
+      );
+    });
+
     // Es gibt je Geltungsbereich genau EINEN Worker: Wer zuletzt registriert,
     // ersetzt den davor. Zwei Dateien nebeneinander hieße also, dass Push und
     // Offline-Start sich abwechselnd abschalten.

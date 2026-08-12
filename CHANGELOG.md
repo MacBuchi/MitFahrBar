@@ -4,6 +4,31 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.81.0] – 2026-08-12
+
+### Neu
+
+- **Datenschutzerklärung und eine Seite zum Löschen.** Beide sind Pflicht,
+  wenn MitFahrBar in den Play Store soll, und beide erreicht ihr im Browser
+  ohne installierte App:
+  https://macbuchi.github.io/MitFahrBar/datenschutz.html und
+  https://macbuchi.github.io/MitFahrBar/konto-loeschen.html
+
+  Sie beschreiben, was die App wirklich tut — unter anderem, dass sie
+  **keinerlei Standortdaten** erhebt, dass eine Gruppe sich einen Zugang
+  teilt und deshalb alle alles sehen, dass Benachrichtigungen Namen
+  enthalten und dass Rückmeldungen aus der App auf GitHub **öffentlich**
+  werden.
+
+  An der App selbst ändert sich nichts.
+
+### Behoben
+
+- **Im Browser hätten die neuen Seiten die App gezeigt statt sich selbst.**
+  Seit die Web-App sich auf dem Gerät ablegt, beantwortete sie jeden Aufruf
+  unter ihrer Adresse mit sich selbst — auch `datenschutz.html`. Beim ersten
+  Besuch wäre das nicht aufgefallen, bei jedem weiteren schon.
+
 ## [0.80.1] – 2026-08-12
 
 ### Behoben
