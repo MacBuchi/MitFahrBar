@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers.dart';
 import '../../models/price_area.dart';
 import 'price_history_charts.dart';
+import '../../core/system_insets.dart';
 
 class PricesScreen extends ConsumerWidget {
   const PricesScreen({super.key});
@@ -113,7 +114,7 @@ class _AreaSetupState extends ConsumerState<_AreaSetup> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: withSystemBottom(context, const EdgeInsets.all(16)),
       children: [
         Text('Wo tankt ihr?', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
@@ -199,7 +200,7 @@ class _PriceOverviewState extends ConsumerState<_PriceOverview> {
     final theme = Theme.of(context);
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: withSystemBottom(context, const EdgeInsets.all(16)),
       children: [
         Text(widget.area.label, style: theme.textTheme.titleMedium),
         Text(

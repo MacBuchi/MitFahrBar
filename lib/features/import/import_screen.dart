@@ -17,6 +17,7 @@ import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
 import '../../models/trip.dart';
+import '../../core/system_insets.dart';
 
 /// Auswahlwerte, die keine Personen-Id sind. Ids sind UUIDs, eine Kollision
 /// ist also ausgeschlossen.
@@ -198,7 +199,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Fahrten importieren')),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.m),
+        padding: withSystemBottom(context, const EdgeInsets.all(AppSpacing.m)),
         children: [
           Text(
             'Nimm eine Datei aus dem Export — sie hat genau das richtige '

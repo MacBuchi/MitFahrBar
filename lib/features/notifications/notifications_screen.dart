@@ -37,6 +37,7 @@ import '../../core/tokens.dart';
 import '../../data/providers.dart';
 import '../../models/group_defaults.dart';
 import '../../models/notification_prefs.dart';
+import '../../core/system_insets.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -518,7 +519,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         defaults.outboundTime != null || defaults.returnTime != null;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: withSystemBottom(context, const EdgeInsets.all(16)),
       children: [
         Text(
           'Dieses Gerät kann abends zeigen, wie der nächste Tag aussieht, '

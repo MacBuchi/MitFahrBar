@@ -782,6 +782,32 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   `duplicate key value violates unique constraint "persons_name_key"`.
 - In Screens keine rohen Farb-/Pixelwerte — `core/tokens.dart` bzw.
   `Theme.of(context)` verwenden.
+- **Wer sein Scroll-Padding selbst setzt, verliert die Systemränder**
+  (`core/system_insets.dart`, seit v0.80.1, #241). Eine `ListView` legt sie
+  von sich aus an — aber **nur**, solange `padding` null ist
+  (`BoxScrollView.buildSlivers`: `if (padding == null)`). Mit eigenem Padding
+  fallen sie ersatzlos weg, und auf einem Android mit Navigationsleiste liegt
+  das letzte Element darunter; am Listenende hilft dann auch Scrollen nicht
+  mehr. Genau so lag es beim Knopf „Test-Benachrichtigung senden" (gemeldet
+  12.08.2026 mit Screenshot, 32 px Überhang).
+  - **Betroffen sind nur die Routen ohne `bottomNavigationBar`.** Das
+    `Scaffold` nimmt den unteren Rand aus der MediaQuery seines Rumpfes
+    heraus, sobald eine Leiste darunter steht — die vier Tab-Seiten sind
+    deshalb unauffällig, und genau darum fällt es nur auf den eigenständigen
+    Schirmen auf.
+  - **`padding`, nicht `viewPadding`:** Damit rechnet Flutter im
+    Automatikfall ebenfalls, und bei offener Tastatur wird der Wert
+    richtigerweise 0 — die Leiste liegt dann hinter der Tastatur.
+  - **Kein `SafeArea` stattdessen.** Das beschnitte die Liste schon oberhalb
+    der Leiste; Inhalt soll darunter durchlaufen, nur das letzte Element
+    braucht Luft.
+  - **In jedem Widget-Test sind die Ränder null**, im Browser gibt es keine
+    Leiste — der Fehler ist ausschließlich auf einem Gerät zu sehen. Deshalb
+    prüft `test/system_insets_test.dart` den Quelltext, und
+    `test/flows/notifications_flow_test.dart` stellt den Rand ausdrücklich
+    her und misst. Der Quelltext-Riegel zieht seine Liste aus `router.dart`
+    nach: Eine neue eigenständige Route ohne Helfer wird rot, statt still
+    denselben Fehler zu erben.
 - **Die Banner haben seit v0.47.0 eine eigene Palette neben dem
   `ColorScheme`** (`AppBannerTones`, `AppAccents`, `AppPush` in
   `core/tokens.dart`), übernommen aus `assets/fahrmitbar-design-set/`

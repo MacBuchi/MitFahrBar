@@ -14,6 +14,7 @@ import '../../core/mood.dart';
 import '../../core/tokens.dart';
 import '../../core/widgets/mood_face.dart';
 import '../../core/widgets/mitfahrbar_mark.dart';
+import '../../core/system_insets.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -24,7 +25,7 @@ class HelpScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('So funktioniert MitFahrBar')),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.m),
+        padding: withSystemBottom(context, const EdgeInsets.all(AppSpacing.m)),
         children: [
           // Kopf: Marke + der eine Satz, wozu es die App gibt.
           Row(

@@ -8,6 +8,7 @@ import '../../core/tokens.dart';
 import '../../data/carpool_repository.dart';
 import '../../data/providers.dart';
 import '../../models/person.dart';
+import '../../core/system_insets.dart';
 
 class PersonsScreen extends ConsumerWidget {
   const PersonsScreen({super.key});
@@ -23,7 +24,10 @@ class PersonsScreen extends ConsumerWidget {
       // steht stattdessen unter dem letzten Eintrag und scrollt mit.
       body: switch (persons) {
         AsyncData(value: final list) => ListView(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+          padding: withSystemBottom(
+            context,
+            const EdgeInsets.only(bottom: AppSpacing.xl),
+          ),
           children: [
             if (list.isEmpty)
               const Padding(

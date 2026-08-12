@@ -4,6 +4,22 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.80.1] – 2026-08-12
+
+### Behoben
+
+- **Der unterste Knopf lag unter der Navigationsleiste des Handys.** Auf den
+  Seiten, die ihr über das Menü öffnet, endete der Inhalt zu knapp: Bei den
+  Benachrichtigungen ragte „Test-Benachrichtigung senden" halb unter die
+  Leiste mit Zurück-, Start- und Übersicht-Knopf — und weiter scrollen ging
+  nicht, weil die Liste dort zu Ende war. Jetzt ist unten so viel Platz, wie
+  euer Gerät braucht.
+
+  Betroffen waren neben den Benachrichtigungen auch Personen, Parameter,
+  Spritpreise, die Anleitung, der Import und der Fahrten-Editor. Auf den vier
+  Hauptseiten mit der Leiste unten (Übersicht, Woche, Historie, Statistik)
+  trat es nie auf.
+
 ## [0.80.0] – 2026-08-11
 
 ### Behoben
