@@ -138,7 +138,14 @@ self.addEventListener('fetch', (event) => {
 
   // Jeder Einstieg zeigt dieselbe Shell — auch ein Deep-Link, für den der
   // Server sonst 404.html ausliefert.
-  if (request.mode === 'navigate') {
+  //
+  // ABER nicht, wenn unter dem Pfad eine echte Datei liegt: `datenschutz.html`
+  // und `konto-loeschen.html` sind eigenständige Seiten, keine App-Routen.
+  // Ohne die zweite Bedingung bekäme jeder, der die Web-App schon einmal
+  // geöffnet hat, dort die App zu sehen. Beide Adressen sind Play-Pflicht und
+  // werden von der Konsole geprüft; beim ersten Besuch — und damit bei
+  // Googles Abruf — fällt es nicht auf, weil dann noch kein Worker läuft.
+  if (request.mode === 'navigate' && !SHELL.has(url.pathname)) {
     event.respondWith(shellResponse(INDEX, request));
     return;
   }
