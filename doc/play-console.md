@@ -14,10 +14,11 @@ Stand: 12. August 2026, App-Version 0.80.1+110.
 
 **Stand 0.82.0:** Von den sechs Blockern sind fünf erledigt — `ota_update`
 ist durch einen eigenen Updater ersetzt, der Play-Schalter, die Flavors samt
-AAB-Build, Datenschutzerklärung und Löschseite sind da. Offen bleiben die
-**Store-Grafiken** (Blocker 6), die **Kontaktadresse** auf beiden Web-Seiten
-(Platzhalter `KONTAKT-MAIL-EINTRAGEN`) — und der erste Pages-Deploy nach der
-Beförderung, denn Play prüft die beiden URLs.
+AAB-Build, Datenschutzerklärung und Löschseite sind da; die Kontaktadresse
+auf beiden Web-Seiten ist `macbuchi.apps@gmail.com` (dieselbe gehört ins
+Feld „Kontakt-E-Mail" des Store-Eintrags — Play verlangt, dass beide
+zusammenpassen). Offen bleiben die **Store-Grafiken** (Blocker 6) — und der
+erste Pages-Deploy nach der Beförderung, denn Play prüft die beiden URLs.
 
 ---
 
