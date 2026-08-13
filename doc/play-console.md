@@ -250,7 +250,48 @@ dort nie (siehe Blocker 2).
 
 ---
 
-## 4. Play App Signing
+## 4. Upload aus der CI
+
+Das Bundle wiegt rund 60 MB. Vom Arbeitsplatz hochgeladen hängt es an der
+Leitung, die dort gerade da ist — der Runner hat es ohnehin gebaut und
+schiebt es über eine, die niemanden bremst. Dafür gibt es
+`.github/workflows/play-upload.yml`: von Hand auslösbar, mit Kanal und
+Version als Eingabe.
+
+**Einmalige Einrichtung — sie braucht Konsolen-Zugang und geht nicht aus dem
+Repo heraus:**
+
+1. In der Google Cloud Console ein **Dienstkonto** anlegen (irgendein
+   Projekt) und einen **JSON-Schlüssel** dafür erzeugen.
+2. In der Play Console unter *Nutzer und Berechtigungen* dieses Konto
+   einladen und ihm für MitFahrBar **„Releases in Testkanälen verwalten"**
+   geben — nicht mehr. Produktion bleibt Handarbeit; ein Schlüssel im CI, der
+   in den offenen Store schreiben darf, ist eine andere Risikoklasse.
+3. Den JSON-Inhalt als Repo-Geheimnis `PLAY_SERVICE_ACCOUNT_JSON` ablegen.
+
+Ohne das Geheimnis bricht der Workflow im ersten Schritt ab und sagt, was
+fehlt — dieselbe Linie wie beim Keystore: lieber sichtbar nichts tun als
+etwas Halbes.
+
+**Der allererste Upload einer neuen App kann Handarbeit bleiben.** Play
+verlangt vor dem Veröffentlichen in einem Kanal vollständige Angaben zu
+Inhalt und Datensicherheit; solange die fehlen, nimmt die API zwar das
+Bundle, aber die Freigabe scheitert. Der Workflow kennt dafür `status:
+draft` — hochladen, ohne an die Tester zu verteilen.
+
+**Release-Notizen kommen aus dem CHANGELOG**, nicht aus einem zweiten Text:
+derselbe Abschnitt, den auch „Was ist neu" im GitHub-Release zeigt. Play
+deckelt sie bei **500 Zeichen** — der Workflow kürzt an einer Wortgrenze und
+hängt einen Verweis aufs Ganze an. Ungekürzt lehnte die API ab, und zwar
+erst **nach** dem 60-MB-Transfer.
+
+**Gebaut wird aus dem Tag, nicht aus dem Release-Artefakt.** Artefakte
+verfallen nach 90 Tagen; ein Workflow, der ein halbes Jahr später nicht mehr
+läuft, ist eine Falle. Dieselbe Entscheidung wie bei Pages in `promote.yml`.
+
+---
+
+## 5. Play App Signing
 
 Beim ersten AAB-Upload wird der Keystore aus den Actions-Secrets zum
 *Upload-Key*, signiert wird danach von Google. Der Play-Build hat damit eine
