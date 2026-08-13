@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Die `applicationId` ist die eine Quelle — der Kotlin-Pfad folgt ihr.
 ///
 /// Vorher stand er dreimal ausgeschrieben im File. Beim Umzug auf
-/// `de.mcbuchi.mitfahrbar` (v0.81.0) scheiterte der ganze Test deshalb mit
+/// `de.mcbuchi.mitfahrbar` (v0.83.0) scheiterte der ganze Test deshalb mit
 /// „Cannot open file" statt mit einer Aussage darüber, was nicht stimmt.
 /// Abgeleitet prüft er zusätzlich etwas Echtes mit: dass Paketverzeichnis und
 /// `applicationId` zusammenpassen. Tun sie das nicht, findet Gradle die
@@ -103,14 +103,9 @@ void main() {
     });
 
     test('Kanalname in Kotlin und Dart ist derselbe', () {
-      final kotlinChannel = RegExp(r'const val INSTALL_CHANNEL = "([^"]+)"')
-          .firstMatch(
-            File(
-              'android/app/src/main/kotlin/de/macbuchi/mitfahrbar/'
-              'MainActivity.kt',
-            ).readAsStringSync(),
-          )
-          ?.group(1);
+      final kotlinChannel = RegExp(
+        r'const val INSTALL_CHANNEL = "([^"]+)"',
+      ).firstMatch(File(activityPath).readAsStringSync())?.group(1);
       final dartChannel = RegExp(r"channelName = '([^']+)'")
           .firstMatch(File('lib/data/apk_installer.dart').readAsStringSync())
           ?.group(1);

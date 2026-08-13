@@ -44,7 +44,7 @@ class MainActivity : FlutterActivity() {
          * `lib/data/apk_installer.dart` übereinstimmen —
          * `test/android_manifest_test.dart` vergleicht beide Dateien.
          */
-        const val INSTALL_CHANNEL = "de.macbuchi.mitfahrbar/apk_install"
+        const val INSTALL_CHANNEL = "de.mcbuchi.mitfahrbar/apk_install"
 
         /** Genug für den Haupt-Thread; das Schema erlaubt 4000 Zeichen. */
         const val TRACE_CHARS = 6000

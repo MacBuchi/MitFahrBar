@@ -2060,7 +2060,7 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   (Dart-Enum `ParticipationStatus.driver/passenger/oneWay`).
 - **Android:** Bundle-ID `de.mcbuchi.mitfahrbar` — zweimal umgezogen: mit
   v0.34.0 von `de.macbuchi.fahrgemeinschaft` (Issue #87, Produktname), mit
-  v0.81.0 von `de.macbuchi.mitfahrbar` auf die **echte Domain** `mcbuchi.de`.
+  v0.83.0 von `de.macbuchi.mitfahrbar` auf die **echte Domain** `mcbuchi.de`.
   Android sieht darin jedes Mal eine **andere App**: Die alte bleibt
   installiert und bekommt nie wieder ein Update, jeder installiert einmal
   neu. Das war beide Male die bewusste Entscheidung; wer die ID künftig
@@ -2071,12 +2071,12 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     (`de.mcbuchi.pilzbuddy`, dort ebenfalls vorher geändert). Der Preis fiel
     auf **eine** aktive Gruppe; nach der ersten Einreichung wäre er dauerhaft.
   - **Die alte Firebase-Android-App bleibt stehen.** Im Projekt `mitfahrbar`
-    liegen seit v0.81.0 zwei: `de.macbuchi.mitfahrbar` (alt) und
+    liegen seit v0.83.0 zwei: `de.macbuchi.mitfahrbar` (alt) und
     `de.mcbuchi.mitfahrbar` (neu), und `google-services.json` führt beide
     Zeilen — das Gradle-Plugin sucht sich die zur `applicationId` passende.
     Die alte zu löschen nähme jeder noch nicht umgestiegenen Installation
     sofort den Push; sie darf erst weg, wenn niemand mehr die alte App hat.
-  - **Der Kotlin-Pfad folgt der ID**, und der Test leitet ihn seit v0.81.0
+  - **Der Kotlin-Pfad folgt der ID**, und der Test leitet ihn seit v0.83.0
     aus `build.gradle.kts` ab statt ihn auszuschreiben. Vorher scheiterte
     `android_manifest_test.dart` beim Umzug mit „Cannot open file" statt mit
     einer Aussage; abgeleitet prüft er zusätzlich mit, dass Paketverzeichnis
