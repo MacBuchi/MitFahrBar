@@ -16,7 +16,7 @@ class ApkInstaller {
 
   /// Muss wörtlich mit `INSTALL_CHANNEL` in `MainActivity.kt`
   /// übereinstimmen — `test/android_manifest_test.dart` vergleicht beide.
-  static const channelName = 'de.macbuchi.mitfahrbar/apk_install';
+  static const channelName = 'de.mcbuchi.mitfahrbar/apk_install';
 
   final MethodChannel _channel;
 

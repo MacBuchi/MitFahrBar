@@ -96,7 +96,7 @@ class ExitInfoRepository {
 
   /// Muss wörtlich mit `CHANNEL` in `MainActivity.kt` übereinstimmen —
   /// `test/android_manifest_test.dart` vergleicht beide Dateien.
-  static const channelName = 'de.macbuchi.mitfahrbar/exit_info';
+  static const channelName = 'de.mcbuchi.mitfahrbar/exit_info';
 
   final MethodChannel _channel;
 
