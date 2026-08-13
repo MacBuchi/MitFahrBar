@@ -207,6 +207,59 @@ void main() {
   // Ausgabepfad: Ein cp auf den alten, flavorlosen Namen bricht erst NACH
   // dem Taggen ab (die v0.34.1-Klasse, in PilzBuddy beim selben Umbau
   // beinahe wiederholt).
+  // Der Play-Upload läuft von Hand und selten — genau die Klasse, deren
+  // Fehler erst auffallen, wenn man sie braucht. Beide Hälften des
+  // Play-Builds gehören zusammen: `--flavor play` nimmt
+  // REQUEST_INSTALL_PACKAGES aus dem Manifest, `PLAY_BUILD=true` schaltet
+  // den Update-Pfad ab. Nur eine davon liefert eine halb abgeschaltete
+  // Funktion aus — und Play fragt nach einer Berechtigung ohne Funktion.
+  group('Play-Upload', () {
+    final upload = File('.github/workflows/play-upload.yml').readAsStringSync();
+
+    test('lädt den play-Flavor MIT abgeschaltetem Update-Pfad hoch', () {
+      expect(upload, contains('--flavor play'));
+      expect(upload, contains('--dart-define=PLAY_BUILD=true'));
+      expect(
+        upload,
+        contains('packageName: de.mcbuchi.mitfahrbar'),
+        reason:
+            'Der Paketname ist in Play dauerhaft an die App gebunden — ein '
+            'Vertipper lädt ins Leere oder in eine fremde App.',
+      );
+    });
+
+    test('läuft nur von Hand, nie bei einem Merge', () {
+      expect(
+        upload,
+        contains('workflow_dispatch'),
+        reason:
+            'Jeder Merge in einen Testkanal wäre eine Benachrichtigung an '
+            'alle Tester.',
+      );
+      expect(
+        upload,
+        isNot(contains('\n  push:')),
+        reason: 'Kein Push-Auslöser — der Upload bleibt ein Handgriff.',
+      );
+    });
+
+    // Play deckelt Release-Notizen bei 500 Zeichen und lehnt sonst ab —
+    // erst NACH dem 60-MB-Transfer. Die Grenze muss also vor dem Upload
+    // greifen, nicht danach.
+    test('kürzt die Notizen vor dem Upload', () {
+      final limit = upload.indexOf('limit = 500');
+      final push = upload.indexOf('upload-google-play@');
+      expect(limit, isNonNegative);
+      expect(push, isNonNegative);
+      expect(
+        limit,
+        lessThan(push),
+        reason:
+            'Ungekürzt lehnt die API ab, nachdem das Bundle schon oben ist.',
+      );
+    });
+  });
+
   group('Vertriebswege (Flavors)', () {
     final release = File('.github/workflows/release.yml').readAsStringSync();
     final ci = File('.github/workflows/ci.yml').readAsStringSync();
