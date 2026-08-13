@@ -32,7 +32,7 @@ liegen erst dann auf macbuchi.github.io.
 |---|---|---|
 | Erhebt oder teilt deine App die geforderten Nutzerdatentypen? | **Ja** | Namen, Fahrten, Feedback, Fehlerberichte, Push-Token |
 | Werden alle Daten bei der Übertragung verschlüsselt? | **Ja** | Alle Endpunkte sind HTTPS: Supabase, `github.com`, `api.github.com`, `macbuchi.github.io`. Kein `http://` im Code. Auth-Mails verschickt Supabase serverseitig über Brevo — die App spricht nie mit dem Mail-Anbieter |
-| Können Nutzer die Löschung ihrer Daten beantragen? | **Ja, aber URL fehlt** | Verwalter löschen ihre Gruppe über `admin_delete_group` in der Konsole (Kaskade über den Auth-User). Eine **öffentliche URL ohne installierte App** verlangt Play zusätzlich — siehe Blocker 4 |
+| Können Nutzer die Löschung ihrer Daten beantragen? | **Ja** | URL: <https://macbuchi.github.io/MitFahrBar/konto-loeschen.html> (live seit der Beförderung von 0.83.0). Verwalter löschen ihre Gruppe über `admin_delete_group` in der Konsole, Kaskade über den Auth-User |
 | Unabhängige Sicherheitsüberprüfung? | **Nein** | |
 | Enthält die App Werbung? | **Nein** | Keine Werbe- oder Analyse-SDKs in `pubspec.yaml` |
 
@@ -68,7 +68,8 @@ Brevo stellt als Auftragsverarbeiter die Bestätigungs- und Reset-Mails zu,
 die der Nutzer selbst angestoßen hat. Google nimmt Dienstanbieter, die nur im
 Auftrag und für diesen Zweck verarbeiten, ausdrücklich von *geteilt* aus. Das
 setzt voraus, dass Brevo in der Datenschutzerklärung als Auftragsverarbeiter
-benannt ist — die gibt es noch nicht, siehe Blocker 3.
+benannt ist — **ist erledigt**, sie nennt Brevo ebenso wie Supabase, Google
+und GitHub.
 
 **² Feedback landet öffentlich auf GitHub — *geteilt*.** Der Feedback-Bot
 (`tool/feedback_bot.py`) macht daraus öffentliche Issues, außerhalb der
@@ -90,8 +91,8 @@ Werk aus, ein Schalter im Screen, Ausschalten löscht die Zeile in
 
 **Achtung, anders als bei PilzBuddy:** Der Push-Text nennt **Personennamen**
 („Morgen fährt Anna"). Er ist damit inhaltlich sensibler als PilzBuddys
-Meldungen, die bewusst nie Koordinaten oder Spot-Namen tragen. Das gehört in
-die Datenschutzerklärung, wenn sie geschrieben wird.
+Meldungen, die bewusst nie Koordinaten oder Spot-Namen tragen. In der
+Datenschutzerklärung steht es.
 
 ### Berechtigungen im Build
 
