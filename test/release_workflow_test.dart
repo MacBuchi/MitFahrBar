@@ -123,11 +123,31 @@ void main() {
     test('der beförderte Stand zählt nicht als sein eigener Vorgänger', () {
       expect(
         promote,
-        contains(r'select(.tagName != $tag)'),
+        contains(r'!= "$TAG"'),
         reason:
             'Ohne diesen Ausschluss liefert jeder WIEDERHOLTE Lauf leere '
             'Notizen — und wiederholt wird genau dann, wenn der erste Lauf '
             'auf halber Strecke gescheitert ist.',
+      );
+    });
+
+    // Der Ausschluss stand zuerst als jq-Variable da (`--jq --arg tag …`) und
+    // riss den ersten Lauf ab, der ihn benutzte: `gh --jq` nimmt genau EINEN
+    // Ausdruck und kennt jq's `--arg` nicht — gh las das Wort danach als
+    // Befehl und meldete `unknown command "tag"`. Gescheitert ist es an der
+    // harmlosen Stelle (vor dem Umschalten), aber gefunden hat es niemand
+    // vorher, weil dieser Workflow nur von Hand läuft.
+    test('gh bekommt keine jq-Variablen untergeschoben', () {
+      final yamlOnly = promote
+          .split('\n')
+          .where((line) => !line.trimLeft().startsWith('#'))
+          .join('\n');
+      expect(
+        yamlOnly,
+        isNot(contains('--arg')),
+        reason:
+            '`gh --jq` unterstützt keine jq-Argumente. Werte gehören in die '
+            'Shell, nicht in den jq-Ausdruck.',
       );
     });
 
