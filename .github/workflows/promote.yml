@@ -93,11 +93,24 @@ jobs:
           # sammelten zwischen ihr und ihr — nichts. Genau so passiert am
           # 11.08.2026: Unter „Was ist neu" stand nur noch der Fallback-Link,
           # obwohl fünf Versionen dazwischenlagen.
-          prev=$(gh release list --limit 60 --exclude-drafts \
+          # **Gefiltert wird in der Shell, nicht in jq.** `gh --jq` nimmt nur
+          # einen Ausdruck entgegen und kennt jq's `--arg` NICHT: gh las das
+          # `--arg` als eigenes Wort und meldete `unknown command "tag"`.
+          # Genau daran ist die Beförderung am 13.08.2026 gescheitert — beim
+          # ersten Lauf, der diese Zeile überhaupt benutzt hat. Eine Schleife
+          # kommt ohne Anführungszeichen-Akrobatik aus und kann nicht
+          # zurückschlagen.
+          stable=$(gh release list --limit 60 --exclude-drafts \
             --json tagName,isPrerelease \
-            --jq --arg tag "$TAG" \
-              '[.[] | select(.isPrerelease | not) | select(.tagName != $tag)]
-               | .[0].tagName // ""')
+            --jq '[.[] | select(.isPrerelease | not)] | .[].tagName')
+          prev=""
+          while IFS= read -r candidate; do
+            [ -n "$candidate" ] || continue
+            if [ "$candidate" != "$TAG" ]; then
+              prev="$candidate"
+              break
+            fi
+          done <<< "$stable"
           echo "tag=$prev" >> "$GITHUB_OUTPUT"
           echo "Vorheriger stabiler Stand: ${prev:-<keiner>}"
 
