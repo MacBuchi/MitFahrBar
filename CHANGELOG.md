@@ -4,6 +4,36 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.83.0] – 2026-08-13
+
+### Wichtig: einmal neu installieren
+
+- **MitFahrBar bekommt seine endgültige App-Kennung — und dafür muss jede und
+  jeder die App einmal neu installieren.** Android erkennt eine App an einer
+  internen Kennung, und die trägt ab jetzt die richtige Domain
+  (`de.mcbuchi.mitfahrbar` statt `de.macbuchi.mitfahrbar`). Für Android ist
+  das eine **andere App**: Dieses Update kommt deshalb nicht als Update an,
+  sondern nur als frische Installation.
+
+  Der Grund für den Zeitpunkt: MitFahrBar soll in den App Store, und dort ist
+  die Kennung ab der ersten Einreichung unveränderlich. Jetzt kostet der
+  Wechsel eine Neuinstallation — später wäre er gar nicht mehr möglich.
+
+  **So geht ihr vor:**
+
+  1. Die neue Version über den Link im Update-Hinweis herunterladen und
+     installieren. Sie erscheint als zusätzliche App, die alte bleibt daneben.
+  2. In der neuen App **anmelden** (Gruppenname und Passwort wie bisher).
+  3. Im Menü unter „Ich bin" wieder euch selbst auswählen.
+  4. Unter „Benachrichtigungen" den Schalter wieder einschalten — sonst kommt
+     abends nichts mehr an.
+  5. Die **alte App deinstallieren**. Sonst habt ihr zwei gleich aussehende
+     Symbole, und die alte meldet weiter Updates, die sie nie bekommt.
+
+  Eure Fahrten, Punkte, Personen und der Wochenplan sind davon **nicht**
+  betroffen — die liegen auf dem Server und sind nach dem Anmelden alle da.
+  Die Web-App im Browser ist ebenfalls unberührt; dort ändert sich nichts.
+
 ## [0.82.0] – 2026-08-12
 
 ### Geändert

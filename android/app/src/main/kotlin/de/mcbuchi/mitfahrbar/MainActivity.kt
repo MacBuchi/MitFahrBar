@@ -1,4 +1,4 @@
-package de.macbuchi.mitfahrbar
+package de.mcbuchi.mitfahrbar
 
 import android.app.ActivityManager
 import android.app.ApplicationExitInfo
@@ -30,14 +30,14 @@ class MainActivity : FlutterActivity() {
          * `lib/data/exit_info_repository.dart` übereinstimmen —
          * `test/android_manifest_test.dart` vergleicht beide Dateien.
          */
-        const val CHANNEL = "de.macbuchi.mitfahrbar/exit_info"
+        const val CHANNEL = "de.mcbuchi.mitfahrbar/exit_info"
 
         /**
          * Muss wörtlich mit `NotificationHealthProbe.channelName` in
          * `lib/core/notification_health_probe.dart` übereinstimmen —
          * `test/android_manifest_test.dart` vergleicht beide Dateien.
          */
-        const val HEALTH_CHANNEL = "de.macbuchi.mitfahrbar/notification_health"
+        const val HEALTH_CHANNEL = "de.mcbuchi.mitfahrbar/notification_health"
 
         /**
          * Muss wörtlich mit `ApkInstaller.channelName` in

@@ -31,7 +31,7 @@ Der DocuHub ist vollständig Flutter-basiert; **PilzBuddy** ist die nahezu decku
 
 | Baustein | Entscheidung | Quelle |
 |---|---|---|
-| Framework | Flutter Web (PWA), Bundle-ID `de.macbuchi.mitfahrbar` | `projekt-setup-checkliste.md` |
+| Framework | Flutter Web (PWA), Bundle-ID `de.mcbuchi.mitfahrbar` | `projekt-setup-checkliste.md` |
 | State | Riverpod 2 manuell (ohne Codegen) | `state-management.md` |
 | Navigation | go_router mit Auth-Guard im Router (`redirect` + `refreshListenable`) | `navigation.md` |
 | UI | Material 3, `ColorScheme.fromSeed`, Light+Dark via `_base(Brightness)` | `theming-design.md` |

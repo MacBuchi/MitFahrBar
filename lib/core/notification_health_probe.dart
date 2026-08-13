@@ -48,7 +48,7 @@ class NotificationHealthProbe {
 
   /// Muss wörtlich mit `HEALTH_CHANNEL` in `MainActivity.kt` übereinstimmen —
   /// `test/android_manifest_test.dart` vergleicht beide Dateien.
-  static const channelName = 'de.macbuchi.mitfahrbar/notification_health';
+  static const channelName = 'de.mcbuchi.mitfahrbar/notification_health';
 
   final MethodChannel _channel;
 

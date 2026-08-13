@@ -10,9 +10,26 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+/// Die `applicationId` ist die eine Quelle — der Kotlin-Pfad folgt ihr.
+///
+/// Vorher stand er dreimal ausgeschrieben im File. Beim Umzug auf
+/// `de.mcbuchi.mitfahrbar` (v0.81.0) scheiterte der ganze Test deshalb mit
+/// „Cannot open file" statt mit einer Aussage darüber, was nicht stimmt.
+/// Abgeleitet prüft er zusätzlich etwas Echtes mit: dass Paketverzeichnis und
+/// `applicationId` zusammenpassen. Tun sie das nicht, findet Gradle die
+/// Activity nicht — und meldet das erst im Android-Build, nicht hier.
+String _applicationId() {
+  final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+  final match = RegExp(r'applicationId\s*=\s*"([^"]+)"').firstMatch(gradle);
+  return match!.group(1)!;
+}
+
 void main() {
   final manifest = File('android/app/src/main/AndroidManifest.xml');
   final content = manifest.existsSync() ? manifest.readAsStringSync() : '';
+  final activityPath =
+      'android/app/src/main/kotlin/'
+      '${_applicationId().replaceAll('.', '/')}/MainActivity.kt';
 
   test('das main-Manifest existiert', () {
     expect(manifest.existsSync(), isTrue);
@@ -366,9 +383,7 @@ void main() {
     });
 
     test('legt den Kanal auch wirklich an', () {
-      final activity = File(
-        'android/app/src/main/kotlin/de/macbuchi/mitfahrbar/MainActivity.kt',
-      );
+      final activity = File(activityPath);
       expect(activity.existsSync(), isTrue);
       expect(
         activity.readAsStringSync(),
@@ -394,7 +409,7 @@ void main() {
       );
       expect(
         File('android/app/google-services.json').readAsStringSync(),
-        contains('de.macbuchi.mitfahrbar'),
+        contains('de.mcbuchi.mitfahrbar'),
         reason:
             'Die Konfiguration muss zum applicationId passen; sonst lehnt '
             'FCM die Registrierung ab.',
@@ -463,9 +478,7 @@ void main() {
   // Fehler-Senke hängt an Kotlin-Code, den kein Flutter-Test ausführt —
   // dieselbe Klasse Release-only-Falle wie der FCM-Kanal.
   group('Beendigungsgründe (#144)', () {
-    final mainActivity = File(
-      'android/app/src/main/kotlin/de/macbuchi/mitfahrbar/MainActivity.kt',
-    ).readAsStringSync();
+    final mainActivity = File(activityPath).readAsStringSync();
 
     test('MainActivity fragt Androids Historie ab', () {
       expect(
@@ -509,9 +522,7 @@ void main() {
   });
 
   group('Benachrichtigungs-Prüfung (#180)', () {
-    final mainActivity = File(
-      'android/app/src/main/kotlin/de/macbuchi/mitfahrbar/MainActivity.kt',
-    ).readAsStringSync();
+    final mainActivity = File(activityPath).readAsStringSync();
     final probe = File(
       'lib/core/notification_health_probe.dart',
     ).readAsStringSync();
