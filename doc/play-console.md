@@ -108,7 +108,7 @@ mit dem Paket verschwunden — siehe Blocker 1.
 
 ---
 
-## 2. Offene Blocker — in dieser Reihenfolge
+## 2. Blocker — alle abgearbeitet
 
 ### Blocker 1: `ota_update` vergiftet das Manifest — **erledigt (0.82.0)**
 
@@ -145,21 +145,31 @@ die richtige Seite des Handels — das installierbare Update kommt im Store
 von Play selbst, und ein Sperr-Schirm, der auf einen APK-Download zeigt,
 wäre genau der Richtlinienverstoß, den der Schalter verhindert.
 
-### Blocker 3: Keine Datenschutzerklärung
+### Blocker 3: Keine Datenschutzerklärung — **erledigt (0.83.0 befördert)**
 
-`web/` enthält nur das PWA-Gerüst (`index.html`, Service Worker, Icons) —
-keine Inhaltsseiten. Eine Datenschutzerklärung unter einer öffentlich
-erreichbaren URL ist für **jede** App in Play Pflicht — sie muss
-mindestens benennen: Supabase als Hoster, Brevo als Mail-Auftragsverarbeiter,
-Google/FCM als Empfänger der Gerätekennung und GitHub als Ziel des Feedbacks
-(öffentlich!). PilzBuddys `web/datenschutz.html` ist die Vorlage.
+`web/datenschutz.html`, live unter
+<https://macbuchi.github.io/MitFahrBar/datenschutz.html>. Sie benennt alle
+vier Empfänger, auf die es ankommt: Supabase als Hoster, Brevo als
+Mail-Auftragsverarbeiter, Google/FCM als Empfänger der Gerätekennung und
+GitHub als Ziel des Feedbacks (öffentlich!).
 
-### Blocker 4: Keine Konto-Löschseite
+### Blocker 4: Keine Konto-Löschseite — **erledigt (0.83.0 befördert)**
 
-Play verlangt bei Apps mit Kontoanlage eine **URL ohne installierte App**,
-über die sich die Löschung anstoßen lässt. `admin_delete_group` existiert und
-löscht sauber über die Kaskade am Auth-User — es fehlt nur die öffentliche
-Seite. PilzBuddys `web/konto-loeschen.html` ist die Vorlage.
+`web/konto-loeschen.html`, live unter
+<https://macbuchi.github.io/MitFahrBar/konto-loeschen.html>. Sie ist eine
+**Anleitung, kein Formular**, und das folgt aus dem Datenmodell: Ein
+Gruppen-Zugang gehört der ganzen Gruppe und kann sich nicht selbst löschen —
+das kann nur der Verwalter über die Konsole, und dort geht es sofort und
+unwiderruflich über die Kaskade am Auth-User.
+
+### Die Falle dazwischen: gebaut ist nicht ausgeliefert
+
+Beide Seiten lagen ab dem 12.08. im Repo und antworteten trotzdem mit **404**.
+GitHub Pages wird nur bei der **Beförderung** deployt (#217), und stabil war
+noch v0.80.0 — von vor den Seiten. Play prüft die URL, nicht das Repository.
+
+**Nach jeder Beförderung, bevor eine URL in die Konsole wandert: beide im
+Browser aufrufen.** Ein `curl -o /dev/null -w '%{http_code}'` genügt.
 
 ### Blocker 5: Kein AAB-Build, keine Flavors — **erledigt (0.82.0)**
 
@@ -196,7 +206,51 @@ seitlich nahtlos auf 9:16 auf.
 
 ---
 
-## 3. Play App Signing
+## 3. Testkonto für die Review
+
+Google verlangt unter *App-Zugriff* Zugangsdaten, sobald hinter einem Login
+etwas liegt — sonst sieht der Prüfer den Anmeldeschirm und lehnt ab.
+
+Herausgegeben wird **ausschließlich der Gruppen-Zugang** (Anmeldename +
+Passwort der Testgruppe), niemals das Verwalter-Konto. Das ist kein
+Misstrauen, sondern der Grund, warum das Konto jede Review überlebt: **Ein
+Gruppen-Zugang kann sich nicht selbst löschen.** Der Prüfer darf alles
+antippen, Fahrten anlegen und löschen — die Gruppe selbst bekommt er nicht
+weg, dafür bräuchte er die Konsole und damit ein Verwalter-Konto.
+
+Als Anmerkung im Formular passt: „Gemeinsamer Gruppenzugang. Die Löschung
+eines Gruppenzugangs läuft über den Verwalter — siehe Konto-Löschseite."
+
+**Eine leere Gruppe ist schlimmer als keine.** Ohne Personen und Fahrten
+zeigt die App kein Ranking, keine Statistik und einen leeren Wochenplan; das
+sieht aus wie ein Defekt. `tool/demo_group.py` legt an, was es braucht — vier
+Personen mit verschiedenen Fahrzeugen (Ersparnis und CO₂ rechnen nur mit
+Verbrauch und Energieart), acht Wochen Fahrten und Verfügbarkeiten für die
+laufende und die kommende Woche.
+
+Das Skript geht den Weg der App (Anmeldung als Gruppe, Schreibzugriffe unter
+RLS, kein Service-Key), ist wiederholbar und löscht nie etwas — ein zweiter
+Lauf frischt eine zerklickte Gruppe auf. Es bricht ab, wenn der Gruppenname
+nicht nach einer Testgruppe aussieht: Ein vertippter Handle schriebe sonst
+Dutzende Fahrten in die **echte** Gruppe und verschöbe rückwirkend die Punkte
+aller.
+
+Die Zugangsdaten stehen nicht im Repo. Sie kommen aus der Passwortablage in
+die Umgebung:
+
+```
+export DEMO_HANDLE=…
+export DEMO_PASSWORD=…
+python3 tool/demo_group.py
+```
+
+**Der Prüfer kann sich nicht aussperren:** Im Play-Build liefert
+`updateInfoProvider` immer `null`, also greift die Mindestversions-Sperre
+dort nie (siehe Blocker 2).
+
+---
+
+## 4. Play App Signing
 
 Beim ersten AAB-Upload wird der Keystore aus den Actions-Secrets zum
 *Upload-Key*, signiert wird danach von Google. Der Play-Build hat damit eine
