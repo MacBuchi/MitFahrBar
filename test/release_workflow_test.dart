@@ -207,48 +207,81 @@ void main() {
   // Ausgabepfad: Ein cp auf den alten, flavorlosen Namen bricht erst NACH
   // dem Taggen ab (die v0.34.1-Klasse, in PilzBuddy beim selben Umbau
   // beinahe wiederholt).
-  // Der Play-Upload läuft von Hand und selten — genau die Klasse, deren
-  // Fehler erst auffallen, wenn man sie braucht. Beide Hälften des
-  // Play-Builds gehören zusammen: `--flavor play` nimmt
-  // REQUEST_INSTALL_PACKAGES aus dem Manifest, `PLAY_BUILD=true` schaltet
-  // den Update-Pfad ab. Nur eine davon liefert eine halb abgeschaltete
-  // Funktion aus — und Play fragt nach einer Berechtigung ohne Funktion.
+  // Der Play-Upload hängt seit #251 am Release selbst (Muster von
+  // PilzBuddy) — er läuft also selten und unbeobachtet, genau die Klasse,
+  // deren Fehler erst auffällt, wenn man sie braucht.
   group('Play-Upload', () {
-    final upload = File('.github/workflows/play-upload.yml').readAsStringSync();
+    final release = File('.github/workflows/release.yml').readAsStringSync();
 
-    test('lädt den play-Flavor MIT abgeschaltetem Update-Pfad hoch', () {
-      expect(upload, contains('--flavor play'));
-      expect(upload, contains('--dart-define=PLAY_BUILD=true'));
+    test('schiebt das AAB als Entwurf in den internen Kanal', () {
+      expect(release, contains('upload-google-play@'));
       expect(
-        upload,
+        release,
         contains('packageName: de.mcbuchi.mitfahrbar'),
         reason:
             'Der Paketname ist in Play dauerhaft an die App gebunden — ein '
             'Vertipper lädt ins Leere oder in eine fremde App.',
       );
+      expect(
+        release,
+        contains('status: draft'),
+        reason:
+            'Hochladen ist nicht veröffentlichen: Wer es bekommt, entscheidet '
+            'ein Mensch in der Console — dieselbe Trennung wie zwischen '
+            'Prerelease und Beförderung.',
+      );
     });
 
-    test('läuft nur von Hand, nie bei einem Merge', () {
+    // Der teuerste Fehler dieses Repos war ein Tag ohne Release (v0.34.1):
+    // Die Tag-Entscheidung wertet ihn danach für immer als „schon
+    // veröffentlicht", heilbar nur von Hand. Alles, was NACH dem Taggen
+    // scheitern kann, gehört deshalb hinter das Release — und Play ist ein
+    // fremder Dienst, der ohne unser Zutun 503 antworten darf.
+    test('kann das GitHub-Release nicht kosten', () {
+      final playJob = release.indexOf('\n  play:');
+      final releaseJob = release.indexOf('\n  release:');
+      expect(playJob, isNonNegative);
+      expect(releaseJob, isNonNegative);
       expect(
-        upload,
-        contains('workflow_dispatch'),
+        release.substring(playJob),
+        contains('needs: [version, release]'),
         reason:
-            'Jeder Merge in einen Testkanal wäre eine Benachrichtigung an '
-            'alle Tester.',
+            'Im Build-Job (so macht es PilzBuddy) nähme eine Störung bei '
+            'Google das Release mit — Tag da, Release nie, siehe v0.34.1.',
       );
       expect(
-        upload,
-        isNot(contains('\n  push:')),
-        reason: 'Kein Push-Auslöser — der Upload bleibt ein Handgriff.',
+        release.indexOf('upload-google-play@'),
+        greaterThan(release.indexOf('action-gh-release@')),
       );
+    });
+
+    // Diese Zeile ist teuer bezahlt: Der `secrets`-Kontext ist in `if:`
+    // nicht verfügbar, und GitHub verwirft dann die GANZE Datei beim
+    // Einlesen — null Jobs, bei jedem Push. In PilzBuddy lag
+    // deploy-functions.yml daran von der ersten Zeile an lahm und
+    // verhinderte einen Release-Build, bevor es jemand bemerkte.
+    test('fragt das Geheimnis in einem Schritt ab, nie in einem if', () {
+      for (final line in release.split('\n')) {
+        final trimmed = line.trim();
+        if (!trimmed.startsWith('if:')) continue;
+        expect(
+          trimmed,
+          isNot(contains('secrets.')),
+          reason:
+              'GitHub verwirft die ganze Datei — kein Job läuft mehr, auch '
+              'die Filter werden nicht mehr ausgewertet. Der Umweg über '
+              'einen Schritt mit `env:` und `steps.<id>.outputs` ist Pflicht.',
+        );
+      }
+      expect(release, contains("steps.play.outputs.have == 'true'"));
     });
 
     // Play deckelt Release-Notizen bei 500 Zeichen und lehnt sonst ab —
     // erst NACH dem 60-MB-Transfer. Die Grenze muss also vor dem Upload
     // greifen, nicht danach.
     test('kürzt die Notizen vor dem Upload', () {
-      final limit = upload.indexOf('limit = 500');
-      final push = upload.indexOf('upload-google-play@');
+      final limit = release.indexOf('limit = 500');
+      final push = release.indexOf('upload-google-play@');
       expect(limit, isNonNegative);
       expect(push, isNonNegative);
       expect(
@@ -256,6 +289,21 @@ void main() {
         lessThan(push),
         reason:
             'Ungekürzt lehnt die API ab, nachdem das Bundle schon oben ist.',
+      );
+    });
+
+    // Play vergibt jeden Versionscode genau einmal — quer über alle Kanäle
+    // und auch nach dem Löschen eines Entwurfs. Ein zweiter Weg, der
+    // dasselbe Bundle nochmal hochlädt, kann deshalb nur scheitern; er sähe
+    // aber aus wie eine Wiederholungsmöglichkeit.
+    test('es gibt genau einen Upload-Weg', () {
+      expect(
+        File('.github/workflows/play-upload.yml').existsSync(),
+        isFalse,
+        reason:
+            'Ein Upload von Hand kann einen verbrauchten Versionscode nicht '
+            'noch einmal loswerden. Wiederholt wird der Job dieses Laufs — '
+            'das Artefakt liegt 90 Tage.',
       );
     });
   });
