@@ -14,12 +14,25 @@ Version Guard ausgenommen): eine neue Grafik ist kein Release.
 | `icon-512.png` | 512 × 512, 32-Bit PNG | App-Symbol | `web/icons/Icon-maskable-512.png` (aus `tool/brand/build_icons.sh`) |
 | `feature-graphic.png` | 1024 × 500 | Feature-Grafik | Marken-Verlauf + `ic_launcher_foreground.png` + `assets/fonts/` |
 | `screenshots/01–04` | 1080 × 1920 (9:16) | Telefon-Screenshots | `doc/screenshots/*.png` (aus `tool/screenshots.sh`) |
+| `data_safety.csv` | CSV | Datensicherheit → „Aus CSV importieren" | `tool/play_data_safety.py` + `data_safety_template.csv` |
+| `data_safety_template.csv` | Quelle | — | Googles Muster-CSV aus der Play-Console-Hilfe |
+
+**Tablet-Screenshots gibt es bewusst nicht.** Das Feld ist optional, und
+MitFahrBar hat kein eigenes Tablet-Layout. Hochskalierte Telefon-Bilder
+dort einzustellen wäre eine Behauptung über eine Darstellung, die es nicht
+gibt — leer lassen ist die ehrlichere Antwort (dieselbe Entscheidung wie bei
+PilzBuddy).
 
 ## Neu erzeugen
 
 ```bash
-python3 tool/store_assets.py   # braucht nur Pillow
+python3 tool/store_assets.py       # Grafiken, braucht nur Pillow
+python3 tool/play_data_safety.py   # Datensicherheits-CSV, nur stdlib
 ```
+
+Die Maße prüft `test/store_assets_test.dart` bei jedem Lauf mit — ein
+falsches Format fällt sonst erst der Console auf, und die sagt nur, dass
+etwas nicht passt.
 
 ## Drei Entscheidungen, die im Skript stecken
 

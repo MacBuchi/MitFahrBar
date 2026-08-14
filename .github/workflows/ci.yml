@@ -35,6 +35,14 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
+      # Die Data-Safety-CSV ist erzeugt, nicht gepflegt: Antworten stehen in
+      # tool/play_data_safety.py, die inhaltliche Begründung in
+      # doc/play-console.md. Ohne diesen Schritt liefen beide auseinander,
+      # ohne dass irgendetwas rot wird — und auffallen würde es erst, wenn
+      # Play das Formular gegen das Binary hält.
+      - name: Datensicherheits-CSV ist deckungsgleich
+        run: python3 tool/play_data_safety.py --check
+
       # Die fünf Edge Functions hatten bis hierher GAR KEINEN Compile-Schritt.
       # Ein Syntaxfehler dort fällt sonst erst live auf, und zwar als
       # Function, die nie startet — die GitHub-Integration deployt bei jedem
