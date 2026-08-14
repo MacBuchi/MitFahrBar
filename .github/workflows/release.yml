@@ -224,3 +224,120 @@ jobs:
           fail_on_unmatched_files: false
           prerelease: true
           make_latest: false
+
+  # Das AAB in den internen Play-Testkanal — Muster von PilzBuddy (#251),
+  # dort seit 2026-08-13 im Einsatz: „das AAB nie wieder von Hand anfassen".
+  #
+  # **Als Entwurf, nicht veröffentlicht.** Sichtbar wird ein Stand erst, wenn
+  # ihn jemand in der Console freigibt — dieselbe Trennung wie zwischen
+  # Prerelease und `promote.yml`. Ein Bump lädt hoch, ein Mensch entscheidet,
+  # wer es bekommt. Ein anderer Kanal ist ein Wort in `track:`.
+  #
+  # **Ein eigener Job NACH dem Release, und das ist die Abweichung von
+  # PilzBuddy.** Dort hängt der Upload im Build-Job, den das Release braucht;
+  # eine 503 von Google ließe damit einen Tag ohne Release zurück — genau die
+  # v0.34.1-Klasse, die die Tag-Entscheidung anschließend für immer als
+  # „schon veröffentlicht" wertet. Hier kann ein Play-Problem nur den
+  # Play-Schritt kosten; der Lauf ist rot, das Release steht, und ein
+  # Wiederholen des Jobs holt es nach (das Artefakt liegt 90 Tage).
+  play:
+    name: Upload to Play (internal, draft)
+    needs: [version, release]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      # Ohne Keystore gibt es kein AAB — dann ist hier nichts zu tun.
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: android-aab
+      # Der `secrets`-Kontext ist in `if:` NICHT verfügbar. GitHub verwirft
+      # dann die ganze Datei schon beim Einlesen („workflow file issue", null
+      # Jobs) — bei JEDEM Push, weil nicht einmal die Filter ausgewertet
+      # werden. Genau so lag PilzBuddys deploy-functions.yml von der ersten
+      # Zeile an lahm und verhinderte dort einen Release-Build. Deshalb der
+      # Umweg: Ein Schritt stellt das Vorhandensein fest (in `env:` sind
+      # Secrets erlaubt), die anderen prüfen sein Ergebnis.
+      - name: Play-Zugang und Bundle vorhanden?
+        id: play
+        env:
+          SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SA" ]; then
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "why=PLAY_SERVICE_ACCOUNT_JSON fehlt" >> "$GITHUB_OUTPUT"
+          elif ! ls mitfahrbar-*.aab >/dev/null 2>&1; then
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "why=kein AAB am Lauf (fehlender Keystore?)" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Play deckelt Release-Notizen bei **500 Zeichen** und lehnt sonst ab —
+      # und zwar erst NACH dem 60-MB-Transfer. Gekürzt wird deshalb vorher,
+      # an einer Wortgrenze, mit sichtbarem Verweis aufs Ganze. Quelle ist
+      # derselbe CHANGELOG-Abschnitt wie „Was ist neu" im GitHub-Release —
+      # zwei Wortlaute für eine Version wären zwei Wahrheiten.
+      - name: Release-Notizen für Play vorbereiten
+        if: steps.play.outputs.have == 'true'
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p play-notes
+          version="${TAG#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { hit = 1; next }
+            hit && /^## \[/ { exit }
+            hit { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > play-notes/raw.md
+          python3 - <<'PY'
+          import pathlib, re
+          raw = pathlib.Path("play-notes/raw.md").read_text()
+          # Markdown-Reste weg: Play zeigt reinen Text, `**` und `-` sähen
+          # aus wie Tippfehler.
+          text = re.sub(r"\*\*|`", "", raw)
+          text = re.sub(r"^\s*[-*] ", "• ", text, flags=re.M)
+          text = re.sub(r"^###.*$", "", text, flags=re.M)
+          # Umbrüche INNERHALB eines Absatzes auflösen: Der CHANGELOG ist auf
+          # 76 Zeichen umbrochen, und auf einem Handy läse sich das zerhackt.
+          # Leerzeilen bleiben als Absatzgrenze stehen.
+          text = re.sub(r"(?<!\n)\n(?![\n•])[ \t]*", " ", text)
+          text = re.sub(r"\n{3,}", "\n\n", text).strip()
+          limit = 500
+          if len(text) > limit:
+              tail = " … Alle Änderungen: github.com/MacBuchi/MitFahrBar"
+              cut = text[: limit - len(tail)]
+              text = cut[: cut.rfind(" ")] + tail
+          pathlib.Path("play-notes/whatsnew-de-DE").write_text(text)
+          print(f"Notizen: {len(text)} Zeichen")
+          PY
+          rm play-notes/raw.md
+          cat play-notes/whatsnew-de-DE
+      - name: Upload to Play internal testing
+        if: steps.play.outputs.have == 'true'
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          # In Play dauerhaft an die App gebunden — ein Vertipper lädt ins
+          # Leere oder in eine fremde App.
+          packageName: de.mcbuchi.mitfahrbar
+          releaseFiles: mitfahrbar-${{ needs.version.outputs.tag }}.aab
+          track: internal
+          status: draft
+          whatsNewDirectory: play-notes
+      # Der Grund geht über `env:` in den Block, nicht als `${{ }}` mitten in
+      # die Shell — dieselbe Entschärfung, die zizmor hier schon zweimal
+      # verlangt hat (Branch-Name, Cron-String).
+      - name: Play-Upload übersprungen
+        if: steps.play.outputs.have == 'false'
+        env:
+          WHY: ${{ steps.play.outputs.why }}
+        run: |
+          {
+            echo "### Nicht zu Play hochgeladen — $WHY"
+            echo ""
+            echo "Einrichtung: doc/play-console.md, Abschnitt „Upload aus der CI\"."
+          } >> "$GITHUB_STEP_SUMMARY"

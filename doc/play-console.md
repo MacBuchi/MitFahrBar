@@ -10,7 +10,7 @@ tatsächlich aufgerufenen Endpunkten — nicht aus einer Vorlage.
 > Review, dass die Konsole nachzuziehen ist. Dasselbe Verfahren fährt PilzBuddy
 > (`docs/play-console.md` dort).
 
-Stand: 12. August 2026, App-Version 0.80.1+110.
+Stand: 14. August 2026, App-Version 0.83.0+113.
 
 **Stand 0.82.0:** Von den sechs Blockern sind fünf erledigt — `ota_update`
 ist durch einen eigenen Updater ersetzt, der Play-Schalter, die Flavors samt
@@ -253,11 +253,12 @@ dort nie (siehe Blocker 2).
 
 ## 4. Upload aus der CI
 
-Das Bundle wiegt rund 60 MB. Vom Arbeitsplatz hochgeladen hängt es an der
-Leitung, die dort gerade da ist — der Runner hat es ohnehin gebaut und
-schiebt es über eine, die niemanden bremst. Dafür gibt es
-`.github/workflows/play-upload.yml`: von Hand auslösbar, mit Kanal und
-Version als Eingabe.
+Das AAB wandert **von selbst** in den internen Testkanal: Der Job `play` in
+`.github/workflows/release.yml` nimmt das Bundle, das der Release-Lauf ohnehin
+gebaut hat, und legt es dort als **Entwurf** ab. Kein Handgriff, keine 60 MB
+über die Leitung, die am Arbeitsplatz gerade da ist. Muster von PilzBuddy
+(#251), dort seit dem 13. August 2026 im Einsatz — „das AAB nie wieder von
+Hand anfassen".
 
 **Einmalige Einrichtung — sie braucht Konsolen-Zugang und geht nicht aus dem
 Repo heraus:**
@@ -270,15 +271,32 @@ Repo heraus:**
    in den offenen Store schreiben darf, ist eine andere Risikoklasse.
 3. Den JSON-Inhalt als Repo-Geheimnis `PLAY_SERVICE_ACCOUNT_JSON` ablegen.
 
-Ohne das Geheimnis bricht der Workflow im ersten Schritt ab und sagt, was
-fehlt — dieselbe Linie wie beim Keystore: lieber sichtbar nichts tun als
-etwas Halbes.
+Erledigt am 14. August 2026 mit dem Dienstkonto
+`play-ci-mitfahrbar@mitfahrbar.iam.gserviceaccount.com`.
 
-**Der allererste Upload einer neuen App kann Handarbeit bleiben.** Play
-verlangt vor dem Veröffentlichen in einem Kanal vollständige Angaben zu
-Inhalt und Datensicherheit; solange die fehlen, nimmt die API zwar das
-Bundle, aber die Freigabe scheitert. Der Workflow kennt dafür `status:
-draft` — hochladen, ohne an die Tester zu verteilen.
+**Der allererste Upload einer neuen App bleibt Handarbeit** — und das ist
+keine Bequemlichkeit: Die Play-API kann keine App anlegen und nimmt Uploads
+erst an, nachdem der Eintrag steht und einmal ein Bundle von Hand darin lag.
+Für MitFahrBar war das v0.83.0 am 13. August 2026.
+
+**Hochgeladen ist nicht veröffentlicht.** `status: draft` legt den Stand ab,
+sichtbar wird er erst, wenn ihn jemand in der Console freigibt — dieselbe
+Trennung wie zwischen Prerelease und Beförderung: Ein Bump lädt hoch, ein
+Mensch entscheidet, wer es bekommt. Ein anderer Kanal (`alpha` für einen
+geschlossenen Test) ist ein Wort in `track:`.
+
+**Der Versionscode ist einmalig, für immer.** Play nimmt jede Zahl hinter dem
+`+` in `pubspec.yaml` genau ein Mal an — quer über alle Kanäle und auch
+nachdem man einen Entwurf gelöscht hat. Deshalb gibt es bewusst **keinen**
+Workflow, der ein vorhandenes Release nachträglich hochlädt: Er könnte nur
+scheitern, sähe aber wie eine Wiederholungsmöglichkeit aus. Ging der Upload
+schief, wird der **Job dieses Laufs** wiederholt; das Artefakt liegt 90 Tage.
+
+**Der Job hängt hinter dem Release, nicht im Build.** PilzBuddy lädt aus dem
+Build-Job heraus hoch; damit nähme eine Störung bei Google das GitHub-Release
+mit — Tag da, Release nie, und die Tag-Entscheidung hält ihn danach für immer
+für veröffentlicht (die v0.34.1-Klasse). Hier kostet ein Play-Problem nur den
+Play-Schritt.
 
 **Release-Notizen kommen aus dem CHANGELOG**, nicht aus einem zweiten Text:
 derselbe Abschnitt, den auch „Was ist neu" im GitHub-Release zeigt. Play
@@ -286,9 +304,12 @@ deckelt sie bei **500 Zeichen** — der Workflow kürzt an einer Wortgrenze und
 hängt einen Verweis aufs Ganze an. Ungekürzt lehnte die API ab, und zwar
 erst **nach** dem 60-MB-Transfer.
 
-**Gebaut wird aus dem Tag, nicht aus dem Release-Artefakt.** Artefakte
-verfallen nach 90 Tagen; ein Workflow, der ein halbes Jahr später nicht mehr
-läuft, ist eine Falle. Dieselbe Entscheidung wie bei Pages in `promote.yml`.
+**Fehlt das Geheimnis, wird sichtbar übersprungen** statt rot zu werden: Ein
+Job, der bis zur Einrichtung bei jedem Bump falschen Alarm schlägt, wird
+weggeklickt. Die Abfrage steht dabei in einem **Schritt** und nie in einem
+`if:` — der `secrets`-Kontext ist dort nicht verfügbar, und GitHub verwirft
+dann die ganze Datei schon beim Einlesen: null Jobs, bei jedem Push. Genau so
+lag PilzBuddys `deploy-functions.yml` von der ersten Zeile an lahm.
 
 ---
 
