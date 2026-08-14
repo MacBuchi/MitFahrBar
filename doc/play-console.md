@@ -12,19 +12,35 @@ tatsächlich aufgerufenen Endpunkten — nicht aus einer Vorlage.
 
 Stand: 14. August 2026, App-Version 0.83.0+113.
 
-**Stand 0.82.0:** Von den sechs Blockern sind fünf erledigt — `ota_update`
-ist durch einen eigenen Updater ersetzt, der Play-Schalter, die Flavors samt
-AAB-Build, Datenschutzerklärung und Löschseite sind da; die Kontaktadresse
-auf beiden Web-Seiten ist `macbuchi.apps@gmail.com` (dieselbe gehört ins
-Feld „Kontakt-E-Mail" des Store-Eintrags — Play verlangt, dass beide
-zusammenpassen). Auch die Store-Grafiken liegen bereit (`doc/store/`,
-erzeugt von `tool/store_assets.py`). **Offen bleibt nur noch der erste
-Pages-Deploy nach der Beförderung** — Play prüft die beiden URLs, und die
-liegen erst dann auf macbuchi.github.io.
+**Alle sechs Blocker sind erledigt** (Abschnitt 2), beide Web-Seiten sind
+seit der Beförderung von 0.83.0 live, das erste AAB liegt seit dem
+13.08.2026 in der Console, und ab dem nächsten Bump lädt die CI von selbst
+hoch (Abschnitt 4). Zum Ausfüllen bereit liegen:
+
+| Was | Wo | Erzeugt von |
+|---|---|---|
+| Datensicherheit (CSV-Import) | `doc/store/data_safety.csv` | `tool/play_data_safety.py` |
+| Grafiken | `doc/store/` | `tool/store_assets.py` |
+| Listing-Texte | Abschnitt 6 | — |
+| Testzugang | Abschnitt 3 | `tool/demo_group.py` füllt die Gruppe |
+
+**Offen ist damit nur noch, was außerhalb des Repos passiert:** die
+Formulare in der Console und die Testerhürde (12 Tester, 14 Tage
+ununterbrochen — bei persönlichen Entwicklerkonten die Voraussetzung für
+den Produktionszugang, und die einzige Position hier, die Kalenderzeit
+kostet statt Arbeit).
 
 ---
 
 ## 1. Datensicherheit (Data safety)
+
+> **Das Formular wird nicht abgetippt, sondern importiert.** Die Antworten
+> unten stehen maschinenlesbar in `tool/play_data_safety.py` und werden von
+> dort nach `doc/store/data_safety.csv` erzeugt (Console: App-Inhalte →
+> Datensicherheit → „Aus CSV importieren"). `--check` läuft in der CI, hält
+> also Tabelle und Datei zusammen. **Diese Seite bleibt die inhaltliche
+> Wahrheit** — wer eine Antwort ändert, ändert beide Stellen im selben
+> Commit.
 
 ### Vorfragen
 
@@ -42,6 +58,7 @@ liegen erst dann auf macbuchi.github.io.
 |---|---|---|---|---|---|
 | **Persönliche Infos → Name** | Ja | Nein | Erforderlich | App-Funktionalität | `persons.name` — die Mitglieder einer Fahrgemeinschaft, eingetragen von der Gruppe selbst |
 | **Persönliche Infos → E-Mail-Adresse** | Ja | Nein¹ | Erforderlich | Kontoverwaltung | Nur **Verwalter-Konten** haben eine echte Adresse. Der Gruppen-Login ist `handle@grp.fahrgemeinschaft.app` — eine synthetische Adresse, kein Postfach |
+| **Persönliche Infos → Nutzer-IDs** | Ja | Nein | Erforderlich | App-Funktionalität, Kontoverwaltung | Die Kennung des Gruppen-Kontos (`auth.uid()`, steckt als `group_id` in jeder Zeile) und die Personen-ID, an der das Push-Token hängt. **Bewusst angegeben, obwohl niemand sie zu Gesicht bekommt** — sie identifiziert ein Konto, und Untertreiben ist hier das teurere Risiko |
 | **App-Aktivität → Andere nutzergenerierte Inhalte** | Ja | **Ja²** | Optional | App-Funktionalität, Entwicklerkommunikation | Anmerkungen am Plantag (`plan_notes`) und Feedback-Text (`feedback`) |
 | **App-Info und -Leistung → Absturzprotokolle** | Ja | Nein | Erforderlich | App-Funktionalität | `error_reports` |
 | **Geräte- oder andere IDs** | Ja³ | **Ja³** | Optional | App-Funktionalität | `push_devices.token` — die FCM-Gerätekennung, sobald jemand Benachrichtigungen einschaltet |
@@ -344,3 +361,60 @@ Nachrechnen ohne Keystore: `keytool -printcert -jarfile` scheitert, weil
 Flutter nur v2/v3 signiert (kein JAR-Signaturblock). Es braucht
 `apksigner verify --print-certs <apk>` oder den APK-Signing-Block direkt.
 Mit Keystore: `keytool -list -v -keystore <datei>`.
+
+---
+
+## 6. Store-Eintrag: die Texte
+
+Play deckelt hart — **App-Name 30, Kurzbeschreibung 80, Beschreibung 4000
+Zeichen**. Zu lang wird beim Einfügen abgeschnitten oder abgelehnt, und
+gemerkt hat man es dann schon nicht mehr.
+
+| Feld | Wert |
+|---|---|
+| App-Name | MitFahrBar |
+| Kategorie | Produktivität |
+| Kontakt-E-Mail | `macbuchi.apps@gmail.com` |
+| Website | <https://macbuchi.github.io/MitFahrBar/> |
+| Datenschutzerklärung | <https://macbuchi.github.io/MitFahrBar/datenschutz.html> |
+| Werbung / In-App-Käufe | Nein / Nein |
+
+**Die Kontakt-E-Mail muss dieselbe sein wie auf den beiden Web-Seiten.** Sie
+stehen öffentlich nebeneinander, und Play gleicht sie ab — zwei verschiedene
+Angaben sind ein Widerspruch, den man selbst gebaut hat.
+
+**Kategorie „Produktivität"**, nicht „Reisen & Lokales": Letzteres ist die
+Ecke der Apps, die Fahrten *vermitteln*. MitFahrBar vermittelt nichts, es
+verwaltet eine bestehende Gruppe. Die Kategorie ist jederzeit änderbar.
+
+### Kurzbeschreibung (72 von 80)
+
+> Eure Fahrgemeinschaft: wer fährt, wer ist dran, was ihr gemeinsam spart.
+
+### Vollständige Beschreibung
+
+Der Wortlaut steht in der Copy-Paste-Vorlage im Austauschordner
+(`mitfahrbar_store_eintrag/store_eintrag.md`, erzeugt mit gezählten Grenzen).
+Zwei Dinge daran sind Absicht und sollten beim Umschreiben nicht verloren
+gehen:
+
+- **Der zweite Absatz stellt klar, was die App NICHT ist** („vermittelt keine
+  Mitfahrgelegenheiten und sucht keine Fremden"). Ohne diesen Satz liest sich
+  die Beschreibung wie eine Ride-Sharing-App, und genau daran hängen in der
+  Prüfung Rückfragen zu Standortdaten und Fremdkontakt, die es hier nicht
+  gibt.
+- **Kein Wort über APK-Downloads, GitHub-Releases oder Selbst-Updates.** Play
+  verbietet solche Verweise, und der Play-Build hat den Update-Pfad ohnehin
+  abgeschaltet — ein Hinweis darauf wäre ein Versprechen, das die
+  Store-Fassung nicht einlöst.
+
+### Grafiken
+
+Vier Screenshots in dieser Reihenfolge: **Übersicht → Wochenplan → Statistik
+→ Fahrt eintragen**. Play zeigt sie so, wie sie hochgeladen werden, und der
+erste ist der, den die meisten allein sehen — deshalb steht „Wer ist dran?"
+vorn und nicht der Eingabe-Schirm.
+
+**Tablet-Screenshots bleiben leer.** Das Feld ist optional, MitFahrBar hat
+kein eigenes Tablet-Layout, und hochskalierte Telefon-Bilder wären eine
+Behauptung über eine Darstellung, die es nicht gibt.
