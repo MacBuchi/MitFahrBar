@@ -49,7 +49,7 @@ kostet statt Arbeit).
 | Erhebt oder teilt deine App die geforderten Nutzerdatentypen? | **Ja** | Namen, Fahrten, Feedback, Fehlerberichte, Push-Token |
 | Werden alle Daten bei der Übertragung verschlüsselt? | **Ja** | Alle Endpunkte sind HTTPS: Supabase, `github.com`, `api.github.com`, `macbuchi.github.io`. Kein `http://` im Code. Auth-Mails verschickt Supabase serverseitig über Brevo — die App spricht nie mit dem Mail-Anbieter |
 | Können Nutzer die Löschung ihrer Daten beantragen? | **Ja** | URL: <https://macbuchi.github.io/MitFahrBar/konto-loeschen.html> (live seit der Beförderung von 0.83.0). Verwalter löschen ihre Gruppe über `admin_delete_group` in der Konsole, Kaskade über den Auth-User |
-| Unabhängige Sicherheitsüberprüfung? | **Nein** | |
+| Unabhängige Sicherheitsüberprüfung? | **Nein** | In der CSV **leer**, nicht `false` — siehe unten |
 | Enthält die App Werbung? | **Nein** | Keine Werbe- oder Analyse-SDKs in `pubspec.yaml` |
 
 ### Datentypen
@@ -77,6 +77,26 @@ Bewegungsprofil.
 
 **Kurzzeitige Verarbeitung („processed ephemerally"):** bei allen Typen
 **nein** — alles wird in PostgreSQL gespeichert.
+
+### Was NICHT beantwortet wird, obwohl die Antwort „nein" wäre
+
+Zwei Fragen der Vorlage tragen `OPTIONAL`, und das heißt dort **nicht**
+„darfst du weglassen", sondern **„wird nur unter Bedingungen überhaupt
+gestellt"**. Wer sie trotzdem beantwortet, bekommt beim Import ein
+`Du kannst <ID> nicht beantworten` — und zwar erst dort, nach dem
+Hochladen (so passiert am 14.08.2026):
+
+- **`PSL_HAS_OUTSIDE_APP_ACCOUNTS`** („Anmeldung mit außerhalb der App
+  erstellten Konten?") hängt an der Kontoerstellung. Wir kreuzen dort nur
+  „Nutzer-ID und Passwort" an — damit stellt die Console die Frage nie.
+- **`PSL_INDEPENDENTLY_VALIDATED`** (MASA-Prüfung) ist die Frage nach einem
+  Abzeichen, das man beantragt. Nicht beantragt = keine Zeile.
+
+**Ein Nein ist in diesem Formular die leere Zelle, nicht `false`.** Ein
+ausdrückliches `false` gibt es nur, wo die Frage wirklich gestellt wird
+(Verschlüsselung, kurzzeitige Verarbeitung) — genauso hält es Googles
+eigenes Muster. Der Riegel dagegen sitzt in `tool/play_data_safety.py`: Es
+bricht ab, sobald die Antwort-Tabelle eine `OPTIONAL`-Frage berührt.
 
 ### Die drei Ermessensfragen
 
