@@ -74,8 +74,16 @@ ANSWERS: dict[tuple[str, str], str] = {
     ("PSL_ACCOUNT_DELETION_URL", ""): LOESCH_URL,
     ("PSL_SUPPORT_DATA_DELETION_BY_USER", "DATA_DELETION_YES"): TRUE,
     ("PSL_DATA_DELETION_URL", ""): LOESCH_URL,
-    ("PSL_INDEPENDENTLY_VALIDATED", ""): FALSE,
-    ("PSL_HAS_OUTSIDE_APP_ACCOUNTS", ""): FALSE,
+    # Hier standen bis zum 14.08.2026 zwei ausdrückliche Neins:
+    # `PSL_INDEPENDENTLY_VALIDATED` und `PSL_HAS_OUTSIDE_APP_ACCOUNTS`. Die
+    # Console hat den Import abgelehnt — „Du kannst
+    # PSL_HAS_OUTSIDE_APP_ACCOUNTS nicht beantworten". Beide tragen in der
+    # Vorlage `OPTIONAL`, und das heißt dort nicht „darfst du weglassen",
+    # sondern „wird nur unter Bedingungen überhaupt gestellt": Die Frage nach
+    # Fremdkonten hängt an der Kontoerstellung, und wer nur „Nutzer-ID und
+    # Passwort" ankreuzt, bekommt sie nie zu sehen. Eine Antwort auf eine
+    # nicht gestellte Frage ist ein Fehler, kein zusätzliches Nein. Der
+    # Riegel dagegen steht in `render()`.
     # --- Welche Datentypen -------------------------------------------------
     ("PSL_DATA_TYPES_PERSONAL", "PSL_NAME"): TRUE,
     ("PSL_DATA_TYPES_PERSONAL", "PSL_EMAIL"): TRUE,
@@ -183,6 +191,19 @@ def render() -> str:
         raise SystemExit(
             "Diese Antwort-IDs stehen nicht in der Vorlage — vertippt, oder "
             f"Google hat das Formular geändert: {unknown}"
+        )
+
+    # `OPTIONAL` heißt in dieser Vorlage nicht „darfst du weglassen", sondern
+    # „stellt die Console nur unter Bedingungen". Wer so eine Frage trotzdem
+    # beantwortet, bekommt beim Import „Du kannst <ID> nicht beantworten" —
+    # und zwar erst dort, nach dem Hochladen. Hier ist es eine Zeile Ausgabe.
+    requirement = {(row[0], row[1]): row[3] for row in rows[1:] if row}
+    gated = sorted(key for key in answers if requirement[key] == "OPTIONAL")
+    if gated:
+        raise SystemExit(
+            "Diese Fragen sind in der Vorlage OPTIONAL, werden also nur unter "
+            "Bedingungen gestellt — eine Antwort darauf lehnt die Console ab: "
+            f"{gated}"
         )
 
     used = set()
