@@ -1,0 +1,24 @@
+-- `anon` bekommt auf `price_week` dasselbe Schweigen wie überall sonst (#254).
+--
+-- `price_week` war die EINZIGE Tabelle, die ein Client liest und bei der
+-- `anon` das select fehlte. Überall sonst gilt der Sammel-Grant, und die
+-- RLS (`group_id = auth.uid()`) filtert eine Anfrage ohne Sitzung still zu
+-- `[]`. Nur hier schlug derselbe Vorgang hart fehl: 42501 „permission
+-- denied for table price_week", belegt in `error_reports` KW 33 (0.80.1,
+-- Android) und gegen Produktion reproduziert.
+--
+-- Die Anfrage ohne Sitzung ist kein Konstruktionsfehler, sondern ein
+-- Fenster: Die Daten-Provider hängen an `currentUserIdProvider` und feuern
+-- beim Übergang zu „abgemeldet" (Abmelden, verworfener Refresh-Token) genau
+-- einmal neu, bevor der Router auf /login umlenkt. Alle Nachbarn bekommen
+-- `[]` — diese Zeile gibt price_week dieselbe Antwort.
+--
+-- Sichtbar wird dadurch nichts: Die Policy `price_week_read` ist
+-- `to authenticated`, für `anon` bleiben es null Zeilen. Schreiben bleibt
+-- vollständig entzogen — am „nur der Verdichtungslauf schreibt" ändert sich
+-- nichts. Und weil der Riegel in der DB liegt, heilt er rückwirkend jeden
+-- veröffentlichten Client, auch die 0.80.1 aus dem Fehlerbericht.
+--
+-- Die Mindestversion bleibt unberührt: Es fällt nichts weg, es kommt nur
+-- ein Grant hinzu, den kein Client kennen muss.
+grant select on public.price_week to anon;

@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.83.1] – 2026-08-16
+
+### Behoben
+
+- **Beim Abmelden konnte kurz eine Fehlermeldung zum Preisarchiv
+  aufblitzen.** Im Moment des Abmeldens fragt die App einmal ohne Anmeldung
+  nach — alle Daten antworten darauf still mit „nichts", nur die
+  Wochenpreise lehnten hart ab. Jetzt schweigen auch sie. An dem, was
+  jemand ohne Anmeldung sehen kann, ändert sich nichts: weiterhin gar
+  nichts. Der Fix liegt in der Datenbank und wirkt damit sofort für alle,
+  auch ohne App-Update.
+
 ## [0.83.0] – 2026-08-13
 
 ### Wichtig: einmal neu installieren

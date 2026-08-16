@@ -326,6 +326,33 @@ void main() {
     expect(config, hasLength(1));
   });
 
+  test('anon: price_week schweigt wie jede andere Tabelle (#254)', () async {
+    // Beim Übergang zu „abgemeldet" feuern die Provider genau einmal ohne
+    // Sitzung, bevor der Router umlenkt. Jede andere Tabelle antwortet
+    // darauf still mit `[]` — price_week war die eine, die 42501 warf
+    // (error_reports KW 33, 0.80.1). Das anon-Grant gibt das Schweigen
+    // zurück; die Policy (`to authenticated`) hält die Zeilen weiter fern.
+    final anon = newAnonClient();
+    final weeks = await anon.from('price_week').select();
+    expect(weeks, isEmpty);
+
+    // Schreiben bleibt vollständig entzogen — die Historie schreibt allein
+    // der Verdichtungslauf mit service_role.
+    await expectLater(
+      anon.from('price_week').insert({
+        'group_id': a.id,
+        'iso_year': 2026,
+        'iso_week': 33,
+        'series': 'e5',
+        'value': 1.799,
+        'sample_count': 7,
+        'station_count': 3,
+        'origin': 'measured',
+      }),
+      throwsA(isA<PostgrestException>()),
+    );
+  });
+
   test('app_config ist auch für angemeldete Gruppen nur lesbar', () async {
     await expectLater(
       a.client.from('app_config').insert({'key': 'e2e', 'value': 'x'}),

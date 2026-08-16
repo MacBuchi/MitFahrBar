@@ -859,8 +859,15 @@ void main() {
       );
       expect(
         sqlOnly(schema),
-        contains('grant select on public.price_week to authenticated'),
-        reason: 'Nach der Rücknahme muss das Lesen ausdrücklich zurück.',
+        contains('grant select on public.price_week to anon, authenticated'),
+        reason:
+            'Nach der Rücknahme muss das Lesen ausdrücklich zurück — und '
+            'zwar für BEIDE Rollen (#254). Nur authenticated machte '
+            'price_week zur einzigen Tabelle, die ein Client liest und die '
+            'ohne Sitzung 42501 wirft statt still `[]` (RLS filtert) — '
+            'genau das Fenster beim Abmelden, belegt in error_reports '
+            'KW 33. Für anon bleiben es null Zeilen, die Policy ist '
+            'to authenticated.',
       );
     });
 
