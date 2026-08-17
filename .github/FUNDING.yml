@@ -1,0 +1,17 @@
+# Der „Sponsor"-Knopf oben am Repo. Der Spendenlink lebt NUR hier und im
+# README — nicht in der App: Googles Zahlungsrichtlinie verlangt für
+# digitale Leistungen Play Billing, und Spenden an Privatpersonen fallen
+# nicht unter die Wohltätigkeits-Ausnahme (doc/play-console.md). Und weil
+# Web-PWA und Android-App derselbe Build sind, gibt es keinen „nur im
+# Web"-Link — was die PWA zeigt, zeigt auch die Play-Fassung.
+#
+# Spenden sind bewusst OHNE Gegenleistung — nichts wird freigeschaltet.
+# Das ist keine Bescheidenheit, sondern die NC-Klausel des Preisarchivs
+# (CC BY-NC-SA 4.0): Jede Einnahme MIT Gegenleistung bräche sie zuerst.
+# Begründung: doc/finanzierung-und-skalierung.md (Weg 1).
+#
+# EIN Ko-fi-Konto für alle Apps des Betreibers — Spender können in der
+# Nachricht sagen, aus welchem Projekt sie kommen. Beide Ziele live und
+# geprüft seit 2026-08-18 (pilzbuddy#320, dort Stripe-Onboarding).
+ko_fi: macbuchi
+github: [MacBuchi]

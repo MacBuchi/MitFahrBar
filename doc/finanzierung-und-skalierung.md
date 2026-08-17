@@ -230,8 +230,12 @@ Der erwartbare Ertrag bei dieser Nutzerzahl steht in keinem Verhältnis dazu.
    Organisation** (`supabase projects list`). Das Free-Kontingent von zwei
    aktiven Projekten ist damit belegt — eine dritte Backend-App erzwingt
    Pro; dafür fiele Pro nur **einmal** an (~35 $/Monat für beide zusammen).
-3. **Spenden** aufsetzen (Weg 1). Der einzige Schritt, der heute ohne
-   Lizenz- und Gewerbefragen möglich ist.
+3. **Spenden: aufgesetzt** (Weg 1, #262 — `.github/FUNDING.yml` und
+   README-Abschnitt, ein Ko-fi-/Sponsors-Konto für alle Apps). Bewusst
+   ohne Gegenleistung und **nicht in der App**: Googles Zahlungsrichtlinie
+   verlangt für digitale Leistungen Play Billing, und Web-PWA und
+   Android-App sind derselbe Build — einen „nur im Web"-Link gibt es
+   deshalb nicht.
 4. **Mit Tankerkönig sprechen**, bevor irgendetwas anderes entschieden wird —
    zu Minutenlimit *und* Archivlizenz in einem Aufwasch. Das Ergebnis
    entscheidet, ob Weg 2 überhaupt nötig ist.
