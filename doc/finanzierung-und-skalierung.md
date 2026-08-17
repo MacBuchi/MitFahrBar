@@ -65,11 +65,11 @@ API-Schlüssel (sofern die Nutzungsbedingungen das hergeben — **zu klären**),
 oder ein kommerzieller Vertrag mit Tankerkönig. Beides ist eine Absprache mit
 Tankerkönig, keine Rechnung an uns.
 
-### 2. `push_log` wächst unbegrenzt
+### 2. `push_log` wuchs unbegrenzt — erledigt in v0.84.1
 
-`public.push_log` hat **keine Retention** — im ganzen Schema und in
-`tool/` findet sich kein `delete`, kein Aufräum-Cron, nichts. Die Tabelle
-bekommt je Person, Plantag und Meldungsart eine Zeile und behält sie für
+`public.push_log` hatte **keine Retention** — im ganzen Schema und in
+`tool/` fand sich kein `delete`, kein Aufräum-Cron, nichts. Die Tabelle
+bekommt je Person, Plantag und Meldungsart eine Zeile und behielt sie für
 immer. Bei vier Personen und rund 250 Fahrtagen im Jahr sind das mehrere
 tausend Zeilen je Gruppe und Jahr, die nie wieder gelesen werden — die
 Abfragen in `push_due()` interessieren sich ausschließlich für den aktuellen
@@ -81,9 +81,14 @@ das **55 Zeilen / 48 kB**, die ganze Datenbank liegt bei rund 4 MB von
 akuter Brand — er steht trotzdem an dieser Stelle, weil er der einzige ist,
 der ohne Gegenmaßnahme prinzipiell unbegrenzt wächst.
 
-Gegenmittel ist ein `pg_cron`-Job, der Zeilen älter als etwa 90 Tage löscht —
-dasselbe Muster, das `rollup-fuel-weeks` für `price_sample` schon fährt
-(21 Tage). **Vorgemerkt für den Effizienz-Durchgang.**
+**Erledigt seit v0.84.1:** `prune_push_log()` löscht täglich Zeilen, deren
+`plan_date` mehr als 90 Tage zurückliegt — dasselbe Muster, das
+`rollup-fuel-weeks` für `price_sample` schon fährt (21 Tage). Warum das
+nichts erneut auslösen kann, steht in der Migration
+(`20260817220000_push_log_retention.sql`); `test/schema_test.dart` hält
+Funktion, Cron-Job und Grenze fest. Damit ist von der ursprünglichen
+Bruchliste dieses Dokuments nichts mehr offen, was im Repo lösbar wäre —
+übrig bleiben die Tankerkönig-Fragen (§1) und die Lizenzentscheidung.
 
 ### 3. Datenbankgröße
 
@@ -94,8 +99,9 @@ geleert, bleibt also am Planungshorizont hängen statt zu wachsen.
 `price_sample` ist regionsgebunden statt gruppengebunden und wird nach 21
 Tagen gelöscht.
 
-Das heißt: **Zeilen je Gruppe sind kein Problem, `push_log` schon** — und
-genau deshalb steht es eine Stufe höher.
+Das heißt: **Zeilen je Gruppe sind kein Problem; `push_log` war das eine,
+das keins bleiben durfte** — und steht deshalb eine Stufe höher, samt
+seiner Lösung.
 
 ### 4. Egress und Edge-Function-Aufrufe
 
@@ -217,10 +223,9 @@ Der erwartbare Ertrag bei dieser Nutzerzahl steht in keinem Verhältnis dazu.
 
 ## Empfehlung
 
-1. **Erst aufräumen**: `push_log`-Retention. Kostet nichts und nimmt
-   niemandem etwas. (Die zweite Hälfte der ursprünglichen Empfehlung —
-   `flush-due-push` nur bei tatsächlicher Fälligkeit — ist seit #138
-   gebaut, siehe die Korrektur unter §4.)
+1. **Aufräumen: erledigt.** Die `push_log`-Retention kam mit v0.84.1 (§2);
+   die zweite Hälfte der ursprünglichen Empfehlung — `flush-due-push` nur
+   bei tatsächlicher Fälligkeit — war seit #138 gebaut (Korrektur unter §4).
 2. **Geklärt (2026-08-17): Beide Supabase-Projekte liegen in derselben
    Organisation** (`supabase projects list`). Das Free-Kontingent von zwei
    aktiven Projekten ist damit belegt — eine dritte Backend-App erzwingt

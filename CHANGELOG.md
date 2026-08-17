@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.84.1] – 2026-08-17
+
+### Geändert
+
+- **Vorsorge im Hintergrund: Das Versand-Gedächtnis der Benachrichtigungen
+  behält nur noch die letzten 90 Tage.** Es merkt sich, welche Meldung
+  schon rausging, und wurde bislang nie aufgeräumt. Sichtbar ändert sich
+  nichts — keine Meldung kommt dadurch doppelt oder fällt weg, denn der
+  Versand schaut ohnehin nur auf die aktuelle Planungswoche.
+
 ## [0.84.0] – 2026-08-17
 
 ### Neu
