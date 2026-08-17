@@ -103,6 +103,18 @@ Ein Verwalter-Konto kann bis zu **fünf** Gruppen betreuen. Es sieht dabei
 niemals Fahrten oder Personen einer Gruppe, sondern setzt nur das
 Gruppenpasswort neu, gibt eine Gruppe ab oder löscht sie.
 
+## Unterstützen
+
+MitFahrBar ist kostenlos und ohne Werbung — und soll es bleiben. Wer das
+Projekt trotzdem unterstützen möchte, kann das freiwillig hier tun — die
+App bleibt für alle gleich, Spenden schalten nichts frei:
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Kaffee%20spendieren-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/macbuchi)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor%20werden-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/MacBuchi)
+
+Die Ko-fi-Seite ist für alle Apps des Betreibers dieselbe — schreib gern
+in die Nachricht, dass du von MitFahrBar kommst.
+
 ## Entwicklung
 
 Flutter (Web-PWA und Android) mit Riverpod, go_router und Material 3; Backend ist Supabase
