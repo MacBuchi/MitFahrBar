@@ -81,24 +81,38 @@ void main() {
       ).allMatches(sql).map((m) => '${m.group(1)} → ${m.group(2)}').toList();
       expect(
         grants,
-        ['select → authenticated'],
+        ['select → anon, authenticated'],
         reason:
-            'Genau ein Grant zurück, und zwar nur lesend und nur für '
-            'Angemeldete. `anon` darf nichts: Die Werte stammen aus dem '
-            'Archiv, ein öffentlicher Lesepfad wäre eine Weitergabe und '
-            'zöge die ShareAlike-Pflicht nach sich.',
+            'Genau ein Grant zurück, und zwar nur lesend. Das select für '
+            '`anon` (#254) ist KEIN öffentlicher Lesepfad: Ohne anon-Policy '
+            'filtert die RLS jede Anfrage ohne Sitzung zu `[]` — am echten '
+            'Postgres bewiesen (rls_e2e_test). Es gibt nur das Schweigen '
+            'zurück, das jede andere Tabelle beim Abmelden längst hat; nur '
+            'authenticated warf price_week dort 42501 (error_reports '
+            'KW 33). Der Lizenz-Riegel gegen die Weitergabe hängt damit '
+            'allein an der Policy-Prüfung direkt hierunter.',
       );
 
-      final policies = RegExp(
-        r'create policy (\w+) on public\.price_week\s+for (\w+)',
-      ).allMatches(sql).map((m) => '${m.group(1)}: ${m.group(2)}').toList();
+      final policies =
+          RegExp(
+                r'create policy (\w+) on public\.price_week\s+for (\w+) to (\w+)',
+              )
+              .allMatches(sql)
+              .map((m) => '${m.group(1)}: ${m.group(2)} → ${m.group(3)}')
+              .toList();
       expect(
         policies,
-        ['price_week_read: select'],
+        ['price_week_read: select → authenticated'],
         reason:
-            'Eine einzige Policy, und die liest nur. Ein `for all` gäbe der '
-            'Gruppe auch das Schreiben — eine gefälschte Preiskurve fiele '
-            'niemandem auf.',
+            'Eine einzige Policy, sie liest nur, und sie gilt NUR für '
+            'Angemeldete. Ein `for all` gäbe der Gruppe auch das Schreiben — '
+            'eine gefälschte Preiskurve fiele niemandem auf. Und seit dem '
+            'anon-Grant (#254) ist das `to authenticated` der EINZIGE '
+            'Riegel vor einem öffentlichen Lesepfad: Die Archiv-Lizenz ist '
+            'CC BY-NC-SA, öffentlich lesbare Wochenwerte wären eine '
+            'Weitergabe und zögen die ShareAlike-Pflicht nach sich. Wer die '
+            'Policy auf `to public` weitet oder eine anon-Policy ergänzt, '
+            'öffnet genau diesen Pfad.',
       );
       expect(
         sql,
@@ -131,7 +145,7 @@ void main() {
       }
 
       expect(
-        lineOf('grant select on public.price_week to authenticated;'),
+        lineOf('grant select on public.price_week to anon, authenticated;'),
         greaterThan(
           lineOf('revoke all on public.price_week from anon, authenticated;'),
         ),

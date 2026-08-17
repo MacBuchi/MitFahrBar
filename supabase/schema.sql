@@ -1592,9 +1592,15 @@ grant insert on public.error_reports to anon, authenticated;
 -- und trägt keine Gruppendaten, es gibt für einen Client nichts darin zu
 -- suchen. Die Wochenwerte nur lesen: Schreiben ist Sache des
 -- Verdichtungslaufs, sonst könnte ein Gerät die Historie fälschen.
+-- Das select gilt AUCH für anon (#254): Beim Übergang zu „abgemeldet"
+-- feuern die Provider einmal ohne Sitzung, und jede andere Tabelle
+-- antwortet darauf still mit `[]` (RLS filtert). Nur mit authenticated war
+-- price_week die eine Tabelle, die stattdessen 42501 warf — belegt in
+-- `error_reports` KW 33. Sichtbar wird für anon nichts, die Policy ist
+-- `to authenticated`; das Grant gibt nur das Schweigen zurück.
 revoke all on public.price_sample from anon, authenticated;
 revoke all on public.price_week from anon, authenticated;
-grant select on public.price_week to authenticated;
+grant select on public.price_week to anon, authenticated;
 grant usage, select on all sequences in schema public
   to anon, authenticated, service_role;
 grant execute on all functions in schema public

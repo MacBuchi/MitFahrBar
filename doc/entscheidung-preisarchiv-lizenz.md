@@ -68,9 +68,16 @@ Worauf das ruht, in `supabase/schema.sql`:
    `revoke all … from anon, authenticated`, kein Grant zurück, keine
    Policy. Sie ist der Teil, der dem Archiv am nächsten liegt.
 2. **`price_week` darf nur die eigene Gruppe lesen, und nur lesen.**
-   `revoke all`, dann ausschließlich `grant select … to authenticated` —
-   `anon` bekommt nichts zurück. Die einzige Policy ist ein
-   `for select` mit `group_id = auth.uid() and my_group_active()`.
+   `revoke all`, dann ausschließlich `grant select … to anon,
+   authenticated`. Die einzige Policy ist ein `for select to
+   authenticated` mit `group_id = auth.uid() and my_group_active()` —
+   **und an diesem `to authenticated` hängt der Riegel**, nicht am Grant:
+   Ohne anon-Policy filtert die RLS jede Anfrage ohne Sitzung zu `[]`,
+   bewiesen am echten Postgres (`rls_e2e_test`). Bis v0.83.0 fehlte auch
+   das anon-Grant; damit war `price_week` die einzige Tabelle, die ein
+   Client liest und die beim Abmelden hart mit 42501 ablehnte statt still
+   `[]` zu liefern (#254) — ein Fehlerbericht, kein Datenleck. Das Grant
+   gibt nur das Schweigen zurück; öffentlich lesbar wird dadurch nichts.
 3. **Die Reihenfolge dieser Zeilen ist tragend.** Über den Tabellen steht
    ein Sammel-Grant (`grant select, insert, update, delete on all tables
    in schema public to anon, authenticated`). Die Rücknahmen wirken nur,
