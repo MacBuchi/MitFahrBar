@@ -1,6 +1,7 @@
 # Finanzierung und Skalierung von MitFahrBar
 
-**Status:** recherchiert am 2026-08-17 · **Plattformseite:**
+**Status:** recherchiert am 2026-08-17, am selben Tag gegen Code und
+Produktion nachgemessen (§4 korrigiert, Zahlen ergänzt) · **Plattformseite:**
 `doc/finanzierung-plattformvergleich.md` · **Ergänzt, ersetzt nicht:**
 `doc/entscheidung-preisarchiv-lizenz.md`
 
@@ -74,10 +75,15 @@ tausend Zeilen je Gruppe und Jahr, die nie wieder gelesen werden — die
 Abfragen in `push_due()` interessieren sich ausschließlich für den aktuellen
 Plantag.
 
-Das ist der erste Posten, der ohne jeden Nutzen gegen die 500-MB-Grenze
-arbeitet. Gegenmittel ist ein `pg_cron`-Job, der Zeilen älter als etwa 90
-Tage löscht — dasselbe Muster, das `rollup-fuel-weeks` für `price_sample`
-schon fährt (21 Tage). **Vorgemerkt für den Effizienz-Durchgang.**
+Nachgemessen am 2026-08-17 (`supabase inspect db table-stats`): heute sind
+das **55 Zeilen / 48 kB**, die ganze Datenbank liegt bei rund 4 MB von
+500 MB. Der Posten ist also Struktur-Hygiene mit Jahren an Vorlauf, kein
+akuter Brand — er steht trotzdem an dieser Stelle, weil er der einzige ist,
+der ohne Gegenmaßnahme prinzipiell unbegrenzt wächst.
+
+Gegenmittel ist ein `pg_cron`-Job, der Zeilen älter als etwa 90 Tage löscht —
+dasselbe Muster, das `rollup-fuel-weeks` für `price_sample` schon fährt
+(21 Tage). **Vorgemerkt für den Effizienz-Durchgang.**
 
 ### 3. Datenbankgröße
 
@@ -93,14 +99,24 @@ genau deshalb steht es eine Stufe höher.
 
 ### 4. Egress und Edge-Function-Aufrufe
 
-`flush-due-push` läuft **jede Minute** (`schema.sql`), das sind fest
-~43.800 Aufrufe im Monat von 500.000 — knapp 9 % des Kontingents, unabhängig
-von der Gruppenzahl. Der Haken: Die DB-Funktion steigt nur aus, wenn die
-Vault-Geheimnisse fehlen; **ob überhaupt etwas fällig ist, prüft sie vor dem
-HTTP-Aufruf nicht**. Nachts, an Wochenenden und in fahrfreien Wochen ruft sie
-also verlässlich ins Leere. Auch das ist für den Effizienz-Durchgang
-vorgemerkt — nicht weil das Kontingent bricht, sondern weil es die Sorte
-Abfrage ist, die niemand braucht.
+**Korrigiert am 2026-08-17 — die Erstfassung dieses Abschnitts behauptete
+das Gegenteil und hätte fast einen „Effizienz-Fix" für etwas Gebautes
+ausgelöst.** Sie rechnete `flush-due-push` als ~43.800 Edge-Function-Aufrufe
+im Monat (9 % des Kontingents) und merkte an, die Funktion prüfe vor dem
+HTTP-Aufruf nicht, ob etwas fällig ist. Beides stimmt nicht:
+
+- Der Minutentakt ist ein `pg_cron`-Aufruf der **DB-Funktion** — er läuft
+  innerhalb von Postgres und kostet kein Edge-Function-Kontingent.
+- Die Fälligkeits-Prüfung steht seit dem 29.07.2026 in der Funktion selbst
+  (`supabase/migrations/20260729140000_push_dispatch.sql`, #138):
+  `if not exists (select 1 from public.push_due()) then return;` — samt
+  Kommentar „Nichts zu tun heißt: nicht anklopfen". Die Edge Function wird
+  nur gerufen, wenn wirklich etwas zu verschicken ist.
+
+Nachgemessen: `push_outbox` (80 Zeilen) trägt ~62.000 Seq-Scans — die
+Prüfung läuft minütlich, lokal, und ist auf Tabellen dieser Größe gratis.
+Ins Edge-Kontingent gehen nur die tatsächlichen Fälligkeits-Minuten plus
+`fuel-sample` (3 Aufrufe am Tag) — zusammen weit unter 1 % der 500.000.
 
 Egress ist unkritisch: Die App überträgt JSON-Zeilen, der einzige große
 Datenstrom ist der Nachfüll-Lauf des Preisarchivs (~30 MB je Tagesdatei), und
@@ -201,11 +217,14 @@ Der erwartbare Ertrag bei dieser Nutzerzahl steht in keinem Verhältnis dazu.
 
 ## Empfehlung
 
-1. **Erst aufräumen**: `push_log`-Retention, `flush-due-push` nur bei
-   tatsächlicher Fälligkeit. Kostet nichts und nimmt niemandem etwas.
-2. **Klären, ob beide Supabase-Projekte in derselben Organisation liegen** —
-   siehe Plattformvergleich; das entscheidet, ob der Free-Plan schon
-   ausgereizt ist.
+1. **Erst aufräumen**: `push_log`-Retention. Kostet nichts und nimmt
+   niemandem etwas. (Die zweite Hälfte der ursprünglichen Empfehlung —
+   `flush-due-push` nur bei tatsächlicher Fälligkeit — ist seit #138
+   gebaut, siehe die Korrektur unter §4.)
+2. **Geklärt (2026-08-17): Beide Supabase-Projekte liegen in derselben
+   Organisation** (`supabase projects list`). Das Free-Kontingent von zwei
+   aktiven Projekten ist damit belegt — eine dritte Backend-App erzwingt
+   Pro; dafür fiele Pro nur **einmal** an (~35 $/Monat für beide zusammen).
 3. **Spenden** aufsetzen (Weg 1). Der einzige Schritt, der heute ohne
    Lizenz- und Gewerbefragen möglich ist.
 4. **Mit Tankerkönig sprechen**, bevor irgendetwas anderes entschieden wird —
@@ -215,13 +234,18 @@ Der erwartbare Ertrag bei dieser Nutzerzahl steht in keinem Verhältnis dazu.
 
 ## Offene Punkte
 
-- Liegen PilzBuddy und MitFahrBar in derselben Supabase-Organisation?
 - Erlauben Tankerkönigs Nutzungsbedingungen einen zweiten API-Schlüssel für
   denselben Betreiber?
 - Was kostet ein kommerzieller Archivvertrag?
-- Wie viele Gruppen und wie viele verschiedene `region_key` gibt es aktuell?
-  Steht nicht im Repo — der wöchentliche Usage-Report
-  (`tool/usage_report.dart`) meldet bewusst nur Summen.
+
+## Seit der Erstfassung beantwortet (2026-08-17)
+
+- **Dieselbe Supabase-Organisation.** `supabase projects list` zeigt beide
+  Projekte in `ueryalfmngzsbocqxekk` — siehe die aktualisierte Empfehlung.
+- **2 Regionen, 3 Gruppen.** `supabase inspect db table-stats` (Schätzwerte
+  aus der Statistik): `price_area` 2 Zeilen, `groups` 3. Beim Minutenlimit
+  (5 Regionen je Lauf) ist also reichlich Luft.
+- **`flush-due-push` prüft die Fälligkeit längst** — Korrektur unter §4.
 
 ## Quellen
 

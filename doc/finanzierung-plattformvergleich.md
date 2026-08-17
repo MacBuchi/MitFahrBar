@@ -69,11 +69,12 @@ Egress darüber hinaus kostet 0,09 $/GB.
 
 **Der Punkt, der heute schon zählt:** Der Free-Plan erlaubt nur **zwei aktive
 Projekte je Organisation**. PilzBuddy (`tntlujexvdtkynxbrdsn`) und MitFahrBar
-(`azrlhlcxhpwmxcinjovp`) belegen sie vermutlich beide. **Das ist zu
-verifizieren** — liegen sie in derselben Organisation, ist das Kontingent
-bereits ausgeschöpft, und eine dritte Backend-App erzwingt Pro, ganz ohne
-Nutzerwachstum. Liegen sie in zwei Organisationen, ist Luft, aber Pro würde
-dann auch zweimal fällig (25 $ je Organisation).
+(`azrlhlcxhpwmxcinjovp`) belegen sie beide — **verifiziert am 2026-08-17**
+(`supabase projects list`: beide in Organisation `ueryalfmngzsbocqxekk`).
+Das Kontingent ist damit ausgeschöpft; eine dritte Backend-App erzwingt Pro,
+ganz ohne Nutzerwachstum. Die Kehrseite ist günstiger als die Alternative:
+Pro fiele nur **einmal** an (~35 $/Monat für beide Projekte zusammen), nicht
+je Organisation zweimal.
 
 Ein Nebeneffekt von Pro, der leicht übersehen wird: **Das Pausieren entfällt.**
 Beide Projekte halten sich heute durch Cron-Jobs wach — in PilzBuddy sind der
@@ -186,7 +187,10 @@ zugelassen, mit Sätzen um 9–20 % — für kleine Beträge lohnt der Aufwand n
 ## Empfehlung
 
 1. **Jetzt:** Stufe 0 abarbeiten, beginnend mit PilzBuddys Poll-Schleife.
-   Prüfen, ob beide Supabase-Projekte in derselben Organisation liegen.
+   (Die Organisations-Frage ist beantwortet — beide Projekte liegen in
+   derselben, siehe Stufe 1. In MitFahrBar ist von Stufe 0 nur noch die
+   `push_log`-Retention offen; die vermutete Leerlauf-Abfrage von
+   `flush-due-push` war seit #138 keine, siehe das App-Dokument.)
 2. **Wenn eine Grenze in Sicht kommt:** Supabase Pro. 35 $/Monat sind gegen den
    Zeitaufwand jeder Alternative billig.
 3. **Wenn Pro zu eng wird:** Selbsthosting nach dem FWApp-Muster.
