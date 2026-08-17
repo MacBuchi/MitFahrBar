@@ -220,6 +220,35 @@ void main() {
       expect(chart.group.first, greaterThan(chart.carriedOver));
     });
 
+    test('was NACH dem Fenster liegt, zählt nichts — auch nicht als '
+        'Übertrag', () {
+      // In den echten Daten steckt eine Fahrt mit Zukunfts-Datum (Altlast
+      // aus dem Erst-Import; der Editor sperrt die Zukunft erst seit
+      // 2026-07-21). Sie landete bisher still im Übertrag: Ersparnis für
+      // etwas, das nie passiert ist, als Sockel unter jeder Woche.
+      // Dieselbe #160-Linie wie savingsWindow und weeklyTripBars.
+      final future = rideOn(DateTime(2027, 11, 13), 'anna', ['ben']);
+      final withFuture = weeklySavings(
+        trips: [...trips, future],
+        persons: persons,
+        settings: settings,
+        storedPrices: const [],
+        from: const IsoWeek(2026, 28),
+        to: const IsoWeek(2026, 29),
+      );
+      final without = weeklySavings(
+        trips: trips,
+        persons: persons,
+        settings: settings,
+        storedPrices: const [],
+        from: const IsoWeek(2026, 28),
+        to: const IsoWeek(2026, 29),
+      );
+
+      expect(withFuture.carriedOver, without.carriedOver);
+      expect(withFuture.total, closeTo(without.total, 1e-9));
+    });
+
     test('ohne Verbrauch spart eine Person nichts', () {
       final chart = weeklySavings(
         trips: trips,

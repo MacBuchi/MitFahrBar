@@ -101,17 +101,74 @@ void main() {
       );
     });
 
-    test('der Import läuft nicht nach Zeitplan', () {
+    test('der Import läuft nächtlich — und NUR zusammen mit dem Merker', () {
+      // Bis v0.84.0 war der Zeitplan bewusst abwesend: Ohne Merker zöge
+      // der Job für eine Woche, die das Archiv nie haben wird, jede Nacht
+      // dieselben sieben Dateien. Der Merker (`price_week_skip`) ist jetzt
+      // gebaut — Zeitplan und Merker gehören ab hier ZUSAMMEN. Wer eine
+      // Hälfte entfernt, macht aus dem Automatismus wieder die
+      // Endlosschleife, vor der die alte Fassung dieses Tests gewarnt hat.
       expect(
-        workflow.contains(RegExp(r'^\s*schedule:', multiLine: true)),
-        isFalse,
+        workflow,
+        contains(RegExp(r'^\s*schedule:', multiLine: true)),
         reason:
-            'Ein Zeitplan bräuchte zuerst einen Merker für Wochen, die das '
-            'Archiv NIE haben wird (Lücken, Zeit vor Mitte 2014). Ohne ihn '
-            'bleibt so eine Woche für immer eine Lücke und der Job zöge jede '
-            'Nacht dieselben sieben Dateien vergeblich. Wer hier einen '
-            'Zeitplan ergänzt, baut den Merker mit — sonst ist es kein '
-            'Automatismus, sondern eine Endlosschleife.',
+            'Der Anlass ist real: Nachgetragene oder umdatierte Fahrten in '
+            'vormals fahrfreien Wochen und der CSV-Import einer Gruppe '
+            'erzeugen neue Lücken, und niemand stößt den Lauf von Hand an — '
+            '2023-W48 hat so die Ersparnis-Kurve zweieinhalb Jahre '
+            'gestrichelt.',
+      );
+      expect(
+        tool,
+        contains('price_week_skip'),
+        reason:
+            'Der Zeitplan ohne den Merker ist die Endlosschleife: Eine '
+            'Woche ohne Archivdaten bliebe für immer eine Lücke, und der '
+            'Job zöge jede Nacht dieselben sieben 30-MB-Dateien.',
+      );
+      expect(
+        File('supabase/schema.sql').readAsStringSync(),
+        contains('create table public.price_week_skip'),
+        reason: 'Der Merker braucht seine Tabelle.',
+      );
+      expect(
+        tool,
+        contains('class ArchiveUnavailable'),
+        reason:
+            'Nur eine 404 ist eine Aussage über die Woche — ein Timeout ist '
+            'eine über die Leitung. Ohne die Unterscheidung könnte eine '
+            'Netzstörung eine Woche für immer abschreiben.',
+      );
+      expect(
+        tool,
+        contains('MARK_AFTER_DAYS'),
+        reason:
+            'Das Archiv publiziert mit Verzug — eine junge Woche ist „noch '
+            'nicht da", nicht „nie". Ohne Alters-Riegel würde die Naht '
+            'zwischen Live-Takt und Archiv dauerhaft ausgeschlossen.',
+      );
+    });
+
+    test('ein Zeitplan-Lauf hat keine Inputs — der Deckel braucht einen '
+        'Rückfall', () {
+      expect(
+        workflow,
+        contains("inputs.max_weeks || '100'"),
+        reason:
+            'Bei `schedule:` ist jeder inputs.* leer. Ohne Rückfall stünde '
+            '--max-weeks "" im Aufruf, argparse bräche ab — und zwar NUR '
+            'nachts, nie beim Hand-Dispatch, mit dem man es testet.',
+      );
+    });
+
+    test('eine Woche ist erst mit allen drei Sorten fertig', () {
+      expect(
+        tool,
+        contains('select=group_id,iso_year,iso_week,series'),
+        reason:
+            'Die „schon da"-Prüfung muss serienweise lesen: Eine Teilwoche '
+            '(eine Sorte ohne Wert) gälte sonst für immer als fertig, und '
+            '`ignore-duplicates` könnte die fehlende Sorte nie nachtragen.',
       );
     });
   });
@@ -187,10 +244,27 @@ void main() {
           'fiele es niemandem auf. Der Riegel ersetzt zugleich jede '
           'Zustandsdatei: Ein zweiter Lauf ist einfach folgenlos.',
     );
-    expect(
-      tool,
-      isNot(contains('merge-duplicates')),
-      reason: 'Kein zweiter Schreibpfad daneben.',
-    );
+    // `merge-duplicates` gibt es seit dem Merker doch — aber ausschließlich
+    // für dessen Buchhaltung: Dort muss die NEUSTE Entscheidung gewinnen,
+    // sonst liefe eine Marke mit veraltetem region_key nach einem
+    // Gebietswechsel als ewige Wiedervorlage. Für die PREISWERTE bleibt es
+    // verboten; die Prüfung läuft je Funktion, damit ein zweiter
+    // merge-Schreibpfad an price_week sofort auffällt.
+    final functions = tool.split(RegExp(r'^def ', multiLine: true));
+    for (final body in functions.where((f) => f.contains('merge-duplicates'))) {
+      expect(
+        body,
+        contains('price_week_skip'),
+        reason:
+            'merge-duplicates außerhalb des Merker-Schreibers: Ein '
+            'Nachfüll-Lauf könnte damit einen GEMESSENEN Preis still mit '
+            'einem rekonstruierten überschreiben.',
+      );
+      expect(
+        body,
+        isNot(contains("'/rest/v1/price_week'")),
+        reason: 'Der Merker-Schreiber fasst die Preiswerte nicht an.',
+      );
+    }
   });
 }

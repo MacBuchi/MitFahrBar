@@ -156,11 +156,16 @@ SavingsChart weeklySavings({
   var carriedOver = 0.0;
 
   for (final trip in trips) {
-    final tripSlot = index[IsoWeek.of(trip.date)];
+    final week = IsoWeek.of(trip.date);
+    // Nach dem Fenster heißt Zukunft — savingsWindow endet bei heute.
+    // Solche Fahrten (Altlasten von vor der Zukunfts-Sperre, #160) zählen
+    // nichts: In den Übertrag gerutscht wären sie Ersparnis für etwas, das
+    // nie passiert ist, als Sockel unter jeder Woche.
+    if (to.compareTo(week) < 0) continue;
+    final tripSlot = index[week];
     if (tripSlot != null) tripCounts[tripSlot]++;
 
     if (isSoloTrip(trip)) continue;
-    final week = IsoWeek.of(trip.date);
     final slot = index[week];
 
     for (final entry in trip.participations.entries) {
