@@ -1402,6 +1402,13 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     **eine** Nachricht, egal wie oft die anderen den Tag noch umbauen.
     Der Digest hängt bewusst **nicht** an den Punkten — sonst löste jede
     eingetragene Fahrt eines Vortages eine Meldung aus.
+    - **Und seit v0.84.1 behält es 90 Tage** (`prune_push_log()`, täglich
+      per pg_cron). Löschen kann nichts erneut auslösen: `push_due()` liest
+      `push_log` nur im Join gegen `push_outbox`, und der Korb hält nie
+      Tage vor `keep_from`. Gelöscht wird nach `plan_date` (dort liegt der
+      Index); wer die Grenze senkt, prüft zuerst, dass keine Meldungsart
+      weiter zurückliest — `test/schema_test.dart` hält Funktion, Cron-Job
+      und Grenze fest.
   - **Die Personen-Zuordnung eines Geräts ist kein Login.** Jeder kann
     jeden wählen, wie im Planer jeder für jeden einträgt. Sie ist eine
     Zustelladresse; `group_id = auth.uid()` bleibt unangetastet. Das Token

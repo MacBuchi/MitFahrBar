@@ -457,6 +457,60 @@ void main() {
       );
     });
 
+    test('push_log wird aufgeräumt — Versand-Gedächtnis, kein Archiv', () {
+      final function = RegExp(
+        r'create or replace function public\.prune_push_log\(\)(.*?)\n\$\$;',
+        dotAll: true,
+      ).firstMatch(schema);
+      expect(
+        function,
+        isNotNull,
+        reason:
+            'prune_push_log fehlt — ohne Retention ist push_log die einzige '
+            'Tabelle, die prinzipiell unbegrenzt wächst (eine Zeile je '
+            'Person, Plantag und Meldungsart, für immer).',
+      );
+      final body = sqlOnly(function!.group(1)!);
+      expect(
+        body,
+        contains('delete from public.push_log'),
+        reason: 'Die Funktion muss wirklich löschen, nicht nur existieren.',
+      );
+      expect(
+        body,
+        contains('plan_date < current_date - 90'),
+        reason:
+            'Gelöscht wird nach plan_date (dort liegt push_log_date_idx) '
+            'mit 90 Tagen Abstand — weit jenseits des Planungshorizonts, '
+            'den push_due() ansieht: Der Korb hält nie Tage vor keep_from. '
+            'Wer die Grenze senkt, prüft zuerst, dass keine Meldungsart '
+            'weiter zurückliest.',
+      );
+      expect(
+        schema,
+        contains("'prune-push-log'"),
+        reason: 'Ohne Cron-Job läuft die Retention nie.',
+      );
+      expect(
+        schema,
+        contains(
+          'revoke all on function public.prune_push_log() '
+          'from anon, authenticated',
+        ),
+        reason:
+            'Aufräumen ist Sache des Crons, nicht des Clients — dasselbe '
+            'Muster wie rollup_fuel_weeks.',
+      );
+
+      // Migration und Gesamtbild müssen dieselbe Grenze tragen, sonst gilt
+      // in Produktion etwas anderes, als schema.sql dokumentiert.
+      final migration = File(
+        'supabase/migrations/20260817220000_push_log_retention.sql',
+      ).readAsStringSync();
+      expect(migration, contains('plan_date < current_date - 90'));
+      expect(migration, contains("'prune-push-log'"));
+    });
+
     test('der Versand quittiert nur, was an due_at hing', () {
       final flush = File(
         'supabase/functions/flush-push/index.ts',

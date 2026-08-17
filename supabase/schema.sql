@@ -1455,6 +1455,30 @@ select cron.schedule(
   $$select public.rollup_fuel_weeks()$$
 );
 
+-- `push_log` behält 90 Tage — Versand-Gedächtnis, kein Archiv. Löschen kann
+-- hier nichts erneut auslösen: `push_due()` liest `push_log` nur im Join
+-- gegen `push_outbox`, und der Korb hält nie Tage vor `keep_from` (der
+-- aktuellen Planungswoche). Gelöscht wird nach `plan_date` (dort liegt
+-- `push_log_date_idx`); 90 Tage sind bewusst ein Vielfaches des einen
+-- Planungshorizonts, den der Versand braucht — die jüngere Geschichte
+-- bleibt für Diagnosen lesbar (so wurden #175 und #180 untersucht).
+create or replace function public.prune_push_log()
+returns void language plpgsql security definer
+set search_path = public as $$
+begin
+  delete from public.push_log
+   where plan_date < current_date - 90;
+end;
+$$;
+
+revoke all on function public.prune_push_log() from anon, authenticated;
+
+select cron.schedule(
+  'prune-push-log',
+  '45 2 * * *',
+  $$select public.prune_push_log()$$
+);
+
 -- --------------------------------------------------------------------- RLS
 
 alter table public.groups              enable row level security;
