@@ -871,6 +871,46 @@ void main() {
       );
     });
 
+    test('die Merker-Tabelle ist für Clients gar nicht erreichbar', () {
+      // `price_week_skip` merkt sich, welche Lücken das Archiv nie füllen
+      // wird — die Vorbedingung des nächtlichen Zeitplans. Sie ist reine
+      // Job-Buchhaltung: Ein Client hat darin nichts zu lesen (er zeigt
+      // Lücken über die Preisreihe selbst) und erst recht nichts zu
+      // schreiben — sonst könnte ein Gerät den Nachfüll-Lauf für fremde
+      // Wochen stilllegen.
+      expect(
+        RegExp(
+          r'create policy \w+ on public\.price_week_skip',
+        ).hasMatch(schema),
+        isFalse,
+        reason:
+            'Null Policies wie bei price_sample und push_outbox — der '
+            'Riegel darf nicht daran hängen, dass niemand später eine '
+            'ergänzt.',
+      );
+      expect(
+        schema,
+        contains('alter table public.price_week_skip enable row level'),
+      );
+      expect(
+        sqlOnly(schema),
+        contains(
+          'revoke all on public.price_week_skip from anon, authenticated',
+        ),
+        reason:
+            'alter default privileges gibt jeder NEUEN Tabelle den '
+            'Sammel-Grant — ohne die Rücknahme stünde der Merker jedem '
+            'angemeldeten Client offen.',
+      );
+      expect(
+        primaryKeyOf('price_week_skip').replaceAll(' ', ''),
+        'group_id,iso_year,iso_week',
+        reason:
+            'Der Schlüssel ist fachlich, also gehört group_id hinein — '
+            'sonst kollidierte die zweite Gruppe derselben Woche.',
+      );
+    });
+
     test('die Konstanten stehen NICHT in der Wochenschicht', () {
       final block = RegExp(
         r'create table public\.price_week \((.*?)\n\);',

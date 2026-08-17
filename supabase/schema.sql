@@ -607,6 +607,29 @@ create table public.price_week (
   primary key (group_id, iso_year, iso_week, series)
 );
 
+-- -------------------------------------------------------- price_week_skip
+-- Merker des Nachfüll-Laufs: Wochen, die das Archiv nie füllen wird
+-- (Archivlücke, keine Stationen im Umkreis, zu dünn). Er ist die
+-- Vorbedingung des nächtlichen Zeitplans von fuel-history.yml — ohne ihn
+-- zöge der Job für so eine Woche jede Nacht dieselben sieben Tagesdateien.
+-- Reine Job-Buchhaltung mit genau EINEM Leser und Schreiber
+-- (service_role): null Policies, `revoke all` — ein Client zeigt Lücken
+-- über die Preisreihe selbst, und schreibend könnte er den Lauf für
+-- fremde Wochen stilllegen. `region_key` hält fest, für welches Gebiet
+-- die Entscheidung fiel: Verschiebt eine Gruppe ihr Gebiet, passt der
+-- Schlüssel nicht mehr und die Woche wird neu versucht — die Marke bleibt
+-- stehen und wirkt nicht (verwaiste-Zeilen-Regel).
+create table public.price_week_skip (
+  group_id uuid not null
+    references public.groups(id) on delete cascade,
+  iso_year int not null check (iso_year between 2014 and 2100),
+  iso_week int not null check (iso_week between 1 and 53),
+  region_key text not null,
+  reason text not null,
+  decided_at timestamptz not null default now(),
+  primary key (group_id, iso_year, iso_week)
+);
+
 -- --------------------------------------------------------------- Funktionen
 
 -- SECURITY-DEFINER-Helfer: liest groups ohne RLS-Rekursion. Hieran hängt
@@ -1552,6 +1575,7 @@ create policy error_reports_insert on public.error_reports for insert
 alter table public.price_area   enable row level security;
 alter table public.price_sample enable row level security;
 alter table public.price_week   enable row level security;
+alter table public.price_week_skip enable row level security;
 
 create policy price_area_isolated on public.price_area
   for all to authenticated
@@ -1601,6 +1625,8 @@ grant insert on public.error_reports to anon, authenticated;
 revoke all on public.price_sample from anon, authenticated;
 revoke all on public.price_week from anon, authenticated;
 grant select on public.price_week to anon, authenticated;
+-- Der Lücken-Merker des Nachfüll-Laufs: nur service_role, siehe oben.
+revoke all on public.price_week_skip from anon, authenticated;
 grant usage, select on all sequences in schema public
   to anon, authenticated, service_role;
 grant execute on all functions in schema public

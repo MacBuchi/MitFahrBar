@@ -1,19 +1,27 @@
 name: Fuel History Backfill
 
 # Fills past weeks in `price_week` from the Tankerkönig price archive, for
-# every region that has driven weeks without a price row.
+# every region that has driven weeks without complete price rows.
 #
-# Deliberately manual (`workflow_dispatch`) and not scheduled: a backfill is
-# needed when a group is set up or imports its past trips by CSV — a rare,
-# operator-driven event. A nightly schedule would need a marker table for
-# weeks the archive will never have, otherwise it would re-download the same
-# seven files forever. That machinery gets built when a second group makes it
-# real, not before.
+# Scheduled nightly since v0.84.0. The schedule used to be deliberately
+# absent because it needs a marker for weeks the archive will never have —
+# without one, such a week stays a gap forever and the job re-downloads the
+# same seven files every night. That marker now exists (`price_week_skip`,
+# written and read only by this job via service_role). What made it real:
+# trips edited or back-filled into formerly trip-free weeks, and a group's
+# CSV import — both create gaps nobody re-dispatches by hand. 2023-W48 got
+# a trip that way and dashed the savings chart for two and a half years.
 #
 # The run is bounded by `max_weeks`. Nothing is lost when it stops early: the
-# work list is derived from the database (driven week without a price row),
-# so the next run simply continues. Inactive until the secrets exist.
+# work list is derived from the database (driven week without complete price
+# rows, minus marked weeks), so the next run simply continues. An empty
+# queue costs three selects and downloads nothing. Inactive until the
+# secrets exist.
 on:
+  schedule:
+    # Odd minute on purpose: GitHub sheds load-spike schedules (#115) —
+    # fine here, "roughly once a night" is all this needs.
+    - cron: "41 2 * * *"
   workflow_dispatch:
     inputs:
       max_weeks:
@@ -54,7 +62,10 @@ jobs:
           # Shell ersetzt, eine Dispatch-Eingabe stünde dort also als Code.
           # `DRY_RUN` ist leer oder gesetzt — `${DRY_RUN:+--dry-run}` hängt
           # die Option nur im zweiten Fall an.
-          MAX_WEEKS: ${{ inputs.max_weeks }}
+          # `|| '100'`: Bei `schedule:` ist jeder inputs.* LEER — ohne den
+          # Rückfall stünde --max-weeks "" im Aufruf und argparse bräche
+          # ab. Und zwar nur nachts, nie beim Hand-Dispatch.
+          MAX_WEEKS: ${{ inputs.max_weeks || '100' }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
         run: |
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$TANKERKOENIG_ARCHIVE_PASSWORD" ]; then

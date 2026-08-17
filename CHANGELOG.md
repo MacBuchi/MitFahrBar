@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.84.0] – 2026-08-17
+
+### Neu
+
+- **Fehlende Spritpreis-Wochen füllen sich jetzt jede Nacht von selbst.**
+  Bisher lief der Archiv-Abgleich nur, wenn ihn jemand von Hand startete —
+  wer eine Fahrt in eine bis dahin fahrfreie Woche nachtrug oder das Datum
+  einer Fahrt änderte, bekam für diese Woche dauerhaft einen geschätzten
+  Preis. Genau so stand die Ersparnis-Kurve seit einer nachgetragenen
+  Fahrt in KW 48/2023 auf „Preis geschätzt". Die Lücken sind gefüllt, und
+  künftige schließt der nächtliche Lauf von allein; Wochen, die das
+  Preisarchiv nachweislich nicht hat, merkt er sich und fragt nicht jede
+  Nacht erneut.
+
+### Behoben
+
+- **Eine versehentlich in der Zukunft eingetragene Fahrt zählt nicht mehr
+  in die Ersparnis.** Solche Fahrten (aus der Zeit vor der
+  Zukunfts-Sperre) flossen still als Sockel in die Kurve ein.
+
 ## [0.83.1] – 2026-08-16
 
 ### Behoben

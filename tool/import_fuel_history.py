@@ -10,7 +10,8 @@ CSV-Import nachtraegt, bringt Wochen mit, fuer die nie gemessen wurde.
 
 Es gibt bewusst KEIN Auftrags-Flag und keine Zustandsdatei. Der Auftrag ist:
 
-    Woche, in der eine Gruppe gefahren ist, ohne Zeile in `price_week`.
+    Woche, in der eine Gruppe gefahren ist, ohne VOLLSTAENDIGE Zeilen
+    (alle drei Sorten) in `price_week`.
 
 Das ist dasselbe Muster wie „die Existenz einer Zeile in `trips` am Tag IST
 die Bestaetigung": Der Zustand wird nicht danebengeschrieben, sondern
@@ -22,6 +23,23 @@ drankam, ist beim naechsten Aufruf einfach wieder die Luecke.
 Geschrieben wird mit `resolution=ignore-duplicates`. Der Lauf kann damit
 NIEMALS einen vorhandenen Wert ueberschreiben -- insbesondere keinen
 gemessenen, der die genauere Wahrheit ueber seine Woche ist.
+
+## Der Merker: die eine Ausnahme von „alles wird abgeleitet"
+
+Seit dem naechtlichen Zeitplan (fuel-history.yml `schedule:`) gibt es genau
+EINE gemerkte Sache: Wochen, die das Archiv nie fuellen wird
+(`price_week_skip` -- Archivluecke, keine Stationen im Umkreis, zu duenn).
+Ohne den Merker zoege der Job fuer so eine Woche jede Nacht dieselben
+sieben 30-MB-Dateien; die Luecke bleibt ja bestehen. Drei Regeln daran:
+
+- Gemerkt wird nur, was das ARCHIV gesagt hat (404, leere Region), nie
+  eine Netzstoerung -- die wirft `ArchiveUnavailable` und die Woche wird
+  schlicht vertagt.
+- Erst MARK_AFTER_DAYS nach Wochenende: Das Archiv publiziert mit Verzug,
+  eine junge Woche ist „noch nicht da", nicht „nie".
+- Die Marke traegt den `region_key` ihrer Entscheidung. Verschiebt eine
+  Gruppe ihr Gebiet, passt er nicht mehr und die Woche wird neu versucht;
+  die alte Zeile bleibt stehen und wirkt nicht.
 
 ## Je Region, nicht je Gruppe
 
@@ -101,8 +119,12 @@ import time
 import urllib.error
 import urllib.request
 
-BASE = ('https://data.tankerkoenig.de/tankerkoenig-organization'
-        '/tankerkoenig-data/raw/branch/master')
+# Ueberschreibbar fuer den lokalen Probelauf gegen einen Miniatur-Server —
+# der Merker-Pfad (404 -> Marke) ist sonst nur in Produktion erlebbar.
+BASE = os.environ.get(
+    'TANKERKOENIG_ARCHIVE_BASE',
+    'https://data.tankerkoenig.de/tankerkoenig-organization'
+    '/tankerkoenig-data/raw/branch/master')
 KEYFILE = pathlib.Path.home() / 'mitfahrbar-keys' / 'Tankerkoenig_Archiv.txt'
 
 # Dieselben Stichzeiten wie `sample-fuel-prices` -- und zwar in UTC, weil
@@ -127,6 +149,12 @@ MIN_COVERAGE = 0.60
 # fuer eine (versehentlich) sehr alte Fahrt sieben 404er je Woche, immer
 # wieder -- die Luecke bliebe ja bestehen.
 ARCHIVE_START = dt.date(2014, 6, 1)
+
+# So viele Tage nach Wochenende darf eine ergebnislose Woche noch NICHT
+# dauerhaft gemerkt werden: Das Archiv publiziert mit Verzug, und eine
+# Woche, die „noch nicht da" ist, als „nie" abzuschreiben nagelte genau die
+# Naht zwischen Live-Takt und Archiv fuer immer fest.
+MARK_AFTER_DAYS = 28
 
 PAGE = 1000
 
@@ -192,16 +220,30 @@ def load_state():
         day = dt.date.fromisoformat(trip['trip_date'])
         driven.setdefault(trip['group_id'], set()).add(iso_week_of(day))
 
-    have = {}
+    # Serienweise, nicht wochenweise: Eine Teilwoche (eine Sorte ohne Wert)
+    # gaelte sonst fuer immer als fertig, und `ignore-duplicates` koennte
+    # die fehlende Sorte nie nachtragen.
+    series_of = {}
     for row in select_all('/rest/v1/price_week'
-                          '?select=group_id,iso_year,iso_week'):
-        have.setdefault(row['group_id'], set()).add(
-            (row['iso_year'], row['iso_week']))
+                          '?select=group_id,iso_year,iso_week,series'):
+        series_of.setdefault(row['group_id'], {}).setdefault(
+            (row['iso_year'], row['iso_week']), set()).add(row['series'])
+    complete = {
+        group: {week for week, names in weeks.items()
+                if names >= set(SERIES)}
+        for group, weeks in series_of.items()
+    }
 
-    return regions, driven, have
+    marks = {}
+    for row in select_all('/rest/v1/price_week_skip'
+                          '?select=group_id,iso_year,iso_week,region_key'):
+        marks.setdefault(row['group_id'], {})[
+            (row['iso_year'], row['iso_week'])] = row['region_key']
+
+    return regions, driven, complete, marks
 
 
-def gaps_for(region, driven, have, today):
+def gaps_for(region, driven, complete, marks, today):
     """Fehlende Wochen der Region: Vereinigung ueber ihre Gruppen.
 
     Nur abgeschlossene Wochen. Eine laufende Woche zu importieren waere
@@ -211,14 +253,59 @@ def gaps_for(region, driven, have, today):
     """
     weeks = set()
     for group_id in region['groups']:
+        marked = marks.get(group_id, {})
         for year, week in driven.get(group_id, set()):
-            if (year, week) in have.get(group_id, set()):
+            if (year, week) in complete.get(group_id, set()):
+                continue
+            # Eine Marke gilt nur fuer das Gebiet, unter dem sie entstand:
+            # Wer sein Gebiet verschiebt, bekommt automatisch einen neuen
+            # Versuch. Die alte Zeile bleibt stehen und wirkt nicht.
+            if marked.get((year, week)) == region['region_key']:
                 continue
             monday = monday_of(year, week)
             if monday < ARCHIVE_START or monday + dt.timedelta(days=7) > today:
                 continue
             weeks.add((year, week))
     return sorted(weeks)
+
+
+def gap_marks(region, driven, complete, marks, year, week, reason, today):
+    """Merker-Zeilen fuer alle Gruppen der Region, denen die Woche fehlt.
+
+    Nur fuer Wochen, deren Ende laenger als MARK_AFTER_DAYS zurueckliegt:
+    Das Archiv publiziert mit Verzug -- eine junge Woche ist „noch nicht
+    da", nicht „nie". Sie bleibt einfach Luecke und wird wieder versucht.
+    """
+    ended = monday_of(year, week) + dt.timedelta(days=7)
+    if ended + dt.timedelta(days=MARK_AFTER_DAYS) > today:
+        return []
+    rows = []
+    for group_id in region['groups']:
+        if (year, week) in complete.get(group_id, set()):
+            continue
+        if (year, week) not in driven.get(group_id, set()):
+            continue
+        if marks.get(group_id, {}).get((year, week)) == region['region_key']:
+            continue
+        rows.append({
+            'group_id': group_id,
+            'iso_year': year, 'iso_week': week,
+            'region_key': region['region_key'],
+            'reason': reason,
+            'decided_at': dt.datetime.now(dt.timezone.utc).isoformat(),
+        })
+    return rows
+
+
+def write_marks(rows):
+    """Merker ablegen. `merge-duplicates`, und zwar NUR hier: In der
+    Buchhaltung muss die neuste Entscheidung gewinnen -- eine Marke mit
+    veraltetem region_key liefe nach einem Gebietswechsel sonst als ewige
+    Wiedervorlage. Die Preiswerte selbst schreibt weiterhin ausschliesslich
+    `ignore-duplicates`; price_week_skip fasst keine Preise an."""
+    if rows:
+        api('POST', '/rest/v1/price_week_skip', rows,
+            prefer='resolution=merge-duplicates,return=minimal')
 
 
 # --------------------------------------------------------------------------
@@ -239,8 +326,18 @@ def archive_auth():
     return 'Basic ' + base64.b64encode(f'{user}:{password}'.encode()).decode()
 
 
+class ArchiveUnavailable(Exception):
+    """Netz-/Serverfehler nach allen Versuchen -- NICHT „Datei fehlt".
+
+    Die Unterscheidung traegt den Merker: Eine 404 ist eine Aussage des
+    ARCHIVS ueber die Woche (dauerhaft, darf gemerkt werden), ein Timeout
+    eine ueber die LEITUNG (vorübergehend, die Woche wird vertagt). Beides
+    als None zu behandeln hiesse, eine Netzstoerung koennte eine Woche fuer
+    immer abschreiben."""
+
+
 def fetch(path, auth, retries=3):
-    """Eine Archivdatei holen; None, wenn es sie nicht gibt.
+    """Eine Archivdatei holen; None, wenn das Archiv sie nicht hat.
 
     Der Kopf wird von Hand gesetzt statt ueber einen HTTPBasicAuthHandler:
     Der kassierte erst eine 401 und wiederholte den Abruf -- bei 30 MB je
@@ -264,8 +361,7 @@ def fetch(path, auth, retries=3):
             last = error
         if attempt < retries - 1:
             time.sleep(5 * (attempt + 1))
-    print(f'    ! {path}: {last}', file=sys.stderr)
-    return None
+    raise ArchiveUnavailable(f'{path}: {last}')
 
 
 def distance_km(lat_a, lng_a, lat_b, lng_b):
@@ -465,7 +561,7 @@ def main():
     if not os.environ.get('SUPABASE_URL'):
         sys.exit('SUPABASE_URL fehlt.')
 
-    regions, driven, have = load_state()
+    regions, driven, complete, marks = load_state()
     if not regions:
         summary(['Keine Region eingerichtet — nichts zu tun.'])
         return
@@ -474,7 +570,7 @@ def main():
     todo = {}
     for region_key, region in regions.items():
         region['region_key'] = region_key
-        missing = gaps_for(region, driven, have, today)
+        missing = gaps_for(region, driven, complete, marks, today)
         if missing:
             todo[region_key] = missing
 
@@ -493,8 +589,8 @@ def main():
         return
 
     auth = archive_auth()
-    cache, pending = {}, []
-    done = skipped = 0
+    cache, pending, marked = {}, [], []
+    done = skipped = deferred = 0
     budget = args.max_weeks
     started = time.time()
 
@@ -505,11 +601,27 @@ def main():
                 break
             budget -= 1
             monday = monday_of(year, week)
-            entry, problem = collect_week(monday, region, auth, cache,
-                                          args.delay)
+            try:
+                entry, problem = collect_week(monday, region, auth, cache,
+                                              args.delay)
+            except ArchiveUnavailable as error:
+                # Leitung, nicht Archiv: keine Marke, die Woche bleibt
+                # Luecke und der naechste Lauf versucht sie erneut.
+                print(f'  {year}-W{week:02d} vertagt (Netz): {error}')
+                deferred += 1
+                continue
             if problem:
-                print(f'  {year}-W{week:02d} übersprungen: {problem}')
-                skipped += 1
+                rows = gap_marks(region, driven, complete, marks,
+                                 year, week, problem, today)
+                marked.extend(rows)
+                # Ohne Marke (Woche juenger als MARK_AFTER_DAYS) bleibt sie
+                # Luecke -- das Archiv koennte sie noch bekommen.
+                if rows:
+                    skipped += 1
+                else:
+                    deferred += 1
+                print(f'  {year}-W{week:02d} übersprungen: {problem}'
+                      + ('' if rows else ' (bleibt Lücke)'))
                 continue
 
             values = []
@@ -518,13 +630,29 @@ def main():
                 if value is not None:
                     values.append((name, value, len(entry['samples'][name])))
             if not values:
-                skipped += 1
+                rows = gap_marks(region, driven, complete, marks,
+                                 year, week, 'keine Sorte mit Wert', today)
+                marked.extend(rows)
+                if rows:
+                    skipped += 1
+                else:
+                    deferred += 1
                 continue
+            # Eine Sorte ohne Wert bei sonst voller Woche: Die Zeilen der
+            # uebrigen werden geschrieben, aber die Woche bliebe offen --
+            # ohne Marke zoege der naechtliche Lauf sie fuer immer neu.
+            missing_series = [name for name in SERIES
+                              if not any(name == n for n, _, _ in values)]
+            if missing_series:
+                marked.extend(gap_marks(
+                    region, driven, complete, marks, year, week,
+                    'Sorte(n) dauerhaft ohne Wert: '
+                    + ', '.join(missing_series), today))
 
             # Eine Auswertung, je Gruppe der Region eine Zeile -- aber nur
             # fuer die Gruppen, denen die Woche wirklich fehlt.
             for group_id in region['groups']:
-                if (year, week) in have.get(group_id, set()):
+                if (year, week) in complete.get(group_id, set()):
                     continue
                 if (year, week) not in driven.get(group_id, set()):
                     continue
@@ -555,6 +683,7 @@ def main():
     if pending:
         api('POST', '/rest/v1/price_week', pending,
             prefer='resolution=ignore-duplicates,return=minimal')
+    write_marks(marked)
 
     remaining = outstanding - done - skipped
     minutes = (time.time() - started) / 60
@@ -562,10 +691,15 @@ def main():
              '',
              f'- Wochen geschrieben: **{done}** (in {minutes:.0f} min)']
     if skipped:
-        lines.append(f'- Übersprungen (keine Archivdaten): {skipped}')
+        lines.append(f'- Übersprungen und dauerhaft gemerkt '
+                     f'(kommt nicht wieder): {skipped} Woche(n), '
+                     f'{len(marked)} Merker-Zeile(n)')
+    if deferred:
+        lines.append(f'- Vertagt (Netzfehler oder Woche noch zu jung): '
+                     f'{deferred} — bleibt Lücke für den nächsten Lauf.')
     if remaining > 0:
-        lines.append(f'- **Noch offen: {remaining} Wochen** — Workflow erneut '
-                     'starten, der Lauf setzt von selbst dort fort.')
+        lines.append(f'- **Noch offen: {remaining} Wochen** — der nächste '
+                     'Lauf (nächtlich oder von Hand) setzt dort fort.')
     else:
         lines.append('- Keine Lücke mehr offen.')
     summary(lines)

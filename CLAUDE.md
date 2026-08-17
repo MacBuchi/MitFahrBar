@@ -721,18 +721,40 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Widget-Finder auf, im Painter wäre sie ungeprüft.
   - **Der Nachfüll-Lauf nimmt die Datenbank als Warteschlange**
     (`tool/import_fuel_history.py` + `.github/workflows/fuel-history.yml`).
-    Der Auftrag ist „Woche mit Fahrt, ohne Zeile in `price_week`" — kein
-    Flag, keine Zustandsdatei, dasselbe Muster wie „die Existenz einer
-    Zeile in `trips` am Tag *ist* die Bestätigung". Deshalb ist der Deckel
-    `--max-weeks` unbedenklich und ein zweiter Lauf automatisch die
-    Fortsetzung. Geschrieben wird mit `resolution=ignore-duplicates`: Ein
-    Nachfüllen kann einen **gemessenen** Wert nie überschreiben, und der
-    ist die genauere Wahrheit über seine Woche.
-    Es gibt bewusst **keinen** `schedule:` — der bräuchte zuerst einen
-    Merker für Wochen, die das Archiv nie haben wird, sonst zöge der Job
-    jede Nacht dieselben sieben Dateien vergeblich. Und die App stößt ihn
-    **nicht** an: Das hieße ein Repo-Token in der Datenbank, und das bleibt
-    ausgeschlossen.
+    Der Auftrag ist „Woche mit Fahrt, ohne **vollständige** Zeilen (alle
+    drei Sorten) in `price_week`" — kein Flag, keine Zustandsdatei,
+    dasselbe Muster wie „die Existenz einer Zeile in `trips` am Tag *ist*
+    die Bestätigung". Deshalb ist der Deckel `--max-weeks` unbedenklich
+    und ein zweiter Lauf automatisch die Fortsetzung. Geschrieben wird mit
+    `resolution=ignore-duplicates`: Ein Nachfüllen kann einen
+    **gemessenen** Wert nie überschreiben, und der ist die genauere
+    Wahrheit über seine Woche.
+    - **Seit v0.84.0 läuft er nächtlich** (`schedule:`, krumme Minute —
+      #115-Lehre; „ungefähr einmal pro Nacht" reicht). Das **revidiert**
+      „bewusst kein `schedule:`" vom 02.08. auf die dort selbst benannte
+      Art: Der Zeitplan brauchte zuerst einen Merker für Wochen, die das
+      Archiv nie haben wird — **der ist jetzt gebaut** (`price_week_skip`,
+      null Policies, nur der Job liest und schreibt). Der Anlass war real:
+      Der Korb wird zum Lauf-Zeitpunkt ausgewertet, und eine **nachträglich
+      in eine vormals fahrfreie Woche gerutschte Fahrt** (Nachtrag,
+      Datums-Änderung, CSV-Import einer Gruppe) blieb dauerhaft ungefüllt —
+      2023-W48 hat so die Ersparnis-Kurve zweieinhalb Jahre gestrichelt
+      (das Diagramm strichelt **kumulativ ab der ersten** Schätz-Woche).
+      Drei Regeln tragen den Merker: Gemerkt wird nur, was das **Archiv**
+      gesagt hat (404, keine Stationen, zu dünn) — nie ein Netzfehler, der
+      wirft `ArchiveUnavailable` und vertagt. Erst `MARK_AFTER_DAYS` nach
+      Wochenende (das Archiv publiziert mit Verzug). Und die Marke trägt
+      den `region_key` ihrer Entscheidung: Gebiet verschoben → neuer
+      Versuch, die alte Zeile bleibt stehen und wirkt nicht. Der
+      Merker-Schreiber ist die **einzige** Stelle mit `merge-duplicates`
+      (die neuste Entscheidung gewinnt, sonst wäre eine Marke mit altem
+      `region_key` eine ewige Wiedervorlage) — für Preiswerte bleibt es
+      verboten, `test/fuel_history_workflow_test.dart` prüft das je
+      Funktion. Bei `schedule:` ist übrigens jeder `inputs.*` **leer** —
+      der `|| '100'`-Rückfall im Workflow ist der Riegel dagegen, und er
+      fiele nur nachts auf, nie beim Hand-Dispatch.
+    - Die App stößt den Lauf weiterhin **nicht** an: Das hieße ein
+      Repo-Token in der Datenbank, und das bleibt ausgeschlossen.
   - **Zwei Quellen, zwei Lizenzen.** Die Live-API steht unter CC BY 4.0,
     das historische Archiv unter **CC BY-NC-SA 4.0** — nicht dasselbe.
     Nicht-kommerziell passt, SA greift nicht (die Wochenwerte bleiben in
