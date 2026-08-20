@@ -490,9 +490,19 @@ class _AvailabilityGrid extends ConsumerWidget {
     switch (picked) {
       case _PickRide(:final choice):
         try {
-          await ref
+          final cleared = await ref
               .read(weekPlanProvider.notifier)
               .setRide(day.date, person.id, choice.ride);
+          // **Weggeräumt wird sichtbar, nie still** (#264). Ein „kann nicht"
+          // gibt die Fahrer-Zusage, die Abfahrtszeit des eigenen Autos und
+          // die eigenen Zusagen ab — das ist genau der Weg zurück zu einem
+          // Auto, den die Gruppe vermisst hat, aber es ist ein Verlust und
+          // gehört benannt. Aufgezählt wird nur, was es wirklich gab.
+          if (cleared.isNotEmpty) {
+            messenger.showSnackBar(
+              SnackBar(content: Text(_resetMessage(person.name, cleared))),
+            );
+          }
         } catch (_) {
           messenger.showSnackBar(
             const SnackBar(content: Text('Speichern fehlgeschlagen.')),
@@ -1040,6 +1050,23 @@ class _SeatAnswerDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Was ein „kann nicht" weggeräumt hat, als Satz (#264).
+///
+/// „Zurückgenommen: Fahrer-Zusage und Abfahrtszeit." — nur die Stücke, die es
+/// wirklich gab. Eine Pauschalmeldung nennte einem Mitfahrer eine Abfahrtszeit,
+/// die er nie gesetzt hat.
+String _resetMessage(String name, Set<PlanReset> cleared) {
+  final parts = [
+    if (cleared.contains(PlanReset.driver)) 'Fahrer-Zusage',
+    if (cleared.contains(PlanReset.times)) 'Abfahrtszeit',
+    if (cleared.contains(PlanReset.seats)) 'Auto-Zusagen',
+  ];
+  final list = parts.length == 1
+      ? parts.single
+      : '${parts.sublist(0, parts.length - 1).join(', ')} und ${parts.last}';
+  return '$name: $list zurückgenommen.';
 }
 
 Future<void> _maybeAskConsent(

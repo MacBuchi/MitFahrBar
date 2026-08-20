@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.85.0] – 2026-08-20
+
+### Neu
+
+- **Eine Fahrer-Zusage lässt sich wieder zurücknehmen.** Hatten sich zwei
+  Leute für denselben Tag als Fahrer eingetragen, wurde man das zweite Auto
+  nicht mehr los: „Ich kann nicht" sah aus, als hülfe es — sobald man sich
+  aber wieder eintrug, war man sofort wieder als Fahrer eingeplant. Ab jetzt
+  gibt „Ich kann nicht" für diesen Tag wirklich alles ab: die Fahrer-Zusage,
+  die Abfahrtszeit des eigenen Autos und die eigenen Zusagen zu anderen
+  Autos. Danach reicht wieder ein Auto, und wer sich später erneut einträgt,
+  fährt einfach mit. Die App sagt beim Zurücknehmen, was weggefallen ist.
+
+  Nicht angetastet werden die Entscheidungen der **anderen** über das eigene
+  Auto: Wer zu einer früheren Abfahrt „nein" gesagt hat, behält sein Nein —
+  sonst würde er beim nächsten Mal stillschweigend übergangen.
+
 ## [0.84.1] – 2026-08-17
 
 ### Geändert

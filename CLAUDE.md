@@ -170,6 +170,36 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
         beim Auflösen heraus; kommt der Fahrer zurück, gelten sie wieder.
         Ein Aufräum-Trigger müsste den Plan nachrechnen — `planWeek` in SQL,
         genau die zweite Wahrheit, die der Korb vermeidet.
+        - **Seit v0.85.0 gilt das nicht mehr für „kann nicht"** (#264): Wer
+          sich auf nicht verfügbar stellt, gibt seine Fahrer-Zusage, die
+          Abfahrtszeit seines Autos und seine eigenen Sitz-Entscheidungen
+          für diesen Tag **ab** — sie werden gelöscht, nicht inert gestellt
+          (`WeekPlanNotifier.setRide`). Das **revidiert** die Regel für
+          diesen einen Anlass, in derselben Form wie die Spritpreis- und die
+          Anmerkungs-Revision: Der tragende Grund („wer zurückkommt, findet
+          seine Planung wieder") wiegt weniger als sein Preis. Zwei
+          Freiwillige bekamen ihr zweites Auto nicht mehr los; sich auf
+          „kann nicht" zu stellen sah aus, als hülfe es, und der nächste
+          Tipp auf „dabei" machte die Person **sofort wieder zum Fahrer**
+          (gemeldet 19.08.2026). Der Verwaisten-Weg blieb damit ohne
+          Ausgang — das ist die Klasse „toter Knopf", nur langsamer.
+        - **Fremde Sitz-Entscheidungen über sein Auto bleiben stehen**, und
+          das ist keine Halbherzigkeit. Sie halten kein Auto am Leben (ein
+          Ausschluss wirkt nur gegen einen Fahrer im `driverSet`, und ohne
+          Auto-Abweichung passen ihre `terms` ohnehin nicht mehr), ihr
+          Löschen risse dafür ein Loch: Die nachträgliche Rückfrage (#200)
+          spricht nur an, wer eine **veraltete** Zeile hat. Ohne Zeile
+          fragt sie nicht — wer zurückkommt und wieder 05:30 setzt, nähme
+          die anderen ungefragt mit. Genau der Schaden aus #189.
+        - **„Nur eine Richtung" räumt bewusst nicht.** Wer 1-way steht,
+          fährt an dem Tag mit, hat sich also nicht zurückgezogen; seine
+          Zusage verfällt dort weiter bloß. Bekannte, kleinere Fassung
+          derselben Falle.
+        - **Weggeräumt wird sichtbar**: Die Meldung im Planer zählt auf,
+          was wirklich wegfiel (`PlanReset`) — eine Pauschalmeldung nennte
+          einem Mitfahrer eine Abfahrtszeit, die er nie gesetzt hat.
+          Festgenagelt in `test/flows/plan_flow_test.dart`, alle vier Fälle
+          rot verifiziert.
       - **`push_due()` wurde dafür nicht angefasst.** Die wirksame Zeit
         steht seit Stufe A je Person in der Korb-Zeile; zwei Personen
         desselben Tages tragen ab hier verschiedene Zeiten, und der Versand
