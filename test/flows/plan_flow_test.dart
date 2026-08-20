@@ -1602,6 +1602,227 @@ void main() {
     });
   });
 
+  // Eine Zusage zurücknehmen (#264, gemeldet am 19.08.2026): „Haben zwei
+  // Fahrer ausgewählt dass sie fahren wollen, ist es aktuell nicht möglich
+  // das rückgängig zu machen."
+  //
+  // Einen Weg zurück gab es — aber nur an der Tageszeile über ⇄, nicht dort,
+  // wo man sich eingetragen hat. Und der Weg, den die Gruppe probiert hat,
+  // TÄUSCHTE: „kann nicht" ließ die Zeile in `plan_overrides` stehen, sie
+  // wirkte nur nicht. Der nächste Tipp auf „dabei" machte die Person sofort
+  // wieder zum Fahrer — und das zweite Auto war zurück.
+  //
+  // Die Tests TIPPEN den ganzen Weg: eintragen, wollen, zurücknehmen,
+  // wiederkommen. Ein Test, der nur den Zwischenstand prüft, wäre auch dann
+  // grün, wenn die Zusage bei der Rückkehr aufersteht — genau der gemeldete
+  // Fehler.
+  group('Zusage zurücknehmen (#264)', () {
+    testWidgets('„kann nicht" löst die Zusage — sie kommt nicht zurück', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      const names = ['Anna', 'Bert', 'Clara'];
+      await pumpApp(tester, await _backend(names));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      for (final name in names) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      // Zwei Freiwillige — der gemeldete Aufbau. Wer vorgeschlagen ist,
+      // liegt bei Punktgleichheit nicht fest; die anderen beiden wollen.
+      final suggested = _personIn('fährt', monday, names);
+      final volunteers = [
+        for (final name in names)
+          if (name != suggested) name,
+      ];
+      await _wantToDrive(tester, volunteers.first, monday);
+      await _wantToDrive(tester, volunteers.last, monday);
+      expect(
+        find.textContaining('2 Autos'),
+        findsOneWidget,
+        reason: 'Aufbau: zwei Freiwillige sind zwei Autos.',
+      );
+
+      // Der Rückzug — im Menü genau der Zelle, in der die Zusage entstand.
+      await _pick(tester, volunteers.last, monday, 'kann nicht');
+      expect(
+        find.textContaining('2 Autos'),
+        findsNothing,
+        reason: 'Wer nicht kann, stellt kein Auto — ein Auto reicht wieder.',
+      );
+
+      // Und jetzt der eigentliche Fehler: wieder „dabei".
+      await tester.tap(_cell(volunteers.last, monday));
+      await tester.pumpAndSettle();
+
+      expect(
+        _cell(volunteers.last, monday, state: 'dabei'),
+        findsOneWidget,
+        reason:
+            'Zurück im Tag heißt Mitfahren, nicht Fahren. Bis v0.85.0 blieb '
+            'die Zeile in `plan_overrides` liegen und wirkte hier wieder — '
+            'die Zusage ließ sich nicht loswerden.',
+      );
+      expect(
+        find.textContaining('2 Autos'),
+        findsNothing,
+        reason: 'Eine zurückgenommene Zusage darf nicht wieder auferstehen.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('die Meldung nennt, was wegfiel', (tester) async {
+      final handle = tester.ensureSemantics();
+      const names = ['Anna', 'Bert', 'Clara'];
+      await pumpApp(tester, await _backend(names));
+      await _login(tester);
+      await _openPlan(tester);
+
+      final monday = planningWeek(testToday).first;
+      for (final name in names) {
+        await tester.tap(_cell(name, monday));
+        await tester.pumpAndSettle();
+      }
+      final suggested = _personIn('fährt', monday, names);
+      final volunteer = names.firstWhere((name) => name != suggested);
+      await _wantToDrive(tester, volunteer, monday);
+      await _pick(tester, volunteer, monday, 'kann nicht');
+
+      expect(
+        find.text('$volunteer: Fahrer-Zusage zurückgenommen.'),
+        findsOneWidget,
+        reason:
+            'Weggeräumt wird sichtbar, nie still — und benannt wird nur, was '
+            'es wirklich gab: hier keine Abfahrtszeit.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('ein Mitfahrer verliert seine eigene Auto-Zusage', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final anna = await data.createPerson(
+        const Person(id: '', name: 'Anna', active: true),
+      );
+      final bert = await data.createPerson(
+        const Person(id: '', name: 'Bert', active: true),
+      );
+      final monday = planningWeek(testToday).first;
+      await data.setAvailability(monday, anna.id, PlanRide.full);
+      await data.setAvailability(monday, bert.id, PlanRide.full);
+      const deviation = GroupDefaults(outboundTime: DayTime(6, 45));
+      await data.saveCarDefaults(monday, anna.id, deviation);
+      await data.setPlanDrivers(monday, {anna.id});
+      await data.saveSeatChoice(
+        SeatChoice(
+          date: monday,
+          personId: bert.id,
+          driverId: anna.id,
+          answer: SeatAnswer.yes,
+          terms: termsOf(deviation),
+          decidedAt: testToday,
+        ),
+      );
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      await _pick(tester, 'Bert', monday, 'kann nicht');
+
+      expect(
+        (await data.loadSeatChoices(monday)).values.expand((e) => e),
+        isEmpty,
+        reason: 'Seine eigene Zusage gehört ihm — sie geht mit.',
+      );
+      expect(
+        find.text('Bert: Auto-Zusagen zurückgenommen.'),
+        findsOneWidget,
+        reason: 'Kein Fahrer, keine Zeit — die Meldung erfindet auch keine.',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('fremde Entscheidungen über sein Auto bleiben stehen', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final backend = FakeBackend();
+      final id = backend.addGroup(
+        handle: 'daciaracing',
+        password: 'geheim123',
+        name: 'Dacia Racing',
+      );
+      final data = backend.dataFor(id);
+      final anna = await data.createPerson(
+        const Person(id: '', name: 'Anna', active: true),
+      );
+      final bert = await data.createPerson(
+        const Person(id: '', name: 'Bert', active: true),
+      );
+      final monday = planningWeek(testToday).first;
+      await data.setAvailability(monday, anna.id, PlanRide.full);
+      await data.setAvailability(monday, bert.id, PlanRide.full);
+      const deviation = GroupDefaults(outboundTime: DayTime(6, 45));
+      await data.saveCarDefaults(monday, anna.id, deviation);
+      await data.setPlanDrivers(monday, {anna.id});
+      // Berts Nein zu Annas Abfahrt — SEINE Entscheidung über SEINE Fahrt.
+      await data.saveSeatChoice(
+        SeatChoice(
+          date: monday,
+          personId: bert.id,
+          driverId: anna.id,
+          answer: SeatAnswer.no,
+          terms: termsOf(deviation),
+          decidedAt: testToday,
+        ),
+      );
+      await pumpApp(tester, backend);
+      await _login(tester);
+      await _openPlan(tester);
+
+      // Anna zieht sich zurück: Ihre Zusage und ihre Abfahrtszeit gehen.
+      await _pick(tester, 'Anna', monday, 'kann nicht');
+
+      expect(
+        (await data.loadPlan(monday)).overrides[monday] ?? const <String>{},
+        isEmpty,
+        reason: 'Ihre Fahrer-Zusage ist weg, nicht bloß wirkungslos.',
+      );
+      expect(
+        (await data.loadCarDefaults(monday))[monday]?[anna.id],
+        isNull,
+        reason: 'Und die Abfahrtszeit ihres Autos mit ihr.',
+      );
+      expect(
+        (await data.loadSeatChoices(
+          monday,
+        )).values.expand((e) => e).where((c) => c.personId == bert.id),
+        isNotEmpty,
+        reason:
+            'Berts Nein bleibt: Es hält kein Auto am Leben (ohne Abweichung '
+            'passen die `terms` nicht mehr), aber gelöscht fände die '
+            'Rückfrage aus #200 später nichts Veraltetes — käme Anna mit '
+            'derselben 06:45 zurück, säße Bert ungefragt darin.',
+      );
+      expect(
+        find.text('Anna: Fahrer-Zusage und Abfahrtszeit zurückgenommen.'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+  });
+
   // Wer die Zeit setzen darf (#188) — gemeldet am 07.08. aus 0.66.1: Der
   // Eintrag stand in JEDER Zelle. Ein Mitfahrer traf damit sein Auto, also
   // ein fremdes: Er verschob die Abfahrt eines Wagens, den er nicht fährt,

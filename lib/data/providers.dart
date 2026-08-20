@@ -538,6 +538,13 @@ final weekPlanProvider =
       WeekPlanNotifier.new,
     );
 
+/// Was ein „kann nicht" weggeräumt hat (#264).
+///
+/// Die Meldung im Planer nennt es beim Namen, statt pauschal „zurückgesetzt"
+/// zu sagen: Bei einem Mitfahrer fiel keine Abfahrtszeit weg, und eine
+/// Meldung, die eine erfindet, ist so falsch wie gar keine.
+enum PlanReset { driver, times, seats }
+
 class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
   /// Server-Rohzustand, an dem die optimistischen Änderungen ansetzen —
   /// Schlüssel auf Tagesbeginn normiert, damit Taps ihre Zeile finden.
@@ -634,24 +641,120 @@ class WeekPlanNotifier extends AsyncNotifier<List<PlannedDay>> {
   /// fremden Zeile (#121) setzt direkt — beide landen hier. Eine zweite
   /// Schreibstelle hieße zwei Fassungen der optimistischen Einrechnung samt
   /// `invalidateSelf` im Fehlerfall, und die driften.
-  Future<void> setRide(DateTime date, String personId, PlanRide? ride) {
+  ///
+  /// **„Kann nicht" räumt die Angaben dieser Person für diesen Tag weg**
+  /// (#264): die Fahrer-Zusage, die Abfahrtszeit ihres Autos und ihre eigenen
+  /// Sitz-Entscheidungen. Das **revidiert** die Verwaisten-Regel für
+  /// `plan_overrides` und `plan_car_defaults` — „bleibt stehen, wirkt nicht,
+  /// gilt bei der Rückkehr wieder". Deren tragender Grund („wer zurückkommt,
+  /// findet seine Planung wieder") wiegt weniger als sein Preis: Zwei
+  /// Freiwillige bekamen ihr zweites Auto nicht mehr los. Sich auf „kann
+  /// nicht" zu stellen sah aus, als hülfe es — die Zeile blieb aber liegen,
+  /// und der nächste Tipp auf „dabei" machte die Person **sofort wieder zum
+  /// Fahrer**. Gemeldet am 19.08.2026.
+  ///
+  /// **Fremde Sitz-Entscheidungen über ihr Auto bleiben stehen.** Sie halten
+  /// kein Auto am Leben (ein Ausschluss wirkt nur gegen einen Fahrer im
+  /// `driverSet`, und ohne Auto-Abweichung passen ihre `terms` ohnehin nicht
+  /// mehr), ihr Löschen risse dafür ein Loch: Die nachträgliche Rückfrage
+  /// (#200) spricht nur an, wer eine **veraltete** Zeile hat. Ohne Zeile
+  /// fragt sie nicht — und wer zurückkommt und wieder 05:30 setzt, nähme die
+  /// anderen ungefragt mit.
+  ///
+  /// „Nur eine Richtung" räumt bewusst **nicht**: Wer 1-way steht, fährt an
+  /// dem Tag mit, hat sich also nicht zurückgezogen. Seine Zusage verfällt
+  /// dort weiterhin bloß (`planWeek`).
+  ///
+  /// Gibt zurück, **was** weggeräumt wurde — daran hängt die Meldung im
+  /// Planer. Ein stilles Löschen wäre dieselbe Klasse wie ein Knopf, der
+  /// etwas anderes tut als er sagt; eine pauschale Meldung nennte womöglich
+  /// eine Abfahrtszeit, die es nie gab.
+  Future<Set<PlanReset>> setRide(
+    DateTime date,
+    String personId,
+    PlanRide? ride,
+  ) async {
     final day = _day(date);
     final rides = {...(_availability[day] ?? const <String, PlanRide>{})};
-    return _apply(
-      () {
-        if (ride == null) {
-          rides.remove(personId);
-        } else {
-          rides[personId] = ride;
-        }
-        _availability[day] = rides;
-      },
-      ref.read(carpoolRepositoryProvider).setAvailability(date, personId, ride),
-    );
+    final repository = ref.read(carpoolRepositoryProvider);
+
+    final drivers = _overrides[day] ?? const <String>{};
+    final dropDriver = ride == null && drivers.contains(personId);
+    final remaining = {...drivers}..remove(personId);
+    final dropDefaults =
+        ride == null &&
+        !(_carDefaults[day]?[personId] ?? const GroupDefaults()).isEmpty;
+    // Eine **Kopie**, nicht die Liste des Notifiers: Darüber wird gelaufen,
+    // während `mutate` in dieselbe Ablage greift.
+    final ownChoices = ride == null
+        ? [
+            for (final choice in _seatChoices[day] ?? const <SeatChoice>[])
+              if (choice.personId == personId) choice,
+          ]
+        : const <SeatChoice>[];
+    final cleared = {
+      if (dropDriver) PlanReset.driver,
+      if (dropDefaults) PlanReset.times,
+      if (ownChoices.isNotEmpty) PlanReset.seats,
+    };
+
+    try {
+      await _apply(
+        () {
+          if (ride == null) {
+            rides.remove(personId);
+          } else {
+            rides[personId] = ride;
+          }
+          _availability[day] = rides;
+          if (dropDriver) {
+            if (remaining.isEmpty) {
+              _overrides.remove(day);
+            } else {
+              _overrides[day] = remaining;
+            }
+          }
+          if (dropDefaults) {
+            _carDefaults = {
+              ..._carDefaults,
+              day: {...?_carDefaults[day]}..remove(personId),
+            };
+          }
+          if (ownChoices.isNotEmpty) {
+            _seatChoices[day] = [
+              for (final choice in _seatChoices[day] ?? const <SeatChoice>[])
+                if (choice.personId != personId) choice,
+            ];
+          }
+        },
+        () async {
+          // **Die Verfügbarkeit zuerst** — das ist die getippte Anweisung.
+          // Scheitert erst der Rest, ist die Person ausgetragen und die
+          // Zusage bloß wieder inert, also der Zustand von vorher.
+          await repository.setAvailability(date, personId, ride);
+          if (dropDriver) await repository.setPlanDrivers(date, remaining);
+          if (dropDefaults) {
+            await repository.saveCarDefaults(
+              date,
+              personId,
+              const GroupDefaults(),
+            );
+          }
+          for (final choice in ownChoices) {
+            await repository.deleteSeatChoice(date, personId, choice.driverId);
+          }
+        }(),
+      );
+    } finally {
+      // Auch im Fehlerfall: Ist die Zeile schon weg, zeigten Raster, Banner
+      // und Ausgangskorb sonst weiter eine Abweichung, die es nicht gibt.
+      if (dropDefaults) ref.invalidate(weekCarDefaultsProvider);
+    }
+    return cleared;
   }
 
   /// Ein Tap im Raster: kann nicht → dabei → nur eine Richtung → kann nicht.
-  Future<void> cycleRide(DateTime date, String personId) =>
+  Future<Set<PlanReset>> cycleRide(DateTime date, String personId) =>
       setRide(date, personId, switch (_availability[_day(date)]?[personId]) {
         null => PlanRide.full,
         PlanRide.full => PlanRide.oneWay,
