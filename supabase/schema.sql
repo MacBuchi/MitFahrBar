@@ -554,36 +554,18 @@ create table public.price_area (
 
 create index price_area_region_idx on public.price_area (region_key);
 
--- Rohschicht: was die API zu einem Zeitpunkt gemeldet hat. Bewusst OHNE
--- group_id — hier stehen keine Gruppendaten, sondern öffentliche Marktdaten,
--- die zufällig für eine Gruppe abgefragt wurden. Der Riegel ist derselbe wie
--- bei push_outbox: null Policies, revoke all. Kein Client liest sie je.
+-- Die Wochenschicht — der Vertrag, in dem später gerechnet wird, und seit
+-- dem Abschalten des Live-Takts die EINZIGE Preisschicht. Der Wert ist das
+-- 10. Perzentil aller Stichproben der Woche, nicht das Minimum: Man tankt
+-- nie genau beim billigsten Anbieter zum billigsten Zeitpunkt. Es ist zudem
+-- die einzige Definition, die für gemessene UND importierte Daten dieselbe
+-- Frage beantwortet — dass an der Naht keine Stufe entstand, ist der Grund,
+-- warum das Abschalten des Takts folgenlos blieb.
 --
--- Die Werte sind Zwischenprodukt, kein Archiv: Sobald eine Woche verdichtet
--- ist, werden sie weggeräumt. Dieselben sieben Tage wären zugleich die
--- Grundlage eines späteren „Tankdaumens" (aktueller Preis gegen das
--- Perzentil der Region) — deshalb hängt die Tabelle an der Region.
-create table public.price_sample (
-  region_key text not null,
-  captured_at timestamptz not null,
-  station_id uuid not null,
-  -- Nullable je Sorte: Nicht jede Station führt alle drei. Ein fehlender
-  -- Wert darf nicht als 0 in ein Perzentil laufen.
-  e5 numeric(5, 3) check (e5 > 0),
-  e10 numeric(5, 3) check (e10 > 0),
-  diesel numeric(5, 3) check (diesel > 0),
-  primary key (region_key, captured_at, station_id)
-);
-
-create index price_sample_sweep_idx
-  on public.price_sample (region_key, captured_at);
-
--- Die Wochenschicht — der Vertrag, in dem später gerechnet wird. Der Wert
--- ist das 10. Perzentil aller Stichproben der Woche, nicht das Minimum: Man
--- tankt nie genau beim billigsten Anbieter zum billigsten Zeitpunkt. Es ist
--- zudem die einzige Definition, die für gemessene UND später importierte
--- Daten dieselbe Frage beantwortet — sonst entstünde an der Naht zwischen
--- Import und Messung eine Stufe, die keine Preisänderung ist.
+-- Geschrieben wird ausschließlich vom Nachfüller (`tool/import_fuel_history
+-- .py`, Service-Role). Ein Client liest hier nur die eigene Gruppe und nur
+-- lesend — daran hängt die Lizenzlage des Archivs
+-- (doc/entscheidung-preisarchiv-lizenz.md).
 --
 -- Hausstrom und Tankstellenstrom stehen hier NICHT: Konstanten werden nicht
 -- gespeichert, sonst müsste eine Parameteränderung die Historie umschreiben
@@ -600,8 +582,11 @@ create table public.price_week (
   -- von dreien"; das soll die Oberfläche sagen können.
   sample_count int not null check (sample_count > 0),
   station_count int not null check (station_count > 0),
-  -- `mixed` entsteht genau einmal: an der Naht zwischen importierter
-  -- Vergangenheit und gemessener Gegenwart.
+  -- Neue Zeilen tragen ab dem Abschalten des Live-Takts immer 'imported'.
+  -- `measured` und `mixed` bleiben im Check stehen, weil sie in Bestand
+  -- stehen: Sie aus der Bedingung zu nehmen hieße, vorhandene Zeilen
+  -- ungültig zu machen, und sie zu MIGRIEREN hieße, die Herkunft einer
+  -- Messung nachträglich umzuschreiben.
   origin text not null check (origin in ('measured', 'imported', 'mixed')),
   computed_at timestamptz not null default now(),
   primary key (group_id, iso_year, iso_week, series)
@@ -1306,154 +1291,6 @@ select cron.schedule(
   $$select public.flush_due_push()$$
 );
 
--- Abtast-Takt fürs Preisarchiv: dreimal am Tag eine Umkreisabfrage je
--- Region. Feste Uhrzeiten statt „alle acht Stunden", weil der Tagesgang der
--- Spritpreise ausgeprägt ist (früh teuer, abends billig) und weil nur feste
--- Zeitpunkte sich später aus dem Preiswechsel-Archiv rekonstruieren lassen.
--- pg_cron rechnet in UTC: 05:05/11:05/17:05 sind im Sommer 07:05/13:05/19:05,
--- im Winter eine Stunde früher — die Verschiebung ist in Kauf genommen. Die
--- Minute 5 statt 0, weil die Nutzungsbedingungen um versetzte Zeiten bitten.
---
--- `push_functions_url` und `push_service_key` werden mitbenutzt: Beides ist
--- Infrastruktur und kein Push-Detail. Das Job-Geheimnis ist dagegen eigen —
--- ein Leck im Push-Weg soll nicht auch diesen öffnen.
---   select vault.create_secret('<FUEL_JOB_SECRET>', 'fuel_job_secret');
-create or replace function public.sample_fuel_prices()
-returns void language plpgsql security definer
-set search_path = public, vault, net as $$
-declare
-  base_url text;
-  job_secret text;
-  service_key text;
-begin
-  select decrypted_secret into base_url
-    from vault.decrypted_secrets where name = 'push_functions_url';
-  select decrypted_secret into job_secret
-    from vault.decrypted_secrets where name = 'fuel_job_secret';
-  select decrypted_secret into service_key
-    from vault.decrypted_secrets where name = 'push_service_key';
-  if base_url is null or job_secret is null or service_key is null then
-    return;
-  end if;
-
-  -- Keine Region hinterlegt heißt: nicht anklopfen. Solange keine Gruppe das
-  -- Feature eingerichtet hat, wird kein fremder Dienst befragt.
-  if not exists (select 1 from public.price_area) then
-    return;
-  end if;
-
-  perform net.http_post(
-    url := base_url || '/fuel-sample',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-fuel-secret', job_secret,
-      'apikey', service_key
-    ) || case
-      when service_key like 'eyJ%'
-        then jsonb_build_object('Authorization', 'Bearer ' || service_key)
-      else '{}'::jsonb
-    end,
-    body := '{}'::jsonb
-  );
-end;
-$$;
-
-revoke all on function public.sample_fuel_prices() from anon, authenticated;
-
-select cron.schedule(
-  'sample-fuel-prices',
-  '5 5,11,17 * * *',
-  $$select public.sample_fuel_prices()$$
-);
-
--- Verdichtung: aus den Stichproben wird je Gruppe, ISO-Woche und Sorte EIN
--- Wert — das 10. Perzentil, nicht das Minimum (man tankt nie genau beim
--- billigsten Anbieter zum billigsten Zeitpunkt).
---
--- Hier in SQL statt in Dart, weil `percentile_cont` zeichengenau dieselbe
--- Definition ist wie `percentile` in lib/core/price_series.dart und der
--- spätere Import der Vergangenheit ohnehin in Python läuft: EINE
--- Implementierung ist nicht zu haben, EINE Definition schon.
--- test/schema_test.dart hält den Anteil mit `defaultPercentile` zusammen.
---
--- Gerechnet wird in deutscher Zeit: Eine Messung Sonntag 23:30 UTC ist in
--- Deutschland schon Montag und gehört in die Folgewoche.
-create or replace function public.rollup_fuel_weeks()
-returns void language plpgsql security definer
-set search_path = public as $$
-declare
-  -- Ab Montag der VORwoche: die laufende wächst noch, die abgeschlossene
-  -- wird einmal mehr gerechnet, damit eine späte Sonntagsstichprobe zählt.
-  from_local timestamp := date_trunc(
-    'week', (now() at time zone 'Europe/Berlin') - interval '7 days'
-  );
-begin
-  with unpivoted as (
-    -- Eine Zeile je (Stichprobe, Sorte); fehlende Sorten fallen raus statt
-    -- als 0 mitzuzählen — eine Null zöge das Perzentil gegen den Boden.
-    select s.region_key,
-           extract(
-             isoyear from s.captured_at at time zone 'Europe/Berlin'
-           )::int as iso_year,
-           extract(
-             week from s.captured_at at time zone 'Europe/Berlin'
-           )::int as iso_week,
-           s.station_id,
-           x.series,
-           x.price
-      from public.price_sample s
-      cross join lateral (values
-        ('e5', s.e5), ('e10', s.e10), ('diesel', s.diesel)
-      ) as x(series, price)
-     where s.captured_at >= (from_local at time zone 'Europe/Berlin')
-       and x.price is not null
-  )
-  insert into public.price_week as w (
-    group_id, iso_year, iso_week, series,
-    value, sample_count, station_count, origin
-  )
-  -- Der Join über `region_key` ist der Grund, warum die Rohschicht an der
-  -- Region hängt: Zwei Gruppen derselben Gegend bekommen eigene
-  -- Wochenzeilen aus EINER Abfrage.
-  select a.group_id, u.iso_year, u.iso_week, u.series,
-         (percentile_cont(0.10) within group (order by u.price))::numeric,
-         count(*),
-         count(distinct u.station_id),
-         'measured'
-    from unpivoted u
-    join public.price_area a on a.region_key = u.region_key
-   group by a.group_id, u.iso_year, u.iso_week, u.series
-  on conflict (group_id, iso_year, iso_week, series) do update
-     set value = excluded.value,
-         sample_count = excluded.sample_count,
-         station_count = excluded.station_count,
-         -- Eine importierte Woche mit zusätzlichen Messungen wird `mixed`
-         -- statt still `measured` — an der Naht soll das Diagramm den
-         -- Übergang zeigen können, statt ihn zu verschweigen.
-         origin = case
-           when w.origin in ('imported', 'mixed') then 'mixed'
-           else excluded.origin
-         end,
-         computed_at = now();
-
-  -- Rohwerte sind Zwischenprodukt, kein Archiv. 21 Tage Abstand: verdichtet
-  -- wird höchstens die Vorwoche, gelöscht erst drei Wochen zurück, damit ein
-  -- ausgefallener Lauf nichts kostet. Die letzten 7 Tage stehen damit immer
-  -- bereit — sie wären die Grundlage eines späteren „Tankdaumens".
-  delete from public.price_sample
-   where captured_at < now() - interval '21 days';
-end;
-$$;
-
-revoke all on function public.rollup_fuel_weeks() from anon, authenticated;
-
--- Zwanzig Minuten nach dem Abtasten: pg_net schickt asynchron, die
--- Stichproben treffen erst Sekunden später ein.
-select cron.schedule(
-  'rollup-fuel-weeks',
-  '25 5,11,17 * * *',
-  $$select public.rollup_fuel_weeks()$$
-);
 
 -- `push_log` behält 90 Tage — Versand-Gedächtnis, kein Archiv. Löschen kann
 -- hier nichts erneut auslösen: `push_due()` liest `push_log` nur im Join
@@ -1597,7 +1434,6 @@ create policy error_reports_insert on public.error_reports for insert
 -- niemand: null Policies wie bei push_outbox, Rücknahme des Sammel-Grants
 -- steht unten.
 alter table public.price_area   enable row level security;
-alter table public.price_sample enable row level security;
 alter table public.price_week   enable row level security;
 alter table public.price_week_skip enable row level security;
 
@@ -1646,7 +1482,6 @@ grant insert on public.error_reports to anon, authenticated;
 -- price_week die eine Tabelle, die stattdessen 42501 warf — belegt in
 -- `error_reports` KW 33. Sichtbar wird für anon nichts, die Policy ist
 -- `to authenticated`; das Grant gibt nur das Schweigen zurück.
-revoke all on public.price_sample from anon, authenticated;
 revoke all on public.price_week from anon, authenticated;
 grant select on public.price_week to anon, authenticated;
 -- Der Lücken-Merker des Nachfüll-Laufs: nur service_role, siehe oben.

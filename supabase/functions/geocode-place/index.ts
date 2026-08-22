@@ -10,7 +10,7 @@
 // Web-App käme ein anonymer Aufruf, und die Instanz sperrt so etwas. Hier
 // steht die Kennung fest und gilt für alle Plattformen gleich.
 //
-// `verify_jwt = true`: Anders als `fuel-sample` hat dieser Weg keinen
+// `verify_jwt = true`: Anders als `flush-push` hat dieser Weg keinen
 // Aufrufer aus der Datenbank. Nur angemeldete Gruppen dürfen ihn benutzen —
 // er ist der einzige Punkt, an dem die App einen Fremddienst befragt.
 

@@ -12,24 +12,6 @@ import '../core/price_series.dart';
 import '../models/price_area.dart';
 import 'read_retry.dart';
 
-/// Was ein „Jetzt aktualisieren" ergeben hat.
-///
-/// Der Knopf wertet das aus, statt einen Erfolg zu melden, den er nicht
-/// geprüft hat: Die Function antwortet auch bei gescheitertem Abruf mit 200
-/// und nennt den Ausgang im Rumpf. Dieselbe Fehlerklasse wie der tote
-/// Update-Knopf in 0.37.0.
-class SampleResult {
-  const SampleResult({required this.stored, required this.failed});
-
-  /// Wie viele Stationen abgelegt wurden.
-  final int stored;
-
-  /// Ob mindestens eine Region gescheitert ist.
-  final bool failed;
-
-  bool get ok => !failed && stored > 0;
-}
-
 abstract class PriceRepository {
   /// Der Bereich dieser Gruppe, oder `null` — dann ist das Feature aus.
   Future<PriceArea?> loadArea();
@@ -45,9 +27,6 @@ abstract class PriceRepository {
 
   /// Ortssuche für die Einrichtung.
   Future<List<GeoPlace>> searchPlace(String query);
-
-  /// Tastet den eigenen Bereich sofort ab (Nutzeraktion).
-  Future<SampleResult> sampleNow();
 }
 
 class SupabasePriceRepository implements PriceRepository {
@@ -125,27 +104,6 @@ class SupabasePriceRepository implements PriceRepository {
         if (place is Map) GeoPlace.fromMap(Map<String, dynamic>.from(place)),
     ];
   }
-
-  @override
-  Future<SampleResult> sampleNow() async {
-    final response = await _client.functions.invoke('fuel-sample', body: {});
-    final data = response.data;
-    if (data is! Map || data['results'] is! List) {
-      return const SampleResult(stored: 0, failed: true);
-    }
-
-    var stored = 0;
-    var failed = false;
-    for (final entry in data['results'] as List) {
-      if (entry is! Map) continue;
-      if (entry['error'] != null) {
-        failed = true;
-        continue;
-      }
-      stored += (entry['stored'] as num?)?.toInt() ?? 0;
-    }
-    return SampleResult(stored: stored, failed: failed);
-  }
 }
 
 /// Demo-Modus: kein Backend, also kein Preisarchiv.
@@ -163,8 +121,4 @@ class NoopPriceRepository implements PriceRepository {
 
   @override
   Future<List<GeoPlace>> searchPlace(String query) async => const [];
-
-  @override
-  Future<SampleResult> sampleNow() async =>
-      const SampleResult(stored: 0, failed: true);
 }

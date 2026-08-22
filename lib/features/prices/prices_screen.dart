@@ -163,62 +163,31 @@ class _AreaSetupState extends ConsumerState<_AreaSetup> {
 }
 
 /// Der Verlauf, sobald ein Bereich steht.
-class _PriceOverview extends ConsumerStatefulWidget {
+///
+/// **Kein „Jetzt abfragen" mehr.** Bis zum Abschalten des Live-Takts stand
+/// hier ein Knopf, der eine Umkreisabfrage auslöste; die Wochenwerte kommen
+/// jetzt ausschließlich aus dem Archiv, und der Knopf hätte nur noch eine
+/// Rohschicht gefüllt, die niemand mehr verdichtet — also sichtbar nichts
+/// getan. Ein späterer „Tankdaumen" (aktueller Preis gegen das Perzentil
+/// der Woche) bekommt seinen eigenen Weg; er ist eine Nutzeraktion und
+/// genau die Nutzung, um die Tankerkönig bittet.
+class _PriceOverview extends ConsumerWidget {
   const _PriceOverview({required this.area});
 
   final PriceArea area;
 
   @override
-  ConsumerState<_PriceOverview> createState() => _PriceOverviewState();
-}
-
-class _PriceOverviewState extends ConsumerState<_PriceOverview> {
-  bool _busy = false;
-
-  Future<void> _sampleNow() async {
-    setState(() => _busy = true);
-    // Der Knopf meldet keinen Erfolg, den er nicht geprüft hat: Die Function
-    // antwortet auch bei gescheitertem Abruf mit 200 und nennt den Ausgang
-    // im Rumpf. Dieselbe Klasse wie der tote Update-Knopf in 0.37.0.
-    final result = await ref.read(priceRepositoryProvider).sampleNow();
-    if (!mounted) return;
-    setState(() => _busy = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result.ok
-              ? '${result.stored} Tankstellen abgefragt. Der Wochenwert '
-                    'entsteht beim nächsten Verdichten.'
-              : 'Die Preise konnten gerade nicht abgefragt werden.',
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     return ListView(
       padding: withSystemBottom(context, const EdgeInsets.all(16)),
       children: [
-        Text(widget.area.label, style: theme.textTheme.titleMedium),
+        Text(area.label, style: theme.textTheme.titleMedium),
         Text(
-          'Umkreis ${widget.area.radiusKm.toStringAsFixed(0)} km · '
+          'Umkreis ${area.radiusKm.toStringAsFixed(0)} km · '
           'je Woche das 10. Perzentil aller Messungen',
           style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: _busy ? null : _sampleNow,
-          icon: _busy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.refresh),
-          label: const Text('Jetzt abfragen'),
         ),
         const SizedBox(height: 24),
         // Verläufe + Quellenangabe: dasselbe Widget wie die Sektion

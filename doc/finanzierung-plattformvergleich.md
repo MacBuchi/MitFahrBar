@@ -113,7 +113,7 @@ Der Free-Tier ist bei Lesezugriffen großzügiger (50.000 Firestore-Reads pro
 1. **Firestore hat kein RLS.** PilzBuddy und MitFahrBar setzen ihr
    *vollständiges* Sicherheitsmodell auf Postgres-Row-Level-Security — je rund
    20 Policies, in MitFahrBar dazu Tabellen mit null Policies und `revoke all`
-   (`push_outbox`, `push_log`, `price_sample`), deren Unerreichbarkeit für den
+   (`push_outbox`, `push_log`), deren Unerreichbarkeit für den
    Client erzwungen und getestet ist. Firestore-Security-Rules können das
    nachbilden, aber es wäre keine Migration, sondern eine **Neuimplementierung
    der Sicherheitsgrenze** — mit allen Fehlern, die man beim ersten Mal auch

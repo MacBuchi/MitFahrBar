@@ -652,7 +652,7 @@ class PricesSectionCard extends ConsumerWidget {
             child: TextButton.icon(
               onPressed: () => context.push('/prices'),
               icon: const Icon(Icons.tune, size: 18),
-              label: const Text('Preis-Region & Abruf'),
+              label: const Text('Preis-Region'),
             ),
           ),
         ],

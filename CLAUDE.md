@@ -702,30 +702,73 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   wo die alte Absage sie verortet hatte** (revidiert 2026-08-02, ersetzt
   „holt die App bewusst nicht aus dem Netz" vom 2026-07-24). Der Satz von
   damals endete mit „Wird es je gebaut, ist die Function der Ort — nie der
-  Client", und dabei bleibt es: Der API-Schlüssel liegt in
-  `supabase secrets` und wird von `supabase/functions/fuel-sample/`
-  benutzt. Im Client stünde er in `main.dart.js` lesbar, verstieße gegen
-  die Nutzungsbedingungen (die GitHub ausdrücklich nennen) und stürbe am
-  Minutenlimit, sobald ein zweites Gerät fragt — das Limit hängt am
-  Schlüssel, nicht am Gerät. Was die Absage trug, war die Kosten-Kennzahl
-  („ganz grob"); die ist weiterhin **nicht** umgestellt. Gebaut ist die
-  Ablage, nicht die Umrechnung.
+  Client", und dabei bleibt es: Ein Schlüssel im Client stünde in
+  `main.dart.js` lesbar, verstieße gegen die Nutzungsbedingungen (die
+  GitHub ausdrücklich nennen) und stürbe am Minutenlimit, sobald ein
+  zweites Gerät fragt — das Limit hängt am Schlüssel, nicht am Gerät. Was
+  die Absage trug, war die Kosten-Kennzahl („ganz grob"); die ist weiterhin
+  **nicht** umgestellt. Gebaut ist die Ablage, nicht die Umrechnung.
+  - **Seit v0.86.0 kommt der Wochenwert ausschließlich aus dem Archiv**
+    (`tool/import_fuel_history.py`); der geplante Live-Takt ist
+    abgeschaltet, `fuel-sample`, `sample_fuel_prices()`,
+    `rollup_fuel_weeks()` und `price_sample` sind weg. Das **revidiert**
+    nicht die Entscheidung von oben, sondern zieht ihre Konsequenz: Der
+    Ort war nie der Client — und der richtige Ort ist bei Tankerkönig
+    ausdrücklich das Archiv. Die Live-API nennt zwei Sperrgründe, die
+    genau auf diesen Takt passten: flächendeckendes Abfragen und
+    „regelmäßige, nicht explizit vom User initiierte Requests".
+    - **Es war die härteste Wachstumsgrenze des Systems**, und Geld
+      verschob sie nicht: eine Abfrage je Minute je Schlüssel, also drei
+      Abrufe am Tag je Gebiet, gedeckelt auf fünf Gebiete je Lauf. Der
+      Deckel schnitt **ohne Sortierung und ohne Cursor** ab — „vertagt"
+      wurde nichts, ab dem sechsten Gebiet wäre dauerhaft dasselbe leer
+      ausgegangen. Bei zwei Gebieten folgenlos, mit der Gruppenzahl still
+      falsch.
+    - **Für Clients ändert sich nichts, deshalb blieb
+      `min_supported_version` stehen.** Gelesen wird ausschließlich
+      `price_week`; die Tabelle bleibt samt Policy, Grants und Bedeutung,
+      nur ihre Quelle wechselt. Der einzige sichtbare Unterschied: Die
+      laufende Woche bekommt ihren Wert erst, wenn sie vorbei und im
+      Archiv ist — bis dahin hält der Lesepfad den letzten bekannten Wert,
+      wie bei jeder anderen Lücke.
+    - **Dass es folgenlos ging, ist der Verdienst der Deckungsgleichheit:**
+      Der Nachfüller rechnete von Anfang an dieselbe Kennzahl wie der Takt.
+      Die drei Stichzeiten sind seither eine **Konvention**, kein Spiegel —
+      sie bleiben, weil die gespeicherten Werte mit ihnen entstanden sind.
+      Das Archiv gäbe mehr her (es kennt jede Preisänderung); die Frage neu
+      zu stellen hieße, die ganze Historie neu zu rechnen.
+    - **Der Schlüssel bleibt liegen.** Ein späterer „Tankdaumen" (aktueller
+      Preis gegen das Wochen-Perzentil) ist eine **Nutzeraktion** und damit
+      genau die Nutzung, um die Tankerkönig bittet. Der Knopf „Jetzt
+      abfragen" ist trotzdem gefallen: Ohne Verdichter hätte er nur noch
+      eine Rohschicht gefüllt, die niemand liest — sichtbar nichts getan.
+    - **Der Nachfüller liest die Woche einmal für alle Gebiete**
+      (`collect_weeks`, `doc/entscheidung-preisnetz.md`). Vorher zahlte
+      jede Gegend dieselben sieben 30-MB-Dateien noch einmal; weil
+      `region_key` auf ~1 km auflöst, hieß das praktisch „je Gruppe". Ein
+      grobes Raster, das zusätzlich die Zeilen geteilt hätte, ist
+      **gemessen abgelehnt** — 1,5 ct Rauschen selbst bei 0,1°, gegen eine
+      1-ct-Schwelle.
   - **Ein Wochenwert je Gruppe und Sorte, und das ist das 10. Perzentil.**
     Nicht das Minimum — man tankt nie beim billigsten Anbieter zum
     billigsten Zeitpunkt; im 20-km-Umkreis um Bad Rappenau wandert das
     Minimum um 11 ct, sobald der Kreis wächst, das Perzentil steht still.
-    Die Zahl steht an **drei** Stellen (`defaultPercentile` in
-    `core/price_series.dart`, `percentile_cont(0.10)` in
-    `rollup_fuel_weeks()`, `PERCENTILE` in `tool/import_fuel_history.py`) —
-    eine Implementierung ist bei Dart + SQL + Python nicht zu haben, eine
-    Definition schon. `test/schema_test.dart` und
-    `test/fuel_history_workflow_test.dart` halten alle drei zusammen.
-  - **Die Stichzeiten sind UTC, nicht Ortszeit.** `pg_cron` rechnet in UTC
-    (`5 5,11,17 * * *`), der Live-Takt tastet im Winter also eine Stunde
-    früher ab. Wer den Nachfüll-Lauf auf feste Ortszeiten stellt — der
-    naheliegende Griff —, stellt im Winterhalbjahr eine andere Frage als
-    die gemessene und baut genau die Stufe an der Naht ein, die das ganze
-    Vorgehen vermeiden soll. Festgenagelt gegen die Cron-Zeile.
+    Die Zahl stand an **drei** Stellen; mit `rollup_fuel_weeks()` ist die
+    SQL-Fassung weggefallen, geblieben sind `defaultPercentile` in
+    `core/price_series.dart` und `PERCENTILE` in
+    `tool/import_fuel_history.py`. Eine Implementierung ist bei Dart +
+    Python nicht zu haben, eine Definition schon;
+    `test/fuel_history_workflow_test.dart` hält beide zusammen, und
+    `test/schema_test.dart` nagelt fest, dass in SQL **keine dritte**
+    zurückkommt.
+  - **Die Stichzeiten sind UTC, nicht Ortszeit.** `pg_cron` rechnete in UTC
+    (`5 5,11,17 * * *`), der frühere Live-Takt tastete im Winter also eine
+    Stunde früher ab — und die gespeicherten Werte tragen das. Wer den
+    Nachfüll-Lauf auf feste Ortszeiten stellt — der naheliegende Griff —,
+    stellt im Winterhalbjahr eine andere Frage als die gemessene und baut
+    genau die Stufe an der Naht ein, die das ganze Vorgehen vermeiden soll.
+    Festgenagelt gegen die Cron-Zeile der **Migration**, die nie
+    umgeschrieben wird und deshalb als Geschichte taugt.
   - **Konstanten werden nie gespeichert, nur beim Lesen eingesetzt und
     markiert.** Sonst schriebe eine Parameteränderung die Vergangenheit um.
     Dieselbe Linie wie bei Punkten und Quote.

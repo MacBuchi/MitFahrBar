@@ -64,9 +64,13 @@ aufzugeben.
 
 Worauf das ruht, in `supabase/schema.sql`:
 
-1. **Die Rohschicht `price_sample` ist für Clients gar nicht erreichbar.**
-   `revoke all … from anon, authenticated`, kein Grant zurück, keine
-   Policy. Sie ist der Teil, der dem Archiv am nächsten liegt.
+1. **Es gibt nur noch EINE Preisschicht.** Die Rohschicht `price_sample`
+   ist mit dem Live-Takt gefallen (Migration 20260822020000, v0.86.0). Sie
+   war der Teil, der dem Archiv am nächsten lag — `revoke all … from anon,
+   authenticated`, kein Grant zurück, keine Policy. Ihr Wegfall macht die
+   Zusage nicht schwächer, sondern kürzer: Was ein Client sehen kann, steht
+   vollständig unter Punkt 2. `price_archive_license_test.dart` hält fest,
+   dass sie nicht zurückkommt.
 2. **`price_week` darf nur die eigene Gruppe lesen, und nur lesen.**
    `revoke all`, dann ausschließlich `grant select … to anon,
    authenticated`. Die einzige Policy ist ein `for select to
@@ -100,7 +104,10 @@ nachdem die Zeile nach oben gewandert ist.
 - **NC** — siehe oben, keine Eigenschaft des Codes.
 - **Die Live-API (CC BY 4.0).** Sie ist die schwächere Lizenz; was für das
   Archiv reicht, reicht für sie erst recht. Der Test zielt bewusst auf die
-  engere.
+  engere. **Seit v0.86.0 wird sie gar nicht mehr abgefragt** — die
+  Namensnennung bleibt trotzdem stehen: In `price_week` liegen Zeilen mit
+  `origin = 'measured'`, die aus ihr stammen. Die Nennung gehört zum
+  Bestand, nicht zum Abruf.
 - **Ob der Archivzugang benutzt wird.** `tool/import_fuel_history.py` ist
   manuell (`workflow_dispatch`) und ruht ohne Secrets. Ob er lief, ändert
   an den Pflichten nichts: Sobald *eine* importierte Woche in `price_week`

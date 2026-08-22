@@ -502,17 +502,12 @@ class FakePriceRepository implements PriceRepository {
   final Map<String, PriceArea> areas = {};
 
   /// group_id → Wochenwerte, wie `price_week`. Tests füllen das direkt;
-  /// geschrieben wird es in der echten App nur vom Verdichtungslauf.
+  /// geschrieben wird es in der echten App nur vom Nachfüll-Lauf
+  /// (`tool/import_fuel_history.py`), nie vom Client.
   final Map<String, List<PricePoint>> weeks = {};
 
   /// Was die Ortssuche liefern soll.
   List<GeoPlace> places = const [];
-
-  /// Was ein „Jetzt aktualisieren" ergeben soll.
-  SampleResult next = const SampleResult(stored: 12, failed: false);
-
-  /// Wie oft abgetastet wurde — damit ein Test den Knopf nachweisen kann.
-  int samples = 0;
 
   @override
   Future<PriceArea?> loadArea() async => areas[backend.currentGroupId];
@@ -530,10 +525,4 @@ class FakePriceRepository implements PriceRepository {
 
   @override
   Future<List<GeoPlace>> searchPlace(String query) async => places;
-
-  @override
-  Future<SampleResult> sampleNow() async {
-    samples++;
-    return next;
-  }
 }

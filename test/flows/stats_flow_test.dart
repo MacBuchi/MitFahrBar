@@ -179,10 +179,12 @@ void main() {
       reason: 'der Solo-Tag am 16.07. beendet die Serie — kein „läuft noch"',
     );
 
-    // Der Verwaltungs-Knopf der Preis-Sektion führt nach /prices.
-    await tester.tap(find.text('Preis-Region & Abruf'));
+    // Der Verwaltungs-Knopf der Preis-Sektion führt nach /prices. Erkannt
+    // am eingerichteten Bereich, nicht mehr am Abfrage-Knopf: Der ist mit
+    // dem Live-Takt gefallen, und „&  Abruf" stand nur noch für ihn.
+    await tester.tap(find.text('Preis-Region'));
     await tester.pumpAndSettle();
-    expect(find.text('Jetzt abfragen'), findsOneWidget);
+    expect(find.textContaining('Umkreis 20 km'), findsOneWidget);
   });
 
   testWidgets('ohne Verbrauch und Preise bleiben Fahrten und Muster', (

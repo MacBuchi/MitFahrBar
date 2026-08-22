@@ -6,7 +6,11 @@
 /// greift bei *Weitergabe* — und die Zusage des Projekts lautet, dass es
 /// keine gibt: Die Werte bleiben in der Gruppendatenbank. Bisher stand das
 /// als Satz in README und CLAUDE.md und war von nichts erzwungen; hier
-/// stehen die vier Tatsachen, auf denen er ruht.
+/// stehen die Tatsachen, auf denen er ruht.
+///
+/// Seit dem Abschalten des Live-Takts sind es drei statt vier: Die
+/// Rohschicht `price_sample` gibt es nicht mehr, und mit ihr fällt der
+/// Punkt, der sie unerreichbar hielt.
 ///
 /// Begründung im Ganzen: `doc/entscheidung-preisarchiv-lizenz.md`.
 library;
@@ -38,32 +42,20 @@ void main() {
 
   group('Preisarchiv: CC BY-NC-SA', () {
     // ------------------------------------------------------------ Rohschicht
-    test('price_sample ist für Clients gar nicht erreichbar', () {
+    // Die Rohschicht `price_sample` ist mit dem Live-Takt gefallen
+    // (Migration 20260822020000). Sie war der Teil, der dem Archiv am
+    // nächsten lag; ihr Wegfall macht die Zusage nicht schwächer, sondern
+    // kürzer: Es gibt ab hier nur noch EINE Preisschicht, und für die gilt
+    // der Riegel unten. Der Test hält fest, dass sie nicht zurückkommt —
+    // eine wiederbelebte Rohschicht bräuchte ihre eigenen Rücknahmen, und
+    // die vergisst man genau dann.
+    test('es gibt keine zweite Preisschicht mehr', () {
       expect(
         sql,
-        contains('revoke all on public.price_sample from anon, authenticated;'),
+        isNot(contains('public.price_sample')),
         reason:
-            'Die Rohschicht liegt dem Archiv am nächsten. Der Sammel-Grant '
-            'weiter oben gibt jeder Tabelle select/insert/update/delete — '
-            'ohne diese Rücknahme steht sie jedem angemeldeten Client offen.',
-      );
-      expect(
-        RegExp(
-          r'^grant .* on public\.price_sample ',
-          multiLine: true,
-        ).hasMatch(sql),
-        isFalse,
-        reason:
-            'price_sample bekommt nach der Rücknahme nichts zurück. Sie ist '
-            'Zwischenprodukt des Verdichtungslaufs; für einen Client gibt es '
-            'darin nichts zu suchen.',
-      );
-      expect(
-        RegExp(r'create policy \w+ on public\.price_sample').hasMatch(sql),
-        isFalse,
-        reason:
-            'Null Policies wie bei push_outbox — der Riegel darf nicht daran '
-            'hängen, dass niemand später eine ergänzt.',
+            'Käme sie zurück, käme der Live-Takt mit ihr — und mit ihm die '
+            'Grenze, an der das System zuerst gebrochen wäre.',
       );
     });
 
@@ -134,7 +126,7 @@ void main() {
       final blanket = lineOf('on all tables in schema public to anon');
       expect(blanket, isNot(-1), reason: 'Sammel-Grant nicht gefunden');
 
-      for (final table in ['price_sample', 'price_week']) {
+      for (final table in ['price_week']) {
         expect(
           lineOf('revoke all on public.$table from anon, authenticated;'),
           greaterThan(blanket),

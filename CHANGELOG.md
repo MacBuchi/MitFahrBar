@@ -4,6 +4,28 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.86.0] – 2026-08-22
+
+### Geändert
+
+- **Die Spritpreise kommen jetzt vollständig aus dem Preisarchiv.** Bisher
+  fragte MitFahrBar dreimal täglich die aktuellen Preise eurer Region ab und
+  verdichtete sie am Wochenende zu einem Wochenwert. Das war die Stelle, an
+  der die App als Erstes an eine Grenze gelaufen wäre: Der Anbieter erlaubt
+  eine Abfrage pro Minute und Zugang und bittet ausdrücklich darum, für
+  regelmäßige Auswertungen das Archiv statt der Live-Abfrage zu benutzen.
+  Genau das tut sie jetzt.
+
+  **Für euch ändert sich an den Zahlen nichts** — die Wochenwerte werden
+  seit jeher nach derselben Regel gerechnet, egal aus welcher Quelle. Der
+  einzige Unterschied: Die **laufende** Woche bekommt ihren Wert erst, wenn
+  sie vorbei ist; bis dahin zeigt die Kurve wie bei jeder anderen Lücke den
+  zuletzt bekannten Preis.
+
+- **Der Knopf „Jetzt abfragen" auf dem Preis-Schirm ist weg.** Er hätte nur
+  noch Zwischendaten gesammelt, die niemand mehr auswertet — also sichtbar
+  nichts mehr getan. Region einrichten und ändern geht unverändert.
+
 ## [0.85.0] – 2026-08-20
 
 ### Neu
