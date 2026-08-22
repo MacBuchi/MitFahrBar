@@ -96,16 +96,6 @@ verify_jwt = false
 [functions.flush-push]
 verify_jwt = false
 
-# Wieder ohne JWT-Prüfung, aus demselben Grund: Der Abtast-Takt kommt aus der
-# Datenbank (pg_cron → pg_net) und hat keines; Ausweis ist der Header
-# `x-fuel-secret`. Der zweite Aufrufer ist die App („Jetzt aktualisieren"),
-# und für die prüft die Function das Nutzer-JWT selbst über die RLS — sie
-# bekommt dann nur die Region der eigenen Gruppe. Ohne den Eintrag hier
-# deployt die GitHub-Integration die Function nicht, und der Takt liefe ins
-# Leere, ohne dass irgendwo ein Fehler auftaucht.
-[functions.fuel-sample]
-verify_jwt = false
-
 # Hier dagegen MIT JWT-Prüfung: Es gibt keinen Aufrufer aus der Datenbank,
 # und der Endpunkt befragt einen Fremddienst (Nominatim). Ohne die Prüfung
 # wäre er ein offener Geokodierer auf fremde Kosten. Dass der anon-Key selbst

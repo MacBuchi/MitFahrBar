@@ -8,7 +8,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mitfahrbar/data/price_repository.dart';
 import 'package:mitfahrbar/data/providers.dart';
 import 'package:mitfahrbar/models/price_area.dart';
 
@@ -124,12 +123,18 @@ void main() {
     expect(find.text('Strom'), findsOneWidget);
   });
 
-  testWidgets('der Abfrage-Knopf meldet nur, was er geprüft hat', (
+  // Der Abfrage-Knopf ist mit dem Live-Takt gefallen. Zwei Tests standen
+  // hier: dass er nur meldet, was er geprüft hat, und dass ein geglückter
+  // Abruf die Zahl der Tankstellen nennt. Beide beschrieben einen Weg, den
+  // es nicht mehr gibt — die Wochenwerte kommen ausschließlich aus dem
+  // Archiv, ein Abruf hätte nur noch eine Rohschicht gefüllt, die niemand
+  // mehr verdichtet. Ein Knopf, der sichtbar nichts tut, ist genau die
+  // Klasse, vor der die alten Tests gewarnt haben.
+  testWidgets('kein Abfrage-Knopf mehr — und der Schirm steht trotzdem', (
     tester,
   ) async {
     final (:backend, :group) = _backend();
-    final prices = FakePriceRepository(backend)
-      ..next = const SampleResult(stored: 0, failed: true);
+    final prices = FakePriceRepository(backend);
     prices.areas[group] = const PriceArea(
       label: 'Bad Rappenau',
       lat: 49.24,
@@ -143,40 +148,17 @@ void main() {
     await _login(tester);
     await _open(tester);
 
-    // Getippt, nicht nur gefunden: Ein Test, der die Sichtbarkeit prüft,
-    // hätte den toten Update-Knopf aus 0.37.0 auch durchgelassen.
-    await tester.tap(find.text('Jetzt abfragen'));
-    await tester.pumpAndSettle();
-
-    expect(prices.samples, 1);
     expect(
-      find.text('Die Preise konnten gerade nicht abgefragt werden.'),
-      findsOneWidget,
+      find.text('Jetzt abfragen'),
+      findsNothing,
+      reason:
+          'Er kann nichts mehr bewirken: Es gibt keinen Verdichter, der aus '
+          'einer Stichprobe einen Wochenwert macht.',
     );
-  });
-
-  testWidgets('ein geglückter Abruf nennt die Zahl der Tankstellen', (
-    tester,
-  ) async {
-    final (:backend, :group) = _backend();
-    final prices = FakePriceRepository(backend)
-      ..next = const SampleResult(stored: 93, failed: false);
-    prices.areas[group] = const PriceArea(
-      label: 'Bad Rappenau',
-      lat: 49.24,
-      lng: 9.1,
-    );
-    await pumpApp(
-      tester,
-      backend,
-      overrides: [priceRepositoryProvider.overrideWithValue(prices)],
-    );
-    await _login(tester);
-    await _open(tester);
-
-    await tester.tap(find.text('Jetzt abfragen'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('93 Tankstellen'), findsOneWidget);
+    // Und der Schirm zeigt weiter, wofür er da ist — sonst prüfte der Test
+    // nur, dass die Seite kaputt ist.
+    expect(find.text('Bad Rappenau'), findsOneWidget);
+    expect(find.textContaining('Umkreis 20 km'), findsOneWidget);
+    expect(find.text('Kraftstoff'), findsOneWidget);
   });
 }

@@ -242,7 +242,13 @@ void main() {
       );
     });
 
-    test('die Stichzeiten des Imports sind die der Cron-Zeile', () {
+    // Der Live-Takt ist abgeschaltet — und genau deshalb bleibt seine
+    // Cron-Zeile der richtige Anker: Die Wochenwerte, die bereits in
+    // `price_week` stehen, sind mit DIESEN Stichzeiten entstanden. Wer die
+    // Zeiten im Import ändert, verschiebt die Naht zwischen alten und neuen
+    // Zeilen und erzeugt eine Stufe, die keine Preisänderung ist. Die
+    // Migration wird nie umgeschrieben, taugt hier also als Geschichte.
+    test('die Stichzeiten des Imports sind die des früheren Takts', () {
       final migration = File(
         'supabase/migrations/20260802110000_fuel_sample_cron.sql',
       ).readAsStringSync();
@@ -264,9 +270,10 @@ void main() {
         times.map((t) => t[0]).toList(),
         hours,
         reason:
-            'pg_cron rechnet in UTC — der Live-Takt tastet im Winter also '
-            'eine Stunde früher ab als im Sommer. Feste ORTSZEITEN im Import '
-            'wären der naheliegende, aber falsche Griff: Sie stellten im '
+            'pg_cron rechnete in UTC — der Takt tastete im Winter also '
+            'eine Stunde früher ab als im Sommer, und die gespeicherten '
+            'Werte tragen das. Feste ORTSZEITEN im Import wären der '
+            'naheliegende, aber falsche Griff: Sie stellten im '
             'Winterhalbjahr eine andere Frage als die gemessene. Genau die '
             'Stufe, die dieses ganze Vorgehen vermeiden soll.',
       );

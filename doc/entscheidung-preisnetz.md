@@ -77,22 +77,19 @@ liefert, wäre kein Fortschritt.
 `--max-weeks` zählt seither **geladene Wochen** statt Gebiet-mal-Woche —
 also das, was wirklich Geld und Zeit kostet.
 
-## Was das NICHT löst
+## Was das nicht löste — und was einen Tag später fiel
 
-**Tankerkönigs Minutenlimit** (`doc/finanzierung-und-skalierung.md` §1). Der
-Live-Takt fragt je Gebiet dreimal täglich ab, gedeckelt auf fünf Gebiete je
-Lauf — und Tankerkönig sagt selbst, dass regelmäßige, nicht vom Nutzer
-ausgelöste Abfragen zu vermeiden sind und flächendeckende Abfragen ein
-Sperrgrund sind. Das bleibt die härteste Grenze, und sie ist **nicht** mit
-einer Schleifenumkehr zu beheben, sondern nur damit, den geplanten Takt
-abzuschaffen und die Wochenwerte ausschließlich aus dem Archiv zu nehmen.
-Das ist der nächste Schritt, nicht dieser.
+Beim Schreiben dieses Dokuments blieb **Tankerkönigs Minutenlimit** offen:
+Der Live-Takt fragte je Gebiet dreimal täglich ab, gedeckelt auf fünf
+Gebiete je Lauf, und der Deckel schnitt ohne Sortierung und ohne Cursor ab —
+ab dem sechsten Gebiet wäre dauerhaft dasselbe leer ausgegangen.
 
-Nebenbefund für denselben Schritt: `MAX_REGIONS_PER_RUN = 5` schneidet
-**ohne Sortierung und ohne Cursor** ab (`supabase/functions/fuel-sample/index.ts`).
-„Vertagt" wird nichts — ab dem sechsten Gebiet ginge dasselbe dauerhaft leer
-aus. Heute folgenlos (zwei Gebiete), mit dem Abschalten des Takts erledigt
-sich der Fall, statt repariert zu werden.
+**Erledigt mit v0.86.0:** Der geplante Takt ist abgeschaltet, die
+Wochenwerte kommen ausschließlich aus dem Archiv (Migration
+20260822020000). Es ging folgenlos, weil der Nachfüller von Anfang an
+dieselbe Kennzahl rechnete — genau dafür war die Deckungsgleichheit gebaut.
+Der API-Schlüssel bleibt liegen: Ein späterer Tankdaumen ist eine
+Nutzeraktion und damit die Nutzung, um die Tankerkönig bittet.
 
 ## Wer das Raster wieder vorschlägt
 

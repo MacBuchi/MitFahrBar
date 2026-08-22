@@ -43,19 +43,34 @@ läuft der wöchentliche verschlüsselte Dump (`.github/workflows/backup.yml`,
 
 ## Was zuerst bricht — in dieser Reihenfolge
 
-### 1. Tankerkönigs Minutenlimit. Und Geld löst es nicht.
+### 1. Tankerkönigs Minutenlimit — erledigt mit v0.86.0
 
-Das ist die schärfste Grenze im ganzen System, und sie ist keine Kostengrenze.
+**Nachtrag 2026-08-22:** Der geplante Live-Takt ist abgeschaltet; die
+Wochenwerte kommen ausschließlich aus dem Archiv (Migration
+20260822020000_retire_live_fuel_tick.sql). Damit ist die schärfste Grenze
+dieses Dokuments keine mehr — es gibt keinen regelmäßigen Abruf, also auch
+kein Minutenlimit, das er reißen könnte. Weder ein zweiter Schlüssel noch
+ein kommerzieller Vertrag wird dafür gebraucht; beide Fragen sind vom Tisch.
+
+Der Abschnitt bleibt als Beschreibung dessen stehen, was gebrochen wäre —
+und weil eine Zeile darin die Klasse Fehler zeigt, die man nur im Wachstum
+bemerkt: Der Deckel `MAX_REGIONS_PER_RUN = 5` schnitt **ohne Sortierung und
+ohne Cursor** ab. „Vertagt" wurde nichts; ab dem sechsten Gebiet wäre
+dauerhaft dasselbe leer ausgegangen, ohne dass irgendwo etwas rot wird.
+
+Was der Takt war:
+
+Das war die schärfste Grenze im ganzen System, und sie war keine Kostengrenze.
 
 Die Nutzungsbedingungen nennen **eine Abfrage je Minute je Schlüssel** — das
 Limit hängt am Schlüssel, nicht am Gerät. `supabase/functions/fuel-sample/`
-setzt das um: `MAX_REGIONS_PER_RUN = 5` und `REGION_GAP_MS = 61_000`, also
+setzte das um: `MAX_REGIONS_PER_RUN = 5` und `REGION_GAP_MS = 61_000`, also
 fünf Regionen nacheinander mit 61 Sekunden Abstand, rund vier Minuten
 Laufzeit je Aufruf, bei drei Läufen pro Tag (`sample-fuel-prices`,
 `5 5,11,17 * * *`).
 
 Solange mehrere Gruppen im selben Gebiet fahren, kostet das nichts extra —
-`fuel-sample` entdoppelt über `price_area.region_key`, zwei Gruppen in
+`fuel-sample` entdoppelte über `price_area.region_key`, zwei Gruppen in
 derselben Region teilen sich einen Abruf. **Die Grenze ist die Zahl
 verschiedener Regionen, nicht die Zahl der Gruppen.** Ab etwa fünf
 unterschiedlichen Gebieten bricht der Lauf ab und vertagt den Rest; ab etwa
@@ -84,12 +99,15 @@ der ohne Gegenmaßnahme prinzipiell unbegrenzt wächst.
 
 **Erledigt seit v0.84.1:** `prune_push_log()` löscht täglich Zeilen, deren
 `plan_date` mehr als 90 Tage zurückliegt — dasselbe Muster, das
-`rollup-fuel-weeks` für `price_sample` schon fährt (21 Tage). Warum das
+`rollup-fuel-weeks` für `price_sample` fuhr (21 Tage), bevor beide mit dem
+Live-Takt fielen. Warum das
 nichts erneut auslösen kann, steht in der Migration
 (`20260817220000_push_log_retention.sql`); `test/schema_test.dart` hält
 Funktion, Cron-Job und Grenze fest. Damit ist von der ursprünglichen
 Bruchliste dieses Dokuments nichts mehr offen, was im Repo lösbar wäre —
-übrig bleiben die Tankerkönig-Fragen (§1) und die Lizenzentscheidung.
+übrig blieben die Tankerkönig-Fragen (§1) und die Lizenzentscheidung.
+**Die Tankerkönig-Fragen sind seit v0.86.0 ebenfalls erledigt** (siehe §1);
+offen ist damit allein die Lizenzentscheidung.
 
 ### 3. Datenbankgröße
 
@@ -97,8 +115,8 @@ Der Rest ist gutmütig. Je Gruppe und Jahr grob: ~200–250 `trips`,
 ~600–1.200 `trip_participations`, ~1.000 `plan_availability`, 156
 `price_week`. `push_outbox` wird bei jedem Veröffentlichen vor `keep_from`
 geleert, bleibt also am Planungshorizont hängen statt zu wachsen.
-`price_sample` ist regionsgebunden statt gruppengebunden und wird nach 21
-Tagen gelöscht.
+`price_sample` gibt es seit v0.86.0 nicht mehr — die einzige Preisschicht
+ist `price_week`.
 
 Das heißt: **Zeilen je Gruppe sind kein Problem; `push_log` war das eine,
 das keins bleiben durfte** — und steht deshalb eine Stufe höher, samt
@@ -122,8 +140,9 @@ HTTP-Aufruf nicht, ob etwas fällig ist. Beides stimmt nicht:
 
 Nachgemessen: `push_outbox` (80 Zeilen) trägt ~62.000 Seq-Scans — die
 Prüfung läuft minütlich, lokal, und ist auf Tabellen dieser Größe gratis.
-Ins Edge-Kontingent gehen nur die tatsächlichen Fälligkeits-Minuten plus
-`fuel-sample` (3 Aufrufe am Tag) — zusammen weit unter 1 % der 500.000.
+Ins Edge-Kontingent gehen nur die tatsächlichen Fälligkeits-Minuten — weit
+unter 1 % der 500.000. Der Abtast-Takt (3 Aufrufe am Tag) ist seit v0.86.0
+weg.
 
 Egress ist unkritisch: Die App überträgt JSON-Zeilen, der einzige große
 Datenstrom ist der Nachfüll-Lauf des Preisarchivs (~30 MB je Tagesdatei), und
@@ -146,7 +165,7 @@ Die Spritpreise kommen aus **zwei Quellen mit zwei verschiedenen Lizenzen**:
 
 | Quelle | Was | Lizenz | Kommerziell? |
 | --- | --- | --- | --- |
-| Tankerkönig-**API** (`fuel-sample`) | laufende Wochen | CC BY 4.0 | **ja**, mit Namensnennung |
+| Tankerkönig-**API** (bis v0.86.0 abgefragt) | Bestand mit `origin = 'measured'` | CC BY 4.0 | **ja**, mit Namensnennung |
 | Tankerkönig-**Preisarchiv** (`tool/import_fuel_history.py`) | zurückliegende Wochen | **CC BY-NC-SA 4.0** | **nein** |
 
 `doc/entscheidung-preisarchiv-lizenz.md` hat das bereits festgehalten und
@@ -199,8 +218,8 @@ womöglich auch das Minutenlimit; **beides in einem Gespräch klären.**
 
 ShareAlike greift bei **Weitergabe**. Dass sie heute nicht bindet, ist keine
 Eigenschaft der Lizenz, sondern des Codes: Die abgeleiteten Wochenwerte
-verlassen die Gruppendatenbank nicht. Deshalb hat `price_sample` `revoke all`,
-`price_week` nur Select mit RLS, und der CSV-Export deckt Fahrten und Personen
+verlassen die Gruppendatenbank nicht. Deshalb hat `price_week` nur Select
+mit RLS auf die eigene Gruppe, und der CSV-Export deckt Fahrten und Personen
 ab, **aber keine Preise**.
 
 **Der fehlende Preis-Export ist ein Lizenzmerkmal, keine Bequemlichkeit.**
@@ -274,6 +293,6 @@ Abgerufen am 2026-08-17.
 
 - [Tankerkönig: CC-BY-4.0 für die Live-API, BY-NC-SA-4.0 für das Archiv](https://creativecommons.tankerkoenig.de/)
 - Repo-intern: `doc/entscheidung-preisarchiv-lizenz.md`,
-  `tool/import_fuel_history.py`, `supabase/functions/fuel-sample/index.ts`,
+  `tool/import_fuel_history.py`, `doc/entscheidung-preisnetz.md`,
   `supabase/schema.sql`, `doc/play-console.md`, `README.md` §Lizenz
 - Plattformpreise und rechtlicher Rahmen: `doc/finanzierung-plattformvergleich.md`

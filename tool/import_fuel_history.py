@@ -148,6 +148,13 @@ KEYFILE = pathlib.Path.home() / 'mitfahrbar-keys' / 'Tankerkoenig_Archiv.txt'
 # (06:05/12:05/18:05 statt 07:05/13:05/19:05). Feste Ortszeiten im Import
 # ergaeben also genau im Winterhalbjahr eine andere Frage als die gemessene
 # -- die Stufe an der Naht, die dieses ganze Vorgehen vermeiden soll.
+# **Seit dem Abschalten des Live-Takts sind sie eine Konvention, kein
+# Spiegel.** Sie bleiben, weil die bereits gespeicherten Wochenwerte mit
+# genau dieser Stichprobe entstanden sind: Wer sie aendert, verschiebt die
+# Naht zwischen alten und neuen Zeilen und erzeugt eine Stufe, die keine
+# Preisaenderung ist. Das Archiv haette mehr herzugeben (es kennt JEDE
+# Preisaenderung) -- dieselbe Frage neu zu stellen, hiesse die ganze
+# Historie neu zu rechnen.
 SAMPLE_TIMES_UTC = (dt.time(5, 5), dt.time(11, 5), dt.time(17, 5))
 SERIES = ('diesel', 'e5', 'e10')
 
@@ -161,8 +168,8 @@ MIN_COVERAGE = 0.60
 
 # Umkreis einer Region, wenn keiner aus der Datenbank kommt -- der Messmodus
 # rechnet mit ihm. Muss zu `defaultRadiusKm` in lib/models/price_area.dart
-# passen (der Screen bietet nichts anderes an) und zu MAX_RADIUS_KM in
-# supabase/functions/fuel-sample/.
+# passen (der Screen bietet nichts anderes an); der frueher hier genannte
+# Deckel der Abtast-Function ist mit dem Live-Takt weggefallen.
 DEFAULT_RADIUS_KM = 20.0
 
 # Vor Mitte 2014 gibt es das Archiv nicht. Ohne diese Grenze liefe der Job

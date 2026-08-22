@@ -856,41 +856,37 @@ void main() {
   // Preisarchiv. Zwei Riegel und eine bewusste Ausnahme von der
   // group_id-Regel, die ohne Test wie ein Versehen aussieht.
   group('Preisarchiv', () {
-    test('die Rohschicht hängt an der Region, nicht an der Gruppe', () {
-      expect(
-        primaryKeyOf('price_sample').replaceAll(RegExp(r'\s'), ''),
-        'region_key,captured_at,station_id',
-        reason:
-            'Bewusste Ausnahme von der group_id-Regel: In price_sample '
-            'stehen keine Gruppendaten, sondern öffentliche Marktdaten. '
-            'An der Region statt an der Gruppe hängt sie, damit zwei '
-            'Gruppen derselben Gegend EINE Abfrage teilen — und damit ein '
-            'späterer Tankdaumen eine Abfrage bleibt statt eines Umbaus.',
-      );
-    });
-
-    test('die Rohschicht hat RLS an und bewusst keine einzige Policy', () {
-      expect(
-        schema,
-        contains('alter table public.price_sample enable row level security'),
-        reason: 'Ohne RLS läse jeder authenticated die Rohschicht.',
-      );
-      expect(
-        RegExp(r'create policy \w+ on public\.price_sample').hasMatch(schema),
-        isFalse,
-        reason:
-            'Kein Client liest die Rohschicht je — gruppensichtbar ist '
-            'allein price_week. Eine SELECT-Policy hier, und sei es „nur '
-            'zum Debuggen", macht aus dem Riegel eine Absichtserklärung.',
-      );
-      expect(
-        sqlOnly(schema),
-        contains('revoke all on public.price_sample from anon, authenticated'),
-        reason:
-            'Der Sammel-Grant gibt Rechte auf JEDE Tabelle. Ohne die '
-            'Rücknahme hinge der Riegel allein daran, dass niemand später '
-            'eine Policy ergänzt — dieselbe Begründung wie bei push_outbox.',
-      );
+    // Der Live-Takt ist abgeschaltet (Migration
+    // 20260822020000_retire_live_fuel_tick.sql): Tankerkönig deckelt je
+    // Schlüssel auf eine Abfrage je Minute und nennt regelmäßige, nicht vom
+    // Nutzer ausgelöste Abfragen als Sperrgrund. Damit fallen Rohschicht,
+    // Verdichter und Abtast-Funktion — die Wochenwerte kommen aus dem
+    // Archiv. Der Test hält fest, dass sie nicht zurückkommen: Ein
+    // wiederbelebter Takt fiele erst auf, wenn der Schlüssel gesperrt ist.
+    test('Rohschicht, Verdichter und Abtast-Takt sind weg', () {
+      for (final gone in [
+        'public.price_sample',
+        'public.rollup_fuel_weeks',
+        'public.sample_fuel_prices',
+      ]) {
+        expect(
+          sqlOnly(schema),
+          isNot(contains(gone)),
+          reason:
+              '$gone gehört zum abgeschalteten Live-Takt. Wer ihn '
+              'zurückholt, holt die Grenze zurück, an der das System '
+              'zuerst gebrochen wäre — und zwar still: Der Deckel schnitt '
+              'ohne Sortierung ab, ab dem sechsten Gebiet ginge dauerhaft '
+              'dasselbe leer aus.',
+        );
+      }
+      for (final job in ['sample-fuel-prices', 'rollup-fuel-weeks']) {
+        expect(
+          sqlOnly(schema),
+          isNot(contains(job)),
+          reason: 'Der Zeitplan $job darf nicht wieder eingeplant werden.',
+        );
+      }
     });
 
     test('die Wochenwerte darf ein Client nur lesen', () {
@@ -982,123 +978,55 @@ void main() {
       );
     });
 
-    test('der Abtast-Takt hat ein eigenes Job-Geheimnis', () {
-      final function = RegExp(
-        r'create or replace function public\.sample_fuel_prices\(\)(.*?)\n\$\$;',
-        dotAll: true,
-      ).firstMatch(schema);
-      expect(function, isNotNull, reason: 'sample_fuel_prices fehlt.');
-      final body = sqlOnly(function!.group(1)!);
-      expect(
-        body,
-        contains("name = 'fuel_job_secret'"),
-        reason:
-            'Eigenes Geheimnis statt push_job_secret: Ein Leck im Push-Weg '
-            'soll nicht auch den Abtast-Endpunkt öffnen.',
-      );
-      expect(
-        body,
-        isNot(contains('push_job_secret')),
-        reason: 'Sonst hängen beide Wege an einem Wert.',
-      );
-      expect(
-        body,
-        contains('vault.decrypted_secrets'),
-        reason:
-            'Zugangsdaten aus dem Vault, nicht aus einer Tabelle — sonst '
-            'stehen sie in jedem Datenbank-Abzug im Klartext.',
-      );
-    });
-
-    test('das Perzentil heißt in SQL wie in Dart', () {
+    test('das Perzentil steht nur noch in Dart und Python', () {
       final dart = File('lib/core/price_series.dart').readAsStringSync();
       final constant = RegExp(
         r'const double defaultPercentile = ([0-9.]+);',
       ).firstMatch(dart);
       expect(constant, isNotNull, reason: 'defaultPercentile fehlt in Dart.');
-      final fraction = double.parse(constant!.group(1)!);
-      expect(fraction, 0.10);
+      expect(double.parse(constant!.group(1)!), 0.10);
 
+      // Bis zum Abschalten des Live-Takts gab es die Definition DREIMAL:
+      // in Dart, in Python und in `rollup_fuel_weeks()`. Mit dem Verdichter
+      // fällt die dritte weg — eine Stelle weniger, an der dieselbe Zahl
+      // auseinanderlaufen kann. Dass Dart und Python zusammenbleiben,
+      // prüft test/fuel_history_workflow_test.dart.
       expect(
         sqlOnly(schema),
-        contains(
-          'percentile_cont(${fraction.toStringAsFixed(2)}) within group',
-        ),
+        isNot(contains('percentile_cont')),
         reason:
-            'Der Verdichtungslauf rechnet in SQL, der spätere Import der '
-            'Vergangenheit in Python, das Zusammenführen in Dart — EINE '
-            'Implementierung ist nicht zu haben, EINE Definition schon. '
-            'Driften die Zahlen auseinander, entsteht an der Naht zwischen '
-            'importierter und gemessener Woche eine Stufe, die keine '
-            'Preisänderung ist, und niemand könnte sie erklären. Dasselbe '
-            'Muster wie beim Push-Digest.',
+            'Ein zweiter Verdichter in SQL wäre die zweite Wahrheit über '
+            'denselben Wochenwert — und der Unterschied fiele erst als '
+            'Stufe im Diagramm auf, die keine Preisänderung ist.',
       );
     });
 
-    test('die Verdichtung rechnet die Woche in deutscher Zeit', () {
-      final function = RegExp(
-        r'create or replace function public\.rollup_fuel_weeks\(\)(.*?)\n\$\$;',
-        dotAll: true,
-      ).firstMatch(schema);
-      expect(function, isNotNull, reason: 'rollup_fuel_weeks fehlt.');
-      final body = sqlOnly(function!.group(1)!);
-      expect(
-        RegExp(r'isoyear from .*Europe/Berlin').hasMatch(body),
-        isTrue,
-        reason:
-            'Eine Messung Sonntag 23:30 UTC ist in Deutschland schon Montag '
-            'und gehört in die Folgewoche. In UTC gerechnet landete sie in '
-            'der falschen — und die Abtastzeiten sind eine Cron-Zeile, die '
-            'irgendwann jemand ändert.',
-      );
-      expect(
-        body,
-        contains('delete from public.price_sample'),
-        reason:
-            'Die Rohschicht ist Zwischenprodukt, kein Archiv — ohne das '
-            'Aufräumen wächst sie unbegrenzt weiter.',
-      );
-    });
+    test(
+      'die Ortssuche verlangt ein JWT — und Abtasten gibt es nicht mehr',
+      () {
+        final config = File('supabase/config.toml').readAsStringSync();
+        final geocode = RegExp(
+          r'\[functions\.geocode-place\]\s*\nverify_jwt = (\w+)',
+        ).firstMatch(config);
+        expect(
+          geocode?.group(1),
+          'true',
+          reason:
+              'Für die Ortssuche gibt es keinen Aufrufer aus der Datenbank, '
+              'und sie befragt einen Fremddienst auf fremde Kosten. Ohne '
+              'Prüfung wäre sie ein offener Geokodierer.',
+        );
 
-    test('die Ortssuche verlangt ein JWT, das Abtasten nicht', () {
-      final config = File('supabase/config.toml').readAsStringSync();
-      final geocode = RegExp(
-        r'\[functions\.geocode-place\]\s*\nverify_jwt = (\w+)',
-      ).firstMatch(config);
-      expect(
-        geocode?.group(1),
-        'true',
-        reason:
-            'Für die Ortssuche gibt es keinen Aufrufer aus der Datenbank, '
-            'und sie befragt einen Fremddienst auf fremde Kosten. Ohne '
-            'Prüfung wäre sie ein offener Geokodierer.',
-      );
-
-      final sample = RegExp(
-        r'\[functions\.fuel-sample\]\s*\nverify_jwt = (\w+)',
-      ).firstMatch(config);
-      expect(
-        sample?.group(1),
-        'false',
-        reason:
-            'Der Abtast-Takt kommt aus der Datenbank (pg_cron → pg_net) '
-            'und hat kein JWT. Auf true stünde er still, ohne dass '
-            'irgendwo ein Fehler auftaucht — die Antwort landet nur in '
-            'net._http_response.',
-      );
-    });
-
-    test('die Function ist in config.toml deklariert', () {
-      final config = File('supabase/config.toml').readAsStringSync();
-      expect(
-        config,
-        contains('[functions.fuel-sample]'),
-        reason:
-            'Die GitHub-Integration deployt die in config.toml deklarierten '
-            'Functions. Ohne den Eintrag liefe der Takt ins Leere, ohne dass '
-            'irgendwo ein Fehler auftaucht.',
-      );
-    });
+        expect(
+          config,
+          isNot(contains('fuel-sample')),
+          reason:
+              'Die Abtast-Function ist mit dem Live-Takt gefallen. Ein '
+              'deklarierter Eintrag ohne Verzeichnis ließe die '
+              'GitHub-Integration bei jedem Push ins Leere greifen.',
+        );
+      },
+    );
   });
 
   test('app_config ist für Clients nur lesbar', () {
