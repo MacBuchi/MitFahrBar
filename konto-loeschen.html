@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Konto und Gruppe löschen — MitFahrBar</title>
+<style>
+  :root {
+    --ground: #F5F8F8;
+    --surface: #FFFFFF;
+    --sunk: #ECF1F1;
+    --ink: #17211F;
+    --muted: #55625F;
+    --faint: #7B8683;
+    --rule: #DAE3E2;
+    --teal: #14595F;
+    --warn: #9A4419;
+    --warn-soft: #F8E8DF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101615;
+      --surface: #18201F;
+      --sunk: #141B1A;
+      --ink: #E6ECEA;
+      --muted: #9EAAA7;
+      --faint: #7E8A87;
+      --rule: #2A3433;
+      --teal: #6BB8BC;
+      --warn: #DE9163;
+      --warn-soft: #2A1C14;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 17px;
+  }
+  main { max-width: 42rem; margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+  h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.2rem; margin: 2.5rem 0 .75rem; }
+  p, li { color: var(--muted); }
+  p { margin: 0 0 1rem; }
+  strong { color: var(--ink); }
+  a { color: var(--teal); }
+  .stand { color: var(--faint); font-size: .9rem; margin-bottom: 2rem; }
+  ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+  ol li { margin-bottom: .6rem; }
+  ul { padding-left: 1.2rem; margin: 0 0 1rem; }
+  ul li { margin-bottom: .4rem; }
+  .box {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--teal); border-radius: 0 8px 8px 0;
+    padding: 1rem 1.15rem; margin: 1.25rem 0;
+  }
+  .box.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .box p:last-child, .box ul:last-child { margin-bottom: 0; }
+  footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--faint); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Konto und Gruppe löschen</h1>
+<p class="stand">MitFahrBar · Stand: 12. August 2026</p>
+
+<p>
+  MitFahrBar kennt zwei Arten von Zugängen, und sie werden unterschiedlich
+  gelöscht. Welcher davon deiner ist, erkennst du daran, womit du dich
+  anmeldest.
+</p>
+
+<h2>1. Du meldest dich mit einem Gruppen-Handle an</h2>
+<p>
+  Dann benutzt du den <strong>gemeinsamen Zugang deiner Fahrgemeinschaft</strong>.
+  Ein solcher Zugang gehört nicht dir allein, sondern der ganzen Gruppe — er
+  lässt sich deshalb nicht einzeln löschen.
+</p>
+<p>
+  Wende dich an den Verwalter deiner Gruppe. Er kann Mitglieder auf inaktiv
+  setzen oder die Gruppe vollständig löschen. Kommst du dort nicht weiter,
+  schreib an die Adresse unten.
+</p>
+
+<h2>2. Du meldest dich mit einer E-Mail-Adresse an</h2>
+<p>
+  Dann hast du ein <strong>Verwalter-Konto</strong> und kannst deine Gruppen
+  selbst löschen:
+</p>
+<ol>
+  <li>
+    Öffne die Verwalter-Konsole:
+    <a href="https://macbuchi.github.io/MitFahrBar/#/console">macbuchi.github.io/MitFahrBar/#/console</a>
+    — das geht im Browser, ganz ohne installierte App.
+  </li>
+  <li>Melde dich mit deiner E-Mail-Adresse und deinem Passwort an.</li>
+  <li>Klapp die gewünschte Gruppe auf und wähle <strong>„Gruppe löschen …"</strong>.</li>
+  <li>Bestätige mit deinem Passwort.</li>
+</ol>
+
+<div class="box warn">
+  <p><strong>Was dabei sofort und unwiderruflich verschwindet:</strong></p>
+  <ul>
+    <li>der Zugang der Gruppe</li>
+    <li>alle Mitglieder samt Fahrzeugangaben</li>
+    <li>alle Fahrten und Teilnahmen — und damit die gesamte Statistik</li>
+    <li>die Wochenplanung, Anmerkungen, Abfahrtszeiten und Treffpunkte</li>
+    <li>die Benachrichtigungs-Einstellungen und Gerätekennungen</li>
+  </ul>
+  <p>
+    Es gibt keine Karenzzeit und keinen Papierkorb. Wenn ihr die Fahrten
+    behalten wollt, exportiert sie vorher in der App als CSV-Datei.
+  </p>
+</div>
+
+<div class="box">
+  <p>
+    <strong>Dein Verwalter-Konto selbst bleibt bestehen</strong>, auch wenn du
+    seine letzte Gruppe löschst — ein Konto kann mehrere Gruppen verwalten,
+    und ein Selbst-Löschen würde die übrigen mitnehmen. Soll auch das Konto
+    weg, schreib an die Adresse unten; die Löschung erfolgt dann von Hand.
+  </p>
+</div>
+
+<h2>Einzelne Person entfernen</h2>
+<p>
+  Wer nicht mehr mitfährt, wird in der App unter „Personen" auf
+  <strong>inaktiv</strong> gesetzt und taucht in Planung und Reihenfolge nicht
+  mehr auf. Der Eintrag bleibt bestehen, weil an ihm die vergangenen Fahrten
+  hängen: Würde er gelöscht, verschwänden auch diese Fahrten — und das
+  verschöbe rückwirkend den Punktestand aller anderen.
+</p>
+<p>
+  Soll eine Person vollständig aus den Daten verschwinden, geht das nur, indem
+  die Gruppe gelöscht wird, oder auf Anfrage an die Adresse unten.
+</p>
+
+<h2>Kontakt</h2>
+<p>
+  Marcus Bucher · <a href="mailto:macbuchi.apps@gmail.com">macbuchi.apps@gmail.com</a>
+</p>
+<p>
+  Anfragen zur Löschung werden zeitnah bearbeitet. Bitte schreib dazu, um
+  welche Gruppe oder welches Konto es geht.
+</p>
+
+<footer>
+  <p>
+    <a href="datenschutz.html">Datenschutzerklärung</a> ·
+    <a href="./">Zurück zu MitFahrBar</a>
+  </p>
+</footer>
+
+</main>
+</body>
+</html>
