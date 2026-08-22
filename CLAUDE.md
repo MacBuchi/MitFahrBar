@@ -1634,6 +1634,17 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     sich also auch dann, wenn sich am Code nichts geändert hat. Nur der Hash
     beweist, dass die neue Fassung läuft (belegt am 03.08.2026: flush-push
     v20 `ac1883b6…` → v21 `c55f5f69…`).
+    - **Umgekehrt gilt das NICHT: Eine Function aus `config.toml` zu
+      nehmen entfernt sie nicht vom Server.** Die Integration deployt, was
+      deklariert ist; sie räumt nicht ab, was fehlt. Nach dem Abschalten
+      des Live-Takts (v0.86.0) stand `fuel-sample` noch als ACTIVE in der
+      Liste — Code im Repo gelöscht, Eintrag entfernt, Endpunkt weiter
+      erreichbar, und zwar in einem Zustand, der schlechter ist als vorher:
+      Er hätte in eine gelöschte Tabelle geschrieben und dabei weiter
+      Tankerkönig-Kontingent verbraucht. Das Entfernen ist ein eigener,
+      **manueller** Schritt: `supabase functions delete <slug>
+      --project-ref <ref>`; danach `functions list` gegen `config.toml`
+      halten. Kein Test sieht das — die Liste steht nur auf dem Server.
   - **`tool/notify.dart` verschickt seit #132 nichts mehr — und seit dem
     30.07.2026 läuft es überhaupt nicht mehr.** Der Workflow
     „Push-Benachrichtigungen" steht auf `disabled_manually` (nachgemessen am
