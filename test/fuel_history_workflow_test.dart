@@ -18,6 +18,51 @@ void main() {
   ).readAsStringSync();
   final tool = File('tool/import_fuel_history.py').readAsStringSync();
 
+  group('Ein Download trägt alle Gebiete', () {
+    // Der teure Teil ist der Download (7 × ~30 MB je Woche), und er hing
+    // bis August 2026 am GEBIET statt an der Woche. Weil `region_key` auf
+    // ~1 km auflöst, hat praktisch jede Gruppe ihr eigenes Gebiet — der
+    // Aufwand wuchs also mit der Zahl der Gruppen. Zahlen und die
+    // verworfene Raster-Alternative: doc/entscheidung-preisnetz.md.
+    test('die Schleife dreht sich um die Woche, nicht um das Gebiet', () {
+      expect(
+        tool,
+        contains('def collect_weeks('),
+        reason:
+            'collect_weeks() ist die Umkehr: eine Woche einmal lesen, '
+            'daraus alle Mittelpunkte bedienen. Ohne sie zahlt jede '
+            'zusätzliche Gegend dieselben 210 MB noch einmal.',
+      );
+      expect(
+        tool,
+        contains('by_week'),
+        reason:
+            'Die Wochen müssen vor dem Laden gebündelt werden — sonst '
+            'nützt collect_weeks() nichts, weil jede Region einzeln '
+            'hineingeht.',
+      );
+    });
+
+    test('die Gleichwertigkeit hängt in der PR-CI, nicht nur im Werkzeug', () {
+      expect(
+        tool,
+        contains('def self_check('),
+        reason:
+            'Ein geteilter Download, der andere Wochenwerte liefert, wäre '
+            'kein Fortschritt, sondern eine stille Verschiebung der '
+            'Ersparnis aller Gruppen.',
+      );
+      expect(
+        File('.github/workflows/ci.yml').readAsStringSync(),
+        contains('import_fuel_history.py --self-check'),
+        reason:
+            'Die Prüfung braucht weder Netz noch Datenbank und gehört '
+            'deshalb in JEDE PR — im nächtlichen Job liefe sie erst, wenn '
+            'der Schaden schon in price_week steht.',
+      );
+    });
+  });
+
   group('Workflow und Werkzeug', () {
     test('der Lauf ruht, solange die Secrets fehlen', () {
       expect(workflow, contains(r'secrets.SUPABASE_SERVICE_ROLE_KEY'));

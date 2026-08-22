@@ -41,12 +41,26 @@ sieben 30-MB-Dateien; die Luecke bleibt ja bestehen. Drei Regeln daran:
   Gruppe ihr Gebiet, passt er nicht mehr und die Woche wird neu versucht;
   die alte Zeile bleibt stehen und wirkt nicht.
 
-## Je Region, nicht je Gruppe
+## Die Woche traegt den Download, nicht das Gebiet
 
 Gerechnet wird entlang `price_area.region_key` (Koordinaten auf zwei
-Stellen). Zwei Gruppen in derselben Gegend teilen sich einen Download und
-bekommen aus einer Auswertung ihre je eigenen Wochenzeilen -- genau wie der
-Live-Takt in `supabase/functions/fuel-sample/` es auch macht.
+Stellen); zwei Gruppen in derselben Gegend bekommen aus einer Auswertung
+ihre je eigenen Wochenzeilen.
+
+**Der Download haengt aber an der WOCHE.** Sieben Tagesdateien à ~30 MB
+tragen jeden Mittelpunkt in Deutschland -- gefiltert wird erst beim Lesen.
+Bis August 2026 lief die Schleife trotzdem gebietsweise: Jede zusaetzliche
+Gegend zahlte dieselben 210 MB noch einmal. Weil `region_key` auf ~1 km
+aufloest, hat praktisch jede Gruppe ihr eigenes Gebiet -- der Aufwand wuchs
+also mit der Zahl der Gruppen. Seit der Umkehr (Woche aussen, Gebiete
+innen, `collect_weeks`) haengt er an der Zahl der offenen Wochen und ist
+von der Zahl der Gruppen unabhaengig. `--max-weeks` zaehlt deshalb
+geladene Wochen, nicht Gebiet-mal-Woche.
+
+Gemessen wurde vorher, ob es auch ohne exakte Kreise ginge -- ein grobes
+Raster haette zusaetzlich die ZEILEN geteilt (siehe `--compare-grid`). Die
+Antwort war nein, und sie wird nicht gebraucht: Zeilen sind mit 156 je
+Gruppe und Jahr ohnehin unkritisch, der Download war das Problem.
 
 ## Dieselbe Kennzahl wie der Live-Takt
 
@@ -144,6 +158,12 @@ PERCENTILE = 0.10
 
 # Anteil der Stationen, den eine Momentaufnahme kennen muss, um zu zaehlen.
 MIN_COVERAGE = 0.60
+
+# Umkreis einer Region, wenn keiner aus der Datenbank kommt -- der Messmodus
+# rechnet mit ihm. Muss zu `defaultRadiusKm` in lib/models/price_area.dart
+# passen (der Screen bietet nichts anderes an) und zu MAX_RADIUS_KM in
+# supabase/functions/fuel-sample/.
+DEFAULT_RADIUS_KM = 20.0
 
 # Vor Mitte 2014 gibt es das Archiv nicht. Ohne diese Grenze liefe der Job
 # fuer eine (versehentlich) sehr alte Fahrt sieben 404er je Woche, immer
@@ -477,61 +497,110 @@ def parse_offset(text):
 
 
 def take_snapshot(last, uuids, samples, seen, counters):
-    """Eine Momentaufnahme uebernehmen -- oder verwerfen, wenn zu duenn."""
-    if len(last) < MIN_COVERAGE * len(uuids):
+    """Eine Momentaufnahme uebernehmen -- oder verwerfen, wenn zu duenn.
+
+    `last` traegt seit collect_weeks() die VEREINIGUNG mehrerer Mittelpunkte,
+    deshalb wird hier auf die Stationen dieses Mittelpunkts eingeschraenkt.
+    Bei einem einzelnen Mittelpunkt ist das ein Nulldurchgang: Dort enthaelt
+    `last` ohnehin nur dessen Stationen. Ohne die Einschraenkung waere die
+    Deckungspruefung gegen die falsche Grundmenge gestellt -- und ein
+    Mittelpunkt bekaeme die Preise seines Nachbarn mitgezaehlt.
+    """
+    known = {uuid: prices for uuid, prices in last.items() if uuid in uuids}
+    if len(known) < MIN_COVERAGE * len(uuids):
         counters['dropped'] += 1
         return
     counters['snapshots'] += 1
-    for uuid, prices in last.items():
+    for uuid, prices in known.items():
         seen.add(uuid)
         for name, value in prices.items():
             samples[name].append(value)
 
 
-def collect_week(monday, region, auth, cache, delay):
-    """Eine Woche einlesen. `last` traegt den letzten bekannten Preis ueber
-    die Tage hinweg -- der Grund, warum die Woche am Stueck gelesen wird."""
-    uuids = stations_for(monday.replace(day=1), region, auth, cache)
-    if not uuids:
-        return None, 'keine Stationen im Umkreis'
+def collect_weeks(monday, centres, auth, cache, delay):
+    """Eine Woche EINMAL lesen und daraus mehrere Mittelpunkte bedienen.
 
-    last, seen = {}, set()
-    samples = {name: [] for name in SERIES}
-    counters = {'snapshots': 0, 'dropped': 0, 'missing': 0}
+    Der teure Teil ist der Download: sieben Tagesdateien à ~30 MB. Er haengt
+    an der WOCHE, nicht am Mittelpunkt -- zwei Gebiete, die dieselbe Woche
+    brauchen, teilen ihn sich hier. Das Zuordnen danach ist reine Rechnung
+    im Speicher.
 
-    for offset in range(7):
-        day = monday + dt.timedelta(days=offset)
-        if offset and delay:
+    Gelesen wird mit der Vereinigung aller Stationen; eingeschraenkt wird
+    erst in take_snapshot(). `last` traegt den letzten bekannten Preis ueber
+    die Tage hinweg -- der Grund, warum die Woche am Stueck gelesen wird.
+
+    Gibt je Mittelpunkt (Ergebnis, Fehlertext) zurueck, geschluesselt auf
+    `region_key`.
+    """
+    stations = {
+        centre['region_key']: stations_for(monday.replace(day=1), centre, auth, cache)
+        for centre in centres
+    }
+    union = set().union(*stations.values()) if stations else set()
+    if not union:
+        return {key: (None, 'keine Stationen im Umkreis') for key in stations}
+
+    last = {}
+    state = {
+        key: {
+            'seen': set(),
+            'samples': {name: [] for name in SERIES},
+            'counters': {'snapshots': 0, 'dropped': 0, 'missing': 0},
+        }
+        for key in stations
+    }
+    live = [key for key, uuids in stations.items() if uuids]
+    missing = 0
+
+    for index in range(7):
+        day = monday + dt.timedelta(days=index)
+        if index and delay:
             time.sleep(delay)
-        rows, offset = read_day(day, uuids, auth)
-        if rows is None:
-            counters['missing'] += 1
-            continue
+        rows, offset = read_day(day, union, auth)
         # Die Stichzeiten stehen in UTC; verglichen wird gegen die Ortszeit
         # in der Datei. Ohne Versatz (leerer Tag) bleibt die Woche ohne
         # Aufnahme -- besser als eine um zwei Stunden verschobene.
-        if offset is None:
-            counters['missing'] += 1
+        if rows is None or offset is None:
+            missing += 1
             continue
         marks = [
             f'{dt.datetime.combine(day, mark) + dt.timedelta(minutes=offset):%Y-%m-%d %H:%M:%S}'
             for mark in SAMPLE_TIMES_UTC
         ]
+
+        def snapshot():
+            for key in live:
+                take_snapshot(last, stations[key], state[key]['samples'],
+                              state[key]['seen'], state[key]['counters'])
+
         cursor = 0
         for stamp, uuid, prices in rows:
             while cursor < len(marks) and stamp > marks[cursor]:
-                take_snapshot(last, uuids, samples, seen, counters)
+                snapshot()
                 cursor += 1
             last[uuid] = prices
         while cursor < len(marks):
-            take_snapshot(last, uuids, samples, seen, counters)
+            snapshot()
             cursor += 1
 
-    if counters['missing'] == 7:
-        return None, 'alle sieben Tagesdateien fehlen'
-    if counters['snapshots'] == 0:
-        return None, f'keine belastbare Momentaufnahme ({counters["dropped"]} zu duenn)'
-    return {'samples': samples, 'stations': len(seen), **counters}, None
+    results = {}
+    for key, entry in state.items():
+        counters = {**entry['counters'], 'missing': missing}
+        if not stations[key]:
+            results[key] = (None, 'keine Stationen im Umkreis')
+        elif missing == 7:
+            results[key] = (None, 'alle sieben Tagesdateien fehlen')
+        elif counters['snapshots'] == 0:
+            results[key] = (
+                None,
+                f'keine belastbare Momentaufnahme ({counters["dropped"]} zu duenn)',
+            )
+        else:
+            results[key] = (
+                {'samples': entry['samples'], 'stations': len(entry['seen']), **counters},
+                None,
+            )
+    return results
 
 
 # --------------------------------------------------------------------------
@@ -544,16 +613,289 @@ def summary(lines):
             handle.write('\n'.join(lines) + '\n')
 
 
+# --------------------------------------------------------------------------
+# Selbstpruefung: ein Download, dieselben Zahlen
+
+def self_check():
+    """Beweist die tragende Eigenschaft der Umkehr (Woche aussen, Gebiete
+    innen): EIN geteilter Download liefert dieselben Werte wie getrennte
+    Laeufe je Gebiet.
+
+    Das ist die Pruefung, an der der Umbau haengt -- ein schnellerer Lauf,
+    der andere Wochenwerte liefert, waere kein Fortschritt, sondern eine
+    stille Verschiebung der Ersparnis aller Gruppen. Sie laeuft ohne Netz
+    und ohne Datenbank gegen erfundene Stationen und deshalb in der PR-CI
+    mit; die echte Kennzahl steckt in `take_snapshot`, wo die Vereinigung
+    wieder auf die Stationen EINES Mittelpunkts eingeschraenkt wird.
+    """
+    global fetch
+
+    # **Die beiden Gebiete duerfen sich NICHT dieselben Stationen teilen.**
+    # Mit einem gemeinsamen Bestand liefe die Pruefung ins Leere: Ob die
+    # Vereinigung eingeschraenkt wird oder nicht, waere dann derselbe
+    # Bestand, und die Pruefung bliebe gruen, waehrend genau diese Zeile
+    # fehlt. Deshalb liegen sie ~84 km auseinander und **unterschiedlich
+    # teuer** -- ohne Einschraenkung zoege B das Perzentil von A nach oben.
+    stations = (
+        [{'uuid': f'a{i:07d}-0000-0000-0000-000000000000',
+          'lat': 49.24 + i * 0.01, 'lng': 9.10, 'level': 0.0} for i in range(6)]
+        + [{'uuid': f'b{i:07d}-0000-0000-0000-000000000000',
+            'lat': 50.00 + i * 0.01, 'lng': 9.10, 'level': 0.40}
+           for i in range(6)]
+    )
+    prices = {
+        station['uuid']: (1.500 + station['level'] + i % 6 * 0.01,
+                          1.700 + station['level'] + i % 6 * 0.01,
+                          1.640 + station['level'] + i % 6 * 0.01)
+        for i, station in enumerate(stations)
+    }
+    calls = []
+
+    def stub(path, auth, retries=3):
+        calls.append(path)
+        if path.startswith('stations/'):
+            head = 'uuid,name,latitude,longitude'
+            body = [f"{s['uuid']},Test,{s['lat']},{s['lng']}" for s in stations]
+            return '\n'.join([head, *body])
+        day = path.split('/')[-1][:10]
+        rows = []
+        for clock in ('04:00:00', '12:00:00'):
+            for station in stations:
+                diesel, e5, e10 = prices[station['uuid']]
+                rows.append(f'{day} {clock}+02,{station["uuid"]},'
+                            f'{diesel:.3f},{e5:.3f},{e10:.3f},1,1,1')
+        return '\n'.join(rows)
+
+    def area(key, lat, lng):
+        return {'region_key': key, 'lat': lat, 'lng': lng,
+                'radius': DEFAULT_RADIUS_KM, 'groups': []}
+
+    # Zwei ueberlappende Gebiete und eines ohne jede Station -- der Fall, in
+    # dem ein Mittelpunkt gar nichts liest, muss beide Wege gleich treffen.
+    areas = [area('A', 49.26, 9.10), area('B', 50.02, 9.10),
+             area('C', 53.63, 11.41)]
+    monday = monday_of(2026, 20)
+
+    def values(entry):
+        if entry is None:
+            return None
+        return {name: round(percentile(entry['samples'][name], PERCENTILE), 6)
+                for name in SERIES}
+
+    original = fetch
+    fetch = stub
+    try:
+        calls.clear()
+        apart = {}
+        for single in areas:
+            result = collect_weeks(monday, [single], 'auth', {}, 0)
+            entry, problem = result[single['region_key']]
+            apart[single['region_key']] = (values(entry), problem)
+        apart_files = len([c for c in calls if c.startswith('prices/')])
+
+        calls.clear()
+        together = {
+            key: (values(entry), problem)
+            for key, (entry, problem) in
+            collect_weeks(monday, areas, 'auth', {}, 0).items()
+        }
+        shared_files = len([c for c in calls if c.startswith('prices/')])
+    finally:
+        fetch = original
+
+    problems = []
+    if apart != together:
+        problems.append(f'Werte weichen ab:\n  getrennt {apart}\n'
+                        f'  geteilt  {together}')
+    if shared_files != 7:
+        problems.append(f'geteilt: {shared_files} Preisdateien statt 7')
+    if apart_files <= shared_files:
+        problems.append(f'kein Gewinn: getrennt {apart_files}, '
+                        f'geteilt {shared_files}')
+    if problems:
+        sys.exit('Selbstpruefung fehlgeschlagen:\n' + '\n'.join(problems))
+    print(f'Selbstpruefung ok: gleiche Werte, {apart_files} Preisdateien '
+          f'getrennt gegen {shared_files} geteilt.')
+
+
+# --------------------------------------------------------------------------
+# Messmodus: wie weit darf der Mittelpunkt einrasten?
+
+# Kandidaten fuer die Maschenweite. Ein Gitterpunkt traegt kuenftig den
+# Wochenwert fuer alle Gruppen in seiner Naehe -- statt eines Werts je
+# Gruppe. Was das kostet, ist eine MESSFRAGE und keine Geschmacksfrage:
+# Der Wert bleibt das P10 im 20-km-Umkreis, nur der Mittelpunkt rastet ein.
+GRID_STEPS = (0.1, 0.25, 0.5)
+
+
+def grid_key_of(lat, lng, step):
+    """Naechster Gitterpunkt als Schluessel, z. B. '49.25,9.25'.
+
+    Halbe Schritte werden AUFGERUNDET (floor(x+0.5)), nicht kaufmaennisch
+    gerundet wie Pythons round(): Dieselbe Zuordnung muss spaeter in SQL und
+    Dart entstehen, und round() rundet dort anders (Banker's Rounding trifft
+    genau die Punkte auf der Rasterkante).
+    """
+    return '%.2f,%.2f' % (math.floor(lat / step + 0.5) * step,
+                          math.floor(lng / step + 0.5) * step)
+
+
+def parse_place(text):
+    """'49.24,9.10' oder '49.24,9.10:Bad Rappenau'."""
+    head, _, label = text.partition(':')
+    lat, _, lng = head.partition(',')
+    return {'label': label or head, 'lat': float(lat), 'lng': float(lng)}
+
+
+def parse_week(text):
+    """'2023-W20' -> (2023, 20)."""
+    year, _, week = text.upper().partition('-W')
+    return int(year), int(week)
+
+
+def compare_grid(places, weeks, auth, delay):
+    """Vergleicht das P10 am echten Punkt mit dem am eingerasteten.
+
+    **Das ist der Messstand, der GEGEN das Raster entschieden hat**
+    (21.08.2026, Zahlen in doc/entscheidung-preisnetz.md). Er bleibt hier,
+    wie der Soak-Test bei der Fahrerwahl: Wer ein geteiltes Preisnetz
+    wieder vorschlaegt, wiederholt die Messung, statt den Satz zu zitieren.
+
+    Schreibt NICHTS und braucht keine Datenbank. Die Frage war: Darf der
+    Mittelpunkt auf ein Gitter einrasten, damit sich Gruppen eine Zeile
+    teilen? Schwelle war die projekteigene 1-ct-Grenze, dieselbe, an der die
+    Mo-Do-Frage entschieden wurde.
+
+    Die WOCHE steht aussen, die Orte innen -- alle Mittelpunkte teilen sich
+    einen Download. Andersherum waere die Messung selbst der Beweis fuer das
+    Gegenteil dessen, was sie vorbereitet.
+    """
+    cache = {}
+    centres, shift = [], {}
+    for place in places:
+        key = f"{place['label']}|echt"
+        centres.append({'region_key': key, 'lat': place['lat'],
+                        'lng': place['lng'], 'radius': DEFAULT_RADIUS_KM})
+        shift[key] = 0.0
+        for step in GRID_STEPS:
+            lat, lng = (float(part) for part in
+                        grid_key_of(place['lat'], place['lng'], step).split(','))
+            grid = f"{place['label']}|{step}"
+            centres.append({'region_key': grid, 'lat': lat, 'lng': lng,
+                            'radius': DEFAULT_RADIUS_KM})
+            shift[grid] = distance_km(place['lat'], place['lng'], lat, lng)
+
+    for place in places:
+        versatz = ', '.join(
+            '%s° %.1f km' % (step, shift['%s|%s' % (place['label'], step)])
+            for step in GRID_STEPS)
+        print('%s (%s, %s) — Versatz: %s'
+              % (place['label'], place['lat'], place['lng'], versatz))
+
+    deltas = {step: [] for step in GRID_STEPS}
+    lines = ['| Ort | Woche | Sorte | echt | '
+             + ' | '.join(f'{step}° (Versatz)' for step in GRID_STEPS) + ' |',
+             '| --- | --- | --- | ---: | '
+             + ' | '.join('---:' for _ in GRID_STEPS) + ' |']
+
+    for year, week in weeks:
+        monday = monday_of(year, week)
+        print(f'  {year}-W{week:02d} …', flush=True)
+        results = collect_weeks(monday, centres, auth, cache, delay)
+        for place in places:
+            values = {}
+            for suffix in ('echt', *(str(step) for step in GRID_STEPS)):
+                result, error = results[f"{place['label']}|{suffix}"]
+                if error:
+                    print(f"    {place['label']} {suffix}: {error}")
+                    continue
+                values[suffix] = {
+                    name: percentile(result['samples'][name], PERCENTILE)
+                    for name in SERIES
+                }
+            if 'echt' not in values:
+                continue
+            for name in SERIES:
+                base = values['echt'].get(name)
+                if base is None:
+                    continue
+                cells = []
+                for step in GRID_STEPS:
+                    other = values.get(str(step), {}).get(name)
+                    if other is None:
+                        cells.append('—')
+                        continue
+                    delta = (other - base) * 100
+                    deltas[step].append(delta)
+                    cells.append(f'{other:.3f} ({delta:+.2f} ct)')
+                lines.append(f"| {place['label']} | {year}-W{week:02d} | {name} "
+                             f"| {base:.3f} | " + ' | '.join(cells) + ' |')
+
+    # **Die Verteilung, nicht der Hoechstwert.** Aus einem einzelnen
+    # Extremwert eine Eigenschaft der Maschenweite zu machen, ist genau der
+    # Fehler, den doc/entscheidung-mitfahrer-verteilung.md schon einmal
+    # gekostet hat: „Wer aus einer Kennzahl auf einem Seed eine
+    # Regel-Eigenschaft macht, misst zu schmal." Der Versatz ist Rauschen um
+    # null, und ein systematischer Zug waere das eigentliche Ausschlusskriterium.
+    lines += ['', '| Maschenweite | n | Mittel (Zug) | exakt gleich | '
+                  '≤ 1 ct | p95 | Maximum |',
+              '| --- | ---: | ---: | ---: | ---: | ---: | ---: |']
+    for step in GRID_STEPS:
+        values = deltas[step]
+        if not values:
+            continue
+        count = len(values)
+        bias = sum(values) / count
+        exact = sum(1 for value in values if abs(value) < 0.005) / count * 100
+        within = sum(1 for value in values if abs(value) <= 1.0) / count * 100
+        spread = sorted(abs(value) for value in values)
+        p95 = spread[min(count - 1, int(0.95 * (count - 1) + 0.5))]
+        lines.append(f'| {step}° | {count} | {bias:+.3f} ct | {exact:.0f} % '
+                     f'| {within:.0f} % | {p95:.2f} ct | {spread[-1]:.2f} ct |')
+    summary(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--max-weeks', type=int, default=100,
-                        help='Obergrenze je Lauf (Vorgabe 100). Der Rest '
-                             'bleibt Luecke und kommt beim naechsten Lauf.')
+                        help='Obergrenze je Lauf (Vorgabe 100), gezaehlt in '
+                             'geladenen WOCHEN — eine Woche traegt alle '
+                             'Gebiete, die sie brauchen. Der Rest bleibt '
+                             'Luecke und kommt beim naechsten Lauf.')
     parser.add_argument('--delay', type=float, default=0.0,
                         help='Pause zwischen den Abrufen in Sekunden')
     parser.add_argument('--dry-run', action='store_true',
                         help='Nur die Luecke zeigen, nichts laden')
+    parser.add_argument('--self-check', action='store_true',
+                        help='Prueft ohne Netz und Datenbank, dass ein '
+                             'geteilter Download dieselben Werte liefert '
+                             'wie getrennte Laeufe je Gebiet.')
+    parser.add_argument('--compare-grid', action='store_true',
+                        help='Messmodus: P10 am echten Punkt gegen den '
+                             'eingerasteten. Schreibt nichts und braucht '
+                             'keine Datenbank.')
+    parser.add_argument('--at', action='append', default=[],
+                        metavar='LAT,LNG[:NAME]',
+                        help='Ort fuer --compare-grid, mehrfach erlaubt')
+    parser.add_argument('--week', action='append', default=[],
+                        metavar='YYYY-Www',
+                        help='Woche fuer --compare-grid, mehrfach erlaubt')
     args = parser.parse_args()
+
+    # Selbstpruefung und Messmodus laufen VOR der Schluesselpruefung: Beide
+    # fassen die Datenbank nicht an, und ein Riegel, der nur mit
+    # Service-Key laeuft, waere in der PR-CI keiner.
+    if args.self_check:
+        self_check()
+        return
+
+    if args.compare_grid:
+        if not args.at or not args.week:
+            sys.exit('--compare-grid braucht mindestens ein --at und ein --week.')
+        compare_grid([parse_place(text) for text in args.at],
+                     [parse_week(text) for text in args.week],
+                     archive_auth(), args.delay)
+        return
 
     if not os.environ.get('SUPABASE_SERVICE_ROLE_KEY'):
         print('::notice::SUPABASE_SERVICE_ROLE_KEY fehlt — nichts zu tun.')
@@ -590,26 +932,44 @@ def main():
 
     auth = archive_auth()
     cache, pending, marked = {}, [], []
-    done = skipped = deferred = 0
+    done = skipped = deferred = downloads = 0
     budget = args.max_weeks
     started = time.time()
 
+    # **Die Woche steht aussen, die Regionen innen.** Der teure Teil ist der
+    # Download -- sieben Tagesdateien à ~30 MB --, und der haengt an der
+    # WOCHE, nicht am Gebiet: Dieselben Dateien tragen jeden Mittelpunkt.
+    # Regionsweise gelesen zahlte jede zusaetzliche Gegend die
+    # 210 MB noch einmal, obwohl die Nachbarregion sie gerade gelesen hatte;
+    # der Aufwand wuchs also mit der Zahl der Gebiete und damit praktisch mit
+    # der Zahl der Gruppen (`region_key` loest auf ~1 km auf).
+    # So gelesen haengt er an der Zahl der offenen WOCHEN — und die ist von
+    # der Zahl der Gruppen unabhaengig.
+    by_week = {}
     for region_key, weeks in todo.items():
-        region = regions[region_key]
         for year, week in weeks:
-            if budget <= 0:
-                break
-            budget -= 1
-            monday = monday_of(year, week)
-            try:
-                entry, problem = collect_week(monday, region, auth, cache,
-                                              args.delay)
-            except ArchiveUnavailable as error:
-                # Leitung, nicht Archiv: keine Marke, die Woche bleibt
-                # Luecke und der naechste Lauf versucht sie erneut.
-                print(f'  {year}-W{week:02d} vertagt (Netz): {error}')
-                deferred += 1
-                continue
+            by_week.setdefault((year, week), []).append(region_key)
+
+    for year, week in sorted(by_week):
+        if budget <= 0:
+            break
+        budget -= 1
+        downloads += 1
+        monday = monday_of(year, week)
+        centres = [regions[key] for key in by_week[(year, week)]]
+        try:
+            results = collect_weeks(monday, centres, auth, cache, args.delay)
+        except ArchiveUnavailable as error:
+            # Leitung, nicht Archiv: keine Marke, die Woche bleibt Luecke
+            # und der naechste Lauf versucht sie erneut. Sie faellt fuer
+            # ALLE Gebiete dieser Woche aus -- es ist ein Download.
+            print(f'  {year}-W{week:02d} vertagt (Netz): {error}')
+            deferred += len(centres)
+            continue
+
+        for region in centres:
+            region_key = region['region_key']
+            entry, problem = results[region_key]
             if problem:
                 rows = gap_marks(region, driven, complete, marks,
                                  year, week, problem, today)
@@ -620,8 +980,8 @@ def main():
                     skipped += 1
                 else:
                     deferred += 1
-                print(f'  {year}-W{week:02d} übersprungen: {problem}'
-                      + ('' if rows else ' (bleibt Lücke)'))
+                print(f'  {year}-W{week:02d} {region_key} übersprungen: '
+                      f'{problem}' + ('' if rows else ' (bleibt Lücke)'))
                 continue
 
             values = []
@@ -666,7 +1026,7 @@ def main():
                         'origin': 'imported',
                     })
             done += 1
-            print(f'  {year}-W{week:02d}  ' + '  '.join(
+            print(f'  {year}-W{week:02d} {region_key}  ' + '  '.join(
                 f'{name} {value:.3f}' for name, value, _ in values)
                 + f'  ({entry["snapshots"]} Aufnahmen, {entry["dropped"]} '
                   f'verworfen, {entry["stations"]} Stationen)')
@@ -677,8 +1037,6 @@ def main():
                 api('POST', '/rest/v1/price_week', pending,
                     prefer='resolution=ignore-duplicates,return=minimal')
                 pending = []
-        if budget <= 0:
-            break
 
     if pending:
         api('POST', '/rest/v1/price_week', pending,
@@ -689,7 +1047,8 @@ def main():
     minutes = (time.time() - started) / 60
     lines = [f'### Preisarchiv nachgefüllt',
              '',
-             f'- Wochen geschrieben: **{done}** (in {minutes:.0f} min)']
+             f'- Wochenwerte geschrieben: **{done}** (Gebiet × Woche) '
+             f'aus **{downloads}** geladenen Woche(n), in {minutes:.0f} min']
     if skipped:
         lines.append(f'- Übersprungen und dauerhaft gemerkt '
                      f'(kommt nicht wieder): {skipped} Woche(n), '

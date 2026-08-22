@@ -1,9 +1,10 @@
 # Finanzierung und Skalierung von MitFahrBar
 
 **Status:** recherchiert am 2026-08-17, am selben Tag gegen Code und
-Produktion nachgemessen (§4 korrigiert, Zahlen ergänzt) · **Plattformseite:**
+Produktion nachgemessen (§4 korrigiert, Zahlen ergänzt); Nachtrag zum
+Archiv-Datenstrom am 2026-08-21 · **Plattformseite:**
 `doc/finanzierung-plattformvergleich.md` · **Ergänzt, ersetzt nicht:**
-`doc/entscheidung-preisarchiv-lizenz.md`
+`doc/entscheidung-preisarchiv-lizenz.md`, `doc/entscheidung-preisnetz.md`
 
 Dies ist **keine Steuer- oder Rechtsberatung.**
 
@@ -127,6 +128,17 @@ Ins Edge-Kontingent gehen nur die tatsächlichen Fälligkeits-Minuten plus
 Egress ist unkritisch: Die App überträgt JSON-Zeilen, der einzige große
 Datenstrom ist der Nachfüll-Lauf des Preisarchivs (~30 MB je Tagesdatei), und
 der läuft auf GitHub-Runnern, nicht durch Supabase.
+
+**Nachtrag 2026-08-21 — dieser Datenstrom skalierte mit der Zahl der
+Gruppen, tut es aber nicht mehr.** Der Nachfüller lief gebietsweise, und
+weil `region_key` auf ~1 km auflöst, hat praktisch jede Gruppe ihr eigenes
+Gebiet: Die zweite Gruppe im Nachbarort zog dieselben sieben Tagesdateien
+noch einmal. Seit der Umkehr der Schleife (Woche außen, Gebiete innen)
+trägt ein Download alle Mittelpunkte, und `--max-weeks` zählt geladene
+Wochen. Ein grobes Raster, das zusätzlich die Zeilen geteilt hätte, wurde
+**gemessen und verworfen** — Zahlen und Begründung in
+`doc/entscheidung-preisnetz.md`. An §1 ändert das nichts: Das Minutenlimit
+des Live-Takts bleibt die härteste Grenze.
 
 ## Die Lizenzfrage — der Kern dieses Dokuments
 

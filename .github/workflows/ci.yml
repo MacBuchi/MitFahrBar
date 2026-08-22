@@ -43,6 +43,15 @@ jobs:
       - name: Datensicherheits-CSV ist deckungsgleich
         run: python3 tool/play_data_safety.py --check
 
+      # Der Nachfüller liest eine Woche EINMAL und bedient daraus alle
+      # Gebiete (doc/entscheidung-preisnetz.md). Die Prüfung beweist, dass
+      # das dieselben Wochenwerte liefert wie getrennte Läufe — ein
+      # schnellerer Lauf mit anderen Zahlen wäre kein Fortschritt, sondern
+      # eine stille Verschiebung der Ersparnis aller Gruppen. Läuft ohne
+      # Netz und ohne Datenbank, deshalb hier und nicht im nächtlichen Job.
+      - name: Preis-Nachfüller rechnet geteilt wie getrennt
+        run: python3 tool/import_fuel_history.py --self-check
+
       # Die fünf Edge Functions hatten bis hierher GAR KEINEN Compile-Schritt.
       # Ein Syntaxfehler dort fällt sonst erst live auf, und zwar als
       # Function, die nie startet — die GitHub-Integration deployt bei jedem
