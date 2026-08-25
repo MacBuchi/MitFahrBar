@@ -165,10 +165,21 @@ void main() {
     await pumpApp(tester, backend);
     await _login(tester);
 
+    // Gezeigt wird der um den Punktestand ausgeglichene Anteil (Issue
+    // #270): Anna hat an beiden Tagen Bert mitgenommen, steht also mit +2
+    // im Guthaben — gerechnet wird sie mit zwei Mitfahrten, die sie noch
+    // gut hat (2 von 4 statt 2 von 2).
+    expect(
+      find.textContaining(RegExp(r'fährt\s*50\s*%')),
+      findsOneWidget,
+      reason: 'Anna fuhr beide Tage, hat dafür aber 2 Mitfahrten gut.',
+    );
     expect(
       find.textContaining(RegExp(r'fährt\s*100\s*%')),
-      findsOneWidget,
-      reason: 'Anna fuhr an allen ihren Tagen selbst.',
+      findsNothing,
+      reason:
+          'Die rohe Rate wäre 100 % — sie steht seit #270 nicht mehr auf '
+          'der Startseite.',
     );
     expect(
       find.textContaining(RegExp(r'fährt\s*0\s*%')),

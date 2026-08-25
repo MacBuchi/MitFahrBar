@@ -4,6 +4,17 @@
 /// reine Anzeige. Als Gesicht sagt er das, worum es geht — musstest du zuletzt
 /// viel fahren oder wenig? Die Prozentzahl steht zusätzlich in der Zeile.
 ///
+/// Gefüttert wird das Gesicht seit Issue #270 mit
+/// `PersonStats.settledDriveShare`, dem um den Punktestand ausgeglichenen
+/// Anteil: Wer mit vollem Auto fährt, hat für dieselbe Zahl Fahrten mehr
+/// geleistet, und das Gesicht soll die Leistung zeigen, nicht die
+/// Strichliste. Die rohe `driveShare` bleibt dem Planer vorbehalten — der
+/// verrechnet die Punkte schon selbst.
+///
+/// Die Funktion nimmt trotzdem irgendeinen Anteil entgegen und kennt den
+/// Unterschied nicht: Die Wahl trifft der Aufrufer, und dort muss sie für
+/// Spannweite, Gesicht und Prozentzahl dieselbe sein.
+///
 /// Reine Zuordnung ohne Widget, damit die Schwellen testbar bleiben —
 /// dieselbe Trennung wie `chart_data.dart` ↔ `widgets/charts.dart`. Gezeichnet
 /// wird in `widgets/mood_face.dart`.

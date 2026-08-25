@@ -178,7 +178,15 @@ class _PersonCard extends StatelessWidget {
                 _kv(context, 'gefahren', '${stats.driven}×'),
                 _kv(context, 'mitgefahren', '${stats.ridden}×'),
                 _kv(context, '1-way', '${stats.oneWay}×'),
-                _kv(context, 'Fahranteil', percent.format(stats.driveShare)),
+                // Derselbe Wert wie auf der Startseite: der um den
+                // Punktestand ausgeglichene Anteil (Issue #270). Hier die
+                // rohe Rate zu zeigen hieße, unter demselben Wort zwei
+                // verschiedene Zahlen zu führen.
+                _kv(
+                  context,
+                  'Fahranteil',
+                  percent.format(stats.settledDriveShare),
+                ),
                 if (stats.quote case final double q)
                   _kv(context, 'Ø mitgenommen', quote.format(q)),
                 _kv(

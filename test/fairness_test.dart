@@ -42,6 +42,88 @@ void main() {
       expect(stats['a']!.lastDrive, DateTime.parse('2026-01-05'));
     });
 
+    test('ausgeglichener Fahranteil: das Beispiel aus Issue #270', () {
+      // Der Wortlaut der Meldung: 30× gefahren, 70× mitgefahren, +2 Punkte
+      // → gerechnet wird mit 72 Mitfahrten.
+      const stats = PersonStats(
+        personId: 'a',
+        driven: 30,
+        ridden: 70,
+        oneWay: 0,
+        carried: 72,
+        points: 2,
+      );
+      expect(stats.driveShare, closeTo(0.3, 1e-9));
+      expect(stats.settledDriveShare, closeTo(30 / 102, 1e-9));
+    });
+
+    test('ein Guthaben senkt den Anteil, eine Schuld hebt ihn', () {
+      // Gleich viele Fahrten und gleich viele Tage — nur die Besetzung des
+      // Autos unterscheidet sich. Genau das soll die Kennzahl sichtbar
+      // machen; die rohe Rate kann es nicht.
+      const voll = PersonStats(
+        personId: 'voll',
+        driven: 30,
+        ridden: 70,
+        oneWay: 0,
+        carried: 90, // +20
+        points: 20,
+      );
+      const leer = PersonStats(
+        personId: 'leer',
+        driven: 30,
+        ridden: 70,
+        oneWay: 0,
+        carried: 30, // −40
+        points: -40,
+      );
+      expect(voll.driveShare, leer.driveShare);
+      expect(voll.settledDriveShare, lessThan(voll.driveShare));
+      expect(leer.settledDriveShare, greaterThan(leer.driveShare));
+    });
+
+    test('korrigiert wird die Mitfahrt-Seite, nie die Fahrten', () {
+      // Der Zähler bleibt die Zahl der wirklich gefahrenen Tage — eine
+      // Fahrt hat stattgefunden und lässt sich nicht wegrechnen.
+      const stats = PersonStats(
+        personId: 'a',
+        driven: 12,
+        ridden: 20,
+        oneWay: 4,
+        carried: 30,
+        points: 8, // 30 − 20 − 0,5 × 4
+      );
+      final settled =
+          stats.driven / (stats.driven + stats.ridden + stats.points + 4);
+      expect(stats.settledDriveShare, closeTo(settled, 1e-12));
+      expect(stats.settledDriveShare * (12 + 20 + 8 + 4), closeTo(12, 1e-9));
+    });
+
+    test('ohne jede Beteiligung bleibt der Anteil 0 statt NaN', () {
+      // Der Nenner fällt hier auf null; eine Division wäre NaN und stünde
+      // als „NaN %" auf der Startseite.
+      const leer = PersonStats(
+        personId: 'x',
+        driven: 0,
+        ridden: 0,
+        oneWay: 0,
+        carried: 0,
+        points: 0,
+      );
+      expect(leer.settledDriveShare, 0);
+
+      // Auch wer nur mitgefahren ist: −2 Punkte heben die 2 Mitfahrten auf.
+      const nurMit = PersonStats(
+        personId: 'y',
+        driven: 0,
+        ridden: 2,
+        oneWay: 0,
+        carried: 0,
+        points: -2,
+      );
+      expect(nurMit.settledDriveShare, 0);
+    });
+
     test('Punktesumme über alle Personen ist null (zero-sum)', () {
       final trips = [
         trip('2026-01-05', {
@@ -289,6 +371,59 @@ void main() {
 
     test('leere Auswahl liefert keinen Vorschlag', () {
       expect(suggestDriver([], {}, settings), isNull);
+    });
+  });
+
+  group('Anzeige und Planer teilen sich die Kennzahl nicht', () {
+    // Zwei Kandidaten, bei denen rohe und ausgeglichene Rate die
+    // Reihenfolge des Trims umdrehen — der Riegel gegen ein
+    // „Vereinheitlichen" der beiden Werte.
+    //
+    // a: 2 Fahrten, 7 Mitfahrten, 12 mitgenommen → +5, roh 0,222,
+    //    ausgeglichen 0,143
+    // b: 5 Fahrten, 2 Mitfahrten, 11 mitgenommen → +9, roh 0,714,
+    //    ausgeglichen 0,313
+    //
+    // Am vollen Tag (dayFactor 1) gilt mit der ROHEN Rate
+    //   wirksam(a) = 5 − 12 · (0,222 − 0,468) = 7,95
+    //   wirksam(b) = 9 − 12 · (0,714 − 0,468) = 6,05  → b ist dran.
+    // Mit der ausgeglichenen kippt es auf a. Wer `driveShare` in
+    // [rankedPlanDrivers] gegen `settledDriveShare` tauscht, sieht diesen
+    // Test rot — und hat dann die Punkte zweimal verrechnet.
+    const a = PersonStats(
+      personId: 'a',
+      driven: 2,
+      ridden: 7,
+      oneWay: 0,
+      carried: 12,
+      points: 5,
+    );
+    const b = PersonStats(
+      personId: 'b',
+      driven: 5,
+      ridden: 2,
+      oneWay: 0,
+      carried: 11,
+      points: 9,
+    );
+    const pool = {'a': a, 'b': b};
+
+    test('die beiden Raten ordnen hier gegenläufig', () {
+      expect(a.driveShare, lessThan(b.driveShare));
+      expect(a.settledDriveShare, lessThan(b.settledDriveShare));
+      // Der Abstand ist es, der kippt: roh 0,49 — ausgeglichen 0,17.
+      expect(b.driveShare - a.driveShare, greaterThan(0.4));
+      expect(b.settledDriveShare - a.settledDriveShare, lessThan(0.2));
+    });
+
+    test('der Plan-Vorschlag folgt der rohen Rate', () {
+      expect(
+        suggestPlanDriver(['a', 'b'], pool, settings, dayFactor: 1),
+        'b',
+        reason:
+            'Mit der ausgeglichenen Rate käme a heraus — der Trim liest die '
+            'rohe, weil die Punkte schon im Regler stecken.',
+      );
     });
   });
 

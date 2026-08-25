@@ -295,9 +295,12 @@ class _Content extends ConsumerWidget {
       {for (final c in ranked) c.personId: c.stats},
     );
     // Bezugsgröße der Gesichter: die Spannweite genau dieser Liste, nicht
-    // feste Prozentwerte (siehe core/drive_mood.dart).
+    // feste Prozentwerte (siehe core/drive_mood.dart). Gezeigt wird der um
+    // den Punktestand ausgeglichene Anteil (Issue #270) — Spannweite,
+    // Gesicht und Prozentzahl daneben müssen aus derselben Quelle kommen,
+    // sonst zeigt das Gesicht auf eine andere Zahl als die Zeile.
     final shareRange = DriveShareRange.of([
-      for (final c in ranked) c.stats.driveShare,
+      for (final c in ranked) c.stats.settledDriveShare,
     ]);
 
     return ListView(
@@ -334,7 +337,7 @@ class _Content extends ConsumerWidget {
                         ),
                       ),
                       _DriveMoodFace(
-                        share: candidate.stats.driveShare,
+                        share: candidate.stats.settledDriveShare,
                         range: shareRange,
                       ),
                       if (candidate.personId == extremes.fullestId)
@@ -345,7 +348,7 @@ class _Content extends ConsumerWidget {
                   ),
                   subtitle: Text(
                     '${balanceLabel(candidate.stats.points, points)}'
-                    ' · fährt ${percent.format(candidate.stats.driveShare)}',
+                    ' · fährt ${percent.format(candidate.stats.settledDriveShare)}',
                   ),
                   trailing: index == 0
                       ? const Icon(

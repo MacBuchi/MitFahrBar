@@ -4,6 +4,26 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.87.0] – 2026-08-26
+
+### Geändert
+
+- **Der Fahranteil ist jetzt um euren Punktestand ausgeglichen** (#270). Wer
+  sein Auto voll macht, leistet mit derselben Zahl Fahrten mehr — die alte
+  Rate hat nur Tage gezählt und davon nichts gewusst. Jetzt zählt ein
+  Guthaben wie Mitfahrten, die man noch gut hat, und eine Schuld nimmt
+  welche weg: 30× gefahren, 70× mitgefahren und 2 Punkte gut heißt 30 von
+  102 statt 30 von 100. Betroffen sind die Prozentzahl auf der Startseite,
+  das Gesicht daneben und die Zeile in der Statistik.
+  - **Eure Zahlen ändern sich dadurch sichtbar**, auch ohne dass jemand
+    gefahren wäre: Wer immer voll fährt, steht niedriger als vorher, wer
+    meist allein fährt, höher. Die Fahrten selbst werden nie umgerechnet —
+    korrigiert wird nur die Mitfahrt-Seite.
+  - **Der Vorschlag, wer als Nächstes fährt, bleibt unverändert.** Der
+    Planer rechnet weiter mit den reinen Tagen; bei ihm stecken die Punkte
+    ohnehin schon in der Rechnung, und sie ein zweites Mal einzusetzen
+    würde die Vorschläge verschieben.
+
 ## [0.86.0] – 2026-08-22
 
 ### Geändert

@@ -68,6 +68,30 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Der Parameter lebt **pro Gruppe in der DB** — eine Änderung der Dart-
   Vorgabe allein erreicht keine bestehende Gruppe, dafür braucht es eine
   Migration (siehe `20260721090000_points_only_ranking.sql`).
+- **Es gibt zwei Fahranteile, und die Trennung ist Anzeige ↔ Engine** (#270,
+  seit v0.87.0). `driveShare` ist die rohe Rate (gefahrene Tage /
+  Anwesenheitstage) und bleibt, was der Fahrraten-Trim in `rankedPlanDrivers`
+  liest. `settledDriveShare` korrigiert die **Mitfahrt-Seite** um den
+  Punktestand (`gefahren / (gefahren + mitgefahren + Punkte + 1-way)`) und ist
+  das, was Startseite, Gesichter und Statistik zeigen.
+  - **Im Planer wäre der korrigierte Wert falsch, nicht bloß anders:** Der
+    Trim rechnet `Punkte − k · (Rate − Ø)`, die Punkte stecken also schon im
+    Regler. Sie zusätzlich in die Rate zu ziehen hieße, sie zweimal zu
+    verrechnen — dieselbe Begründung wie der fehlende I-Anteil. Festgenagelt
+    in `test/fairness_test.dart` an einem Fall, in dem beide Raten die
+    Reihenfolge **umdrehen**; rot verifiziert durch Tauschen der Kennzahl.
+  - **Ausmultipliziert ist `mitgefahren + Punkte` gleich
+    `mitgenommen − Faktor × 1-way`** — die eigenen Mitfahrten fallen aus der
+    Kennzahl heraus. Zwei Personen mit gleich vielen Fahrten und gleich
+    vollem Auto bekommen denselben Wert, auch wenn die eine an 100 und die
+    andere an 40 Tagen dabei war. Das ist die bewusst getragene Folge der
+    Gruppen-Entscheidung („nur Mitfahrten korrigieren, nie Fahrten"), kein
+    Versehen: Die Zahl sagt seither „Aufwand im Verhältnis zum Nutzen", nicht
+    mehr „wie viel musstest du fahren".
+  - **Angezeigt wird überall derselbe Wert**, auch auf der Statistik-Seite:
+    Zwei Zahlen unter dem Wort „Fahranteil" liest man als zwei verschiedene
+    Sachen. Einzige Ausnahme ist die Vorschau „Was diese Woche ändert" im
+    Planer — sie steht neben der Punkte-Spalte und gehört zum Trim.
 - Kennzahlen (Punkte, Quote, km, Ersparnis) werden immer berechnet, nie
   gespeichert.
 - **Das Kriterium des Parameter-Screens ist nicht „Kosten", sondern: Der
