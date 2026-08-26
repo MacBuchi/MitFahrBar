@@ -67,12 +67,14 @@ AppExit _exit(
   DateTime when, {
   int rssKb = 0,
   bool hasTrace = false,
+  int importance = 0,
 }) => AppExit(
   timestamp: when,
   reason: reason,
   description: 'beschreibung',
   rssKb: rssKb,
   hasTrace: hasTrace,
+  importance: importance,
 );
 
 void main() {
@@ -140,6 +142,57 @@ void main() {
 
     expect(reports.exits, isEmpty);
   });
+
+  test('Ein Speicher-Kill im Hintergrund wird NICHT gemeldet', () async {
+    // importance 400 = IMPORTANCE_CACHED: Der Prozess lag im Hintergrund,
+    // Android hat ihn als Haushaltsführung geräumt. Belegt in KW 34 mit
+    // „RSS 91 MB · importance 400" — nichts daran ist zu triagieren.
+    final reports = FakeErrorReports();
+    final exits = _FakeExits([
+      _exit(
+        'LOW_MEMORY',
+        DateTime(2026, 7, 30, 12),
+        rssKb: 91 * 1024,
+        importance: 400,
+      ),
+      _exit('LOW_MEMORY', DateTime(2026, 7, 30, 13), importance: 1000),
+    ]);
+
+    await reporter(reports, exits).reportPending();
+
+    expect(reports.exits, isEmpty);
+  });
+
+  test('Ein Speicher-Kill im Vordergrund wird gemeldet', () async {
+    // importance 100 = IMPORTANCE_FOREGROUND: Hier hat jemand zugesehen, wie
+    // die App verschwindet. Ohne diesen Test wäre „LOW_MEMORY ganz raus" eine
+    // grüne Vereinfachung.
+    final reports = FakeErrorReports();
+    final exits = _FakeExits([
+      _exit('LOW_MEMORY', DateTime(2026, 7, 30, 14), importance: 100),
+    ]);
+
+    await reporter(reports, exits).reportPending();
+
+    expect(reports.exits, hasLength(1));
+    expect(reports.exits.single.reason, 'LOW_MEMORY');
+  });
+
+  test(
+    'Ohne erfasste Wichtigkeit bleibt der Speicher-Kill meldepflichtig',
+    () async {
+      // Android erfasst die Wichtigkeit nicht immer; fromMap setzt dann 0.
+      // Stillschweigend zu verwerfen hieße, einen echten Kill zu verlieren.
+      final reports = FakeErrorReports();
+      final exits = _FakeExits([
+        _exit('LOW_MEMORY', DateTime(2026, 7, 30, 15)),
+      ]);
+
+      await reporter(reports, exits).reportPending();
+
+      expect(reports.exits, hasLength(1));
+    },
+  );
 
   test(
     'Derselbe Eintrag wird beim zweiten Start nicht erneut gemeldet',

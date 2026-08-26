@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.87.1] – 2026-08-26
+
+### Behoben
+
+- **Räumt Android die App im Hintergrund weg, ist das kein Fehler mehr.**
+  Wird das Handy knapp im Speicher, beendet es Apps, die gerade niemand
+  benutzt — normale Haushaltsführung. MitFahrBar hat das bisher als Ausfall
+  gemeldet und damit den Wochen-Bericht des Betreibers mit Vorgängen
+  gefüllt, an denen nichts zu klären ist. Ein Speicher-Kill zählt jetzt nur
+  noch, wenn die App dabei im Vordergrund war — also wenn jemand wirklich
+  zugesehen hat, wie sie verschwindet. Für euch ändert sich nichts an der
+  App selbst.
+
 ## [0.87.0] – 2026-08-26
 
 ### Geändert
