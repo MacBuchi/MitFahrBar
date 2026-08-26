@@ -4,6 +4,32 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.0] – 2026-08-26
+
+### Neu
+
+- **Die Sicherung nimmt eure Parameter mit** (#272). „Fahrten exportieren"
+  legt jetzt zwei Tabellen an: die Fahrten wie bisher und daneben eure
+  Parameter — Arbeitsweg, die Spritpreise, die Auto-Zuordnung und die festen
+  Vorgaben für Abfahrt und Treffpunkt. Zwei getrennte Dateien, damit jede für
+  sich in Excel aufgeht; auf Android kommen beide in einem Teilen-Vorgang.
+- **Der Import erkennt selbst, welche Datei er vor sich hat**, an ihrem Inhalt
+  statt am Namen. Bei den Parametern fragt er ausdrücklich nach, bevor er sie
+  übernimmt: Arbeitsweg und Spritpreise ändern Kilometer und Ersparnis eurer
+  **ganzen** Historie rückwirkend. Eine Zeile, die ihr in Excel löscht, lässt
+  den bisherigen Wert stehen, statt ihn auf die Vorgabe zurückzuwerfen.
+
+### Nicht umgesetzt
+
+- **Die Spritpreis-Historie lässt sich nicht exportieren**, obwohl im Wunsch
+  danach gefragt war. Die Wochenwerte stammen aus dem Preisarchiv von
+  Tankerkönig und stehen unter einer Lizenz, die eine Weitergabe an
+  Bedingungen knüpft — eine Datei, die man weiterreichen kann, wäre genau
+  das. Verloren geht dadurch nichts: Fehlende Wochen holt sich MitFahrBar
+  jede Nacht von selbst aus dem Archiv zurück. Die Spritpreise, die **ihr**
+  in den Parametern eingetragen habt, sind davon nicht betroffen — die stehen
+  in der Parameter-Datei.
+
 ## [0.88.0] – 2026-08-26
 
 ### Geändert
