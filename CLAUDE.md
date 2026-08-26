@@ -2310,6 +2310,49 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   eine weggelassene Person beteiligt war, wird **ganz** übersprungen statt
   ohne sie angelegt; sonst änderten sich still die Punkte der übrigen an dem
   Tag. Tage mit vorhandener Fahrt bleiben unberührt.
+- **Die Sicherung ist zweiteilig, und die Preise des Archivs bleiben draußen**
+  (#272, seit v0.89.0). Der Export schreibt neben den Fahrten eine
+  `mitfahrbar-parameter-*.csv` (Arbeitsweg, die Kraftstoff-Konstanten, der
+  Zuordnungs-Schalter, die festen Vorgaben aus `group_defaults`). Getrennte
+  Dateien statt Abschnitte in einer: Jede bleibt eine Tabelle, die deutsches
+  Excel per Doppelklick aufmacht — Blöcke mit verschiedener Spaltenzahl kann
+  es nicht.
+  - **Die Wochenwerte aus `price_week` dürfen NIE in eine Exportdatei.** Sie
+    stehen unter CC BY-NC-SA; die ShareAlike-Klausel greift bei Weitergabe,
+    und die Zusage, mit der das Projekt das Archiv überhaupt nutzt, lautet:
+    Sie verlassen die Gruppendatenbank nicht. Eine weiterreichbare Datei ist
+    genau diese Weitergabe. Der Wunsch aus #272 ist an dieser Stelle
+    **nicht erfüllbar** — und der Verlust ist klein: Der nächtliche
+    Nachfüll-Lauf sucht sich „Woche mit Fahrt ohne vollständige Preiszeilen"
+    und holt sie aus dem Archiv zurück. Die Fahrten kämen nicht zurück,
+    dafür ist der Export da.
+  - **Der Wächter prüft Archiv-Begriffe, nicht das Wort „price".** Bis #272
+    verbot `test/price_archive_license_test.dart` die Zeichenkette in
+    `csv_export.dart`; seit die Parameter mitgehen, stehen dort
+    `diesel_price_per_liter` und Freunde — die Konstanten, die die **Gruppe
+    selbst** eintippt, keine Archivwerte. Geprüft wird deshalb auf
+    `PricePoint`, `PriceSeries`, `price_week`, `priceWeeksProvider`, und
+    zwar in `csv_export.dart` **und** `export_action.dart`. Das ist netto
+    strenger: Beim Einsammeln in der Action hätte man die Wochenwerte
+    vorher laden können, ohne dass der Test etwas gemerkt hätte — rot
+    verifiziert. Gelesen wird ohne ganze Kommentarzeilen (die `sqlOnly`-
+    Lehre), aber bewusst **nicht** ab dem ersten `//`: Das steckt in jedem
+    `https://`.
+  - **`one_way_factor` und `points_weight` gehen in keine Richtung durch** —
+    dasselbe Kriterium, das sie aus dem Parameter-Screen heraushält. Eine
+    CSV wäre sonst genau die Hintertür, und eine, die niemand sieht, weil
+    eine Datei zwischen zwei Geräten wandert. Sie stehen nicht in
+    `settingsLabels`, also weist der Import sie auch von Hand ergänzt ab.
+  - **Erkannt wird am Kopf, nie am Dateinamen** (`csvKindOf`) — der Import
+    liest seit jeher nur den Inhalt, damit ältere `ridebuddy-*.csv` lesbar
+    bleiben. Eine fehlende Zeile lässt den bestehenden Wert **stehen**
+    (`copyWith` über den aktuellen Stand): In Excel eine Zeile zu löschen
+    darf keinen Wert stillschweigend auf die Vorgabe zurückwerfen.
+  - **Android bekommt EIN Teilen-Menü für beide Dateien**, nicht zwei
+    hintereinander: Wer das zweite abbricht, hätte sonst eine halbe
+    Sicherung, ohne es zu merken. Deshalb nimmt die Plattform-Naht eine
+    Liste (`ExportFile` in `core/export_payload.dart`, eigene Datei, weil
+    beide Zweige der bedingten Einbindung sie brauchen).
 - **Dateiauswahl: `file_selector`, nicht `file_picker`.** Letzteres verlangt
   ab 8.3.3 `win32 ^5.9`, `package_info_plus` aber `win32 ^6` — auflösbar wäre
   nur eine file_picker-Version von 2021. `file_selector` kommt von der

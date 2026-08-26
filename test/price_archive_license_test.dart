@@ -149,21 +149,66 @@ void main() {
     });
 
     // -------------------------------------------------------- Kein Ausgang
-    test('der CSV-Export führt keine Preisdaten aus', () {
+    test('der CSV-Export führt keine ARCHIV-Preise aus', () {
       // Der Export ist die einzige Stelle, an der Daten die App verlassen.
-      // Er kennt Fahrten und Personen — Preise gehören nicht hinein, sonst
-      // wäre die Datei eine Weitergabe der Archivwerte.
-      final export = File('lib/core/csv_export.dart').readAsStringSync();
-      for (final needle in ['price', 'Preis', 'fuel', 'Sprit']) {
-        expect(
-          export.contains(needle),
-          isFalse,
-          reason:
-              '„$needle" steht in csv_export.dart. Preisdaten im Export '
-              'wären eine Weitergabe der Archivwerte — dann greift die '
-              'ShareAlike-Klausel, und das MIT-LICENSE des Projekts trägt '
-              'sie nicht mehr. Siehe doc/entscheidung-preisarchiv-lizenz.md.',
-        );
+      // Eine Datei mit den Wochenwerten wäre eine Weitergabe der
+      // Archivwerte — dann greift die ShareAlike-Klausel, und das
+      // MIT-LICENSE des Projekts trägt sie nicht mehr.
+      //
+      // Geprüft wird seit #272 auf die **Archiv-Begriffe**, nicht mehr auf
+      // das Wort „price". Der Grund ist eine Unterscheidung, die vorher
+      // nicht nötig war: Seit die Sicherung auch die Parameter mitnimmt,
+      // stehen in csv_export.dart die Schlüssel `diesel_price_per_liter`
+      // und Freunde. Das sind die Konstanten, die die Gruppe im
+      // Parameter-Schirm selbst eintippt — ihre eigenen Zahlen, nicht die
+      // von Tankerkönig. Sie zu exportieren gibt nichts weiter, was dem
+      // Archiv gehört.
+      //
+      // Netto ist die Prüfung damit **strenger** als vorher: Sie sieht
+      // zusätzlich in export_action.dart, wo die Daten eingesammelt werden.
+      // Dort hätte man die Wochenwerte laden und in eine der Dateien
+      // schreiben können, ohne dass dieser Test je etwas gemerkt hätte.
+      const forbidden = [
+        'PricePoint',
+        'PriceSeries',
+        'price_week',
+        'priceWeeksProvider',
+        'price_series.dart',
+        'buildPriceCsv',
+      ];
+      const files = [
+        'lib/core/csv_export.dart',
+        'lib/features/export/export_action.dart',
+      ];
+
+      /// Nur der Code, ohne ganze Kommentarzeilen — dieselbe Notwendigkeit
+      /// wie `sqlOnly`: Beide Dateien begründen inzwischen selbst, warum es
+      /// keine Preis-Datei gibt, und nennen dabei zwangsläufig genau die
+      /// Begriffe, deren Abwesenheit hier geprüft wird.
+      ///
+      /// Bewusst nur **ganze** Zeilen, nicht ab dem ersten `//`: In Dart
+      /// steckt das auch in jedem `https://`-Literal, und dort abzuschneiden
+      /// verstecke echten Code hinter einer URL.
+      String codeOnly(String dart) => dart
+          .split('\n')
+          .where((line) => !line.trimLeft().startsWith('//'))
+          .join('\n');
+
+      for (final path in files) {
+        final code = codeOnly(File(path).readAsStringSync());
+        for (final needle in forbidden) {
+          expect(
+            code.contains(needle),
+            isFalse,
+            reason:
+                '„$needle" steht im Code von $path. Die Wochenwerte des '
+                'Archivs im Export wären eine Weitergabe — dann greift die '
+                'ShareAlike-Klausel der CC BY-NC-SA, und das MIT-LICENSE des '
+                'Projekts trägt sie nicht mehr. Verloren geht dadurch nichts: '
+                'Der nächtliche Nachfüll-Lauf holt fehlende Wochen von selbst '
+                'aus dem Archiv. Siehe doc/entscheidung-preisarchiv-lizenz.md.',
+          );
+        }
       }
     });
 

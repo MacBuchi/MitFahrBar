@@ -5,9 +5,8 @@
 /// ein Ziel hat.
 library;
 
-Future<void> saveTextFile({
-  required String name,
-  required String content,
-}) async {
+import 'export_payload.dart';
+
+Future<void> saveTextFiles(List<ExportFile> files) async {
   throw UnsupportedError('Kein Datei-Export auf dieser Plattform.');
 }

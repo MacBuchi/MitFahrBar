@@ -7,6 +7,9 @@ library;
 
 import 'package:mitfahrbar/core/csv_export.dart';
 import 'package:mitfahrbar/core/csv_import.dart';
+import 'package:mitfahrbar/models/app_settings.dart';
+import 'package:mitfahrbar/models/group_defaults.dart';
+import 'package:mitfahrbar/models/notification_prefs.dart';
 import 'package:mitfahrbar/models/person.dart';
 import 'package:mitfahrbar/models/trip.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -233,6 +236,125 @@ void main() {
       expect(parseCsvDate('09.13.2026'), isNull);
       expect(parseCsvDate(''), isNull);
       expect(parseCsvDate('09/03/2026'), isNull);
+    });
+  });
+
+  group('Parameter-Datei (#272)', () {
+    const settings = AppSettings(
+      commuteKm: 42.5,
+      dieselPricePerLiter: 1.799,
+      petrolPricePerLiter: 1.899,
+      e10PricePerLiter: 1.749,
+      electricityPricePerKwh: 0.31,
+      chargingPricePerKwh: 0.62,
+      carAssignmentEnabled: true,
+      // Die beiden gehören NICHT in die Datei — hier bewusst abweichend
+      // gesetzt, damit ein Durchsickern auffiele.
+      oneWayFactor: 0.25,
+      pointsWeight: 0.5,
+    );
+    const defaults = GroupDefaults(
+      outboundTime: DayTime(6, 45),
+      returnTime: DayTime(16, 20),
+      meetingPoint: 'Parkplatz Nord',
+    );
+
+    test('Rundlauf: was exportiert wird, kommt auch wieder herein', () {
+      final csv = buildSettingsCsv(settings: settings, defaults: defaults);
+      final back = parseSettingsCsv(csv, current: const AppSettings());
+
+      expect(back.error, isNull);
+      expect(back.problems, isEmpty);
+      expect(back.settings.commuteKm, 42.5);
+      expect(back.settings.dieselPricePerLiter, 1.799);
+      expect(back.settings.petrolPricePerLiter, 1.899);
+      expect(back.settings.e10PricePerLiter, 1.749);
+      expect(back.settings.electricityPricePerKwh, 0.31);
+      expect(back.settings.chargingPricePerKwh, 0.62);
+      expect(back.settings.carAssignmentEnabled, isTrue);
+      expect(back.defaults.outboundTime?.format(), '06:45');
+      expect(back.defaults.returnTime?.format(), '16:20');
+      expect(back.defaults.meetingPoint, 'Parkplatz Nord');
+    });
+
+    test('one_way_factor und points_weight kommen nicht durch', () {
+      // Sie verschieben rückwirkend die Punkte *aller*. Der Parameter-Schirm
+      // lässt sie deshalb aus; eine CSV wäre sonst genau die Hintertür, und
+      // zwar eine, die niemand sieht.
+      final csv = buildSettingsCsv(settings: settings, defaults: defaults);
+      expect(csv, isNot(contains('one_way_factor')));
+      expect(csv, isNot(contains('points_weight')));
+
+      // Auch von Hand ergänzt nicht: Der Schlüssel ist unbekannt.
+      final gepfuscht =
+          '$csv'
+          'one_way_factor;0,9;geschmuggelt\r\n'
+          'points_weight;0,1;geschmuggelt\r\n';
+      final back = parseSettingsCsv(gepfuscht, current: const AppSettings());
+      expect(back.settings.oneWayFactor, 0.5, reason: 'Vorgabe unberührt');
+      expect(back.settings.pointsWeight, 1.0, reason: 'Vorgabe unberührt');
+      expect(back.problems, hasLength(2));
+    });
+
+    test('deutsches Dezimalkomma wird geschrieben und beides gelesen', () {
+      final csv = buildSettingsCsv(settings: settings, defaults: defaults);
+      expect(csv, contains('1,799'), reason: 'Excel liest 1.799 als Text.');
+
+      final mitPunkt = parseSettingsCsv(
+        'Parameter;Wert;Bedeutung\r\ndiesel_price_per_liter;1.65;x\r\n',
+        current: const AppSettings(),
+      );
+      expect(mitPunkt.settings.dieselPricePerLiter, 1.65);
+    });
+
+    test('eine fehlende Zeile lässt den Wert stehen', () {
+      // In Excel eine Zeile zu löschen darf den Wert nicht auf die Vorgabe
+      // zurückwerfen — das wäre eine stille Änderung.
+      final back = parseSettingsCsv(
+        'Parameter;Wert;Bedeutung\r\ncommute_km;12;x\r\n',
+        current: settings,
+      );
+      expect(back.settings.commuteKm, 12);
+      expect(back.settings.dieselPricePerLiter, 1.799);
+      expect(back.settings.carAssignmentEnabled, isTrue);
+    });
+
+    test('krumme Werte werden gemeldet, nicht geraten', () {
+      final back = parseSettingsCsv(
+        'Parameter;Wert;Bedeutung\r\n'
+        'commute_km;viel;x\r\n'
+        'outbound_time;25:99;x\r\n'
+        'car_assignment_enabled;vielleicht;x\r\n',
+        current: settings,
+      );
+      expect(back.problems, hasLength(3));
+      expect(back.settings.commuteKm, 42.5, reason: 'alter Wert bleibt');
+      expect(back.defaults.outboundTime, isNull);
+    });
+
+    test('eine falsche Kopfzeile wird abgewiesen', () {
+      final back = parseSettingsCsv('Datum;Anna\r\n', current: settings);
+      expect(back.error, isNotNull);
+    });
+  });
+
+  group('csvKindOf (#272)', () {
+    test('erkennt die Art am Kopf, nicht am Namen', () {
+      expect(
+        csvKindOf(buildTripCsv(persons: const [], trips: const [])),
+        CsvKind.trips,
+      );
+      expect(
+        csvKindOf(
+          buildSettingsCsv(
+            settings: const AppSettings(),
+            defaults: const GroupDefaults(),
+          ),
+        ),
+        CsvKind.settings,
+      );
+      expect(csvKindOf('Irgendwas;anderes\r\n'), CsvKind.unknown);
+      expect(csvKindOf(''), CsvKind.unknown);
     });
   });
 }
