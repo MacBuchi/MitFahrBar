@@ -52,10 +52,9 @@ final supabaseClientProvider = Provider<SupabaseClient>(
 /// Wie eine erzeugte Datei beim Nutzer ankommt (Download bzw. Teilen-Menü).
 /// Als Provider, damit Tests den Plattform-Pfad ersetzen können — im Test
 /// gibt es weder Browser noch Teilen-Menü.
-typedef FileSaver =
-    Future<void> Function({required String name, required String content});
+typedef FileSaver = Future<void> Function(List<ExportFile> files);
 
-final fileSaverProvider = Provider<FileSaver>((ref) => saveTextFile);
+final fileSaverProvider = Provider<FileSaver>((ref) => saveTextFiles);
 
 /// Wie ein Text weitergegeben wird (Teilen-Menü bzw. Zwischenablage).
 /// Als Provider, damit Tests den Plattform-Pfad ersetzen können — im Test

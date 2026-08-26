@@ -277,4 +277,54 @@ void main() {
     expect(find.textContaining('gefunden'), findsNothing);
     expect(find.textContaining('keine Fahrt lesen'), findsNothing);
   });
+
+  // ------------------------------------------------------ Parameter (#272)
+  const parameterCsv =
+      'Parameter;Wert;Bedeutung\r\n'
+      'commute_km;41,5;Arbeitsweg einfach (km)\r\n'
+      'diesel_price_per_liter;1,66;Diesel (EUR/l)\r\n'
+      'outbound_time;06:45;Abfahrt hin (hh:mm)\r\n'
+      'meeting_point;Parkplatz Nord;Treffpunkt\r\n';
+
+  testWidgets('eine Parameter-Datei wird erkannt und nach Rückfrage '
+      'übernommen', (tester) async {
+    await pumpApp(tester, backend, overrides: _file(parameterCsv));
+    await _login(tester);
+    await _openImport(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'CSV-Datei wählen'));
+    await tester.pumpAndSettle();
+
+    // Die Rückfrage ist Pflicht: Arbeitsweg und Spritpreise schreiben
+    // Kilometer und Ersparnis der ganzen Historie um.
+    expect(find.text('Parameter übernehmen?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Übernehmen'));
+    await tester.pumpAndSettle();
+
+    final settings = await backend.dataFor(groupId).loadSettings();
+    expect(settings.commuteKm, 41.5);
+    expect(settings.dieselPricePerLiter, 1.66);
+    final defaults = await backend.dataFor(groupId).loadGroupDefaults();
+    expect(defaults.outboundTime?.format(), '06:45');
+    expect(defaults.meetingPoint, 'Parkplatz Nord');
+  });
+
+  testWidgets('Abbrechen an der Rückfrage ändert nichts', (tester) async {
+    // Ein Dialog, den man wegtippt und der trotzdem schreibt, wäre die
+    // schlimmste Fassung: Die Zahlen der Übersicht änderten sich, ohne dass
+    // jemand zugestimmt hat.
+    final before = await backend.dataFor(groupId).loadSettings();
+    await pumpApp(tester, backend, overrides: _file(parameterCsv));
+    await _login(tester);
+    await _openImport(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'CSV-Datei wählen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Abbrechen'));
+    await tester.pumpAndSettle();
+
+    final after = await backend.dataFor(groupId).loadSettings();
+    expect(after.commuteKm, before.commuteKm);
+    expect(after.dieselPricePerLiter, before.dieselPricePerLiter);
+  });
 }

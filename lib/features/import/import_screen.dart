@@ -44,6 +44,19 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     try {
       final text = await ref.read(filePickerProvider)();
       if (text == null) return; // abgebrochen ist kein Fehler
+
+      // Erkannt wird am Kopf, nicht am Dateinamen (#272): Der Export legt
+      // drei Dateien nebeneinander, und wer die falsche erwischt, soll das
+      // gesagt bekommen statt einer Fehlermeldung über kaputte Fahrten.
+      switch (csvKindOf(text)) {
+        case CsvKind.settings:
+          await _importSettings(text);
+          return;
+        case CsvKind.trips:
+        case CsvKind.unknown:
+          break;
+      }
+
       final persons = await ref.read(personsProvider.future);
       final result = parseTripCsv(text);
       if (!mounted) return;
@@ -67,6 +80,85 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Datei konnte nicht gelesen werden.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Spielt eine Parameter-Datei ein — nach ausdrücklicher Rückfrage.
+  ///
+  /// Die Rückfrage ist kein Höflichkeitsschritt: Arbeitsweg und Spritpreise
+  /// gehen in Kilometer und Ersparnis **der ganzen Historie** ein. Wer eine
+  /// alte Sicherung einliest, verschiebt damit rückwirkend jede Zahl auf der
+  /// Übersicht — dieselbe Klasse Eingriff wie das Ändern einer bestehenden
+  /// Fahrt, die ebenfalls nachfragt.
+  Future<void> _importSettings(String text) async {
+    final current = await ref.read(settingsProvider.future);
+    final parsed = parseSettingsCsv(text, current: current);
+    if (!mounted) return;
+
+    if (parsed.error case final String message) {
+      setState(() {
+        _result = ImportResult.failed(message);
+        _done = null;
+      });
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Parameter übernehmen?'),
+        content: Text(
+          'Arbeitsweg und Spritpreise gehen in Kilometer und Ersparnis der '
+          'ganzen Historie ein — die Zahlen auf der Übersicht ändern sich '
+          'dadurch rückwirkend.'
+          '${parsed.problems.isEmpty ? '' : '\n\n${parsed.problems.length} '
+                    'Zeile(n) werden übersprungen.'}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Übernehmen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final data = ref.read(carpoolRepositoryProvider);
+      await data.saveSettings(parsed.settings);
+      await data.saveGroupDefaults(parsed.defaults);
+      ref.invalidate(settingsProvider);
+      ref.invalidate(groupDefaultsProvider);
+      log.i('csv import: settings applied, ${parsed.problems.length} skipped');
+      if (mounted) {
+        setState(() {
+          _result = null;
+          _done = parsed.problems.isEmpty
+              ? 'Parameter übernommen.'
+              : 'Parameter übernommen, '
+                    '${parsed.problems.length} Zeile(n) übersprungen.';
+        });
+      }
+    } catch (error) {
+      log.e('csv import: settings failed: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Parameter konnten nicht '
+              'gespeichert werden.',
+            ),
+          ),
         );
       }
     } finally {

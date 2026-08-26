@@ -9,6 +9,8 @@
 /// für ein Template.
 library;
 
+import '../models/app_settings.dart';
+import '../models/group_defaults.dart';
 import '../models/person.dart';
 import '../models/trip.dart';
 
@@ -109,3 +111,107 @@ String _escape(String value) {
   }
   return '"${value.replaceAll('"', '""')}"';
 }
+
+/// Spaltenüberschriften der Parameter-Datei. Der Schlüssel ist die **Kennung
+/// aus der Datenbank**, nicht die deutsche Beschriftung: Die Beschriftung darf
+/// sich ändern, ohne dass eine alte Sicherung unlesbar wird.
+const settingsKeyHeader = 'Parameter';
+const settingsValueHeader = 'Wert';
+const settingsLabelHeader = 'Bedeutung';
+
+/// Was die Parameter-Datei trägt — genau die Werte des Parameter-Screens.
+///
+/// **`one_way_factor` und `points_weight` stehen bewusst NICHT darin**, obwohl
+/// sie in derselben Tabelle liegen. Es ist dasselbe Kriterium, an dem auch der
+/// Screen sie auslässt: Sie verschieben rückwirkend die Punkte *aller*. Eine
+/// CSV wäre sonst genau die Hintertür, die der Screen nicht sein will — und
+/// zwar eine, die niemand sieht, weil eine Datei zwischen zwei Geräten wandert.
+/// Verloren geht dabei nichts: Beide werden per Migration gesetzt, nicht von
+/// Hand, und eine frische Gruppe bekommt sie aus den Vorgaben.
+const settingsLabels = <String, String>{
+  'commute_km': 'Arbeitsweg einfach (km)',
+  'diesel_price_per_liter': 'Diesel (EUR/l)',
+  'petrol_price_per_liter': 'Super E5 (EUR/l)',
+  'e10_price_per_liter': 'Super E10 (EUR/l)',
+  'electricity_price_per_kwh': 'Hausstrom (EUR/kWh)',
+  'charging_price_per_kwh': 'Ladestrom (EUR/kWh)',
+  'car_assignment_enabled': 'Auto-Zuordnung (1 = an, 0 = aus)',
+  'outbound_time': 'Abfahrt hin (hh:mm)',
+  'return_time': 'Abfahrt zurück (hh:mm)',
+  'meeting_point': 'Treffpunkt',
+};
+
+/// Die Parameter als CSV — zugleich die Vorlage für den Import.
+///
+/// Nicht gepflegte Vorgaben (keine Zeile in `group_defaults`) stehen mit
+/// leerem Wert da statt zu fehlen: Eine Vorlage, die nur die gesetzten Felder
+/// zeigt, verrät nicht, welche es überhaupt gibt.
+String buildSettingsCsv({
+  required AppSettings settings,
+  required GroupDefaults defaults,
+}) {
+  final values = <String, String>{
+    'commute_km': _number(settings.commuteKm),
+    'diesel_price_per_liter': _number(settings.dieselPricePerLiter),
+    'petrol_price_per_liter': _number(settings.petrolPricePerLiter),
+    'e10_price_per_liter': _number(settings.e10PricePerLiter),
+    'electricity_price_per_kwh': _number(settings.electricityPricePerKwh),
+    'charging_price_per_kwh': _number(settings.chargingPricePerKwh),
+    'car_assignment_enabled': settings.carAssignmentEnabled ? '1' : '0',
+    'outbound_time': defaults.outboundTime?.format() ?? '',
+    'return_time': defaults.returnTime?.format() ?? '',
+    'meeting_point': defaults.meetingPoint ?? '',
+  };
+
+  final buffer = StringBuffer(_bom);
+  buffer.write(
+    [
+      settingsKeyHeader,
+      settingsValueHeader,
+      settingsLabelHeader,
+    ].join(_separator),
+  );
+  buffer.write(_lineEnd);
+  for (final entry in settingsLabels.entries) {
+    buffer.write(
+      [
+        entry.key,
+        _escape(values[entry.key] ?? ''),
+        _escape(entry.value),
+      ].join(_separator),
+    );
+    buffer.write(_lineEnd);
+  }
+  return buffer.toString();
+}
+
+/// Zahl mit **Dezimalkomma**: Deutsches Excel liest `1.70` als Text und
+/// zeigt in der Spalte plötzlich linksbündige Zeichenketten. Der Import liest
+/// beide Schreibweisen — eine von Hand getippte Datei trägt oft den Punkt.
+String _number(double value) {
+  final text = value == value.roundToDouble() && value.abs() < 1e15
+      ? value.toStringAsFixed(value.abs() < 10 ? 2 : 0)
+      : value.toString();
+  return text.replaceAll('.', ',');
+}
+
+/// **Es gibt bewusst keine Datei mit den Wochenwerten des Archivs.** Sie
+/// stehen unter CC BY-NC-SA; die ShareAlike-Klausel greift bei Weitergabe,
+/// und eine Datei, die man weiterreichen kann, ist genau das. Die Zusage des
+/// Projekts ist, dass die Werte die Gruppendatenbank nicht verlassen —
+/// `test/price_archive_license_test.dart` erzwingt sie, Begründung in
+/// `doc/entscheidung-preisarchiv-lizenz.md`. Verloren ist dadurch nichts: Der
+/// nächtliche Nachfüll-Lauf sucht sich „Woche mit Fahrt ohne vollständige
+/// Preiszeilen" und holt sie aus dem Archiv zurück.
+///
+/// Die Kraftstoff-Konstanten der Parameter-Datei sind davon unberührt — das
+/// sind die Zahlen, die die Gruppe selbst eingetippt hat, keine Archivwerte.
+///
+/// Dateiname der Beilage — dasselbe Muster wie [csvFileName], damit die
+/// beiden Dateien einer Sicherung nebeneinander stehen.
+String settingsCsvFileName(DateTime today) => _dated('parameter', today);
+
+String _dated(String kind, DateTime today) =>
+    'mitfahrbar-$kind-${today.year}-'
+    '${today.month.toString().padLeft(2, '0')}-'
+    '${today.day.toString().padLeft(2, '0')}.csv';

@@ -18,6 +18,7 @@ import '../fakes/test_app.dart';
 class _CapturedFile {
   String? name;
   String? content;
+  List<String> names = const [];
   int calls = 0;
 }
 
@@ -44,13 +45,15 @@ void main() {
     backend = FakeBackend();
     captured = _CapturedFile();
     overrides = [
-      fileSaverProvider.overrideWithValue(({
-        required String name,
-        required String content,
-      }) async {
+      fileSaverProvider.overrideWithValue((files) async {
+        // Die Fahrten-Datei ist die erste; daneben liegt seit #272 die
+        // Parameter-Datei. Der Test greift gezielt zu, statt „die eine
+        // Datei" anzunehmen — sonst wäre nicht zu sehen, wenn die Sicherung
+        // stillschweigend auf eine Datei zurückfiele.
         captured
-          ..name = name
-          ..content = content
+          ..name = files.first.name
+          ..content = files.first.content
+          ..names = [for (final f in files) f.name]
           ..calls += 1;
       }),
     ];
@@ -108,7 +111,32 @@ void main() {
     await _login(tester);
     await _export(tester);
 
-    expect(find.text('CSV mit 1 Fahrten erstellt.'), findsOneWidget);
+    expect(
+      find.text('2 Dateien erstellt: 1 Fahrten und die Parameter.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('die Sicherung enthält die Parameter, nie die Archiv-Preise', (
+    tester,
+  ) async {
+    // #272: Die Parameter-Datei liegt neben den Fahrten — die Wochenwerte
+    // des Preisarchivs aber NICHT. Sie stehen unter CC BY-NC-SA, und eine
+    // weiterreichbare Datei wäre die Weitergabe, die die ShareAlike-Klausel
+    // auslöst (test/price_archive_license_test.dart).
+    await setUpGroup();
+    await pumpApp(tester, backend, overrides: overrides);
+    await _login(tester);
+    await _export(tester);
+
+    expect(captured.names, hasLength(2));
+    expect(captured.names.first, contains('fahrten'));
+    expect(captured.names.last, contains('parameter'));
+    expect(
+      captured.names.any((n) => n.contains('preis') || n.contains('sprit')),
+      isFalse,
+      reason: 'Eine Preis-Datei wäre die Weitergabe der Archivwerte.',
+    );
   });
 
   testWidgets('ohne Fahrten entsteht die Vorlage, nicht ein Fehler', (
@@ -136,10 +164,7 @@ void main() {
       tester,
       backend,
       overrides: [
-        fileSaverProvider.overrideWithValue(({
-          required String name,
-          required String content,
-        }) async {
+        fileSaverProvider.overrideWithValue((files) async {
           throw StateError('kein Teilen-Menü');
         }),
       ],

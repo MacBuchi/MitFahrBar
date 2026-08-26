@@ -15,6 +15,9 @@
 /// wird in der Oberfläche.
 library;
 
+import '../models/app_settings.dart';
+import '../models/group_defaults.dart';
+import '../models/notification_prefs.dart';
 import '../models/trip.dart';
 import 'csv_export.dart';
 
@@ -62,6 +65,144 @@ class ImportResult {
   final List<String> problems;
 
   bool get isEmpty => trips.isEmpty;
+}
+
+/// Welche der drei Export-Dateien hier vorliegt.
+///
+/// Erkannt wird am **Kopf**, nie am Dateinamen: Der Import liest seit jeher
+/// nur den Inhalt, damit ältere `ridebuddy-*.csv` lesbar bleiben und eine
+/// umbenannte Datei nicht plötzlich etwas anderes bedeutet.
+enum CsvKind { trips, settings, unknown }
+
+/// Bestimmt die Art einer CSV an ihrer Kopfzeile.
+CsvKind csvKindOf(String content) {
+  final rows = _splitRows(content.replaceFirst('﻿', ''));
+  if (rows.isEmpty) return CsvKind.unknown;
+  final header = [for (final c in rows.first.cells) c.trim()];
+  if (header.isEmpty) return CsvKind.unknown;
+  if (header.first == dateHeader) return CsvKind.trips;
+  if (header.first == settingsKeyHeader) return CsvKind.settings;
+  return CsvKind.unknown;
+}
+
+/// Was aus einer Parameter-Datei herauskam.
+class ImportedSettings {
+  const ImportedSettings({
+    required this.settings,
+    required this.defaults,
+    this.problems = const [],
+    this.error,
+  });
+
+  const ImportedSettings.failed(String message)
+    : settings = const AppSettings(),
+      defaults = const GroupDefaults(),
+      problems = const [],
+      error = message;
+
+  final AppSettings settings;
+  final GroupDefaults defaults;
+
+  /// Zeilen, die übersprungen wurden — wie bei den Fahrten gesammelt statt
+  /// beim ersten Fehler abgebrochen.
+  final List<String> problems;
+
+  final String? error;
+}
+
+/// Liest eine Parameter-Datei und legt die Werte über [current].
+///
+/// **Über den bestehenden Stand gelegt, nicht ersetzt.** Eine Datei, der eine
+/// Zeile fehlt — weil jemand sie in Excel gelöscht hat —, darf den Wert nicht
+/// auf die Vorgabe zurückwerfen: Das wäre eine stille Änderung mit demselben
+/// Schaden wie ein falscher Wert, nur unsichtbar. Unbekannte Schlüssel werden
+/// gemeldet und übersprungen; `one_way_factor` und `points_weight` stehen
+/// nicht in [settingsLabels] und kommen deshalb auch aus einer von Hand
+/// ergänzten Datei nicht durch.
+ImportedSettings parseSettingsCsv(
+  String content, {
+  required AppSettings current,
+}) {
+  final rows = _splitRows(content.replaceFirst('﻿', ''));
+  if (rows.isEmpty) return const ImportedSettings.failed('Die Datei ist leer.');
+
+  final header = [for (final c in rows.first.cells) c.trim()];
+  if (header.isEmpty || header.first != settingsKeyHeader) {
+    return const ImportedSettings.failed(
+      'Die erste Spalte muss „$settingsKeyHeader" heißen — '
+      'am einfachsten mit einer Datei aus dem Export.',
+    );
+  }
+
+  final problems = <String>[];
+  final values = <String, String>{};
+  for (final row in rows.skip(1)) {
+    final cells = row.cells;
+    if (cells.isEmpty || cells.first.trim().isEmpty) continue;
+    final key = cells.first.trim();
+    if (!settingsLabels.containsKey(key)) {
+      problems.add('Zeile ${row.line}: „$key" ist kein bekannter Parameter.');
+      continue;
+    }
+    values[key] = cells.length > 1 ? cells[1].trim() : '';
+  }
+
+  double? number(String key) {
+    final raw = values[key];
+    if (raw == null || raw.isEmpty) return null;
+    // Deutsches Dezimalkomma und der Punkt einer von Hand getippten Datei.
+    final parsed = double.tryParse(
+      raw.replaceAll(' ', '').replaceAll(',', '.'),
+    );
+    if (parsed == null) {
+      problems.add('„${settingsLabels[key]}": „$raw" ist keine Zahl.');
+      return null;
+    }
+    return parsed;
+  }
+
+  bool? flag(String key) {
+    final raw = values[key];
+    if (raw == null || raw.isEmpty) return null;
+    final normalized = raw.toLowerCase();
+    if (['1', 'ja', 'an', 'true'].contains(normalized)) return true;
+    if (['0', 'nein', 'aus', 'false'].contains(normalized)) return false;
+    problems.add('„${settingsLabels[key]}": „$raw" ist kein Ja/Nein-Wert.');
+    return null;
+  }
+
+  DayTime? time(String key) {
+    final raw = values[key];
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return DayTime.parse(raw);
+    } on FormatException {
+      problems.add('„${settingsLabels[key]}": „$raw" ist keine Uhrzeit.');
+      return null;
+    }
+  }
+
+  final point = values['meeting_point']?.trim();
+  return ImportedSettings(
+    settings: current.copyWith(
+      commuteKm: number('commute_km'),
+      dieselPricePerLiter: number('diesel_price_per_liter'),
+      petrolPricePerLiter: number('petrol_price_per_liter'),
+      e10PricePerLiter: number('e10_price_per_liter'),
+      electricityPricePerKwh: number('electricity_price_per_kwh'),
+      chargingPricePerKwh: number('charging_price_per_kwh'),
+      carAssignmentEnabled: flag('car_assignment_enabled'),
+    ),
+    // GroupDefaults hat bewusst kein copyWith: Der Upsert schreibt immer alle
+    // drei Felder, sonst wäre eine einmal gesetzte Uhrzeit nie loszuwerden.
+    // Eine leere Zelle heißt hier also wirklich „nicht gesetzt".
+    defaults: GroupDefaults(
+      outboundTime: time('outbound_time'),
+      returnTime: time('return_time'),
+      meetingPoint: point == null || point.isEmpty ? null : point,
+    ),
+    problems: problems,
+  );
 }
 
 /// Umkehrung von [statusLabels]. Kleinschreibung, damit „fahrer" genauso
