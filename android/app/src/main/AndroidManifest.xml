@@ -68,19 +68,24 @@
         </provider>
         <!-- Push-Benachrichtigungen (#101). Der Kanal wird in MainActivity.kt
              angelegt; steht er hier, ohne zu existieren, weicht FCM auf einen
-             eigenen Kanal namens „Miscellaneous" aus. Das Icon zeigt bewusst
-             auf den Adaptive-Icon-Vordergrund: Android macht aus jedem
-             Benachrichtigungs-Icon eine Silhouette über den Alphakanal, und
-             der Vordergrund ist die einzige erzeugte Fassung der Bildmarke
-             mit transparentem Hintergrund (tool/brand/build_icons.sh). Ohne
-             die Angabe nähme Android das farbige Launcher-Icon und zeigte
-             einen weißen Klotz. -->
+             eigenen Kanal namens „Miscellaneous" aus.
+
+             Das Icon ist eine EIGENE einfarbige Fassung der Bildmarke, kein
+             Adaptive-Icon-Vordergrund mehr (#271). Android macht aus jedem
+             Benachrichtigungs-Icon eine Silhouette über den Alphakanal — und
+             im Vordergrund sind die cyanen Flächen (Fensterband, Radnaben)
+             genauso deckend wie der Wagen. Übrig blieb der äußere Umriss:
+             gemeldet als „ein weißer Kreis". In ic_notification sind sie
+             ausgestanzt, der Wagen zeigt seine drei Mitfahrer.
+             Erzeugt von tool/brand/build_icons.sh aus derselben mark.svg.
+             Ohne die Angabe überhaupt nähme Android das farbige
+             Launcher-Icon und zeigte einen weißen Klotz. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="@string/notification_channel_plan_id" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher_foreground" />
+            android:resource="@drawable/ic_notification" />
         <!-- Ohne diese Angabe färbt Android das kleine Icon und die
              App-Zeile grau. Der Wert steht in res/values/colors.xml und
              res/values-night/colors.xml — hell und dunkel brauchen

@@ -346,6 +346,29 @@ void main() {
       );
       expect(
         content,
+        contains('android:resource="@drawable/ic_notification"'),
+        reason:
+            'Zeigt die Angabe wieder auf den Adaptive-Icon-Vordergrund, ist '
+            'der Fehler aus #271 zurück: Dort sind die cyanen Flächen im '
+            'Alphakanal genauso deckend wie der Wagen, übrig bleibt der '
+            'äußere Umriss — gemeldet als „ein weißer Kreis". Nur im '
+            'Benachrichtigungs-Schatten eines echten Geräts zu sehen.',
+      );
+      for (final density in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+        expect(
+          File(
+            'android/app/src/main/res/drawable-$density/ic_notification.png',
+          ).existsSync(),
+          isTrue,
+          reason:
+              'Der Verweis im Manifest löst nur auf, wenn die Ressource in '
+              'jeder Dichte liegt — sonst bricht der Android-Build ab, und '
+              'zwar erst er, nicht `flutter test`. Erzeugt von '
+              'tool/brand/build_icons.sh; Icons nie von Hand nachlegen.',
+        );
+      }
+      expect(
+        content,
         contains('com.google.firebase.messaging.default_notification_color'),
         reason:
             'Ohne die Angabe färbt Android das kleine Icon und die App-Zeile '

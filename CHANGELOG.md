@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.88.0] – 2026-08-26
+
+### Geändert
+
+- **Das Auto im App-Symbol ist deutlich größer** (#271). Es wurde bisher auf
+  seinen Rahmen skaliert statt auf das Bild darin — dadurch war es kleiner als
+  nötig und saß außerdem zu tief. Es füllt die Fläche jetzt so weit aus, wie
+  Android es zulässt, ohne dass an den Rändern etwas abgeschnitten wird.
+- **Die Benachrichtigung zeigt endlich ein Auto statt eines weißen Klotzes**
+  (#271). Android zeichnet in der Statusleiste nur den Umriss eines Symbols —
+  und weil Fenster und Radnaben genauso „voll" waren wie der Wagen, blieb
+  davon eine formlose Fläche übrig. Jetzt sind sie ausgestanzt: Zu sehen ist
+  der Bus mit seinen drei Mitfahrern.
+
 ## [0.87.1] – 2026-08-26
 
 ### Behoben
