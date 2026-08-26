@@ -486,15 +486,21 @@ class HelpScreen extends StatelessWidget {
               _Line(
                 leading: Icon(Icons.download_outlined),
                 text:
-                    'Fahrten exportieren erzeugt eine Tabelle (CSV) — eure '
-                    'eigene Sicherung, legt sie ab und zu irgendwo ab.',
+                    'Fahrten exportieren erzeugt zwei Tabellen (CSV) — eure '
+                    'eigene Sicherung: die Fahrten und daneben eure '
+                    'Parameter, also Arbeitsweg, Spritpreise, Abfahrtszeiten '
+                    'und Treffpunkt. Legt sie ab und zu irgendwo ab.',
               ),
               _Line(
                 leading: Icon(Icons.upload_outlined),
                 text:
-                    'Fahrten importieren liest so eine Tabelle wieder ein. '
-                    'Vor dem Übernehmen zeigt die App, was passieren '
-                    'würde, und fragt bei unbekannten Namen nach.',
+                    'Fahrten importieren liest so eine Tabelle wieder ein — '
+                    'die App erkennt an der Datei selbst, welche der beiden '
+                    'es ist. Vor dem Übernehmen zeigt sie, was passieren '
+                    'würde, und fragt bei unbekannten Namen nach. Bei den '
+                    'Parametern fragt sie ausdrücklich nach: Arbeitsweg und '
+                    'Spritpreise ändern Kilometer und Ersparnis eurer '
+                    'ganzen Historie.',
               ),
               _Line(
                 leading: Icon(Icons.lightbulb_outline),
