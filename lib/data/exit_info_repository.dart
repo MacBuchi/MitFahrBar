@@ -43,17 +43,45 @@ class AppExit {
   /// Nur bei ANR legt Android einen Thread-Dump dazu.
   final bool hasTrace;
 
+  /// Ab hier lag der Prozess im Hintergrund: 400 ist
+  /// `RunningAppProcessInfo.IMPORTANCE_CACHED`, 1000 `IMPORTANCE_GONE`.
+  /// Alles darunter (100 Vordergrund, 200 sichtbar, 300 Dienst …) heißt, dass
+  /// die App noch etwas zu tun hatte, als Android sie beendet hat.
+  static const cachedImportance = 400;
+
   /// Ein normales Beenden ist kein Fehler und gehört nicht gemeldet — sonst
   /// füllt jedes Wegwischen aus der Übersicht den Wochen-Digest (dieselbe
   /// Lehre wie beim `worthReporting`-Filter des Sinks).
-  bool get isFailure => const {
-    'ANR',
-    'CRASH',
-    'CRASH_NATIVE',
-    'LOW_MEMORY',
-    'EXCESSIVE_RESOURCE_USAGE',
-    'INITIALIZATION_FAILURE',
-  }.contains(reason);
+  ///
+  /// **`LOW_MEMORY` hängt zusätzlich an der Wichtigkeit** (#266): Einen
+  /// *zwischengespeicherten* Prozess räumt Android als Haushaltsführung weg —
+  /// die App lag im Hintergrund, niemand hat etwas verloren. Gemeldet füllt
+  /// das den Wochen-Digest mit Vorgängen, an denen nichts zu triagieren ist;
+  /// belegt in `error_reports` KW 34 (0.83.0, Android, `RSS 91 MB ·
+  /// importance 400`).
+  ///
+  /// **`LOW_MEMORY` ganz zu streichen wäre der falsche Schnitt:** Wird die App
+  /// im *Vordergrund* wegen Speichermangels beendet (`importance` 100), ist
+  /// das ein echter Ausfall — jemand hat zugesehen, wie sie verschwindet. Nur
+  /// dieser Fall soll übrig bleiben.
+  ///
+  /// **Eine nicht erfasste Wichtigkeit meldet weiter.** [fromMap] setzt dann 0,
+  /// und 0 liegt unter der Schwelle: Lieber eine Meldung zu viel als ein
+  /// echter Kill, den niemand je sieht — dieselbe Linie wie „Unbekannt ist
+  /// keine Blockade" beim Benachrichtigungs-Check.
+  bool get isFailure {
+    const reasons = {
+      'ANR',
+      'CRASH',
+      'CRASH_NATIVE',
+      'LOW_MEMORY',
+      'EXCESSIVE_RESOURCE_USAGE',
+      'INITIALIZATION_FAILURE',
+    };
+    if (!reasons.contains(reason)) return false;
+    if (reason == 'LOW_MEMORY' && importance >= cachedImportance) return false;
+    return true;
+  }
 
   /// Was im Bericht steht. RSS/PSS von 0 heißt „Android hat den Speicher
   /// nicht erfasst" — dann bleibt der Wert weg statt als „RSS 0 MB" eine
