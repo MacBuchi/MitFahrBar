@@ -117,6 +117,16 @@ class HelpScreen extends StatelessWidget {
               ),
               _Line(
                 text:
+                    'Der Fahranteil daneben ist um den Punktestand '
+                    'ausgeglichen: Wer sein Auto voll macht, leistet mit '
+                    'derselben Zahl Fahrten mehr — deshalb zählt ein '
+                    'Guthaben wie Mitfahrten, die man noch gut hat, und '
+                    'eine Schuld nimmt welche weg. Für den Vorschlag, wer '
+                    'als Nächstes fährt, rechnet die App weiter mit den '
+                    'reinen Tagen; dort stecken die Punkte schon drin.',
+              ),
+              _Line(
+                text:
                     '„Volle Kischd" trägt, wer im Schnitt die meisten '
                     'mitnimmt, „Faschd alloi", wer meist allein fährt.',
               ),

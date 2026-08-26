@@ -62,9 +62,53 @@ class PersonStats {
     return !last.isBefore(reference.subtract(Duration(days: days)));
   }
 
-  /// Wie oft gefahren, relativ zur eigenen Anwesenheit (0..1).
+  /// Wie oft gefahren, relativ zur eigenen Anwesenheit (0..1) — die **rohe**
+  /// Rate.
+  ///
+  /// Sie misst den Aufwand in Tagen und weiß nichts davon, wie voll das Auto
+  /// war. Genau darauf regelt der Fahrraten-Trim in [rankedPlanDrivers]; die
+  /// Anzeige nimmt seit Issue #270 [settledDriveShare].
   double get driveShare =>
       participationDays == 0 ? 0 : driven / participationDays;
+
+  /// Der Fahranteil, nachdem jeder seinen Punktestand ausgeglichen hat
+  /// (Issue #270) — der Wert, den Startseite, Gesichter und Statistik zeigen.
+  ///
+  /// Wer mit vollem Auto fährt, sammelt Punkte, ohne dass seine Rate steigt;
+  /// wer fast allein fährt, verliert sie. Punkte und Mitfahrten stehen in
+  /// derselben Einheit — eine mitgenommene Person ist eine erhaltene
+  /// Mitfahrt —, also lassen sie sich verrechnen: Ein Guthaben zählt als
+  /// Mitfahrten, die man noch gut hat, eine Schuld nimmt welche weg.
+  ///
+  ///   gefahren / (gefahren + mitgefahren + Punkte + 1-way)
+  ///
+  /// **Korrigiert werden nur die Mitfahrten, nie die Fahrten.** So hat es die
+  /// Gruppe verlangt, und anders ginge es auch nicht: Eine Fahrt hat
+  /// stattgefunden, sie lässt sich nicht wegrechnen.
+  ///
+  /// Zwei Eigenschaften, die kennen muss, wer den Wert woanders einsetzen
+  /// will:
+  /// - Ausmultipliziert ist `mitgefahren + Punkte` gleich
+  ///   `mitgenommen − Faktor × 1-way`; die eigenen Mitfahrten fallen also aus
+  ///   der Kennzahl heraus. Zwei Personen mit gleich vielen Fahrten und gleich
+  ///   vollem Auto bekommen denselben Wert, auch wenn die eine an 100 und die
+  ///   andere an 40 Tagen dabei war.
+  /// - Sie sagt damit nicht mehr „wie viel musstest du fahren", sondern „wie
+  ///   viel im Verhältnis zu dem, was du dafür bekommen hast". Für den Planer
+  ///   wäre das falsch: Dort steckt der Punktestand bereits im Regler, ihn
+  ///   zusätzlich in die Rate zu ziehen hieße, ihn zweimal zu verrechnen — und
+  ///   der Trim schwänge (dieselbe Begründung wie der fehlende I-Anteil).
+  ///   [driveShare] bleibt deshalb, was der Trim liest.
+  ///
+  /// Der Nenner kann rechnerisch auf null fallen (jemand ohne jede
+  /// Beteiligung, oder ein `oneWayFactor` über 1). Dann steht hier 0 statt
+  /// einer Division durch null — dieselbe Antwort wie bei [driveShare] ohne
+  /// Anwesenheit.
+  double get settledDriveShare {
+    final settled = driven + ridden + points + oneWay;
+    if (settled <= 0) return 0;
+    return driven / settled;
+  }
 
   /// Ø mitgenommene Personen pro eigener Fahrt (Excel-„Quote").
   double? get quote => driven == 0 ? null : carried / driven;
