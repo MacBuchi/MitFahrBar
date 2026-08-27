@@ -2414,11 +2414,27 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Launcher, Web und Favicon. Dies ist ein anderes Artefakt für einen anderen
     Kasten, und der Preis steht dabei: Wer die Marke ändert, zieht dieses
     Glyph von Hand nach.
-  - **Gerendert wird es wie alles andere aus der SVG** (`build_icons.sh` →
-    `rsvg-convert`), in genau den fünf Dichten, die Android vorgibt
-    (24/36/48/72/96 px); 0,92 ist der optische Kernbereich daraus (22 von 24).
-    Icons nie von Hand legen — `test/android_manifest_test.dart` prüft, dass
-    die Ressource in jeder Dichte existiert.
+  - **Es ist ein VectorDrawable, keine fünf PNGs** (`res/drawable/
+    ic_notification.xml`, erzeugt von `build_icons.sh` aus der SVG). Android
+    rastert einen Vektor erst auf dem Gerät, im Moment des Zeichnens: Die
+    Meldung reicht nur Paketname und Ressourcen-Id weiter, die SystemUI
+    schlägt nach, rastert in **ihrer** Dichte und behält nur den Alphakanal.
+    Damit gibt es keine Größe, die man vergessen kann, und eine Dichte, die es
+    heute noch nicht gibt, bekommt ihre Pixel automatisch. (Unterhalb minSdk
+    21 erzeugte AGP doch PNGs als Rückfall — wir sind bei 24.) Muster von
+    PilzBuddy (pilzbuddy#331).
+  - **Die Frontscheibe ist ein LOCH** (`fillType="evenOdd"`, ab API 24 = unser
+    minSdk), keine dunkle Fläche: Farbe überlebt in diesem Medium nicht, nur
+    Deckung. Eine dunkle Fläche wäre im Alphakanal genauso deckend wie der
+    Aufbau — der weiße Klotz aus #271.
+  - **Zwei Pfade, und das ist kein Zufall:** Die Räder überlappen den Aufbau.
+    In EINEM `evenOdd`-Pfad würde die Überlappung selbst zum Loch; als
+    eigener Pfad übermalt sie einfach.
+  - **Ein PNG daneben gewinnt und macht den Vektor wirkungslos** — Android
+    nimmt die Fassung der passenden Dichte. `test/android_manifest_test.dart`
+    prüft deshalb beides: dass die XML da ist und `evenOdd` trägt, und dass
+    in keiner Dichte ein `ic_notification.png` liegt. Alle drei rot
+    verifiziert.
   - Skaliert wird auf die **größere** Kante, nicht auf die Breite: Bei einem
     fast quadratischen Glyph liefe es sonst oben und unten aus dem Kasten.
 - **Branding:** `tool/brand/mark.svg` ist die einzige Quelle der Bildmarke.

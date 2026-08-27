@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ERZEUGT von tool/brand/build_icons.sh aus tool/brand/notification.svg.
+     Nicht von Hand bearbeiten — die naechste Ausfuehrung ueberschreibt es.
+
+     Ein Vektor statt fuenf PNGs: Android rastert ihn erst beim Zeichnen, in
+     der Dichte des jeweiligen Geraets. Die Statusleiste bekommt ohnehin nur
+     Paketname und Ressourcen-Id; die SystemUI schlaegt nach, rastert selbst
+     und behaelt nur den Alphakanal — jede Farbe faellt weg. Deshalb ist die
+     Frontscheibe ein LOCH (`evenOdd`, ab API 24 = unser minSdk) und keine
+     dunkle Flaeche.
+
+     Zwei Pfade: Die Raeder ueberlappen den Aufbau, und in einem einzigen
+     evenOdd-Pfad wuerde die Ueberlappung selbst zum Loch. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M6.48,2.537 L17.519999999999996,2.537 A3.943,3.943 0 0,1 21.462999999999997,6.48 L21.462999999999997,16.467999999999996 A3.943,3.943 0 0,1 17.519999999999996,20.410999999999998 L6.48,20.410999999999998 A3.943,3.943 0 0,1 2.537,16.467999999999996 L2.537,6.48 A3.943,3.943 0 0,1 6.48,2.537 Z M6.48,4.64 L17.52,4.64 A2.103,2.103 0 0,1 19.623,6.743 L19.623,9.371 A2.103,2.103 0 0,1 17.52,11.474 L6.48,11.474 A2.103,2.103 0 0,1 4.377,9.371 L4.377,6.743 A2.103,2.103 0 0,1 6.48,4.64 Z M5.954,8.057 A1.577,1.577 0 1,0 9.108,8.057 A1.577,1.577 0 1,0 5.954,8.057 Z M10.423,8.057 A1.577,1.577 0 1,0 13.577,8.057 A1.577,1.577 0 1,0 10.423,8.057 Z M14.892000000000001,8.057 A1.577,1.577 0 1,0 18.046,8.057 A1.577,1.577 0 1,0 14.892000000000001,8.057 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M2.537,16.731 L2.537,16.731 A1.577,1.577 0 0,1 4.114,18.308 L4.114,19.885000000000005 A1.577,1.577 0 0,1 2.537,21.462000000000003 L2.537,21.462000000000003 A1.577,1.577 0 0,1 0.96,19.885000000000005 L0.96,18.308 A1.577,1.577 0 0,1 2.537,16.731 Z M21.463,16.731 L21.463,16.731 A1.577,1.577 0 0,1 23.04,18.308 L23.04,19.885000000000005 A1.577,1.577 0 0,1 21.463,21.462000000000003 L21.463,21.462000000000003 A1.577,1.577 0 0,1 19.886,19.885000000000005 L19.886,18.308 A1.577,1.577 0 0,1 21.463,16.731 Z" />
+</vector>

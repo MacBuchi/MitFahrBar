@@ -77,7 +77,10 @@
              genauso deckend wie der Wagen. Übrig blieb der äußere Umriss:
              gemeldet als „ein weißer Kreis". In ic_notification sind sie
              ausgestanzt, der Wagen zeigt seine drei Mitfahrer.
-             Erzeugt von tool/brand/build_icons.sh aus derselben mark.svg.
+
+             Es ist ein VectorDrawable, keine PNG-Reihe: Android rastert ihn
+             erst beim Zeichnen, in der Dichte des jeweiligen Geräts. Erzeugt
+             von tool/brand/build_icons.sh aus tool/brand/notification.svg.
              Ohne die Angabe überhaupt nähme Android das farbige
              Launcher-Icon und zeigte einen weißen Klotz. -->
         <meta-data

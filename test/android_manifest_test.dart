@@ -354,17 +354,40 @@ void main() {
             'äußere Umriss — gemeldet als „ein weißer Kreis". Nur im '
             'Benachrichtigungs-Schatten eines echten Geräts zu sehen.',
       );
+      expect(
+        File(
+          'android/app/src/main/res/drawable/ic_notification.xml',
+        ).existsSync(),
+        isTrue,
+        reason:
+            'Der Verweis im Manifest löst nur auf, wenn die Ressource da ist '
+            '— sonst bricht der Android-Build ab, und zwar erst er, nicht '
+            '`flutter test`. Erzeugt von tool/brand/build_icons.sh aus '
+            'tool/brand/notification.svg; nie von Hand bearbeiten.',
+      );
+      expect(
+        File(
+          'android/app/src/main/res/drawable/ic_notification.xml',
+        ).readAsStringSync(),
+        contains('android:fillType="evenOdd"'),
+        reason:
+            'Die Frontscheibe ist ein LOCH, keine dunkle Fläche. Die '
+            'SystemUI wirft jede Farbe weg und behält nur den Alphakanal — '
+            'ohne evenOdd wäre das Glyph wieder der weiße Klotz aus #271. '
+            'Braucht API 24, und genau dort liegt unser minSdk.',
+      );
       for (final density in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
         expect(
           File(
             'android/app/src/main/res/drawable-$density/ic_notification.png',
           ).existsSync(),
-          isTrue,
+          isFalse,
           reason:
-              'Der Verweis im Manifest löst nur auf, wenn die Ressource in '
-              'jeder Dichte liegt — sonst bricht der Android-Build ab, und '
-              'zwar erst er, nicht `flutter test`. Erzeugt von '
-              'tool/brand/build_icons.sh; Icons nie von Hand nachlegen.',
+              'Ein PNG neben dem Vektor gewinnt: Android nimmt die Fassung '
+              'der passenden Dichte und der Vektor bliebe wirkungslos — '
+              'stillschweigend, und nur auf einem Gerät zu sehen. Der '
+              'Vektor deckt jede Dichte ab, auch die, die es noch nicht '
+              'gibt.',
         );
       }
       expect(

@@ -147,35 +147,6 @@ SVG
   echo "  $target"
 }
 
-# render_mono <ziel> <kante> <tintenanteil>
-#
-# Zeichnet die Marke als reine Silhouette: Die Maske traegt die Deckung
-# (weiss = deckend, schwarz = ausgestanzt), das gefuellte Rechteck darunter
-# liefert die Farbe. Ohne die Maske waere jede cyane Flaeche im Alphakanal
-# genauso deckend wie der Wagen — genau der weisse Klotz aus #271.
-render_mono() {
-  local target=$1 size=$2 pct=$3
-  local scale x y
-  scale=$(python3 -c "print(round($size*$pct/max($MONO_W,$MONO_H),6))")
-  x=$(python3 -c "print(round(($size-$MONO_W*$scale)/2-$MONO_X*$scale,3))")
-  y=$(python3 -c "print(round(($size-$MONO_H*$scale)/2-$MONO_Y*$scale,3))")
-  cat > "$OUT/mono.svg" <<SVG
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $size $size" width="$size" height="$size">
-  <defs>
-    <mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="$size" height="$size">
-      <g transform="translate($x,$y) scale($scale)">
-$MARK_MONO
-      </g>
-    </mask>
-  </defs>
-  <rect width="$size" height="$size" fill="#ffffff" mask="url(#m)"/>
-</svg>
-SVG
-  mkdir -p "$(dirname "$target")"
-  rsvg-convert -w "$size" -h "$size" "$OUT/mono.svg" -o "$target"
-  echo "  $target"
-}
-
 echo "Web-Icons:"
 # Eckradius 46/200 wie im Design-Set; Marke füllt 66 % der Kante.
 render web/icons/Icon-192.png 192 44 0.66
@@ -204,13 +175,108 @@ for entry in "mdpi 108" "hdpi 162" "xhdpi 216" "xxhdpi 324" "xxxhdpi 432"; do
   render "$AND/mipmap-$1/ic_launcher_foreground.png" "$2" 0 "$FG_PCT" transparent
 done
 
-# Benachrichtigungs-Icon: Android zeichnet davon nur den Alphakanal, eingefaerbt
-# mit notification_accent. Die fuenf Dichten sind Androids Vorgabe (24/36/48/
-# 72/96 px); 0.92 ist der optische Kernbereich daraus (22 von 24).
-echo "Benachrichtigungs-Icon (einfarbig, ausgestanzt):"
-for entry in "mdpi 24" "hdpi 36" "xhdpi 48" "xxhdpi 72" "xxxhdpi 96"; do
-  set -- $entry
-  render_mono "$AND/drawable-$1/ic_notification.png" "$2" 0.92
-done
+# Benachrichtigungs-Icon: EIN VectorDrawable statt fuenf PNGs.
+#
+# Android rastert einen Vektor erst auf dem Geraet, in dem Moment, in dem
+# gezeichnet wird — und die SystemUI tut das in IHRER Dichte, wirft dann jede
+# Farbe weg und behaelt nur den Alphakanal. Damit gibt es keine Groesse, die
+# man vergessen koennte, und eine Dichte, die es heute noch nicht gibt,
+# bekommt ihre Pixel automatisch. (Unterhalb minSdk 21 erzeugte AGP doch PNGs
+# als Rueckfall; wir sind bei 24.)
+#
+# Deshalb ist das Gesicht ein LOCH und keine dunkle Flaeche: `fillType`
+# `evenOdd` (ab API 24 — unser minSdk) macht aus einem Teilpfad im Inneren
+# eine Aussparung. Muster von PilzBuddy (pilzbuddy#331).
+#
+# Zwei Pfade, und das ist kein Zufall: Die Raeder ueberlappen den Aufbau. In
+# EINEM evenOdd-Pfad wuerde die Ueberlappung selbst zum Loch — als eigener
+# Pfad uebermalt sie einfach.
+echo "Benachrichtigungs-Icon (Vektor, eine Datei fuer alle Dichten):"
+python3 - <<'PY'
+import re
+
+BOX, PCT = 24.0, 0.92
+src = open('tool/brand/notification.svg', encoding='utf-8').read()
+inner = re.search(r'<svg[^>]*>(.*)</svg>', src, re.S).group(1)
+
+RECT = re.compile(r'<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" '
+                  r'height="([\d.]+)" rx="([\d.]+)" fill="(#[0-9a-fA-F]{6})"')
+CIRC = re.compile(r'<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)" '
+                  r'fill="(#[0-9a-fA-F]{6})"')
+
+rects = [(float(a), float(b), float(c), float(d), float(e), f)
+         for a, b, c, d, e, f in RECT.findall(inner)]
+circles = [(float(a), float(b), float(c), d) for a, b, c, d in CIRC.findall(inner)]
+if not rects or not circles:
+    raise SystemExit('build_icons: notification.svg hat eine Form, die der '
+                     'Vektor-Schritt nicht kennt. Erst hier ergaenzen.')
+
+xs0 = [x for x, y, w, h, r, f in rects] + [cx - r for cx, cy, r, f in circles]
+ys0 = [y for x, y, w, h, r, f in rects] + [cy - r for cx, cy, r, f in circles]
+xs1 = [x + w for x, y, w, h, r, f in rects] + [cx + r for cx, cy, r, f in circles]
+ys1 = [y + h for x, y, w, h, r, f in rects] + [cy + r for cx, cy, r, f in circles]
+ix, iy = min(xs0), min(ys0)
+iw, ih = max(xs1) - ix, max(ys1) - iy
+scale = BOX * PCT / max(iw, ih)
+ox = (BOX - iw * scale) / 2
+oy = (BOX - ih * scale) / 2
+
+def tx(x): return round((x - ix) * scale + ox, 3)
+def ty(y): return round((y - iy) * scale + oy, 3)
+def ts(v): return round(v * scale, 3)
+
+def rrect(x, y, w, h, r):
+    X, Y, W, H, R = tx(x), ty(y), ts(w), ts(h), ts(r)
+    return (f'M{X + R},{Y} L{X + W - R},{Y} A{R},{R} 0 0,1 {X + W},{Y + R} '
+            f'L{X + W},{Y + H - R} A{R},{R} 0 0,1 {X + W - R},{Y + H} '
+            f'L{X + R},{Y + H} A{R},{R} 0 0,1 {X},{Y + H - R} '
+            f'L{X},{Y + R} A{R},{R} 0 0,1 {X + R},{Y} Z')
+
+def circle(cx, cy, r):
+    CX, CY, R = tx(cx), ty(cy), ts(r)
+    return (f'M{CX - R},{CY} A{R},{R} 0 1,0 {CX + R},{CY} '
+            f'A{R},{R} 0 1,0 {CX - R},{CY} Z')
+
+# Der Aufbau ist das groesste Rechteck; die Raeder sind die uebrigen weissen.
+body = max((r for r in rects if r[5] != '#0891b2'), key=lambda r: r[2] * r[3])
+holes = [r for r in rects if r[5] == '#0891b2']
+wheels = [r for r in rects if r[5] != '#0891b2' and r is not body]
+
+solid = ' '.join([rrect(*body[:5])]
+                 + [rrect(*h[:5]) for h in holes]
+                 + [circle(*c[:3]) for c in circles])
+rims = ' '.join(rrect(*w[:5]) for w in wheels)
+
+out = f"""<?xml version="1.0" encoding="utf-8"?>
+<!-- ERZEUGT von tool/brand/build_icons.sh aus tool/brand/notification.svg.
+     Nicht von Hand bearbeiten — die naechste Ausfuehrung ueberschreibt es.
+
+     Ein Vektor statt fuenf PNGs: Android rastert ihn erst beim Zeichnen, in
+     der Dichte des jeweiligen Geraets. Die Statusleiste bekommt ohnehin nur
+     Paketname und Ressourcen-Id; die SystemUI schlaegt nach, rastert selbst
+     und behaelt nur den Alphakanal — jede Farbe faellt weg. Deshalb ist die
+     Frontscheibe ein LOCH (`evenOdd`, ab API 24 = unser minSdk) und keine
+     dunkle Flaeche.
+
+     Zwei Pfade: Die Raeder ueberlappen den Aufbau, und in einem einzigen
+     evenOdd-Pfad wuerde die Ueberlappung selbst zum Loch. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="{solid}" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="{rims}" />
+</vector>
+"""
+target = 'android/app/src/main/res/drawable/ic_notification.xml'
+open(target, 'w', encoding='utf-8').write(out)
+print(f'  {target}  (Tinte {iw:g}x{ih:g} → {iw * scale:.1f}x{ih * scale:.1f} von {BOX:g})')
+PY
 
 echo "Fertig."
