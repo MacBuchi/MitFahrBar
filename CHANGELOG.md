@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.1] – 2026-08-27
+
+### Behoben
+
+- **Das Symbol in der Statusleiste ist jetzt so groß wie die anderen.** Der
+  Bus lag quer und war damit nur halb so hoch wie Wecker oder Kalender daneben
+  — größer skalieren half nicht, dafür ist er schlicht zu breit. Er ist jetzt
+  von vorn gezeichnet, mit seinen drei Mitfahrern, und füllt die Fläche.
+- **Nach einer Sitzungserneuerung meldet die App seltener einen Fehler.**
+  Steht die Uhr des Servers ein paar Sekunden anders als die des
+  Anmeldedienstes, weist er ein frisches Zugangstoken ab. MitFahrBar wartet
+  dafür seit v0.61.0 kurz und fragt noch einmal — nur erkannte es diesen Fall
+  in einer von zwei möglichen Fehlerformen nicht und meldete stattdessen einen
+  Fehler. Beide Formen werden jetzt erkannt.
+
 ## [0.89.0] – 2026-08-26
 
 ### Neu

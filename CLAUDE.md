@@ -1031,7 +1031,20 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Die Typen kommen aus `http`/`dart:io` und sind im Web-Build nicht
     dieselben.
 - **PGRST303 wird wiederholt — aber NUR beim Lesen** (`data/read_retry.dart`,
-  #169). PostgREST lehnt eine Anfrage mit `JWT issued at future` ab, wenn das
+  #169).
+  - **Die Ausnahme kommt in ZWEI Formen, und bis v0.89.1 fiel der Riegel nie**
+    (#276). Mal trägt `code` den Wert `PGRST303`, mal steht dort **401** und
+    der Code liegt als JSON-Text im `message`-Feld — je nachdem, ob der Client
+    den Rumpf als Fehlerobjekt lesen konnte. Geprüft wurde nur `code`, also
+    lief die zweite Form ungebremst durch; belegt am 26.08.2026 (21:06 und
+    21:19, beide über `readTolerant`). Beweisbar am Bericht: Hätte der zweite
+    Anlauf stattgefunden, trüge die weitergeworfene Ausnahme dieselbe Form wie
+    die erste. Der Test blieb grün, weil er die Ausnahme selbst mit
+    `code: clockSkewCode` baute — geprüft wurde eine Form, die so nicht
+    ankommt. Dieselbe Klasse wie der tote Update-Knopf: Der Riegel war da, er
+    konnte nur nicht fallen. Seither entscheidet `isClockSkew` über die
+    **String-Form** (wie `isPasswordRecovery` und `looksOffline`), und der
+    Test führt die echte Ausnahme aus `error_reports` wörtlich. PostgREST lehnt eine Anfrage mit `JWT issued at future` ab, wenn das
   `iat` des Tokens vor **seiner** Uhr in der Zukunft liegt; ausgestellt wird
   es von GoTrue, geprüft von PostgREST. Belegt in `error_reports` KW 32: 12
   Vorfälle, Android **und** Web, über mehrere Versionen, und immer im Rudel —
@@ -2388,6 +2401,42 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   reduzieren") ruhen sie; `pumpApp` setzt genau diese Flagge, sonst käme
   kein `pumpAndSettle` je zur Ruhe — wer sie dort entfernt, hängt jeden
   Flow-Test auf.
+- **Das Benachrichtigungs-Icon hat eine eigene Quelle** (`tool/brand/
+  notification.svg`, seit v0.89.1) — der Bus von **vorn**, nicht von der
+  Seite. Der Grund ist gemessen: Android gibt dem Icon einen quadratischen
+  24-dp-Kasten, und die Marke misst von der Seite 1,69:1. Darin wird sie
+  22 × 13 dp und steht neben quadratischen Nachbarn (Wecker, Kalender), die
+  20 × 20 füllen — sie sieht halb so groß aus. **Skalieren hilft nicht:**
+  randlos ausgereizt sind es 9 % mehr Höhe, nicht das Doppelte. Von vorn misst
+  der Bus 1,17:1 und füllt den Kasten mit 22 × 18. Gemeldet als „viel zu
+  klein", nachgemessen am gerenderten Pixel.
+  - **Die Regel „mark.svg ist die einzige Quelle" gilt unverändert** für
+    Launcher, Web und Favicon. Dies ist ein anderes Artefakt für einen anderen
+    Kasten, und der Preis steht dabei: Wer die Marke ändert, zieht dieses
+    Glyph von Hand nach.
+  - **Es ist ein VectorDrawable, keine fünf PNGs** (`res/drawable/
+    ic_notification.xml`, erzeugt von `build_icons.sh` aus der SVG). Android
+    rastert einen Vektor erst auf dem Gerät, im Moment des Zeichnens: Die
+    Meldung reicht nur Paketname und Ressourcen-Id weiter, die SystemUI
+    schlägt nach, rastert in **ihrer** Dichte und behält nur den Alphakanal.
+    Damit gibt es keine Größe, die man vergessen kann, und eine Dichte, die es
+    heute noch nicht gibt, bekommt ihre Pixel automatisch. (Unterhalb minSdk
+    21 erzeugte AGP doch PNGs als Rückfall — wir sind bei 24.) Muster von
+    PilzBuddy (pilzbuddy#331).
+  - **Die Frontscheibe ist ein LOCH** (`fillType="evenOdd"`, ab API 24 = unser
+    minSdk), keine dunkle Fläche: Farbe überlebt in diesem Medium nicht, nur
+    Deckung. Eine dunkle Fläche wäre im Alphakanal genauso deckend wie der
+    Aufbau — der weiße Klotz aus #271.
+  - **Zwei Pfade, und das ist kein Zufall:** Die Räder überlappen den Aufbau.
+    In EINEM `evenOdd`-Pfad würde die Überlappung selbst zum Loch; als
+    eigener Pfad übermalt sie einfach.
+  - **Ein PNG daneben gewinnt und macht den Vektor wirkungslos** — Android
+    nimmt die Fassung der passenden Dichte. `test/android_manifest_test.dart`
+    prüft deshalb beides: dass die XML da ist und `evenOdd` trägt, und dass
+    in keiner Dichte ein `ic_notification.png` liegt. Alle drei rot
+    verifiziert.
+  - Skaliert wird auf die **größere** Kante, nicht auf die Breite: Bei einem
+    fast quadratischen Glyph liefe es sonst oben und unten aus dem Kasten.
 - **Branding:** `tool/brand/mark.svg` ist die einzige Quelle der Bildmarke.
   `tool/brand/build_icons.sh` (braucht `rsvg-convert` + python3) erzeugt
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps

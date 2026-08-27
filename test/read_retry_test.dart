@@ -19,6 +19,17 @@ PostgrestException _skew() => const PostgrestException(
   details: 'Unauthorized',
 );
 
+/// Die Form, die am 26.08.2026 wirklich in `error_reports` ankam — wörtlich
+/// aus dem Bericht. Der Code ist hier **401**, PGRST303 steckt im Rumpf.
+/// Genau daran ist der Riegel bis v0.89.1 vorbeigelaufen.
+PostgrestException _skewAsBody() => const PostgrestException(
+  message:
+      '{"code":"PGRST303","details":null,"hint":null,'
+      '"message":"JWT issued at future"}',
+  code: '401',
+  details: 'Unauthorized',
+);
+
 void main() {
   setUp(() => skewRetryDelay = Duration.zero);
   tearDown(() => skewRetryDelay = const Duration(seconds: 2));
@@ -220,6 +231,49 @@ void main() {
       // `loadSeatChoices` (#189, Stufe B2). Wer hier hochzählt, ohne die
       // Methode gesehen zu haben, nimmt dem Kanarienvogel die Luft.
       expect(reads, 15);
+    });
+  });
+
+  group('die zweite Fehlerform (#276)', () {
+    test('ein 401 mit PGRST303 im Rumpf wird wiederholt', () async {
+      // Ohne diesen Fall war #169 seit dem Bau still wirkungslos: Der Riegel
+      // prüfte nur `code`, und dort stand 401.
+      var calls = 0;
+      final result = await readTolerant(() async {
+        calls += 1;
+        if (calls == 1) throw _skewAsBody();
+        return 'gut';
+      });
+      expect(result, 'gut');
+      expect(calls, 2);
+    });
+
+    test('ein anderer 401 wird NICHT wiederholt', () async {
+      // Die Textform ist der Riegel — sie darf nicht zu „jeder 401" werden.
+      // Ein abgelaufenes Token heilt nicht durch Warten, und ein stiller
+      // zweiter Versuch verschleierte es nur.
+      var calls = 0;
+      await expectLater(
+        readTolerant(() async {
+          calls += 1;
+          throw const PostgrestException(
+            message: '{"message":"JWT expired"}',
+            code: '401',
+            details: 'Unauthorized',
+          );
+        }),
+        throwsA(isA<PostgrestException>()),
+      );
+      expect(calls, 1);
+    });
+
+    test('isClockSkew erkennt beide Formen und sonst nichts', () {
+      expect(isClockSkew(_skew()), isTrue);
+      expect(isClockSkew(_skewAsBody()), isTrue);
+      expect(
+        isClockSkew(const PostgrestException(message: 'nope', code: '42501')),
+        isFalse,
+      );
     });
   });
 }
