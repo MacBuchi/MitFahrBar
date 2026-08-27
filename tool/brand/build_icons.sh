@@ -29,22 +29,28 @@ print(re.search(r'<svg[^>]*>(.*)</svg>', s, re.S).group(1).strip())
 PY
 )
 
-# Dasselbe einfarbig, für das Benachrichtigungs-Icon: Android macht daraus
-# ohnehin eine Silhouette über den Alphakanal (siehe AndroidManifest). Die
-# cyanen Flächen — Fensterband und Radnaben — werden hier *ausgestanzt*, sonst
-# sind sie im Alphakanal genauso deckend wie der Wagen, und übrig bleibt ein
-# weißer Klotz (#271, gemeldet als „ein weißer Kreis"). Abgeleitet statt zweite
-# Quelldatei: Eine Kopie der Marke driftet, sobald jemand mark.svg anfasst.
+# Das Benachrichtigungs-Icon hat eine EIGENE Quelle: tool/brand/notification.svg.
+#
+# Nicht aus mark.svg abgeleitet, und das ist gemessen, nicht Geschmack: Android
+# gibt dem Benachrichtigungs-Icon einen QUADRATISCHEN 24-dp-Kasten, und die
+# Marke misst von der Seite 1,69:1. Darin wird sie 22 x 13 dp und steht neben
+# quadratischen Nachbarn (Wecker, Kalender), die 20 x 20 fuellen — sie sieht
+# halb so gross aus, und randlos ausgereizt braechte das 9 % Hoehe statt des
+# Doppelten. Die Frontansicht misst 1,17:1 und fuellt den Kasten mit 22 x 18.
+# Gemeldet in #271 („viel zu klein"), nachgemessen am gerenderten Pixel.
+#
+# Die Regel „mark.svg ist die einzige Quelle" gilt unveraendert fuer Launcher,
+# Web und Favicon. Dies hier ist ein anderes Artefakt fuer einen anderen
+# Kasten — der Preis ist ausgesprochen: Wer die Marke aendert, zieht dieses
+# Glyph von Hand nach.
+#
+# Gerendert wird es wie alles andere aus der SVG (rsvg-convert), nie von Hand
+# gelegt. Die cyanen Flaechen werden ausgestanzt, sonst sind sie im Alphakanal
+# genauso deckend wie der Aufbau — genau der weisse Klotz aus #271.
 MARK_MONO=$(python3 - <<'PY'
 import re
-s = open('tool/brand/mark.svg', encoding='utf-8').read()
+s = open('tool/brand/notification.svg', encoding='utf-8').read()
 inner = re.search(r'<svg[^>]*>(.*)</svg>', s, re.S).group(1).strip()
-if 'id="motion"' not in inner:
-    raise SystemExit('build_icons: <g id="motion"> fehlt in mark.svg — ohne die '
-                     'Markierung weiss das Mono-Icon nicht, was Dekoration ist.')
-# Der Fahrtwind ragt über den viewBox hinaus und waere bei 24 dp ein Bruchstueck
-# am Rand; ohne ihn wird der Wagen zugleich ein Siebtel groesser.
-inner = re.sub(r'<g id="motion".*?</g>', '', inner, flags=re.S)
 # Maske: Luminanz = Deckung. Cyan wird schwarz (ausgestanzt), alles andere weiss.
 inner = inner.replace('#0891b2', '#000000')
 inner = re.sub(r'fill="#(?!000000)[0-9a-fA-F]{6}"', 'fill="#ffffff"', inner)
@@ -61,7 +67,6 @@ INK=$(python3 - <<'PY'
 import re, xml.etree.ElementTree as ET
 
 NS = '{http://www.w3.org/2000/svg}'
-root = ET.parse('tool/brand/mark.svg').getroot()
 
 def bounds(el, dx, dy):
     t = el.tag.replace(NS, '')
@@ -72,39 +77,39 @@ def bounds(el, dx, dy):
     if t == 'circle':
         cx, cy, r = (float(el.get(k)) for k in ('cx', 'cy', 'r'))
         return (cx + dx - r, cy + dy - r, cx + dx + r, cy + dy + r)
-    raise SystemExit(f'build_icons: unbekannte Form <{t}> in mark.svg — die '
-                     'Tinten-Box kann sie nicht messen. Erst hier ergaenzen.')
+    raise SystemExit(f'build_icons: unbekannte Form <{t}> — die Tinten-Box kann '
+                     'sie nicht messen. Erst hier ergaenzen.')
 
-def walk(node, dx=0.0, dy=0.0, skip=None):
+def walk(node, dx=0.0, dy=0.0):
     for el in node:
         if el.tag.replace(NS, '') != 'g':
             yield bounds(el, dx, dy)
-            continue
-        if skip and el.get('id') == skip:
             continue
         raw = el.get('transform')
         m = re.fullmatch(r'translate\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)', raw or '')
         if raw and not m:
             raise SystemExit(f"build_icons: Transform '{raw}' wird nicht verstanden.")
         yield from walk(el, dx + (float(m.group(1)) if m else 0.0),
-                        dy + (float(m.group(2)) if m else 0.0), skip)
+                        dy + (float(m.group(2)) if m else 0.0))
 
-def box(skip=None):
-    xs0, ys0, xs1, ys1 = zip(*walk(root, skip=skip))
-    # NICHT am viewBox beschneiden. Naheliegend waere es — mark.svg selbst
-    # schneidet den Fahrtwind bei x=120 ab, er reicht bis 126. Die Icons
-    # betten aber nur das *innere* Markup in eine eigene Leinwand ein, und die
-    # clippt dort nicht: Die Striche stehen in jedem erzeugten Icon vollstaendig
-    # da. Beschnitten gerechnet fiel die Marke 5 % zu gross aus und ihre
-    # Diagonale auf 68,4 dp — ueber die 66-dp-Safe-Zone hinaus. Gemessen am
-    # gerenderten Pixel, nicht am Quelltext geglaubt.
+def box(path):
+    root = ET.parse(path).getroot()
+    xs0, ys0, xs1, ys1 = zip(*walk(root))
+    # NICHT am viewBox beschneiden. Naheliegend waere es — mark.svg schneidet
+    # den Fahrtwind bei x=120 ab, er reicht bis 126. Die Icons betten aber nur
+    # das *innere* Markup in eine eigene Leinwand ein, und die clippt dort
+    # nicht: Die Striche stehen in jedem erzeugten Icon vollstaendig da.
+    # Beschnitten gerechnet fiel die Marke 5 % zu gross aus und ihre Diagonale
+    # auf 68,4 dp — ueber die 66-dp-Safe-Zone hinaus. Gemessen am gerenderten
+    # Pixel, nicht am Quelltext geglaubt.
     return (min(xs0), min(ys0), max(xs1) - min(xs0), max(ys1) - min(ys0))
 
-print(*[round(v, 4) for v in box() + box(skip='motion')])
+print(*[round(v, 4) for v in box('tool/brand/mark.svg')
+        + box('tool/brand/notification.svg')])
 PY
 )
 read -r INK_X INK_Y INK_W INK_H MONO_X MONO_Y MONO_W MONO_H <<<"$INK"
-echo "Tinte ${INK_W}x${INK_H} bei ${INK_X},${INK_Y} · einfarbig ${MONO_W}x${MONO_H}"
+echo "Marke ${INK_W}x${INK_H} bei ${INK_X},${INK_Y} · Glyph ${MONO_W}x${MONO_H}"
 
 # render <ziel> <kante> <radius> <tintenanteil> [transparent]
 #
@@ -151,7 +156,7 @@ SVG
 render_mono() {
   local target=$1 size=$2 pct=$3
   local scale x y
-  scale=$(python3 -c "print(round($size*$pct/$MONO_W,6))")
+  scale=$(python3 -c "print(round($size*$pct/max($MONO_W,$MONO_H),6))")
   x=$(python3 -c "print(round(($size-$MONO_W*$scale)/2-$MONO_X*$scale,3))")
   y=$(python3 -c "print(round(($size-$MONO_H*$scale)/2-$MONO_Y*$scale,3))")
   cat > "$OUT/mono.svg" <<SVG
@@ -200,9 +205,8 @@ for entry in "mdpi 108" "hdpi 162" "xhdpi 216" "xxhdpi 324" "xxxhdpi 432"; do
 done
 
 # Benachrichtigungs-Icon: Android zeichnet davon nur den Alphakanal, eingefaerbt
-# mit notification_accent. Quadratisch nach Androids Vorgabe, die Tinte mit
-# etwas Luft zum Rand — randlos beschnitten wirkt sie in der Statusleiste wie
-# abgeschnitten.
+# mit notification_accent. Die fuenf Dichten sind Androids Vorgabe (24/36/48/
+# 72/96 px); 0.92 ist der optische Kernbereich daraus (22 von 24).
 echo "Benachrichtigungs-Icon (einfarbig, ausgestanzt):"
 for entry in "mdpi 24" "hdpi 36" "xhdpi 48" "xxhdpi 72" "xxxhdpi 96"; do
   set -- $entry

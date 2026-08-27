@@ -1031,7 +1031,20 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Die Typen kommen aus `http`/`dart:io` und sind im Web-Build nicht
     dieselben.
 - **PGRST303 wird wiederholt — aber NUR beim Lesen** (`data/read_retry.dart`,
-  #169). PostgREST lehnt eine Anfrage mit `JWT issued at future` ab, wenn das
+  #169).
+  - **Die Ausnahme kommt in ZWEI Formen, und bis v0.89.1 fiel der Riegel nie**
+    (#276). Mal trägt `code` den Wert `PGRST303`, mal steht dort **401** und
+    der Code liegt als JSON-Text im `message`-Feld — je nachdem, ob der Client
+    den Rumpf als Fehlerobjekt lesen konnte. Geprüft wurde nur `code`, also
+    lief die zweite Form ungebremst durch; belegt am 26.08.2026 (21:06 und
+    21:19, beide über `readTolerant`). Beweisbar am Bericht: Hätte der zweite
+    Anlauf stattgefunden, trüge die weitergeworfene Ausnahme dieselbe Form wie
+    die erste. Der Test blieb grün, weil er die Ausnahme selbst mit
+    `code: clockSkewCode` baute — geprüft wurde eine Form, die so nicht
+    ankommt. Dieselbe Klasse wie der tote Update-Knopf: Der Riegel war da, er
+    konnte nur nicht fallen. Seither entscheidet `isClockSkew` über die
+    **String-Form** (wie `isPasswordRecovery` und `looksOffline`), und der
+    Test führt die echte Ausnahme aus `error_reports` wörtlich. PostgREST lehnt eine Anfrage mit `JWT issued at future` ab, wenn das
   `iat` des Tokens vor **seiner** Uhr in der Zukunft liegt; ausgestellt wird
   es von GoTrue, geprüft von PostgREST. Belegt in `error_reports` KW 32: 12
   Vorfälle, Android **und** Web, über mehrere Versionen, und immer im Rudel —
@@ -2388,6 +2401,26 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   reduzieren") ruhen sie; `pumpApp` setzt genau diese Flagge, sonst käme
   kein `pumpAndSettle` je zur Ruhe — wer sie dort entfernt, hängt jeden
   Flow-Test auf.
+- **Das Benachrichtigungs-Icon hat eine eigene Quelle** (`tool/brand/
+  notification.svg`, seit v0.89.1) — der Bus von **vorn**, nicht von der
+  Seite. Der Grund ist gemessen: Android gibt dem Icon einen quadratischen
+  24-dp-Kasten, und die Marke misst von der Seite 1,69:1. Darin wird sie
+  22 × 13 dp und steht neben quadratischen Nachbarn (Wecker, Kalender), die
+  20 × 20 füllen — sie sieht halb so groß aus. **Skalieren hilft nicht:**
+  randlos ausgereizt sind es 9 % mehr Höhe, nicht das Doppelte. Von vorn misst
+  der Bus 1,17:1 und füllt den Kasten mit 22 × 18. Gemeldet als „viel zu
+  klein", nachgemessen am gerenderten Pixel.
+  - **Die Regel „mark.svg ist die einzige Quelle" gilt unverändert** für
+    Launcher, Web und Favicon. Dies ist ein anderes Artefakt für einen anderen
+    Kasten, und der Preis steht dabei: Wer die Marke ändert, zieht dieses
+    Glyph von Hand nach.
+  - **Gerendert wird es wie alles andere aus der SVG** (`build_icons.sh` →
+    `rsvg-convert`), in genau den fünf Dichten, die Android vorgibt
+    (24/36/48/72/96 px); 0,92 ist der optische Kernbereich daraus (22 von 24).
+    Icons nie von Hand legen — `test/android_manifest_test.dart` prüft, dass
+    die Ressource in jeder Dichte existiert.
+  - Skaliert wird auf die **größere** Kante, nicht auf die Breite: Bei einem
+    fast quadratischen Glyph liefe es sonst oben und unten aus dem Kasten.
 - **Branding:** `tool/brand/mark.svg` ist die einzige Quelle der Bildmarke.
   `tool/brand/build_icons.sh` (braucht `rsvg-convert` + python3) erzeugt
   daraus Web-Icons (normal + maskable), Favicon und die Android-Mipmaps

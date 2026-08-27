@@ -36,6 +36,36 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Der PostgREST-Code für „Token stammt aus der Zukunft".
 const String clockSkewCode = 'PGRST303';
 
+/// Ob [error] dieser Fall ist — **an zwei Stellen geprüft, und das ist der
+/// Kern**.
+///
+/// Die Ausnahme kommt in zwei Formen an, je nachdem, ob der Client den Rumpf
+/// als Fehlerobjekt lesen konnte oder ihn roh durchgereicht hat:
+///
+/// ```
+/// PostgrestException(message: 'JWT issued at future', code: 'PGRST303', …)
+/// PostgrestException(message: '{"code":"PGRST303",…}', code: '401', …)
+/// ```
+///
+/// Bis v0.89.1 prüfte nur `code == clockSkewCode`. Die zweite Form trägt dort
+/// **401**, der Riegel fiel also nie — belegt in `error_reports` am
+/// 26.08.2026 (21:06 und 21:19, beide `myGroupProvider` bzw.
+/// `groupDefaultsProvider`, beide über [readTolerant] gelaufen). Beweisbar am
+/// Bericht selbst: Hätte der zweite Anlauf stattgefunden, trüge die
+/// weitergeworfene Ausnahme dieselbe Form wie die erste — gemeldet wurde die
+/// 401-Form, der erste Versuch war es also schon.
+///
+/// Dass der Test grün blieb, liegt daran, dass er die Ausnahme selbst mit
+/// `code: clockSkewCode` baute: geprüft wurde eine Form, die so nicht ankommt.
+/// Dieselbe Klasse wie der tote Update-Knopf aus 0.37.0 — der Riegel war da,
+/// er konnte nur nicht fallen.
+///
+/// Über die **String-Form** unterschieden, nicht über den Typ: dieselbe Linie
+/// wie `isPasswordRecovery` und `looksOffline`. Wer das „aufräumt" und wieder
+/// nur auf `code` prüft, stellt genau diesen Ausfall wieder her.
+bool isClockSkew(PostgrestException error) =>
+    error.code == clockSkewCode || error.message.contains(clockSkewCode);
+
 /// Wie lange vor dem zweiten Anlauf gewartet wird.
 ///
 /// Muss den beobachteten Versatz überdauern (Sekundenbereich). Veränderbar
@@ -53,7 +83,7 @@ Future<T> readTolerant<T>(Future<T> Function() read) async {
   try {
     return await read();
   } on PostgrestException catch (error) {
-    if (error.code != clockSkewCode) rethrow;
+    if (!isClockSkew(error)) rethrow;
     await Future<void>.delayed(skewRetryDelay);
     return await read();
   }
