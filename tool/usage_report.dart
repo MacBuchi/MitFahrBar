@@ -151,6 +151,7 @@ Future<void> main(List<String> args) async {
     var groups = 0;
     var saved = 0.0;
     var km = 0.0;
+    var personDays = 0;
     for (final entry in tripsByGroupAndMonday.entries) {
       final weekTrips = entry.value[monday];
       if (weekTrips == null || weekTrips.isEmpty) continue;
@@ -164,6 +165,7 @@ Future<void> main(List<String> args) async {
         if (person == null) continue;
         saved += s.savedCosts(settings, person);
         km += s.kilometers(settings);
+        personDays += s.participationDays;
       }
     }
     weeks.add(
@@ -173,6 +175,7 @@ Future<void> main(List<String> args) async {
         groups: groups,
         saved: saved,
         km: km,
+        personDays: personDays,
       ),
     );
   }
@@ -209,6 +212,7 @@ class _WeekStats {
     required this.groups,
     required this.saved,
     required this.km,
+    required this.personDays,
   });
 
   final DateTime monday;
@@ -216,7 +220,33 @@ class _WeekStats {
   final int groups;
   final double saved;
   final double km;
+
+  /// Summe der Anwesenheitstage über alle Personen — `driven + ridden +
+  /// oneWay`, dieselbe Größe, aus der `kilometers` die Strecke macht.
+  final int personDays;
+
+  /// Wie voll die Autos waren: Personen je Fahrt.
+  ///
+  /// Steht neben den Kilometern, weil die Strecke diese Frage NICHT
+  /// beantworten kann: `km` ist `Anwesenheitstage × Arbeitsweg × 2`, und
+  /// damit fällt sie gleichermaßen, wenn die Autos leerer fahren ODER wenn
+  /// die Woche überwiegend aus Fahrten der Gruppe mit dem kürzeren Arbeitsweg
+  /// besteht. Aus einer Summe sind die beiden Fälle nicht zu trennen; diese
+  /// Zahl ist gegen die Weglänge unempfindlich und trennt sie.
+  ///
+  /// Anlass war 2026-W35: 7 Fahrten wie üblich, aber 77 km je Fahrt — 45 %
+  /// unter dem Minimum der 25 Wochen davor. Fahrten und Ersparnis sahen
+  /// unauffällig aus; sichtbar wurde es erst, als jemand das Verhältnis von
+  /// Hand ausrechnete. Genau das soll niemand mehr müssen.
+  double? get personsPerTrip => trips == 0 ? null : personDays / trips;
 }
+
+/// Personen je Fahrt als Text, `–` für eine Woche ganz ohne Fahrt.
+///
+/// Eine Woche ohne Fahrten (2026-W22 etwa) hat keine Besetzung — `0,0` wäre
+/// dort eine Aussage über leere Autos, die es nicht gab, und im Verlauf ein
+/// Einbruch, den niemand erklären kann.
+String _perTrip(_WeekStats w) => w.personsPerTrip?.toStringAsFixed(1) ?? '–';
 
 /// ISO-8601-Wochenjahr: das Jahr des Donnerstags derselben Woche — Gegenstück
 /// zum importierten [isoWeekNumber] (2021-01-01 gehört zu 2020-W53).
@@ -240,6 +270,7 @@ String _weekBlock(_WeekStats week, Map<String, int> statusCounts) {
 - Trips: **${week.trips}**
 - Savings: **${week.saved.toStringAsFixed(2)} EUR**
 - Distance: **${week.km.round()} km**
+- Persons per trip: **${_perTrip(week)}**
 
 Groups total: $status.''';
 }
@@ -292,7 +323,7 @@ String _issueBody(List<_WeekStats> weeks, String weekBlock) {
   final rows = [
     for (final w in weeks)
       '| ${_weekLabel(w.monday)} | ${w.groups} | ${w.trips} | '
-          '${w.saved.toStringAsFixed(2)} | ${w.km.round()} |',
+          '${w.saved.toStringAsFixed(2)} | ${w.km.round()} | ${_perTrip(w)} |',
   ].join('\n');
   return '''
 $weekBlock
@@ -305,14 +336,19 @@ ${_chart(title: 'Savings per week (EUR)', yLabel: 'EUR', oldestFirst: trend, val
 
 ## History (last $historyWeeks completed weeks)
 
-| Week | Groups | Trips | Savings (EUR) | km |
-|------|--------|-------|---------------|----|
+| Week | Groups | Trips | Savings (EUR) | km | Persons/trip |
+|------|--------|-------|---------------|----|--------------|
 $rows
 
 Savings and km exclude solo trips (issue #61) and persons without vehicle
 data — same rules as in the app. History is recomputed on every run; late
 entries update past rows. Exact values live in the table; the charts show
 the shape.
+
+Persons per trip is presence days divided by trips. It answers a question km
+cannot: km is presence days × commute × 2, so it drops both when cars run
+emptier and when a week is dominated by the group with the shorter commute.
+This column is blind to commute length, so it separates the two.
 
 _Automatically maintained by the usage report job (issue #134)._''';
 }

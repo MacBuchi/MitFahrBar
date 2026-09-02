@@ -110,6 +110,57 @@ void main() {
     );
   });
 
+  // Personen je Fahrt beantwortet, was die Kilometer nicht können: `km` ist
+  // Anwesenheitstage × Arbeitsweg × 2 und fällt gleichermaßen, wenn die Autos
+  // leerer fahren ODER wenn eine Woche von der Gruppe mit dem kürzeren
+  // Arbeitsweg bestimmt wird. Aufgefallen ist das an 2026-W35 — 7 Fahrten wie
+  // üblich, 77 km je Fahrt, 45 % unter dem Minimum der 25 Wochen davor — und
+  // zwar erst, als es jemand von Hand ausrechnete.
+  group('Personen je Fahrt (#149)', () {
+    test('die Kennzahl kommt aus der echten Fairness-Logik', () {
+      expect(
+        job,
+        contains('participationDays'),
+        reason:
+            'Anwesenheitstage sind dieselbe Größe, aus der `kilometers` die '
+            'Strecke macht. Aus den Fahrt-Rohdaten hier nachgezählt wären sie '
+            'die zweite Wahrheit — und niemand merkte es, solange beide '
+            'zufällig gleich rechnen.',
+      );
+    });
+
+    test('sie steht im Wochenblock UND in der Historie', () {
+      expect(
+        job,
+        contains('Persons per trip:'),
+        reason:
+            'Nur in der Tabelle stünde sie dort, wo niemand hinsieht: Gelesen '
+            'wird der Wochenkommentar.',
+      );
+      expect(
+        job,
+        contains('| Persons/trip |'),
+        reason:
+            'Ohne die Spalte in der Historie gibt es keinen Vergleichsmaßstab '
+            '— ein einzelner Wochenwert sagt nicht, ob er auffällig ist.',
+      );
+    });
+
+    // Eine Woche ganz ohne Fahrt hatte es wirklich schon (2026-W22).
+    test('eine Woche ohne Fahrt liefert kein NaN', () {
+      expect(
+        job,
+        contains('trips == 0 ? null :'),
+        reason:
+            'In Dart ist `0 / 0` bei Doubles NaN, und `toStringAsFixed` macht '
+            'daraus wortwörtlich „NaN" in einem öffentlichen Issue. Der Fall '
+            'ist nicht theoretisch: 2026-W22 hatte null Fahrten. Ein '
+            'gerechnetes 0,0 wäre ebenfalls falsch — es behauptete leere '
+            'Autos, wo gar keine fuhren.',
+      );
+    });
+  });
+
   // Anonymisierung strukturell: Namen und Freitexte erreichen den Speicher
   // des Jobs nie — dann können sie auch nicht ins öffentliche Log oder ins
   // Issue geraten.
