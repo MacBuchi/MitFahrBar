@@ -17,10 +17,10 @@
 // der Supabase-Publishable-Key: Der Zugriffsschutz liegt in der RLS bzw. bei
 // Firebase im Dienstkonto, das nur der Server kennt.
 importScripts(
-  'https://www.gstatic.com/firebasejs/12.17.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js',
 );
 importScripts(
-  'https://www.gstatic.com/firebasejs/12.17.0/firebase-messaging-compat.js',
+  'https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging-compat.js',
 );
 
 firebase.initializeApp({

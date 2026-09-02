@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.2] – 2026-09-02
+
+### Geändert
+
+- **Aktualisierte Bibliotheken.** Turnusgemäß erneuert: Firebase (Push),
+  go_router (Navigation) und die Supabase-Anbindung. An der Bedienung ändert
+  sich nichts.
+- Der Web-Push zieht wieder mit: Die PWA lädt jetzt dieselbe Firebase-Fassung,
+  die die App erwartet. Blieben beide auseinander, bekäme der Browser
+  irgendwann still keine Benachrichtigungen mehr.
+- **Android sagt neuerdings, wenn es gar nicht mehr fragt.** Wer die
+  Benachrichtigungen dauerhaft abgelehnt hat, bekommt vom System keinen
+  Dialog mehr — diesen Fall meldet Firebase jetzt gesondert. Für euch ändert
+  das nichts: Der Benachrichtigungs-Schirm hat diesen Zustand schon immer
+  erkannt und führt weiterhin in die Systemeinstellungen.
+
+  Solche Aktualisierungen bekommen bewusst ein eigenes Release — eine
+  getauschte Abhängigkeit landet wirklich auf euren Geräten.
+
 ## [0.89.1] – 2026-08-27
 
 ### Behoben

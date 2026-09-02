@@ -98,8 +98,20 @@ Future<String?> pushToken({required bool ask}) async {
     final messaging = FirebaseMessaging.instance;
     if (ask) {
       final settings = await messaging.requestPermission();
+      // Bewusst erschöpfend ohne `default`: Kommt eine Stufe dazu, soll der
+      // Compiler danach fragen, statt sie stillschweigend als „kein Token"
+      // durchzureichen. Genau so ist `deniedPermanently` aufgefallen.
       switch (settings.authorizationStatus) {
+        // `deniedPermanently` ist ab Android 13 der Zustand, in dem das
+        // System **keinen** Dialog mehr zeigt — hier ist der Weg zu Ende,
+        // nicht bloß dieser Versuch. Trotzdem derselbe Ausgang wie `denied`:
+        // `pushToken` liefert kein Token, und was die Nutzerin dann sieht,
+        // entscheidet die Sonde in `notification_health.dart` (#180/#230).
+        // Sie fragt Android selbst (`areNotificationsEnabled()`) und führt in
+        // die Systemeinstellungen. Diesen Zustand hier gesondert zu melden
+        // hieße, dieselbe Aussage an zwei Stellen zu treffen.
         case AuthorizationStatus.denied:
+        case AuthorizationStatus.deniedPermanently:
         case AuthorizationStatus.notDetermined:
           return null;
         case AuthorizationStatus.authorized:
