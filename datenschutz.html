@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datenschutzerklärung — MitFahrBar</title>
+<style>
+  :root {
+    --ground: #F5F8F8;
+    --surface: #FFFFFF;
+    --sunk: #ECF1F1;
+    --ink: #17211F;
+    --muted: #55625F;
+    --faint: #7B8683;
+    --rule: #DAE3E2;
+    --teal: #14595F;
+    --warn: #9A4419;
+    --warn-soft: #F8E8DF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101615;
+      --surface: #18201F;
+      --sunk: #141B1A;
+      --ink: #E6ECEA;
+      --muted: #9EAAA7;
+      --faint: #7E8A87;
+      --rule: #2A3433;
+      --teal: #6BB8BC;
+      --warn: #DE9163;
+      --warn-soft: #2A1C14;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 17px;
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+  h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.25rem; margin: 2.75rem 0 .75rem; letter-spacing: -.01em; }
+  h3 { font-size: 1rem; margin: 1.75rem 0 .5rem; }
+  p, li { color: var(--muted); }
+  p { margin: 0 0 1rem; }
+  strong { color: var(--ink); }
+  a { color: var(--teal); }
+  .stand { color: var(--faint); font-size: .9rem; margin-bottom: 2rem; }
+  .box {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--teal); border-radius: 0 8px 8px 0;
+    padding: 1rem 1.15rem; margin: 1.25rem 0;
+  }
+  .box.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .box p:last-child { margin-bottom: 0; }
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); margin: 1.25rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th, td { text-align: left; padding: .65rem .85rem; border-bottom: 1px solid var(--rule); vertical-align: top; color: var(--muted); }
+  tbody tr:last-child td { border-bottom: none; }
+  th { background: var(--sunk); color: var(--ink); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+  ul { margin: 0 0 1rem; padding-left: 1.2rem; }
+  li { margin-bottom: .4rem; }
+  code { background: var(--sunk); border: 1px solid var(--rule); border-radius: 4px; padding: .05em .35em; font-size: .88em; }
+  footer { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--faint); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Datenschutzerklärung</h1>
+<p class="stand">MitFahrBar · Stand: 12. August 2026</p>
+
+<h2>Verantwortlicher</h2>
+<p>
+  Marcus Bucher<br>
+  E-Mail: <a href="mailto:macbuchi.apps@gmail.com">macbuchi.apps@gmail.com</a>
+</p>
+<p>
+  MitFahrBar ist ein privates Projekt ohne Gewinnabsicht: keine Werbung, keine
+  In-App-Käufe, keine Bezahlfunktionen.
+</p>
+
+<h2>Der kurze Überblick</h2>
+<p>
+  MitFahrBar verwaltet die Fahrten einer Fahrgemeinschaft: wer wann gefahren
+  ist, wer mitgefahren ist, und wer als Nächstes dran wäre. Es gibt keine
+  Werbung, kein Tracking, keine Analyse-SDKs und keine Weitergabe zu
+  Werbezwecken.
+</p>
+<p>
+  Drei Punkte vorweg, weil sie die App von anderen unterscheiden:
+</p>
+<ul>
+  <li>
+    <strong>Die App erhebt keine Standortdaten.</strong> Sie fordert keine
+    Standortberechtigung an und speichert zu keinem Zeitpunkt Koordinaten oder
+    Routen. Kilometer sind ein von der Gruppe eingetragener Zahlenwert für den
+    Arbeitsweg, keine Messung.
+  </li>
+  <li>
+    <strong>Eine Gruppe teilt sich einen Zugang.</strong> Wer angemeldet ist,
+    sieht und bearbeitet alle Daten dieser Gruppe. Innerhalb der Gruppe gibt es
+    keine Privatsphäre gegeneinander.
+  </li>
+  <li>
+    <strong>Die Namen der Mitglieder trägt die Gruppe selbst ein.</strong> Es
+    kann also Daten über Personen geben, die die App nie geöffnet haben.
+  </li>
+</ul>
+
+<h2>Welche Daten, wozu, auf welcher Grundlage</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Daten</th><th>Wozu</th><th>Rechtsgrundlage</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Gruppen-Handle und Gruppenpasswort</td>
+      <td>Anmeldung der Gruppe</td>
+      <td>Art. 6 Abs. 1 lit. b DSGVO (Vertrag)</td>
+    </tr>
+    <tr>
+      <td>E-Mail-Adresse des Verwalters</td>
+      <td>Verwalter-Konto, Passwort zurücksetzen, Gruppe verwalten</td>
+      <td>Art. 6 Abs. 1 lit. b DSGVO</td>
+    </tr>
+    <tr>
+      <td>Namen der Mitglieder</td>
+      <td>Fahrten zuordnen, Punktestand und Reihenfolge berechnen</td>
+      <td>Art. 6 Abs. 1 lit. f DSGVO (Organisation der Fahrgemeinschaft)</td>
+    </tr>
+    <tr>
+      <td>Fahrzeugangaben: Sitzplätze, Kraftstoffart, Verbrauch</td>
+      <td>Wie viele Autos ein Tag braucht; Kostenersparnis schätzen</td>
+      <td>Art. 6 Abs. 1 lit. f DSGVO</td>
+    </tr>
+    <tr>
+      <td>Fahrten: Datum, Fahrer, Mitfahrer, einfache Fahrt ja/nein</td>
+      <td>Fahrtenprotokoll, Punkte, Statistik</td>
+      <td>Art. 6 Abs. 1 lit. f DSGVO</td>
+    </tr>
+    <tr>
+      <td>Planung: Verfügbarkeit, festgelegte Fahrer, Sitzplatz-Zusagen</td>
+      <td>Wochenplan und Fahrervorschlag</td>
+      <td>Art. 6 Abs. 1 lit. f DSGVO</td>
+    </tr>
+    <tr>
+      <td>Abfahrtszeiten, Treffpunkt, Anmerkungen am Tag</td>
+      <td>Absprachen innerhalb der Gruppe</td>
+      <td>Art. 6 Abs. 1 lit. f DSGVO</td>
+    </tr>
+    <tr>
+      <td>Parameter: Arbeitsweg in Kilometern, Kraftstoffpreise</td>
+      <td>Kosten- und CO₂-Ersparnis berechnen</td>
+      <td>Art. 6 Abs. 1 lit. f DSGVO</td>
+    </tr>
+    <tr>
+      <td>Benachrichtigungs-Kennung des Geräts (FCM-Token) und Einstellungen</td>
+      <td>Erinnerungen und Planänderungen zustellen</td>
+      <td>Art. 6 Abs. 1 lit. a DSGVO (Einwilligung, ab Werk aus)</td>
+    </tr>
+    <tr>
+      <td>Fehlerberichte: Fehlertyp, Meldung, Aufrufliste, App-Version, Plattform</td>
+      <td>Fehler finden und beheben</td>
+      <td>Art. 6 Abs. 1 lit. f DSGVO</td>
+    </tr>
+    <tr>
+      <td>Rückmeldungen aus der App</td>
+      <td>Fehler und Wünsche bearbeiten</td>
+      <td>Art. 6 Abs. 1 lit. a DSGVO (du löst das Senden selbst aus)</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Was ausdrücklich nicht erhoben wird</h3>
+<p>
+  Kein Standort in irgendeiner Form, keine Kontakte, kein Kalender, keine
+  Fotos, keine Gesundheits- oder Finanzdaten, keine Werbe-ID, kein
+  Nutzungsverhalten und keine Analysedaten. Die App enthält kein Werbe- und
+  kein Analyse-SDK.
+</p>
+
+<h2>Ein Zugang für die ganze Gruppe</h2>
+<p>
+  MitFahrBar kennt keine Einzelkonten für Mitglieder. Eine Gruppe hat einen
+  Handle und ein Passwort; wer beides hat, sieht und ändert alles, was zu
+  dieser Gruppe gehört — Fahrten, Namen, Planung, Anmerkungen. Das ist
+  Absicht: Eine Fahrgemeinschaft trägt füreinander ein.
+</p>
+<p>
+  <strong>Was das bedeutet:</strong> Die Auswahl „Ich bin …" auf einem Gerät
+  ist eine Bequemlichkeit gegen Vertipper, keine Zugriffskontrolle. Wer das
+  Gruppenpasswort kennt, kann für jeden eintragen. Verlässt jemand die Gruppe,
+  sollte das Gruppenpasswort geändert werden — das geht in der
+  Verwalter-Konsole.
+</p>
+
+<h2>Daten über andere Personen</h2>
+<div class="box warn">
+  <p>
+    Wer eine Gruppe anlegt und Mitglieder einträgt, verarbeitet damit Daten
+    über andere Menschen — auch über solche, die die App nie öffnen. Der
+    Betreiber der Gruppe ist dafür mitverantwortlich.
+  </p>
+  <p>
+    Halte es deshalb bei dem, was die Fahrgemeinschaft braucht: Name,
+    Sitzplätze, Kraftstoffart, Verbrauch. Sag den Betroffenen, dass ihre
+    Fahrten hier erfasst werden, und verweise sie auf diese Seite.
+  </p>
+</div>
+
+<h2>Benachrichtigungen nennen Namen</h2>
+<p>
+  Wer Benachrichtigungen einschaltet, bekommt Meldungen wie „Morgen fährt
+  Anna". Diese Texte enthalten also die Namen von Mitgliedern und erscheinen
+  auf dem Sperrbildschirm des Geräts. Die Zustellung läuft über Googles
+  Firebase Cloud Messaging.
+</p>
+<p>
+  Benachrichtigungen sind ab Werk aus und lassen sich jederzeit wieder
+  abschalten; dabei wird die Gerätekennung gelöscht.
+</p>
+
+<h2>Rückmeldungen werden öffentlich</h2>
+<div class="box warn">
+  <p>
+    Was du über „Feedback" aus der App schickst, wird zu einem
+    <strong>öffentlichen Eintrag auf GitHub</strong> — dauerhaft und für jeden
+    lesbar. Schreib dort nichts hinein, was privat bleiben soll.
+  </p>
+  <p>
+    Auf Wunsch lassen sich die letzten Protokollzeilen der App anhängen. Das
+    ist ab Werk abgewählt, und der Text wird dir vor dem Senden vollständig
+    angezeigt. Die Protokollzeilen enthalten bewusst keine Namen und keine
+    Fahrtdaten.
+  </p>
+</div>
+
+<h2>Wer die Daten verarbeitet</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>Dienst</th><th>Wofür</th><th>Was dorthin geht</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Supabase (Datenbank, Anmeldung)</td>
+      <td>Speicherung aller Gruppendaten</td>
+      <td>Alles aus der Tabelle oben</td>
+    </tr>
+    <tr>
+      <td>Brevo (E-Mail-Versand)</td>
+      <td>Bestätigungs- und Reset-Mails an Verwalter</td>
+      <td>Nur die E-Mail-Adresse des Verwalters</td>
+    </tr>
+    <tr>
+      <td>Google Firebase Cloud Messaging</td>
+      <td>Benachrichtigungen zustellen</td>
+      <td>Gerätekennung und der Meldungstext samt Namen</td>
+    </tr>
+    <tr>
+      <td>GitHub</td>
+      <td>Update-Prüfung der Android-App; Rückmeldungen</td>
+      <td>Bei der Update-Prüfung nur die Anfrage selbst; Rückmeldungen werden öffentlich</td>
+    </tr>
+    <tr>
+      <td>OpenStreetMap Nominatim</td>
+      <td>Treffpunkt anhand eines Suchbegriffs finden</td>
+      <td>Nur der eingegebene Suchbegriff — <strong>vom Server, nicht von deinem Gerät</strong></td>
+    </tr>
+    <tr>
+      <td>Tankerkönig</td>
+      <td>Spritpreise der Region ermitteln</td>
+      <td>Nur die Region — keine Angabe über einzelne Nutzer</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<div class="box">
+  <p>
+    Die letzten beiden Abfragen stellt <strong>der Server</strong>, nicht die
+    App. Deine IP-Adresse erreicht Nominatim und Tankerkönig deshalb nie, und
+    beide erfahren nicht, zu welcher Gruppe eine Anfrage gehört.
+  </p>
+</div>
+
+<h2>Was nur auf deinem Gerät bleibt</h2>
+<ul>
+  <li>Die Auswahl „Ich bin …" — sie verlässt das Gerät nicht.</li>
+  <li>Der Schalter „Vorabversionen erhalten".</li>
+  <li>
+    Ein Zwischenspeicher des zuletzt geladenen Standes, damit die App ohne
+    Empfang etwas anzeigen kann. Er enthält dieselben Gruppendaten wie der
+    Server und wird beim Wechsel der Gruppe gelöscht.
+  </li>
+  <li>
+    Auf Android ist die Anmeldung vom Cloud-Backup ausgeschlossen: Das
+    Sitzungs-Token ist der gemeinsame Zugang der Gruppe und soll nicht über
+    das Google-Konto eines einzelnen Mitglieds auf fremde Geräte wandern.
+  </li>
+</ul>
+
+<h2>Speicherdauer</h2>
+<ul>
+  <li>
+    Fahrten, Namen und Planungsdaten bleiben, solange die Gruppe besteht — die
+    Punkte errechnen sich aus der gesamten Historie.
+  </li>
+  <li>
+    Ein Mitglied, das nicht mehr mitfährt, wird auf <strong>inaktiv</strong>
+    gesetzt statt gelöscht. Würde man den Eintrag entfernen, verschwänden auch
+    alle Fahrten dieser Person — und das verschöbe rückwirkend den Punktestand
+    aller anderen.
+  </li>
+  <li>Die Gerätekennung für Benachrichtigungen bis zum Abschalten.</li>
+  <li>Fehlerberichte werden regelmäßig aufgeräumt.</li>
+  <li>
+    Wird die Gruppe gelöscht, werden alle zugehörigen Daten sofort und
+    vollständig entfernt.
+  </li>
+</ul>
+
+<h2>Gruppe löschen</h2>
+<p>
+  Der Verwalter löscht seine Gruppe selbst in der Verwalter-Konsole. Damit
+  verschwinden Zugang, Mitglieder, Fahrten, Planung und Benachrichtigungs-
+  Einstellungen in einem Schritt — es bleibt nichts zurück.
+</p>
+<p>
+  Die Anleitung dazu, auch ohne installierte App:
+  <a href="konto-loeschen.html">Konto und Gruppe löschen</a>.
+</p>
+
+<h2>Deine Rechte</h2>
+<p>
+  Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der
+  Verarbeitung, Datenübertragbarkeit und Widerspruch, sowie das Recht, dich
+  bei einer Aufsichtsbehörde zu beschweren. Eine erteilte Einwilligung —
+  etwa für Benachrichtigungen — kannst du jederzeit widerrufen.
+</p>
+<p>
+  Für Anfragen genügt eine E-Mail an die oben genannte Adresse. Bist du
+  Mitglied einer Gruppe, ohne selbst Verwalter zu sein, wende dich zuerst an
+  den Verwalter deiner Gruppe: Er entscheidet über die Daten der Gruppe und
+  kann Einträge ändern oder die Gruppe löschen.
+</p>
+
+<h2>Änderungen</h2>
+<p>
+  Ändert sich, was die App erhebt oder wohin sie verbindet, wird diese Seite
+  mit derselben Änderung aktualisiert. Das Datum oben nennt den Stand.
+</p>
+
+<footer>
+  <p><a href="./">Zurück zu MitFahrBar</a></p>
+</footer>
+
+</main>
+</body>
+</html>
