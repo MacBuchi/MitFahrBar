@@ -36,7 +36,14 @@ PY
 # Marke misst von der Seite 1,69:1. Darin wird sie 22 x 13 dp und steht neben
 # quadratischen Nachbarn (Wecker, Kalender), die 20 x 20 fuellen — sie sieht
 # halb so gross aus, und randlos ausgereizt braechte das 9 % Hoehe statt des
-# Doppelten. Die Frontansicht misst 1,17:1 und fuellt den Kasten mit 22 x 18.
+# Doppelten.
+#
+# Skaliert wird auf die GROESSERE Kante — deshalb ist die Frontansicht
+# quadratisch geschnitten (1:1, seit #281) und fuellt den Kasten mit 22 x 22.
+# Ragten die Raeder wie bis v0.89.1 seitlich ueber den Aufbau hinaus, waere
+# die Breite die begrenzende Kante und die Hoehe bliebe bei 18: ein Sechstel
+# der Flaeche verschenkt, ohne dass man es im Bild sieht. Der Riegel dagegen
+# steht in test/android_manifest_test.dart und misst das ERZEUGTE Artefakt.
 # Gemeldet in #271 („viel zu klein"), nachgemessen am gerenderten Pixel.
 #
 # Die Regel „mark.svg ist die einzige Quelle" gilt unveraendert fuer Launcher,

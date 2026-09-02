@@ -5,8 +5,26 @@
      Marke von der Seite 1,69:1 misst — darin wird sie 24 x 14 dp und steht
      neben quadratischen Nachbarn (Wecker, Kalender), die 20 x 20 füllen.
      Gemessen, nicht geschätzt: Voll ausgereizt bringt die Seitenansicht 9 %
-     Höhe, nicht das Doppelte. Von vorn misst der Bus 1,13:1 und füllt den
-     Kasten.
+     Höhe, nicht das Doppelte.
+
+     Der Inhalt misst 72 x 72 und ist damit QUADRATISCH — das ist der Kern
+     dieser Datei (#281, „Reifen deutlicher / groesser nach unten"). Der
+     Vektor-Schritt skaliert auf die GROESSERE Kante; solange die Raeder
+     seitlich ueber den Aufbau ragten (x 8…92 gegen Aufbau 14…86), war die
+     Breite die begrenzende Kante und jede zusaetzliche Hoehe war gratis,
+     wurde aber nie genommen: 22,1 x 18,9 dp, 72 % der Kastenflaeche, und die
+     Raeder standen 1,05 dp unter dem Aufbau — bei 24 px zwei Noppen.
+     Unter den Aufbau gezogen und dafuer tiefer gesetzt wird daraus
+     22,1 x 22,1 dp (85 % der Flaeche) bei 3,7 dp Rad — der ganze Bus waechst
+     um 17 %, nicht nur die Raeder.
+
+     Buendig an den Aufbaukanten ist gemessen und VERWORFEN: Dort verschmelzen
+     die Raeder mit den gerundeten Ecken und lesen sich als Kerben.
+
+     Wer die Geometrie anfasst, prueft das Seitenverhaeltnis mit — sobald es
+     von 1:1 abweicht, verschenkt das Glyph wieder Flaeche, und im Bild sieht
+     man das nicht. `test/android_manifest_test.dart` nagelt es fest.
+
      Bewusst OHNE waagerechten Balken unter der Scheibe (Variante C,
      entschieden 27.08.2026): Bei 24 px liest er sich als Streifen und nimmt
      dem Glyph die Ruhe, ohne etwas zu erklaeren.
@@ -16,14 +34,14 @@
      anwenden kann: cyan wird ausgestanzt, weiss bleibt deckend. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <!-- Aufbau -->
-  <rect x="14" y="16" width="72" height="68" rx="15" fill="#ffffff"/>
+  <rect x="14" y="16" width="72" height="60" rx="15" fill="#ffffff"/>
   <!-- Frontscheibe, ausgestanzt -->
   <rect x="21" y="24" width="58" height="26" rx="8" fill="#0891b2"/>
   <!-- Drei Mitfahrer darin — dieselbe Aussage wie in der Marke -->
   <circle cx="33" cy="37" r="6" fill="#ffffff"/>
   <circle cx="50" cy="37" r="6" fill="#ffffff"/>
   <circle cx="67" cy="37" r="6" fill="#ffffff"/>
-  <!-- Raeder, unten angedeutet -->
-  <rect x="8" y="70" width="12" height="18" rx="6" fill="#ffffff"/>
-  <rect x="80" y="70" width="12" height="18" rx="6" fill="#ffffff"/>
+  <!-- Raeder: INNERHALB der Aufbaubreite, dafuer deutlich darunter -->
+  <rect x="18" y="70" width="18" height="18" rx="8" fill="#ffffff"/>
+  <rect x="64" y="70" width="18" height="18" rx="8" fill="#ffffff"/>
 </svg>

@@ -24,6 +24,53 @@ String _applicationId() {
   return match!.group(1)!;
 }
 
+/// Die Ausdehnung der Tinte im 24-dp-Kasten von `ic_notification.xml`.
+///
+/// Gelesen wird das ERZEUGTE Artefakt, nicht die SVG: Ausgeliefert wird der
+/// VectorDrawable, und zwischen beiden liegt `build_icons.sh`.
+///
+/// Genommen werden die Stützpunkte von `M`/`L` und der Endpunkt jedes `A`.
+/// Das genügt hier, weil die äußeren Formen gerundete Rechtecke sind — bei
+/// denen liegen alle vier Extreme auf solchen Punkten. Die Kreise (die drei
+/// Mitfahrer) berühren den Rand nicht; ihre Extreme lägen mitten auf dem
+/// Bogen und fehlen bewusst.
+({double width, double height}) _notificationInk() {
+  final xml = File(
+    'android/app/src/main/res/drawable/ic_notification.xml',
+  ).readAsStringSync();
+  final xs = <double>[];
+  final ys = <double>[];
+  for (final path in RegExp(r'android:pathData="([^"]+)"').allMatches(xml)) {
+    for (final seg in RegExp(
+      r'([MLA])([-\d.,\s]+)',
+    ).allMatches(path.group(1)!)) {
+      final nums = seg
+          .group(2)!
+          .trim()
+          .split(RegExp(r'[,\s]+'))
+          .where((t) => t.isNotEmpty)
+          .map(double.parse)
+          .toList();
+      if (seg.group(1) == 'A') {
+        // A rx,ry rot large,sweep x,y — nur der Endpunkt ist ein Punkt auf
+        // der Kurve; die Radien davor sind Längen und keine Koordinaten.
+        xs.add(nums[nums.length - 2]);
+        ys.add(nums.last);
+      } else {
+        for (var i = 0; i + 1 < nums.length; i += 2) {
+          xs.add(nums[i]);
+          ys.add(nums[i + 1]);
+        }
+      }
+    }
+  }
+  final width =
+      xs.reduce((a, b) => a > b ? a : b) - xs.reduce((a, b) => a < b ? a : b);
+  final height =
+      ys.reduce((a, b) => a > b ? a : b) - ys.reduce((a, b) => a < b ? a : b);
+  return (width: width, height: height);
+}
+
 void main() {
   final manifest = File('android/app/src/main/AndroidManifest.xml');
   final content = manifest.existsSync() ? manifest.readAsStringSync() : '';
@@ -375,6 +422,21 @@ void main() {
             'SystemUI wirft jede Farbe weg und behält nur den Alphakanal — '
             'ohne evenOdd wäre das Glyph wieder der weiße Klotz aus #271. '
             'Braucht API 24, und genau dort liegt unser minSdk.',
+      );
+      final ink = _notificationInk();
+      expect(
+        (ink.width - ink.height).abs(),
+        lessThan(0.05),
+        reason:
+            'Die Tinte muss QUADRATISCH sein (#281), gemessen ist sie '
+            '${ink.width.toStringAsFixed(2)} x '
+            '${ink.height.toStringAsFixed(2)} dp. Der Vektor-Schritt '
+            'skaliert auf die GRÖSSERE Kante: Ragen die Räder seitlich über '
+            'den Aufbau hinaus, ist die Breite die begrenzende Kante und die '
+            'Höhe bleibt ungenutzt. Bis v0.89.1 waren das 22,1 x 18,9 statt '
+            '22,1 x 22,1 dp — ein Sechstel der Fläche verschenkt, neben '
+            'quadratischen Nachbarn (Wecker, Kalender) in der Statusleiste. '
+            'Im Bild sieht man das nicht, nur im Vergleich auf dem Gerät.',
       );
       for (final density in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
         expect(

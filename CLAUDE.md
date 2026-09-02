@@ -2407,9 +2407,26 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   24-dp-Kasten, und die Marke misst von der Seite 1,69:1. Darin wird sie
   22 × 13 dp und steht neben quadratischen Nachbarn (Wecker, Kalender), die
   20 × 20 füllen — sie sieht halb so groß aus. **Skalieren hilft nicht:**
-  randlos ausgereizt sind es 9 % mehr Höhe, nicht das Doppelte. Von vorn misst
-  der Bus 1,17:1 und füllt den Kasten mit 22 × 18. Gemeldet als „viel zu
-  klein", nachgemessen am gerenderten Pixel.
+  randlos ausgereizt sind es 9 % mehr Höhe, nicht das Doppelte. Gemeldet als
+  „viel zu klein", nachgemessen am gerenderten Pixel.
+  - **Das Glyph ist QUADRATISCH geschnitten, und daran hängt seine Größe**
+    (#281, seit v0.89.3). Der Vektor-Schritt skaliert auf die **größere**
+    Kante — solange die Räder seitlich über den Aufbau ragten (x 8…92 gegen
+    Aufbau 14…86), war die Breite die begrenzende Kante und jede zusätzliche
+    Höhe war gratis, wurde aber nie genommen: 22,1 × 18,9 dp bei 72 % der
+    Kastenfläche. Unter den Aufbau gezogen und dafür tiefer gesetzt sind es
+    22,1 × 22,1 (85 %) — **der ganze Bus wächst um 17 %, nicht nur die
+    Räder.** Gemeldet war „Reifen deutlicher / größer nach unten"; der Hebel
+    lag woanders als der Wortlaut vermuten ließ.
+    - **Bündig an den Aufbaukanten ist gemessen und verworfen:** Dort
+      verschmelzen die Räder mit den gerundeten Ecken und lesen sich als
+      Kerben, nicht als Räder.
+    - **Der Riegel misst das ERZEUGTE Artefakt**, nicht die SVG — dazwischen
+      liegt `build_icons.sh`. `test/android_manifest_test.dart` rechnet die
+      Tinten-Box aus der `pathData` und wird rot, sobald das Verhältnis von
+      1:1 abweicht; rot verifiziert gegen die alte Geometrie. Im Bild sieht
+      man den Unterschied nicht, auf dem Gerät steht das Symbol neben
+      quadratischen Nachbarn.
   - **Die Regel „mark.svg ist die einzige Quelle" gilt unverändert** für
     Launcher, Web und Favicon. Dies ist ein anderes Artefakt für einen anderen
     Kasten, und der Preis steht dabei: Wer die Marke ändert, zieht dieses
