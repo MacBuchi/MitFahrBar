@@ -24,6 +24,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      # AGENTS.md (Codex) ist ein Symlink auf CLAUDE.md, keine Kopie — eine
+      # lokale Kopie hatte hier Codex andere Regeln gegeben als Claude.
+      - name: AGENTS.md zeigt auf CLAUDE.md
+        run: |
+          test -L AGENTS.md && test "$(readlink AGENTS.md)" = CLAUDE.md || {
+            echo "::error::AGENTS.md muss ein Symlink auf CLAUDE.md sein (ln -sf CLAUDE.md AGENTS.md)"
+            exit 1
+          }
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
@@ -246,7 +254,7 @@ jobs:
             # Doku, CI-Konfiguration, Tests und Tooling lösen keinen Release
             # aus. `doc/` steht mit drin, weil dort auch Nicht-Markdown liegt
             # (README-Screenshots) — Doku bleibt Doku, auch als PNG.
-            excludes=(':!*.md' ':!.github' ':!doc' ':!test' ':!tool' ':!LICENSE')
+            excludes=(':!*.md' ':!.github' ':!doc' ':!test' ':!tool' ':!LICENSE' ':!.claude' ':!.codex' ':!.agents')
             if [ "$EVENT_NAME" = "pull_request" ]; then
               changed=$(git diff --name-only "origin/$BASE_REF"...HEAD -- . "${excludes[@]}" || true)
             else
