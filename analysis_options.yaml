@@ -17,6 +17,10 @@ analyzer:
     # keine Anregungen — siehe CLAUDE.md.
     avoid_print: error
     use_build_context_synchronously: error
+  exclude:
+    - build/**
+    - android/**
+    - web/**
 
 linter:
   rules:
