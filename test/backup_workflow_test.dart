@@ -39,6 +39,33 @@ void main() {
     }
   });
 
+  test('die Vollständigkeitsprüfung erwartet keine Tabelle, die es nicht '
+      'mehr gibt (#299)', () {
+    // Die Gegenrichtung zum Test oben. Fehlte sie, blieb eine gelöschte
+    // Tabelle in der Liste stehen — und JEDER Lauf brach ab, ohne dass eine
+    // PR-CI es sah: Nach dem Drop von price_sample (v0.86.0) entstand drei
+    // Monate lang kein Backup.
+    final loop = RegExp(
+      r'for table in \\(.*?); do',
+      dotAll: true,
+    ).firstMatch(backup);
+    expect(loop, isNotNull, reason: 'Die Prüfschleife wurde nicht gefunden.');
+    final listed = RegExp(
+      r'public\.\w+',
+    ).allMatches(loop!.group(1)!).map((m) => m.group(0)!).toSet();
+    expect(listed, isNotEmpty);
+    for (final table in listed) {
+      expect(
+        schema,
+        contains('create table $table'),
+        reason:
+            '$table steht in der Prüfliste von tool/db_backup.sh, aber nicht '
+            'in supabase/schema.sql. Ist die Tabelle gelöscht, bricht jeder '
+            'Backup-Lauf mit „Dump unvollständig" ab — aus der Liste nehmen.',
+      );
+    }
+  });
+
   test('auth und supabase_migrations werden mitgesichert und mitgeprüft', () {
     for (final schemaFlag in [
       '--schema=public',

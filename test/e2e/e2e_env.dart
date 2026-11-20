@@ -232,7 +232,7 @@ Future<String> waitForMail(
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
       final id = await _firstMessageId(http, to, subject: subject);
-      if (id != null) return _messageBody(http, id);
+      if (id != null) return await _messageBody(http, id);
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
   } finally {
