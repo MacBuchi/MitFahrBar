@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.6] – 2026-11-20
+
+### Geändert
+
+- **Hinter den Kulissen: aktualisierte Bausteine.** Die App läuft auf einer
+  neueren Flutter-Fassung (3.47) und auf frischen Versionen ihrer
+  Bibliotheken, unter anderem für Anmeldung, Benachrichtigungen und
+  Navigation. Sichtbar ändert sich nichts.
+
 ## [0.89.5] – 2026-11-20
 
 ### Geändert
