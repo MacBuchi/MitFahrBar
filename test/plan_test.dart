@@ -517,11 +517,10 @@ void main() {
         return [for (final day in plan) day.driverId];
       }
 
-      expect(
-        driversFor(halfWay: true),
-        ['a', 'a'],
-        reason: 'a steht mit 1,0 unter d (1,5) und ist erneut dran.',
-      );
+      expect(driversFor(halfWay: true), [
+        'a',
+        'a',
+      ], reason: 'a steht mit 1,0 unter d (1,5) und ist erneut dran.');
       expect(
         driversFor(halfWay: false),
         ['a', 'd'],
@@ -1209,11 +1208,9 @@ void main() {
 
       expect(day.driverIds, ['a', 'b']);
       expect(day.cars[1].fullIds, ['c'], reason: 'Der Pin zieht c zu b.');
-      expect(
-        day.cars[0].fullIds,
-        ['d'],
-        reason: 'Und d rutscht in den frei gewordenen Platz bei a.',
-      );
+      expect(day.cars[0].fullIds, [
+        'd',
+      ], reason: 'Und d rutscht in den frei gewordenen Platz bei a.');
     });
 
     test('ohne Pin läuft c von allein zu a — die Gegenprobe', () {
@@ -1491,16 +1488,12 @@ void main() {
         choices: [choice('c', 'a', answer: SeatAnswer.no)],
       );
       expect(forced.driverIds, hasLength(2));
-      expect(
-        forced.forcedFor.keys,
-        [forced.driverIds.last],
-        reason: 'Nur der Zusatzfahrer steht drin, nicht der erste.',
-      );
-      expect(
-        forced.forcedFor[forced.driverIds.last],
-        ['c'],
-        reason: 'Und wer ihn braucht — das ist der Text am Eintrag.',
-      );
+      expect(forced.forcedFor.keys, [
+        forced.driverIds.last,
+      ], reason: 'Nur der Zusatzfahrer steht drin, nicht der erste.');
+      expect(forced.forcedFor[forced.driverIds.last], [
+        'c',
+      ], reason: 'Und wer ihn braucht — das ist der Text am Eintrag.');
 
       // Zwei Autos aus reiner Kapazität: nichts erzwungen, alles abwählbar.
       final tight = planDay(
@@ -1743,11 +1736,9 @@ void main() {
         settings: settings,
       ).first;
 
-      expect(
-        celebratedDrivers([day], oneWayFactor: 0.5),
-        {'a'},
-        reason: 'a nimmt 1,0 mit (b voll), c nur 0,5 (d 1-way).',
-      );
+      expect(celebratedDrivers([day], oneWayFactor: 0.5), {
+        'a',
+      }, reason: 'a nimmt 1,0 mit (b voll), c nur 0,5 (d 1-way).');
     });
   });
 }

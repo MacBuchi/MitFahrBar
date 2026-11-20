@@ -454,11 +454,9 @@ void main() {
         .from('group_admins')
         .select()
         .eq('user_id', admin.id);
-    expect(
-      rest.map((row) => row['group_id']),
-      [keep.id],
-      reason: 'Genau die gelöschte Verknüpfung ist weg, die andere bleibt.',
-    );
+    expect(rest.map((row) => row['group_id']), [
+      keep.id,
+    ], reason: 'Genau die gelöschte Verknüpfung ist weg, die andere bleibt.');
   });
 
   // Invariante 1 aus CLAUDE.md, nachgemessen am Ende der Suite — die bis

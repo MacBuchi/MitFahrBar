@@ -277,11 +277,9 @@ void main() {
             'Winterhalbjahr eine andere Frage als die gemessene. Genau die '
             'Stufe, die dieses ganze Vorgehen vermeiden soll.',
       );
-      expect(
-        times.map((t) => t[1]).toSet(),
-        {minute},
-        reason: 'Auch die Minute muss dieselbe sein.',
-      );
+      expect(times.map((t) => t[1]).toSet(), {
+        minute,
+      }, reason: 'Auch die Minute muss dieselbe sein.');
     });
   });
 

@@ -377,11 +377,9 @@ void main() {
     await _fill(tester, 'Neue E-Mail-Adresse', 'neu@example.org');
     await _tap(tester, find.widgetWithText(FilledButton, 'Ändern'));
 
-    expect(
-      backend.emailChangeRequests,
-      ['neu@example.org'],
-      reason: 'Der Wechsel wurde wirklich angefordert.',
-    );
+    expect(backend.emailChangeRequests, [
+      'neu@example.org',
+    ], reason: 'Der Wechsel wurde wirklich angefordert.');
     expect(
       find.textContaining('alte und die neue Adresse'),
       findsOneWidget,
@@ -449,11 +447,9 @@ void main() {
     );
 
     await _tap(tester, find.text('Bestätigungs-Mail erneut senden'));
-    expect(
-      backend.confirmationResends,
-      ['frisch@example.org'],
-      reason: 'Der Resend wurde wirklich angefordert.',
-    );
+    expect(backend.confirmationResends, [
+      'frisch@example.org',
+    ], reason: 'Der Resend wurde wirklich angefordert.');
     expect(find.textContaining('neuer Code unterwegs'), findsOneWidget);
   });
 
