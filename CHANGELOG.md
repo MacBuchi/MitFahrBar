@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.4] – 2026-11-20
+
+### Geändert
+
+- **Hinter den Kulissen: Probleme fallen früher auf.** Die Datenbank kann jetzt
+  dem Betreiber eine kurze Gesundheitsmeldung geben – nur Zahlen wie „wie
+  viele Fehlerberichte gestern“, keine Namen, keine Fahrten, keine Texte. In
+  der App ändert sich nichts.
+
 ## [0.89.3] – 2026-09-02
 
 ### Geändert
