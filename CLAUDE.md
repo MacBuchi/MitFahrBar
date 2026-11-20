@@ -2027,12 +2027,14 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Doku-, CI-, Test- oder Tooling-Arbeit soll kein Release auslösen.
 - **Zu jedem Versions-Bump gehört ein `CHANGELOG.md`-Eintrag** (Nutzersicht,
   Deutsch: was ändert sich für die Gruppen — nicht die Commit-Liste).
-- Flutter-Version in CI gepinnt (3.44.8) — bei lokalem Upgrade auch
+- Flutter-Version in CI gepinnt (3.47.5) — bei lokalem Upgrade auch
   `.github/workflows/*.yml` anpassen. Lokales SDK:
   `/Volumes/MacStore/Programming/Flutter/SDK/flutter`.
-  **Es sind SECHS Dateien** (`ci`, `release`, `notify`, `screenshots`,
-  `security`, `usage-report`), und alle sechs halten den Wert jetzt als
-  `env: FLUTTER_VERSION`. In `security.yml` stand er bis 08.08. als Literal
+  **Es sind SIEBEN Dateien** (`ci`, `release`, `promote`, `notify`,
+  `screenshots`, `security`, `usage-report`), und alle halten den Wert als
+  `env: FLUTTER_VERSION` — gezählt wird mit
+  `grep -rn FLUTTER_VERSION: .github/workflows/`, nicht aus dem Gedächtnis
+  (die Liste hieß bis November „sechs", `promote` fehlte). In `security.yml` stand er bis 08.08. als Literal
   am Job — genau so entsteht ein halber Drift: Wer nach dem Muster der
   anderen fünf sucht, findet die sechste nicht. Am 08.08. war der Abstand
   auf drei Minor angewachsen (lokal 3.44.8, CI 3.41.2); getestet wurde

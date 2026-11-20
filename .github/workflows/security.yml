@@ -44,7 +44,7 @@ concurrency:
 # anderen fünf Dateien nachzieht, übersieht die sechste, weil sie nicht
 # nach demselben Muster sucht.
 env:
-  FLUTTER_VERSION: "3.44.8"
+  FLUTTER_VERSION: "3.47.5"
 
 jobs:
   # Darf Pflicht-Check sein. Nur neu eingeführte Funde, siehe Kopf.

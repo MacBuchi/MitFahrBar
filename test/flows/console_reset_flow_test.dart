@@ -107,11 +107,9 @@ void main() {
           'Erfolg und Fehlschlag melden dasselbe — sonst wird die Antwort '
           'zum Konto-Orakel.',
     );
-    expect(
-      backend.passwordResets,
-      ['gibtesnicht@example.org'],
-      reason: 'Angefordert wird trotzdem, wie bei Supabase.',
-    );
+    expect(backend.passwordResets, [
+      'gibtesnicht@example.org',
+    ], reason: 'Angefordert wird trotzdem, wie bei Supabase.');
     expect(
       find.widgetWithText(TextField, 'Code aus der Mail'),
       findsOneWidget,
