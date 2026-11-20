@@ -1552,3 +1552,5 @@ end;
 $$;
 revoke all on function public.ops_health(text) from public;
 grant execute on function public.ops_health(text) to anon;
+-- nur anon: den Supabase-Default-Grant an authenticated entzieht 20261120100000
+revoke execute on function public.ops_health(text) from authenticated;

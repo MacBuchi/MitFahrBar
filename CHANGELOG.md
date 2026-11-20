@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.5] – 2026-11-20
+
+### Geändert
+
+- **Hinter den Kulissen: die Gesundheitsmeldung aus 0.89.4 ist enger
+  gefasst.** Sie ist jetzt nur noch für den Betreiber abrufbar, nicht mehr
+  zusätzlich für angemeldete Konten. In der App ändert sich nichts.
+
 ## [0.89.4] – 2026-11-20
 
 ### Geändert
