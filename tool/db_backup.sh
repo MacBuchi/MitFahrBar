@@ -97,7 +97,7 @@ for table in \
   public.plan_defaults public.plan_car_defaults public.plan_seat_choices \
   public.push_devices public.notification_prefs public.push_log \
   public.push_outbox public.group_admins public.error_reports \
-  public.price_area public.price_sample public.price_week \
+  public.price_area public.price_week \
   public.price_week_skip \
   auth.users supabase_migrations.schema_migrations; do
   schema=${table%%.*}

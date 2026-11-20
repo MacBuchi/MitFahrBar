@@ -399,293 +399,273 @@ void main() {
     }
   });
 
-  test(
-    'Zielflotte: Punkte im Ziel, Raten am strukturellen Boden',
-    () {
-      final r = _simulateWith(0xDAC1A, _targetSeats, _rollWeekSized);
-      printOnFailure('$r');
+  test('Zielflotte: Punkte im Ziel, Raten am strukturellen Boden', () {
+    final r = _simulateWith(0xDAC1A, _targetSeats, _rollWeekSized);
+    printOnFailure('$r');
 
-      expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
+    expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
 
-      for (final p in _targetSeats.keys) {
-        // Marcus' erstes Ziel: Punktedifferenzen um 0 — klar erfüllt
-        // (beobachtet ±2 auf dem Haupt-Seed).
-        expect(
-          r.points[p]!.abs(),
-          lessThan(5),
-          reason: 'Endstand $p muss um 0 pendeln (Punkte-Ziel).',
-        );
-        // Marcus' zweites Ziel: Fahrraten ±2 pp. Mit dem Trim-Hub auf
-        // kRateBalance = 6 (2026-07-24) liegt die Schranke am gemessenen
-        // strukturellen BODEN (±2,5 pp, Worst-Case über 10 Seeds): Wer an
-        // kleinen Tagen dabei ist, fährt bei gleichen Punkten zwangsläufig
-        // öfter — die Wegwerf-Kontrolle „gleicher Würfel, lauter
-        // 5-Sitzer" riss ±2 pp genauso (22 ‰). Kein Fahrerwahl-
-        // Mechanismus kann darunter; Details im Report
-        // `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 3.
-        expect(
-          r.sharePermille[p]!.abs(),
-          lessThanOrEqualTo(25),
-          reason:
-              'Fahrrate $p muss am strukturellen Boden (±2,5 pp) bleiben '
-              '(Akzeptanz Marcus, 2026-07-24).',
-        );
-      }
+    for (final p in _targetSeats.keys) {
+      // Marcus' erstes Ziel: Punktedifferenzen um 0 — klar erfüllt
+      // (beobachtet ±2 auf dem Haupt-Seed).
       expect(
-        r.maxLateSpread,
-        lessThan(25),
-        reason: 'Auch zwischendrin bleibt die Spreizung klein.',
+        r.points[p]!.abs(),
+        lessThan(5),
+        reason: 'Endstand $p muss um 0 pendeln (Punkte-Ziel).',
       );
-
-      // Exakte Regressions-Pins (Datensatz ist deterministisch).
-      expect(r.totalTrips, 2003);
-      expect(r.soloTrips, 0);
-      expect(r.spreadAt100, closeTo(4.0, 1e-9));
-      // 3,5 → 4,5 mit der Kopfzahl-Verteilung (#210). Die Spreizung wächst
-      // also leicht, statt zu schrumpfen — die naheliegende Vermutung („der
-      // große Wagen trägt nicht mehr systematisch mehr, also driftet weniger")
-      // ist damit gemessen widerlegt. Das Punkte-Ziel (|Punkte| < 5) hält
-      // unverändert; verschoben hat sich nur der aufgezeichnete Messwert.
-      expect(r.spreadAtEnd, closeTo(2.5, 1e-9));
-      expect(r.maxLateSpread, closeTo(7.5, 1e-9));
-      expect(r.sharePermille['p4'], -21, reason: 'Bus: seltener, aber voller.');
-      expect(r.points['p4'], closeTo(0.0, 1e-9));
-
-      // Robustheit: neun weitere Seeds nur gegen die Ziele (beobachtet:
-      // Punkte ≤ 5,5 · Raten ≤ 22 ‰).
-      for (final seed in [
-        0xBEEF01,
-        0x5EED02,
-        0x5EED03,
-        0x5EED04,
-        0x5EED05,
-        0x5EED06,
-        0x5EED07,
-        0x5EED08,
-        0x5EED09,
-        // **Aus dem Haupt-Seed mutiert** (Marcus, 09.08.2026): zwei
-        // Xorshift-Schritte von `0xDAC1A` aus, also dieselbe Kette, die auch
-        // die Würfel dieses Tests erzeugt. Reproduzierbar statt ausgedacht —
-        // wer sie nachrechnen will, nimmt `_Rng(0xDAC1A)` und liest die
-        // ersten beiden Zustände ab.
-        //
-        // Zweck: Die Fahrraten-Schranke reißt seit der Kopfzahl-Verteilung
-        // (#210) auf EINEM von zehn Würfen knapp. Zwei zusätzliche Würfe
-        // sagen, ob das ein Ausreißer war oder der Rand der Verteilung.
-        //
-        // Der Haupt-Seed selbst ist übrigens ein Wortspiel („DACIA"), keine
-        // Messung. Aus der Gruppe stammen die **Gewichte** und die
-        // Tagesgrößen — die stehen oben.
-        0x4586D7D,
-        0x370EF946,
-      ]) {
-        final rr = _simulateWith(seed, _targetSeats, _rollWeekSized);
-        for (final p in _targetSeats.keys) {
-          expect(
-            rr.points[p]!.abs(),
-            lessThan(7),
-            reason: 'Seed $seed: Endstand $p muss um 0 pendeln.',
-          );
-          // **30 ‰ seit den beiden mutierten Seeds (09.08.2026)**, und das
-          // ist keine Lockerung für die neue Verteilregel, sondern der
-          // gemessene strukturelle Boden dieser Kalibrierung.
-          //
-          // Der Beleg ist eine Kontrolle, nicht eine Vermutung: Seed
-          // 72904061 liefert **unter beiden Verteilregeln dieselben 30 ‰**
-          // (freie Plätze wie Kopfzahl). Der Ausreißer gehört also zum
-          // Würfel, nicht zur Regel — bei diesem Anwesenheitsmuster fährt p4
-          // strukturell seltener, egal wie verteilt wird.
-          //
-          // Zwischenstand, der dabei revidiert wurde: Mit nur zehn Seeds sah
-          // es so aus, als koste die Kopfzahl-Verteilung 1 ‰ (25 → 26). Über
-          // zwölf Würfe und beide Kennzahlen ist es ein Unentschieden — bei
-          // `max|Punkte|` ist die neue Regel im schlechtesten Fall sogar
-          // klar besser (3,0 statt 5,5). Wer aus einer Zahl auf einem Seed
-          // eine Regel-Eigenschaft macht, misst zu schmal.
-          //
-          // Wer hier weiter lockert, ohne die Kontrolle gegen die andere
-          // Regel zu wiederholen, macht aus einem Akzeptanzmaß eine
-          // Formsache.
-          expect(
-            rr.sharePermille[p]!.abs(),
-            lessThanOrEqualTo(30),
-            reason: 'Seed $seed: Fahrrate $p muss am Boden (±3,0 pp) bleiben.',
-          );
-        }
-      }
-    },
-    timeout: const Timeout(Duration(minutes: 5)),
-  );
-
-  test(
-    'Realflotte: Punkte-Ziel erfüllt, Raten-Ziel reißt der Bus',
-    () {
-      final r = _simulate(0xFAB42, _realSeats, _realAvailability);
-      printOnFailure('$r');
-
-      expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
-
-      // Marcus' erstes Ziel (2026-07-24): Punktedifferenzen konvergieren
-      // um 0. Deutlich erfüllt — nach 2000 Tagen liegt JEDER Endstand
-      // innerhalb ±5 Punkten (beobachtet: ±2), die Spreizung ist stationär.
-      for (final p in _realSeats.keys) {
-        expect(
-          r.points[p]!.abs(),
-          lessThan(5),
-          reason: 'Endstand $p muss um 0 pendeln (Punkte-Ziel).',
-        );
-      }
+      // Marcus' zweites Ziel: Fahrraten ±2 pp. Mit dem Trim-Hub auf
+      // kRateBalance = 6 (2026-07-24) liegt die Schranke am gemessenen
+      // strukturellen BODEN (±2,5 pp, Worst-Case über 10 Seeds): Wer an
+      // kleinen Tagen dabei ist, fährt bei gleichen Punkten zwangsläufig
+      // öfter — die Wegwerf-Kontrolle „gleicher Würfel, lauter
+      // 5-Sitzer" riss ±2 pp genauso (22 ‰). Kein Fahrerwahl-
+      // Mechanismus kann darunter; Details im Report
+      // `doc/entscheidung-mitfahrer-verteilung.md`, Nachtrag 3.
       expect(
-        r.maxLateSpread,
-        lessThan(25),
-        reason: 'Auch zwischendrin bleibt die Spreizung klein.',
-      );
-
-      // Marcus' zweites Ziel — Fahrraten ±2 Prozentpunkte — wird bei
-      // GEMISCHTER Flotte strukturell verfehlt, am stärksten vom 7-Sitzer:
-      // Rate ≈ 1/(1 + Ø Mitgenommene je eigener Fahrt); punkte-fair fährt
-      // der Bus seltener, aber voller. Kein Planer-Fehler, sondern
-      // Arithmetik — die Kontrolle darunter beweist es. Dokumentiert, damit
-      // niemand versucht, beide Ziele gleichzeitig „hinzutunen".
-      expect(
-        r.sharePermille['p8'],
-        lessThan(-50),
-        reason: 'Der 7-Sitzer fährt punkte-fair deutlich seltener je Tag.',
-      );
-
-      // Exakte Regressions-Pins (Datensatz ist deterministisch).
-      expect(r.totalTrips, 1945);
-      expect(r.soloTrips, 205);
-      expect(r.spreadAt100, closeTo(5.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(5.0, 1e-9));
-      expect(r.maxLateSpread, closeTo(17.0, 1e-9));
-      expect(r.sharePermille['p8'], -86);
-      expect(r.points['p8'], closeTo(-1.0, 1e-9));
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
-
-  test(
-    'Kontrolle: gleiche Autos — BEIDE Ziele erfüllt',
-    () {
-      final r = _simulate(0xFAB42, _uniformSeats, _realAvailability);
-      printOnFailure('$r');
-
-      expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
-
-      // Identische Anwesenheits-Würfel wie die Realflotte, nur die Autos
-      // sind gleich groß: Jetzt hält der Planer auch das Raten-Ziel
-      // (±2 Prozentpunkte = ±20 ‰). Die Raten-Spreizung der Realflotte
-      // kommt also vollständig aus der Autogrößen-Mischung.
-      for (final p in _uniformSeats.keys) {
-        expect(
-          r.sharePermille[p]!.abs(),
-          lessThanOrEqualTo(20),
-          reason:
-              'Fahrrate $p muss im ±2-Prozentpunkte-Ziel liegen '
-              '(Akzeptanzziel Marcus, 2026-07-24).',
-        );
-        expect(
-          r.points[p]!.abs(),
-          lessThan(5),
-          reason: 'Und die Punkte pendeln weiter um 0.',
-        );
-      }
-
-      // Exakte Regressions-Pins.
-      expect(r.totalTrips, 1968);
-      expect(r.soloTrips, 205);
-      expect(r.spreadAt100, closeTo(6.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
-      expect(r.maxLateSpread, closeTo(6.5, 1e-9));
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
-
-  test(
-    'Alltag: Kohorten konvergieren, Kapazitäts-Gefälle dokumentiert',
-    () {
-      final r = _simulate(0xC0FFEE, _seats, _relaxedAvailability);
-      printOnFailure('$r');
-
-      expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
-
-      // Der Kern der Fairness: Unter Gleich-Kapablen bleiben die Punkte über
-      // 2000 Tage BEIEINANDER. Schaukelte der Raten-Trim (I-Anteil!) oder
-      // kippte der Punkte-Vorrang, explodierten diese Kohorten-Spreizungen.
-      final bigCohort = [
-        for (final p in ['p4', 'p5', 'p6', 'p7', 'p8']) r.points[p]!,
-      ]..sort();
-      expect(
-        bigCohort.last - bigCohort.first,
-        lessThan(40),
+        r.sharePermille[p]!.abs(),
+        lessThanOrEqualTo(25),
         reason:
-            'p4–p8 können fast jeden Tag fahren — zwischen ihnen muss die '
-            'Fairness ausgleichen (beobachtet: ~30 Punkte auf 2000 Tage).',
+            'Fahrrate $p muss am strukturellen Boden (±2,5 pp) bleiben '
+            '(Akzeptanz Marcus, 2026-07-24).',
       );
-      final threeSeaters = [r.points['p2']!, r.points['p3']!]..sort();
+    }
+    expect(
+      r.maxLateSpread,
+      lessThan(25),
+      reason: 'Auch zwischendrin bleibt die Spreizung klein.',
+    );
+
+    // Exakte Regressions-Pins (Datensatz ist deterministisch).
+    expect(r.totalTrips, 2003);
+    expect(r.soloTrips, 0);
+    expect(r.spreadAt100, closeTo(4.0, 1e-9));
+    // 3,5 → 4,5 mit der Kopfzahl-Verteilung (#210). Die Spreizung wächst
+    // also leicht, statt zu schrumpfen — die naheliegende Vermutung („der
+    // große Wagen trägt nicht mehr systematisch mehr, also driftet weniger")
+    // ist damit gemessen widerlegt. Das Punkte-Ziel (|Punkte| < 5) hält
+    // unverändert; verschoben hat sich nur der aufgezeichnete Messwert.
+    expect(r.spreadAtEnd, closeTo(2.5, 1e-9));
+    expect(r.maxLateSpread, closeTo(7.5, 1e-9));
+    expect(r.sharePermille['p4'], -21, reason: 'Bus: seltener, aber voller.');
+    expect(r.points['p4'], closeTo(0.0, 1e-9));
+
+    // Robustheit: neun weitere Seeds nur gegen die Ziele (beobachtet:
+    // Punkte ≤ 5,5 · Raten ≤ 22 ‰).
+    for (final seed in [
+      0xBEEF01,
+      0x5EED02,
+      0x5EED03,
+      0x5EED04,
+      0x5EED05,
+      0x5EED06,
+      0x5EED07,
+      0x5EED08,
+      0x5EED09,
+      // **Aus dem Haupt-Seed mutiert** (Marcus, 09.08.2026): zwei
+      // Xorshift-Schritte von `0xDAC1A` aus, also dieselbe Kette, die auch
+      // die Würfel dieses Tests erzeugt. Reproduzierbar statt ausgedacht —
+      // wer sie nachrechnen will, nimmt `_Rng(0xDAC1A)` und liest die
+      // ersten beiden Zustände ab.
+      //
+      // Zweck: Die Fahrraten-Schranke reißt seit der Kopfzahl-Verteilung
+      // (#210) auf EINEM von zehn Würfen knapp. Zwei zusätzliche Würfe
+      // sagen, ob das ein Ausreißer war oder der Rand der Verteilung.
+      //
+      // Der Haupt-Seed selbst ist übrigens ein Wortspiel („DACIA"), keine
+      // Messung. Aus der Gruppe stammen die **Gewichte** und die
+      // Tagesgrößen — die stehen oben.
+      0x4586D7D,
+      0x370EF946,
+    ]) {
+      final rr = _simulateWith(seed, _targetSeats, _rollWeekSized);
+      for (final p in _targetSeats.keys) {
+        expect(
+          rr.points[p]!.abs(),
+          lessThan(7),
+          reason: 'Seed $seed: Endstand $p muss um 0 pendeln.',
+        );
+        // **30 ‰ seit den beiden mutierten Seeds (09.08.2026)**, und das
+        // ist keine Lockerung für die neue Verteilregel, sondern der
+        // gemessene strukturelle Boden dieser Kalibrierung.
+        //
+        // Der Beleg ist eine Kontrolle, nicht eine Vermutung: Seed
+        // 72904061 liefert **unter beiden Verteilregeln dieselben 30 ‰**
+        // (freie Plätze wie Kopfzahl). Der Ausreißer gehört also zum
+        // Würfel, nicht zur Regel — bei diesem Anwesenheitsmuster fährt p4
+        // strukturell seltener, egal wie verteilt wird.
+        //
+        // Zwischenstand, der dabei revidiert wurde: Mit nur zehn Seeds sah
+        // es so aus, als koste die Kopfzahl-Verteilung 1 ‰ (25 → 26). Über
+        // zwölf Würfe und beide Kennzahlen ist es ein Unentschieden — bei
+        // `max|Punkte|` ist die neue Regel im schlechtesten Fall sogar
+        // klar besser (3,0 statt 5,5). Wer aus einer Zahl auf einem Seed
+        // eine Regel-Eigenschaft macht, misst zu schmal.
+        //
+        // Wer hier weiter lockert, ohne die Kontrolle gegen die andere
+        // Regel zu wiederholen, macht aus einem Akzeptanzmaß eine
+        // Formsache.
+        expect(
+          rr.sharePermille[p]!.abs(),
+          lessThanOrEqualTo(30),
+          reason: 'Seed $seed: Fahrrate $p muss am Boden (±3,0 pp) bleiben.',
+        );
+      }
+    }
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('Realflotte: Punkte-Ziel erfüllt, Raten-Ziel reißt der Bus', () {
+    final r = _simulate(0xFAB42, _realSeats, _realAvailability);
+    printOnFailure('$r');
+
+    expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
+
+    // Marcus' erstes Ziel (2026-07-24): Punktedifferenzen konvergieren
+    // um 0. Deutlich erfüllt — nach 2000 Tagen liegt JEDER Endstand
+    // innerhalb ±5 Punkten (beobachtet: ±2), die Spreizung ist stationär.
+    for (final p in _realSeats.keys) {
       expect(
-        threeSeaters.last - threeSeaters.first,
-        lessThan(15),
-        reason: 'Auch die beiden 3-Sitzer bleiben beieinander (~5,5 Punkte).',
+        r.points[p]!.abs(),
+        lessThan(5),
+        reason: 'Endstand $p muss um 0 pendeln (Punkte-Ziel).',
       );
+    }
+    expect(
+      r.maxLateSpread,
+      lessThan(25),
+      reason: 'Auch zwischendrin bleibt die Spreizung klein.',
+    );
 
-      // Dokumentierte Systemgrenze, KEIN Zielbild: ZWISCHEN den Kohorten
-      // driftet es, weil der Sitzfilter den 2-Sitzer fast nie fahren lässt —
-      // er nimmt ehrlich mehr, als er gibt, und sinkt unbegrenzt. Schlägt
-      // diese Erwartung eines Tages fehl, hat jemand Sitzfilter, Rückfall-
-      // linie oder Ein-Auto-Regel verändert: Zahlen bewusst neu kalibrieren
-      // (Kontext: Issue #62).
+    // Marcus' zweites Ziel — Fahrraten ±2 Prozentpunkte — wird bei
+    // GEMISCHTER Flotte strukturell verfehlt, am stärksten vom 7-Sitzer:
+    // Rate ≈ 1/(1 + Ø Mitgenommene je eigener Fahrt); punkte-fair fährt
+    // der Bus seltener, aber voller. Kein Planer-Fehler, sondern
+    // Arithmetik — die Kontrolle darunter beweist es. Dokumentiert, damit
+    // niemand versucht, beide Ziele gleichzeitig „hinzutunen".
+    expect(
+      r.sharePermille['p8'],
+      lessThan(-50),
+      reason: 'Der 7-Sitzer fährt punkte-fair deutlich seltener je Tag.',
+    );
+
+    // Exakte Regressions-Pins (Datensatz ist deterministisch).
+    expect(r.totalTrips, 1945);
+    expect(r.soloTrips, 205);
+    expect(r.spreadAt100, closeTo(5.0, 1e-9));
+    expect(r.spreadAtEnd, closeTo(5.0, 1e-9));
+    expect(r.maxLateSpread, closeTo(17.0, 1e-9));
+    expect(r.sharePermille['p8'], -86);
+    expect(r.points['p8'], closeTo(-1.0, 1e-9));
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('Kontrolle: gleiche Autos — BEIDE Ziele erfüllt', () {
+    final r = _simulate(0xFAB42, _uniformSeats, _realAvailability);
+    printOnFailure('$r');
+
+    expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
+
+    // Identische Anwesenheits-Würfel wie die Realflotte, nur die Autos
+    // sind gleich groß: Jetzt hält der Planer auch das Raten-Ziel
+    // (±2 Prozentpunkte = ±20 ‰). Die Raten-Spreizung der Realflotte
+    // kommt also vollständig aus der Autogrößen-Mischung.
+    for (final p in _uniformSeats.keys) {
       expect(
-        r.spreadAtEnd,
-        greaterThan(r.spreadAt100 * 2),
-        reason: 'Kapazitäts-Gefälle: globale Spreizung wächst mit der Zeit.',
-      );
-
-      // Exakte Regressions-Pins (Datensatz ist deterministisch).
-      expect(r.totalTrips, 2070);
-      expect(r.soloTrips, 84);
-      expect(r.spreadAt100, closeTo(288.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(1130.5, 1e-9));
-      expect(r.points['p1'], closeTo(-821.5, 1e-9));
-      expect(r.sharePermille['p1'], -115);
-      expect(r.sharePermille['p8'], 49);
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
-
-  test(
-    'Dauervoll: der strukturelle Bus-Bias, beziffert',
-    () {
-      final r = _simulate(0x5EED5, _seats, _crowdedAvailability);
-      printOnFailure('$r');
-
-      expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
-
-      // Bei Ø ~6 Anwesenden qualifiziert der Sitzfilter fast täglich NUR den
-      // 7-Sitzer für die Ein-Auto-Lösung — der Punkte-Vorrang kann nichts
-      // ausgleichen, weil er nur zwischen Qualifizierten wählt. Der Bus-
-      // Besitzer fährt dauerhaft ~45 % über dem Schnitt und sammelt
-      // unbegrenzt Punkte. Dokumentierte Grenze, kein Zielbild.
-      expect(
-        r.sharePermille['p8'],
-        greaterThan(300),
-        reason: 'Der einzige Bus fährt fast immer.',
+        r.sharePermille[p]!.abs(),
+        lessThanOrEqualTo(20),
+        reason:
+            'Fahrrate $p muss im ±2-Prozentpunkte-Ziel liegen '
+            '(Akzeptanzziel Marcus, 2026-07-24).',
       );
       expect(
-        r.spreadAtEnd,
-        greaterThan(r.spreadAt100 * 2),
-        reason: 'Ohne kapable Alternative wächst die Spreizung unbegrenzt.',
+        r.points[p]!.abs(),
+        lessThan(5),
+        reason: 'Und die Punkte pendeln weiter um 0.',
       );
+    }
 
-      // Exakte Regressions-Pins.
-      expect(r.totalTrips, 2679);
-      expect(r.soloTrips, 0);
-      expect(r.spreadAt100, closeTo(1275.0, 1e-9));
-      expect(r.spreadAtEnd, closeTo(5195.5, 1e-9));
-      expect(r.points['p8'], closeTo(4261.5, 1e-9));
-      expect(r.sharePermille['p8'], 457);
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+    // Exakte Regressions-Pins.
+    expect(r.totalTrips, 1968);
+    expect(r.soloTrips, 205);
+    expect(r.spreadAt100, closeTo(6.0, 1e-9));
+    expect(r.spreadAtEnd, closeTo(3.5, 1e-9));
+    expect(r.maxLateSpread, closeTo(6.5, 1e-9));
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('Alltag: Kohorten konvergieren, Kapazitäts-Gefälle dokumentiert', () {
+    final r = _simulate(0xC0FFEE, _seats, _relaxedAvailability);
+    printOnFailure('$r');
+
+    expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
+
+    // Der Kern der Fairness: Unter Gleich-Kapablen bleiben die Punkte über
+    // 2000 Tage BEIEINANDER. Schaukelte der Raten-Trim (I-Anteil!) oder
+    // kippte der Punkte-Vorrang, explodierten diese Kohorten-Spreizungen.
+    final bigCohort = [
+      for (final p in ['p4', 'p5', 'p6', 'p7', 'p8']) r.points[p]!,
+    ]..sort();
+    expect(
+      bigCohort.last - bigCohort.first,
+      lessThan(40),
+      reason:
+          'p4–p8 können fast jeden Tag fahren — zwischen ihnen muss die '
+          'Fairness ausgleichen (beobachtet: ~30 Punkte auf 2000 Tage).',
+    );
+    final threeSeaters = [r.points['p2']!, r.points['p3']!]..sort();
+    expect(
+      threeSeaters.last - threeSeaters.first,
+      lessThan(15),
+      reason: 'Auch die beiden 3-Sitzer bleiben beieinander (~5,5 Punkte).',
+    );
+
+    // Dokumentierte Systemgrenze, KEIN Zielbild: ZWISCHEN den Kohorten
+    // driftet es, weil der Sitzfilter den 2-Sitzer fast nie fahren lässt —
+    // er nimmt ehrlich mehr, als er gibt, und sinkt unbegrenzt. Schlägt
+    // diese Erwartung eines Tages fehl, hat jemand Sitzfilter, Rückfall-
+    // linie oder Ein-Auto-Regel verändert: Zahlen bewusst neu kalibrieren
+    // (Kontext: Issue #62).
+    expect(
+      r.spreadAtEnd,
+      greaterThan(r.spreadAt100 * 2),
+      reason: 'Kapazitäts-Gefälle: globale Spreizung wächst mit der Zeit.',
+    );
+
+    // Exakte Regressions-Pins (Datensatz ist deterministisch).
+    expect(r.totalTrips, 2070);
+    expect(r.soloTrips, 84);
+    expect(r.spreadAt100, closeTo(288.0, 1e-9));
+    expect(r.spreadAtEnd, closeTo(1130.5, 1e-9));
+    expect(r.points['p1'], closeTo(-821.5, 1e-9));
+    expect(r.sharePermille['p1'], -115);
+    expect(r.sharePermille['p8'], 49);
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('Dauervoll: der strukturelle Bus-Bias, beziffert', () {
+    final r = _simulate(0x5EED5, _seats, _crowdedAvailability);
+    printOnFailure('$r');
+
+    expect(r.pointsSum, closeTo(0, 1e-6), reason: 'Punkte sind nullsummig.');
+
+    // Bei Ø ~6 Anwesenden qualifiziert der Sitzfilter fast täglich NUR den
+    // 7-Sitzer für die Ein-Auto-Lösung — der Punkte-Vorrang kann nichts
+    // ausgleichen, weil er nur zwischen Qualifizierten wählt. Der Bus-
+    // Besitzer fährt dauerhaft ~45 % über dem Schnitt und sammelt
+    // unbegrenzt Punkte. Dokumentierte Grenze, kein Zielbild.
+    expect(
+      r.sharePermille['p8'],
+      greaterThan(300),
+      reason: 'Der einzige Bus fährt fast immer.',
+    );
+    expect(
+      r.spreadAtEnd,
+      greaterThan(r.spreadAt100 * 2),
+      reason: 'Ohne kapable Alternative wächst die Spreizung unbegrenzt.',
+    );
+
+    // Exakte Regressions-Pins.
+    expect(r.totalTrips, 2679);
+    expect(r.soloTrips, 0);
+    expect(r.spreadAt100, closeTo(1275.0, 1e-9));
+    expect(r.spreadAtEnd, closeTo(5195.5, 1e-9));
+    expect(r.points['p8'], closeTo(4261.5, 1e-9));
+    expect(r.sharePermille['p8'], 457);
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }
