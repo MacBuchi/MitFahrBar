@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.8] – 2026-11-21
+
+### Geändert
+
+- **Hinter den Kulissen: Die Verwalter-Konsole prüft Berechtigungen
+  strenger.** Für Gruppen und Verwalter ändert sich nichts.
+
 ## [0.89.7] – 2026-11-21
 
 ### Behoben

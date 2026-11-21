@@ -85,17 +85,29 @@ Deno.serve(async (req) => {
   )
 
   // Wer ruft? Nur ein Verwalter-Konto mit bestätigtem Postfach darf anlegen.
-  // Ein Gruppen-Login (kein `account_type`) wird ebenso abgewiesen wie der
-  // anon-Key, der zwar ein JWT ist, aber keinen Nutzer trägt.
+  // Erkannt wird es an `app_metadata` — das setzt nur der Server, einmal beim
+  // Anlegen (`mark_admin_account`); `user_metadata` gehört dem Nutzer und
+  // zählt hier nie. Der anon-Key ist zwar ein JWT, trägt aber keinen Nutzer.
   const bearer = req.headers.get('Authorization')?.replace(/^Bearer /, '') ?? ''
   const { data: caller } = await admin.auth.getUser(bearer)
   if (!caller.user) return respond(401, { error: 'unauthorized' })
-  if (caller.user.user_metadata?.account_type !== 'admin') {
+  if (caller.user.app_metadata?.account_type !== 'admin') {
     return respond(403, { error: 'not an admin account' })
   }
   if (!caller.user.email_confirmed_at) {
     return respond(403, { error: 'email not confirmed' })
   }
+  // Ein Gruppen-Login ist nie ein Verwalter-Konto.
+  const { data: asGroup, error: groupError } = await admin
+    .from('groups')
+    .select('id')
+    .eq('id', caller.user.id)
+    .maybeSingle()
+  if (groupError) {
+    console.error('caller check failed:', groupError.code)
+    return respond(500, { error: 'signup failed' })
+  }
+  if (asGroup) return respond(403, { error: 'not an admin account' })
 
   // Vorprüfung des Deckels: liefert eine klare Meldung, statt den Aufrufer in
   // den Trigger laufen zu lassen. Die Wahrheit bleibt der Trigger — zwei

@@ -63,11 +63,15 @@ abstract class AuthRepository {
   Future<void> changePassword(String newPassword);
 
   /// Ist die aktuelle Sitzung ein Verwalter-Konto (Konsole) statt eines
-  /// Gruppen-Logins? Entscheidet den Router-Redirect.
+  /// Gruppen-Logins? Entscheidet den Router-Redirect — gelesen aus
+  /// `app_metadata`, das nur der Server schreibt. Eine Sicherheitsgrenze ist
+  /// das nicht; die liegt in der Datenbank und der Edge Function.
   bool get isAdminSession;
 
-  /// Verwalter-Konto registrieren (echte E-Mail). Die `account_type`-Metadata
-  /// hält den Signup-Trigger davon ab, eine Geister-Gruppe anzulegen.
+  /// Verwalter-Konto registrieren (echte E-Mail). Aus der
+  /// `account_type`-Metadata setzt der Server beim Anlegen EINMAL die
+  /// Markierung in `app_metadata` (`mark_admin_account`); sie hält auch den
+  /// Signup-Trigger davon ab, eine Geister-Gruppe anzulegen.
   Future<void> signUpAdmin(String email, String password);
 
   /// Wirft [EmailNotConfirmedException], solange der Code aus der
@@ -135,7 +139,7 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   bool get isAdminSession =>
-      _client.auth.currentUser?.userMetadata?['account_type'] == 'admin';
+      _client.auth.currentUser?.appMetadata['account_type'] == 'admin';
 
   @override
   Future<void> signUpAdmin(String email, String password) =>

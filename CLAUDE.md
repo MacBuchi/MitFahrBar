@@ -1304,7 +1304,18 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     oder Banner. Derselbe Handel wie beim Splash, mit demselben Preis: Der
     Standardpfad deckt nur ab, wer ihn einschaltet.
 - **Daneben: höchstens EIN Verwalter-Konto je Gruppe** (Issue #55, v0.23.0) —
-  echte E-Mail, `account_type: 'admin'` in den Auth-Metadata. Es sieht
+  echte E-Mail, `account_type: 'admin'` in den Auth-Metadata.
+  **Erkannt wird ein Verwalter-Konto an `app_metadata.account_type`** (seit
+  v0.89.8), gesetzt EINMAL beim Anlegen (`mark_admin_account`,
+  BEFORE-INSERT-Trigger auf `auth.users`, liest den Signup-Wert aus
+  `user_metadata`). Danach zählt `user_metadata` für Berechtigungen nie: Es
+  gehört dem Nutzer. Ein Gruppen-Login ist nie ein Verwalter-Konto —
+  `claim_admin_group` und `request-group` prüfen das zusätzlich gegen
+  `groups`. Dass GoTrue `app_metadata` bei Anmeldung und `updateUser` stehen
+  lässt, ist am echten Stack geprüft (`admin_console_e2e_test.dart`), nicht
+  angenommen; die Antwort der Admin-API zeigt die Markierung trotzdem
+  **nicht** (sie gibt den Stand vor dem Trigger zurück) — nachsehen in der
+  DB. Es sieht
   **keine** Gruppendaten (anderer uid, RLS blockt) und kann ausschließlich
   über SECURITY-DEFINER-Funktionen: Gruppenpasswort neu setzen und Gruppe
   löschen (`admin_delete_group` löscht den Gruppen-**Auth-User** — die

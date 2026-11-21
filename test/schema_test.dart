@@ -1150,11 +1150,114 @@ void main() {
       expect(trigger, isNotNull);
       expect(
         trigger,
-        contains("account_type' = 'admin'"),
+        contains("raw_app_meta_data->>'account_type' = 'admin'"),
         reason:
             'Ohne die Ausnahme erzeugte jede Konsolen-Registrierung eine '
             'Geister-„pending"-Gruppe, die niemandem gehört.',
       );
+    });
+
+    group('Verwalter-Markierung in app_metadata', () {
+      const migrationPath =
+          'supabase/migrations/20261121090000_admin_marker_app_metadata.sql';
+
+      test('nur mark_admin_account liest account_type aus user_metadata', () {
+        // Die Funktionsrümpfe ohne Kommentare — die Begründung im File nennt
+        // den verbotenen Ausdruck zwangsläufig.
+        for (final source in [
+          ('schema.sql', schema),
+          (migrationPath, File(migrationPath).readAsStringSync()),
+        ]) {
+          final functions = RegExp(
+            r'create or replace function public\.(\w+)\(.*?\$\$(.*?)\$\$',
+            dotAll: true,
+          ).allMatches(sqlOnly(source.$2));
+          for (final f in functions) {
+            if (f.group(1) == 'mark_admin_account') continue;
+            expect(
+              f.group(2),
+              isNot(contains("raw_user_meta_data->>'account_type'")),
+              reason:
+                  '${source.$1}: ${f.group(1)} entscheidet über '
+                  'user_metadata — das schreibt jeder Nutzer selbst.',
+            );
+          }
+        }
+      });
+
+      test('der Markierungs-Trigger läuft VOR dem Signup-Trigger', () {
+        for (final sql in [schema, File(migrationPath).readAsStringSync()]) {
+          expect(
+            sqlOnly(sql),
+            contains(
+              'create trigger on_auth_user_mark_admin\n'
+              '  before insert on auth.users',
+            ),
+            reason:
+                'Als AFTER-Trigger sähe handle_new_group die Markierung '
+                'nicht und legte für jeden Verwalter eine Geister-Gruppe an.',
+          );
+        }
+      });
+
+      test('claim_admin_group weist Gruppen-Logins ab', () {
+        final function = RegExp(
+          r'create or replace function public\.claim_admin_group.*?end \$\$;',
+          dotAll: true,
+        ).firstMatch(schema)?.group(0);
+        expect(function, isNotNull);
+        expect(
+          sqlOnly(function!),
+          contains("caller.raw_app_meta_data->>'account_type'"),
+        );
+        expect(
+          sqlOnly(function),
+          contains(
+            'exists (select 1 from public.groups g where g.id = caller.id)',
+          ),
+          reason: 'Ein Gruppen-Login ist nie ein Verwalter-Konto.',
+        );
+      });
+
+      test('der Nachtrag markiert nie einen Gruppen-Login', () {
+        final migration = sqlOnly(File(migrationPath).readAsStringSync());
+        final backfill = RegExp(
+          r'update auth\.users u.*?;',
+          dotAll: true,
+        ).firstMatch(migration)?.group(0);
+        expect(backfill, isNotNull);
+        expect(
+          backfill,
+          contains(
+            'not exists (select 1 from public.groups g where g.id = u.id)',
+          ),
+          reason:
+              'Ohne den Ausschluss würde ein Gruppen-Login, der sich selbst '
+              'user_metadata gesetzt hat, beim Nachtrag zum Verwalter.',
+        );
+        // Reihenfolge: Trigger → Nachtrag → Leser. Andersherum stünde ein
+        // Verwalter zwischendurch ohne Zugang da.
+        final trigger = migration.indexOf('create trigger on_auth_user_mark');
+        final update = migration.indexOf('update auth.users');
+        final reader = migration.indexOf(
+          'create or replace function public.claim_admin_group',
+        );
+        expect(trigger, lessThan(update));
+        expect(update, lessThan(reader));
+      });
+
+      test('request-group erkennt Verwalter an app_metadata', () {
+        final function = File(
+          'supabase/functions/request-group/index.ts',
+        ).readAsStringSync();
+        expect(function, contains('app_metadata?.account_type'));
+        expect(function, isNot(contains('user_metadata?.account_type')));
+        expect(
+          function,
+          contains(".from('groups')"),
+          reason: 'Zweiter Riegel: Ein Gruppen-Login ist nie Verwalter.',
+        );
+      });
     });
 
     test('admin_delete_group löscht über auth.users, nicht Datentabellen', () {

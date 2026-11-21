@@ -19,7 +19,7 @@
 -- Update-Policy auf `groups`.
 --
 -- Je Gruppe steht EIN Verwalter-Konto (echte E-Mail, account_type = 'admin'
--- in den Metadata); ein Konto trägt bis zu 5 Gruppen. Es sieht keine
+-- in `app_metadata`, gesetzt einmal beim Anlegen); ein Konto trägt bis zu 5 Gruppen. Es sieht keine
 -- Gruppendaten (anderer uid) und kann über SECURITY-DEFINER-Funktionen
 -- ausschließlich das Gruppenpasswort neu setzen, die Verknüpfung lösen und
 -- die Gruppe löschen. Passwort-Reset läuft über Supabases Mailfluss (Code,
@@ -625,6 +625,26 @@ returns boolean language sql stable security definer set search_path = public as
   select coalesce((select status = 'active' from public.groups where id = auth.uid()), false);
 $$;
 
+-- Verwalter-Konten tragen ihre Markierung in `app_metadata` — das schreibt
+-- nur der Server. Entschieden wird EINMAL, beim Anlegen; `user_metadata`
+-- gehört dem Nutzer und zählt für Berechtigungen nie. Läuft BEFORE insert,
+-- damit `handle_new_group()` (AFTER) den Wert schon sieht.
+create or replace function public.mark_admin_account()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.raw_user_meta_data->>'account_type' = 'admin' then
+    new.raw_app_meta_data := coalesce(new.raw_app_meta_data, '{}'::jsonb)
+      || jsonb_build_object('account_type', 'admin');
+  end if;
+  return new;
+end $$;
+
+revoke all on function public.mark_admin_account() from public, anon, authenticated;
+
+create trigger on_auth_user_mark_admin
+  before insert on auth.users
+  for each row execute function public.mark_admin_account();
+
 -- Jeder neue Auth-User wird zu einer 'pending'-Gruppe (+ Default-Settings).
 -- Der Trigger traut den Metadata eines Signups nur den Gruppennamen zu:
 -- Ein gebasteltes `auth.signUp` gegen die Gruppen-Domain darf keine aktive
@@ -636,7 +656,7 @@ declare
   new_handle text := split_part(new.email, '@', 1);
 begin
   -- Konsolen-Registrierungen erzeugen keine Geister-„pending"-Gruppe.
-  if new.raw_user_meta_data->>'account_type' = 'admin' then
+  if new.raw_app_meta_data->>'account_type' = 'admin' then
     return new;
   end if;
   insert into public.groups (id, name, handle, status)
@@ -842,10 +862,12 @@ declare
   target record;
   stored text;
 begin
-  select id, raw_user_meta_data into caller
+  select id, raw_app_meta_data into caller
     from auth.users where id = auth.uid();
+  -- Ein Gruppen-Login ist nie ein Verwalter-Konto.
   if caller.id is null
-     or caller.raw_user_meta_data->>'account_type' is distinct from 'admin' then
+     or caller.raw_app_meta_data->>'account_type' is distinct from 'admin'
+     or exists (select 1 from public.groups g where g.id = caller.id) then
     raise exception 'not an admin account';
   end if;
 

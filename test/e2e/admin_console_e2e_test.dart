@@ -82,6 +82,71 @@ void main() {
     );
   });
 
+  test('die Verwalter-Markierung steht in app_metadata und bleibt', () async {
+    expect(
+      admin.client.auth.currentUser!.appMetadata['account_type'],
+      'admin',
+      reason:
+          'Der BEFORE-Trigger mark_admin_account setzt sie beim Anlegen — '
+          'ohne sie käme kein Verwalter mehr in die Konsole.',
+    );
+    // Neu anmelden: GoTrue darf app_metadata dabei nicht neu schreiben. Daran
+    // hängt die ganze Markierung — angenommen wird es hier nicht, geprüft.
+    final probe = newAnonClient();
+    final res = await probe.auth.signInWithPassword(
+      email: admin.email,
+      password: admin.password,
+    );
+    expect(res.user!.appMetadata['account_type'], 'admin');
+    final fresh = await service.auth.admin.getUserById(admin.id);
+    expect(fresh.user!.appMetadata['account_type'], 'admin');
+  });
+
+  test('selbst gesetzte user_metadata machen keinen Verwalter', () async {
+    // Eigene Gruppen: Der Fälscher verändert seine Metadata dauerhaft, und
+    // die Zielgruppe muss frei sein — beides soll die übrigen Tests nicht
+    // berühren.
+    final forger = await registerGroup('faelscher');
+    final target = await registerGroup('ziel');
+    await unlinkGroup(service, target.id);
+    await forger.client.auth.updateUser(
+      UserAttributes(data: {'account_type': 'admin'}),
+    );
+    expect(
+      forger.client.auth.currentUser!.appMetadata['account_type'],
+      isNull,
+      reason: 'app_metadata schreibt nur der Server.',
+    );
+
+    await expectRpcError(
+      forger.client.rpc(
+        'claim_admin_group',
+        params: {
+          'claim_handle': target.handle,
+          'group_password': target.password,
+        },
+      ),
+      'not an admin account',
+    );
+    final handle = uniqueName('gefaelscht');
+    await expectFunctionStatus(forger.client, {
+      'handle': handle,
+      'password': 'gruppen-passwort-1',
+      'groupName': 'E2E Gefälscht',
+    }, 403);
+
+    expect(await service.from('groups').select().eq('handle', handle), isEmpty);
+    expect(
+      await service.from('group_admins').select().eq('user_id', forger.id),
+      isEmpty,
+      reason: 'Ein Gruppen-Login darf nie als Verwalter verknüpft sein.',
+    );
+    expect(
+      await service.from('group_admins').select().eq('group_id', target.id),
+      isEmpty,
+    );
+  });
+
   test('Anlegen: die Gruppe ist sofort aktiv UND verknüpft', () async {
     final creator = await registerAdmin();
     final handle = uniqueName('neu');
