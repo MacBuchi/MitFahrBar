@@ -2172,6 +2172,12 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
     Positionsvergleich.
   - Auf Android ist nichts davon betroffen (nativer Firebase-Client, kein
     Service Worker).
+- **Agenten nehmen den Dart-MCP-Server** (`.mcp.json`, `.codex/config.toml`,
+  #289): `analyze_files` und `run_tests` statt rohem `flutter analyze` /
+  `flutter test` — strukturiert und kurz. Werkzeugauswahl und die zwei
+  Pfad-Fallen (`analyze_files` will `file://`-URIs, `run_tests` relative
+  Pfade) stehen an **einer** Stelle, `tool/dart_mcp.sh`. Wer doch die CLI
+  nimmt: `--reporter failures-only`.
 - **Vor jedem Push `dart format .` laufen lassen.** Die CI prüft mit
   `--set-exit-if-changed` und wird sonst rot — der häufigste vermeidbare
   Fehlschlag. Danach `flutter analyze` und `flutter test`.

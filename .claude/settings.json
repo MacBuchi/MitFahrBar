@@ -1,0 +1,12 @@
+{
+  "enabledMcpjsonServers": ["dart"],
+  "permissions": {
+    "allow": [
+      "mcp__dart__analyze_files",
+      "mcp__dart__lsp",
+      "mcp__dart__run_tests",
+      "mcp__dart__read_package_uris",
+      "mcp__dart__rip_grep_packages"
+    ]
+  }
+}
