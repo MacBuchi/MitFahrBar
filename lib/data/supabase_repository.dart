@@ -207,7 +207,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
         .from('plan_defaults')
         .select('plan_date, outbound_time, return_time, meeting_point')
         .gte('plan_date', _isoDay(from))
-        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))));
+        .lte('plan_date', _isoDay(_lastDay(from, days)));
     return {
       for (final row in rows)
         DateTime.parse(row['plan_date'] as String): GroupDefaults.fromJson(row),
@@ -244,7 +244,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
           'meeting_point',
         )
         .gte('plan_date', _isoDay(from))
-        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))));
+        .lte('plan_date', _isoDay(_lastDay(from, days)));
     final byDay = <DateTime, Map<String, GroupDefaults>>{};
     for (final row in rows) {
       final day = DateTime.parse(row['plan_date'] as String);
@@ -288,7 +288,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
         .from('plan_seat_choices')
         .select('plan_date, person_id, driver_id, accepted, terms, decided_at')
         .gte('plan_date', _isoDay(from))
-        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))));
+        .lte('plan_date', _isoDay(_lastDay(from, days)));
     final byDay = <DateTime, List<SeatChoice>>{};
     for (final row in rows) {
       final choice = SeatChoice.fromJson(row);
@@ -323,7 +323,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
   Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) =>
       readTolerant(() async {
         final start = _isoDay(from);
-        final end = _isoDay(from.add(Duration(days: days - 1)));
+        final end = _isoDay(_lastDay(from, days));
 
         final availabilityRows = await _client
             .from('plan_availability')
@@ -411,7 +411,7 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
         .from('plan_notes')
         .select('id, plan_date, person_id, body, created_at')
         .gte('plan_date', _isoDay(from))
-        .lte('plan_date', _isoDay(from.add(Duration(days: days - 1))))
+        .lte('plan_date', _isoDay(_lastDay(from, days)))
         .order('created_at');
     return rows.map(PlanNote.fromJson).toList();
   });
@@ -434,6 +434,12 @@ class SupabaseCarpoolRepository implements CarpoolRepository {
 
   /// `date`-Spalten wollen reines yyyy-MM-dd; ein voller Zeitstempel würde
   /// je nach Zeitzone auf dem Nachbartag landen.
+  /// Der letzte Tag einer Spanne von [days] Tagen ab [from] — als
+  /// Kalendertag, nicht als `Duration`: Über eine Zeitumstellung hinweg
+  /// landete die sonst eine Stunde neben Mitternacht (#290).
+  static DateTime _lastDay(DateTime from, int days) =>
+      DateTime(from.year, from.month, from.day + days - 1);
+
   static String _isoDay(DateTime date) =>
       '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'

@@ -143,6 +143,30 @@ void main() {
       expect(due.every((d) => d.kind == PushKind.evening), isTrue);
     });
 
+    test('öffnet am Vorabend auch über die Zeitumstellung (#290)', () {
+      // Montag nach der Frühjahrsumstellung: Der Sonntag davor hat nur 23
+      // Stunden. 24 Stunden vor Montag 00:00 ist Samstag 23:00 — das
+      // Fenster ginge einen Tag zu früh auf.
+      final monday = DateTime(2027, 3, 29);
+      final day = PlannedDay(
+        date: monday,
+        availableIds: const [anna, bernd],
+        suggestedDriverIds: const [anna],
+        cars: const [
+          PlannedCar(driverId: anna, fullIds: [bernd]),
+        ],
+      );
+      List<DuePush> at(DateTime now) => dueMessages(
+        week: [day],
+        prefs: prefsFor([anna]),
+        sent: const [],
+        persons: persons,
+        now: now,
+      );
+      expect(at(DateTime(2027, 3, 27, 21, 30)), isEmpty);
+      expect(at(DateTime(2027, 3, 28, 21, 30)), isNotEmpty);
+    });
+
     test('kommt vor der eingestellten Uhrzeit nicht', () {
       final due = dueMessages(
         week: [dayWith()],

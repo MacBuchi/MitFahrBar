@@ -41,7 +41,13 @@ jobs:
       - name: Formatierung prüfen
         run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
-      - run: flutter test
+      # In der Zeitzone der Gruppe, nicht in UTC (#290): Nur dort gibt es
+      # eine Zeitumstellung, und nur dort können die Tests darüber rot
+      # werden. test/ci_timezone_test.dart hält beides fest.
+      - name: Tests (Europe/Berlin)
+        env:
+          TZ: Europe/Berlin
+        run: flutter test
 
       # Die Data-Safety-CSV ist erzeugt, nicht gepflegt: Antworten stehen in
       # tool/play_data_safety.py, die inhaltliche Begründung in
