@@ -305,6 +305,46 @@ void main() {
       final fridayNoon = DateTime(2026, 3, 6, 12);
       expect(planningWeek(fridayNoon).first, DateTime(2026, 3, 9));
     });
+
+    // #290: Über eine Zeitumstellung hinweg sind 24 Stunden kein Tag. Am
+    // Wochenende 24./25.10.2026 begann der Planer am Sonntag um 23 Uhr
+    // („So–Do", ohne Freitag). Wirksam nur in einer Zeitzone mit
+    // Sommerzeit — deshalb läuft die CI in Europe/Berlin
+    // (test/ci_timezone_test.dart hält das fest).
+    group('über die Zeitumstellung (#290)', () {
+      final cases = {
+        'Freitagnachmittag vor der Umstellung im Oktober': (
+          DateTime(2026, 10, 23, 13),
+          DateTime(2026, 10, 26),
+        ),
+        'Samstag vor der Umstellung im Oktober': (
+          DateTime(2026, 10, 24, 10),
+          DateTime(2026, 10, 26),
+        ),
+        'Sonntag der Umstellung im Oktober (die Meldung)': (
+          DateTime(2026, 10, 25, 20, 47),
+          DateTime(2026, 10, 26),
+        ),
+        'Samstag vor der Umstellung im März': (
+          DateTime(2027, 3, 27, 10),
+          DateTime(2027, 3, 29),
+        ),
+        'Sonntag der Umstellung im März': (
+          DateTime(2027, 3, 28, 10),
+          DateTime(2027, 3, 29),
+        ),
+      };
+      for (final MapEntry(key: name, value: (now, monday)) in cases.entries) {
+        test(name, () {
+          final days = planningWeek(now);
+          expect(days, [
+            for (var i = 0; i < 5; i++)
+              DateTime(monday.year, monday.month, monday.day + i),
+          ], reason: 'Mo–Fr, jeweils Mitternacht — nicht 23:00 oder 01:00');
+          expect(days.map((d) => d.weekday), [1, 2, 3, 4, 5]);
+        });
+      }
+    });
   });
 
   // Der Tag, den das Banner auf der Übersicht zeigt (#122).

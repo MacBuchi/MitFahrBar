@@ -2044,7 +2044,10 @@ beschreibt, was für MitFahrBar davon abweicht oder zusätzlich gilt.
   Preis. Der `android/gradle.properties`-Migrator hängt daran: Auf der
   neueren Toolchain schreibt `flutter build` dort
   `android.builtInKotlin=false` und `android.newDsl=false` zurück, sobald
-  sie fehlen.
+  sie fehlen. Seit 3.47 genauso mit `analysis_options.yaml`: Fehlt dort
+  `exclude: build/** android/** web/**`, schreibt jeder `flutter test`-Lauf
+  den Block hinein („Upgrading analysis_options.yaml…") — er steht deshalb
+  eingecheckt drin, sonst taucht er nach jedem Lauf als Änderung auf.
 - **Zum Ausprobieren in der echten App:** `.claude/skills/run-web/SKILL.md`
   (Demo-Build → lokal ausliefern → Playwright). Flutter-Web zeichnet auf
   Canvas, es gibt also keinen DOM-Text — geprüft wird über Screenshots, die

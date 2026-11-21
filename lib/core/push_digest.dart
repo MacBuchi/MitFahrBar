@@ -387,7 +387,11 @@ List<DuePush> dueMessages({
       // „sobald fällig", nicht „um genau" — ein verspäteter Lauf holt also
       // nach. Die Abfahrt ist der harte Riegel dagegen, dass ein Ausfall
       // jemanden nachts weckt.
-      final opens = pref.eveningTime.on(date.subtract(const Duration(days: 1)));
+      // Der Vortag als Kalendertag, nicht als 24 Stunden davor (#290):
+      // Vor dem Montag nach der Frühjahrsumstellung läge das am Samstag.
+      final opens = pref.eveningTime.on(
+        DateTime(date.year, date.month, date.day - 1),
+      );
       final closes = pref.departureTime.on(date);
       if (now.isBefore(opens) || !now.isBefore(closes)) continue;
 

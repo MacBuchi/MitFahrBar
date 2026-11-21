@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt. Versionsschema:
 `MAJOR.MINOR.PATCH`, gepflegt in `pubspec.yaml`; jeder Versions-Bump auf
 `main` erzeugt automatisch Tag, GitHub-Release und den Web-Deploy.
 
+## [0.89.7] – 2026-11-21
+
+### Behoben
+
+- **Der Wochenplan beginnt wieder immer am Montag** (#290). Am Wochenende der
+  Zeitumstellung Ende Oktober – von Freitagmittag bis Sonntagabend – zeigte
+  der Planer die kommende Woche ab **Sonntag**: Spalten „So bis Do“, der
+  Freitag fehlte. Eingetragenes ist dabei nicht auf falschen Tagen gelandet.
+  Im Frühjahr hätte es eine leisere Fassung desselben Fehlers gegeben; beide
+  sind behoben.
+
 ## [0.89.6] – 2026-11-20
 
 ### Geändert

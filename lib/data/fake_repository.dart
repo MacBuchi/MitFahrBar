@@ -138,7 +138,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
     int days = 7,
   }) async {
     final start = _day(from);
-    final end = start.add(Duration(days: days - 1));
+    final end = DateTime(start.year, start.month, start.day + days - 1);
     return {
       for (final e in _dayDefaults.entries)
         if (!e.key.isBefore(start) && !e.key.isAfter(end)) e.key: e.value,
@@ -151,7 +151,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
     int days = 7,
   }) async {
     final start = _day(from);
-    final end = start.add(Duration(days: days - 1));
+    final end = DateTime(start.year, start.month, start.day + days - 1);
     return {
       for (final e in _carDefaults.entries)
         if (!e.key.isBefore(start) && !e.key.isAfter(end)) e.key: e.value,
@@ -195,7 +195,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
     int days = 7,
   }) async {
     final start = _day(from);
-    final end = start.add(Duration(days: days - 1));
+    final end = DateTime(start.year, start.month, start.day + days - 1);
     return {
       for (final e in _seatChoices.entries)
         if (!e.key.isBefore(start) && !e.key.isAfter(end))
@@ -229,7 +229,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
   @override
   Future<WeekPlan> loadPlan(DateTime from, {int days = 7}) async {
     final start = _day(from);
-    final end = start.add(Duration(days: days - 1));
+    final end = DateTime(start.year, start.month, start.day + days - 1);
     bool inRange(DateTime d) => !d.isBefore(start) && !d.isAfter(end);
 
     return WeekPlan(
@@ -276,7 +276,7 @@ class FakeCarpoolRepository implements CarpoolRepository {
   @override
   Future<List<PlanNote>> loadNotes(DateTime from, {int days = 7}) async {
     final start = _day(from);
-    final end = start.add(Duration(days: days - 1));
+    final end = DateTime(start.year, start.month, start.day + days - 1);
     return List.unmodifiable([
       for (final note in _notes)
         if (!note.date.isBefore(start) && !note.date.isAfter(end)) note,

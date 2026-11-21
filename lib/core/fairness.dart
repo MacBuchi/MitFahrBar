@@ -1217,10 +1217,18 @@ List<DateTime> planningWeek([DateTime? today]) {
   final nextWeek =
       base.weekday >= DateTime.saturday ||
       (base.weekday == DateTime.friday && now.hour >= 12);
-  final monday = nextWeek
-      ? base.add(Duration(days: DateTime.monday + 7 - base.weekday))
-      : base.subtract(Duration(days: base.weekday - DateTime.monday));
-  return [for (var i = 0; i < 5; i++) monday.add(Duration(days: i))];
+  // In Kalendertagen gerechnet, nie mit `Duration(days: …)` (#290): Die
+  // zählt 24 Stunden, der Sonntag der Zeitumstellung im Oktober hat aber 25.
+  // Von Freitagmittag bis Sonntag begann die Woche damit am Sonntag um
+  // 23 Uhr — Spalten „So–Do", der Freitag fehlte. Im Frühjahr träfe es das
+  // richtige Datum um 01:00, und jeder Vergleich gegen Mitternacht kippte.
+  final offset = nextWeek
+      ? DateTime.monday + 7 - base.weekday
+      : DateTime.monday - base.weekday;
+  return [
+    for (var i = 0; i < 5; i++)
+      DateTime(base.year, base.month, base.day + offset + i),
+  ];
 }
 
 /// Der Tag, um den es als Nächstes geht — für das Banner auf der Übersicht
